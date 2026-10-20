@@ -14,8 +14,8 @@
 //! filled the guest's ring, and its audio HAL then dropped whole 85 ms
 //! chunks: "incomplete data sent, dropping 4096 frames", heard as robotic,
 //! broken sound.) Each start begins with LEAD_IN of silence on the Mac, the
-//! slack against the clock and Core Audio drifting apart; capture hands over
-//! as much at once. A queue that ran dry (a late tick, a slow start) starts
+//! slack against the clock and Core Audio drifting apart; capture keeps as
+//! much recorded ahead of its clock (`record_period`). A queue that ran dry (a late tick, a slow start) starts
 //! its next period LEAD_IN after its playhead (`enqueue`): AudioQueue's
 //! timeline goes on while it is empty, and a period enqueued plainly would
 //! be due in the past, dropped unheard; with 20 ms periods every period
@@ -126,6 +126,19 @@ impl Params {
     fn lead_in_periods(&self) -> usize {
         ((LEAD_IN.as_secs_f64() / self.period().as_secs_f64()).ceil() as usize).clamp(1, 8)
     }
+
+    /// The recording the capture clock waits for before it hands any over:
+    /// the lead-in.
+    fn capture_slack_bytes(&self) -> usize {
+        self.lead_in_periods() * self.period_bytes as usize
+    }
+
+    /// The most recording kept for the guest: MAX_QUEUED, and at least two
+    /// periods beyond the slack.
+    fn max_captured_bytes(&self) -> usize {
+        let periods = (MAX_QUEUED.as_secs_f64() / self.period().as_secs_f64()).ceil() as usize;
+        periods.max(self.lead_in_periods() + 2) * self.period_bytes as usize
+    }
 }
 
 /// A message whose reply is written and whose return to the guest waits
@@ -145,6 +158,12 @@ struct Stats {
     dropped: u64,
     held: u64,
     restarts: u64,
+    /// Capture: periods of silence handed over because the microphone fell
+    /// behind the clock (not those before it was up).
+    underruns: u64,
+    /// Capture: times the microphone got so far ahead that its oldest
+    /// recording went.
+    trimmed: u64,
     /// The longest the queue went without handing a buffer back since the
     /// last report.
     longest: Duration,
@@ -161,6 +180,8 @@ struct Stream {
     held: Option<Held>,
     /// Recorded bytes the guest has not taken yet.
     captured: VecDeque<u8>,
+    /// Capture hands over silence until the slack is recorded again.
+    priming: bool,
     audio: Option<Audio>,
     stats: Stats,
 }
@@ -398,14 +419,15 @@ impl Sound {
     /// Makes `audio` the stream's running audio.
     fn install(&mut self, stream: usize, audio: Audio) {
         let mut state = self.state.lock().unwrap();
-        let State { active, streams, .. } = &mut *state;
-        let entry = &mut streams[stream];
-        let Some(params) = entry.params else { return };
+        let entry = &mut state.streams[stream];
+        if entry.params.is_none() {
+            return;
+        }
         entry.started = true;
         entry.audio = Some(audio);
         if stream == CAPTURE {
-            entry.captured.extend(std::iter::repeat_n(0u8, params.lead_in_periods() * params.period_bytes as usize));
-            deliver_capture(active, entry);
+            entry.captured.clear();
+            entry.priming = true;
         }
     }
 
@@ -470,10 +492,7 @@ impl Sound {
         if arrived {
             release_held(active_ref, queue, &mut streams[expected]);
         }
-        // Playback waits for its clock (`play_period`).
-        if queue == RX {
-            deliver_capture(active, &mut streams[CAPTURE]);
-        }
+        // Both wait for their clock (`play_period`, `record_period`).
     }
 }
 
@@ -617,17 +636,44 @@ unsafe fn enqueue(queue: QueueRef, buffer: *mut AudioQueueBuffer, dry: bool, rat
     unsafe { AudioQueueEnqueueBuffer(queue.0, buffer, 0, std::ptr::null()) }
 }
 
-/// Fills waiting capture messages from what was recorded.
-fn deliver_capture(active: &mut Option<Active>, stream: &mut Stream) {
-    let Some(active) = active.as_mut() else { return };
-    while let Some(chain) = stream.pending.front() {
-        let room = chain.writable_len().saturating_sub(STATUS_LEN);
-        if stream.captured.len() < room || room == 0 {
-            break;
+/// One tick of the capture clock: the oldest waiting message gets a whole
+/// period of what the microphone recorded, or a whole period of silence,
+/// never part of each. Only the clock hands recordings over, so the slack
+/// ahead of it lasts. (When the guest was also handed a period whenever it
+/// sent a message and one was there, nothing ever stayed ahead of the clock:
+/// each time the microphone came in a little late the clock found nothing,
+/// and Android heard a period of silence cut into speech.) Silence goes over
+/// until the slack is recorded: at the start, before the microphone is up,
+/// and again whenever it fell behind.
+fn record_period(active: &mut Active, stream: &mut Stream, params: Params) {
+    release_stale(active, RX, stream);
+    let Some(chain) = stream.pending.pop_front() else { return };
+    let room = chain.writable_len().saturating_sub(STATUS_LEN);
+    let needed = if stream.priming { room.max(params.capture_slack_bytes()) } else { room };
+    let data: Vec<u8> = if stream.captured.len() >= needed {
+        stream.priming = false;
+        stream.stats.played += 1;
+        stream.captured.drain(..room).collect()
+    } else {
+        if !stream.priming {
+            stream.priming = true;
+            stream.stats.underruns += 1;
         }
-        let chain = stream.pending.pop_front().unwrap();
-        let data: Vec<u8> = stream.captured.drain(..room).collect();
-        hand_back(active, RX, stream, chain, &data);
+        vec![0; room]
+    };
+    hand_back(active, RX, stream, chain, &data);
+}
+
+/// Keeps what the microphone recorded for the clock. Beyond
+/// `max_captured_bytes` (the microphone's clock runs fast against the
+/// guest's, or the clock woke late) the oldest goes, down to the slack.
+fn keep_recorded(stream: &mut Stream, bytes: &[u8]) {
+    stream.captured.extend(bytes);
+    let Some(params) = stream.params else { return };
+    if stream.captured.len() > params.max_captured_bytes() {
+        let excess = stream.captured.len() - params.capture_slack_bytes();
+        stream.captured.drain(..excess - excess % params.frame_bytes() as usize);
+        stream.stats.trimmed += 1;
     }
 }
 
@@ -667,18 +713,9 @@ fn spawn_clock(state: &Arc<Mutex<State>>, stream: usize, id: u64, params: Params
             let Some(active) = active.as_mut() else { continue };
             if stream == PLAYBACK {
                 play_period(active, entry, id, params);
-                continue;
-            }
-            release_stale(active, RX, entry);
-            let Some(chain) = entry.pending.pop_front() else { continue };
-            {
-                // One period per period: what the microphone recorded (what
-                // is left over evens out its jitter), or silence.
-                let room = chain.writable_len().saturating_sub(STATUS_LEN);
-                let take = room.min(entry.captured.len());
-                let mut data: Vec<u8> = entry.captured.drain(..take).collect();
-                data.resize(room, 0);
-                hand_back(active, RX, entry, chain, &data);
+            } else {
+                record_period(active, entry, params);
+                report_stats(entry, CAPTURE);
             }
         }
     });
@@ -787,7 +824,7 @@ fn spawn_watchdog(state: &Arc<Mutex<State>>, id: u64) {
         if let Some(active) = active.as_mut() {
             release_stale(active, TX, entry);
         }
-        report_stats(entry);
+        report_stats(entry, PLAYBACK);
         if queued == 0 || silent < STALL_LIMIT {
             continue;
         }
@@ -811,13 +848,13 @@ fn spawn_watchdog(state: &Arc<Mutex<State>>, id: u64) {
 }
 
 /// `AVO_VMM_SOUND_DEBUG=1`: the control requests and, every 2 s, what
-/// playback has done.
+/// each running stream has done.
 fn debug() -> bool {
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| std::env::var_os("AVO_VMM_SOUND_DEBUG").is_some_and(|value| value == "1"))
 }
 
-fn report_stats(stream: &mut Stream) {
+fn report_stats(stream: &mut Stream, kind: usize) {
     if !debug() {
         return;
     }
@@ -826,6 +863,22 @@ fn report_stats(stream: &mut Stream) {
         return;
     }
     stream.stats.reported = Some(now);
+    if kind == CAPTURE {
+        let buffered = stream.params.map_or(0.0, |params| {
+            stream.captured.len() as f64 / (params.rate as f64 * params.frame_bytes() as f64) * 1000.0
+        });
+        let microphone = stream.audio.as_ref().is_some_and(|audio| audio.queue.is_some()) as u8;
+        let stats = &stream.stats;
+        eprintln!(
+            "[vmm] sound: capture received {} recorded {} underruns {} trimmed {}; buffered {buffered:.1} ms priming {} microphone {microphone}",
+            stats.received,
+            stats.played,
+            stats.underruns,
+            stats.trimmed,
+            stream.priming as u8,
+        );
+        return;
+    }
     let (idle, queued) = stream.audio.as_ref().map_or((0, 0), |audio| (audio.idle.len(), audio.queue.is_some() as u8));
     let stats = &mut stream.stats;
     eprintln!(
@@ -1137,16 +1190,9 @@ extern "C" fn recorded(user: *mut c_void, queue: AudioQueueRef, buffer: *mut Aud
     if stream.audio.as_ref().map(|audio| audio.id) != Some(tag.id) || !stream.started {
         return;
     }
+    // The clock hands it to the guest.
     let bytes = unsafe { std::slice::from_raw_parts((*buffer).data as *const u8, (*buffer).size as usize) };
-    stream.captured.extend(bytes);
-    // The clock hands it to the guest; keep no more than a few periods.
-    if let Some(params) = stream.params {
-        let limit = params.period_bytes as usize * 4;
-        if stream.captured.len() > limit {
-            let excess = stream.captured.len() - limit;
-            stream.captured.drain(..excess);
-        }
-    }
+    keep_recorded(stream, bytes);
     unsafe { AudioQueueEnqueueBuffer(queue, buffer, 0, std::ptr::null()) };
 }
 
@@ -1361,6 +1407,93 @@ mod tests {
             AudioQueueDispose(queue.0, 1);
         }
         assert!(heard > 0.1, "the queue played silence (level {heard})");
+    }
+
+    /// A receive queue and its messages: a header to read, 16 bytes of PCM
+    /// and a status to write.
+    fn receive() -> (Active, Vec<Chain>) {
+        let memory = Arc::new(GuestMemory::new(GuestRegion::new(RAM, 1 << 16).unwrap()));
+        let mut queues: Vec<Queue> = (0..4).map(|_| Queue::new(64)).collect();
+        queues[RX].ready = true;
+        queues[RX].used_ring = USED;
+        let chains = (0..16u16)
+            .map(|head| {
+                let at = RAM + 0x2000 + head as u64 * 0x100;
+                let descriptors = vec![
+                    super::super::queue::Descriptor { address: at, len: 4, write: false },
+                    super::super::queue::Descriptor { address: at + 0x80, len: 16 + STATUS_LEN as u32, write: true },
+                ];
+                Chain { head, descriptors }
+            })
+            .collect();
+        (Active { memory, queues, interrupt: Interrupt::new(|_| {}) }, chains)
+    }
+
+    /// The PCM the guest got in message `head`.
+    fn received(active: &Active, head: u16) -> Vec<u8> {
+        let mut pcm = vec![0u8; 16];
+        assert!(active.memory.read(RAM + 0x2000 + head as u64 * 0x100 + 0x80, &mut pcm));
+        pcm
+    }
+
+    /// 16-byte, 10 ms periods (mono at a made-up 800 Hz): a slack of three.
+    const RECORDING: Params = Params { buffer_bytes: 64, period_bytes: 16, channels: 1, rate: 800 };
+
+    #[test]
+    fn the_capture_clock_waits_for_its_slack_and_never_splits_a_period() {
+        let (mut active, chains) = receive();
+        let mut stream = Stream { params: Some(RECORDING), priming: true, ..Default::default() };
+        stream.pending.extend(chains);
+        assert_eq!(RECORDING.capture_slack_bytes(), 48);
+
+        // Before the microphone is up: silence, and that is no underrun.
+        record_period(&mut active, &mut stream, RECORDING);
+        assert_eq!(received(&active, 0), [0; 16]);
+        // Two periods recorded are less than the slack: still silence.
+        keep_recorded(&mut stream, &[1; 32]);
+        record_period(&mut active, &mut stream, RECORDING);
+        assert_eq!(received(&active, 1), [0; 16]);
+        assert_eq!(stream.captured.len(), 32);
+        // The third: recording from now on, oldest first, with two to spare.
+        keep_recorded(&mut stream, &[2; 16]);
+        record_period(&mut active, &mut stream, RECORDING);
+        assert_eq!(received(&active, 2), [1; 16]);
+        assert!(!stream.priming);
+        assert_eq!(stream.captured.len(), 32);
+        // The microphone a little late, twice: the slack covers it.
+        record_period(&mut active, &mut stream, RECORDING);
+        record_period(&mut active, &mut stream, RECORDING);
+        assert_eq!((received(&active, 3), received(&active, 4)), ([1; 16].to_vec(), [2; 16].to_vec()));
+        assert_eq!(stream.stats.underruns, 0);
+
+        // Half a period recorded when the clock wants a whole one: silence,
+        // not half of each, and the clock waits for the slack again.
+        keep_recorded(&mut stream, &[3; 8]);
+        record_period(&mut active, &mut stream, RECORDING);
+        assert_eq!(received(&active, 5), [0; 16]);
+        assert_eq!(stream.stats.underruns, 1);
+        assert!(stream.priming);
+        keep_recorded(&mut stream, &[4; 40]);
+        record_period(&mut active, &mut stream, RECORDING);
+        let pcm = received(&active, 6);
+        assert_eq!((&pcm[..8], &pcm[8..]), (&[3; 8][..], &[4; 8][..]), "nothing recorded is lost");
+        assert_eq!(stream.stats.played, 4);
+        assert_eq!(stream.stats.underruns, 1);
+    }
+
+    #[test]
+    fn a_microphone_far_ahead_loses_its_oldest_recording_down_to_the_slack() {
+        let mut stream = Stream { params: Some(RECORDING), ..Default::default() };
+        assert_eq!(RECORDING.max_captured_bytes(), 12 * 16, "120 ms of 10 ms periods");
+        keep_recorded(&mut stream, &[1; 12 * 16]);
+        assert_eq!((stream.captured.len(), stream.stats.trimmed), (12 * 16, 0));
+        keep_recorded(&mut stream, &[2; 16]);
+        assert_eq!(stream.stats.trimmed, 1);
+        assert_eq!(stream.captured.len(), 48);
+        assert_eq!(stream.captured.iter().filter(|&&byte| byte == 2).count(), 16, "the newest stays");
+        // Long periods: the cap still leaves two beyond the slack.
+        let long = Params { buffer_bytes: 4 * 16384, period_bytes: 16384, channels: 2, rate: 48000 };
+        assert_eq!(long.max_captured_bytes(), 3 * 16384);
     }
 
     #[test]
