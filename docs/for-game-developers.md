@@ -215,7 +215,7 @@ adb shell pm list features | grep avo     # feature:dev.avo.feature.MAC=1
 | `keyboard` | A hardware keyboard, `Avo Keyboard` (alphabetic; virtio vendor `1af4`), with real key events. Keys for a window whose display is not the focused one are injected with Android's `input` command. |
 | `mouse` | The Mac's mouse or trackpad. Android has no mouse device: clicks and drags arrive as touches, and scrolling as swipes or scroll events. In Game Mode with FPS controls Avo captures the pointer on the Mac and turns its motion into drags in the game's camera area. |
 | `touch` | `Avo Touch Screen 0` to `15`, one per display: the touches above, and the touches key mapping makes from keys (tap, hold, joystick, swipe). |
-| `gamepad` | `Avo Gamepad`, an Xbox One S controller to Android (`045e:02ea`, Android's stock Xbox layout). It is plugged in only while a game controller connected to the Mac drives it, so a game does not switch to controller prompts when nobody uses one. |
+| `gamepad` | `Xbox Wireless Controller`, an Xbox One S controller to Android (`045e:02ea`, Android's stock Xbox layout), named like a real one because some games (Call of Duty: Mobile) accept only controllers whose name they know. It is plugged in only while a game controller connected to the Mac drives it, so a game does not switch to controller prompts when nobody uses one. |
 
 A player on Avo is almost always using a keyboard and a mouse or trackpad.
 

@@ -435,10 +435,10 @@ mod tests {
 
     #[test]
     fn gamepad_is_an_xbox_pad_on_usb() {
-        let mut pad = Input::new(Description::gamepad("Avo Gamepad"));
+        let mut pad = Input::new(Description::gamepad("Xbox Wireless Controller"));
         let ids: Vec<u16> = read(&mut pad, CFG_ID_DEVIDS, 0).chunks(2).map(|b| u16::from_le_bytes([b[0], b[1]])).collect();
         assert_eq!(ids, [BUS_USB, 0x045e, 0x02ea, 0x0001]);
-        assert_eq!(read(&mut pad, CFG_ID_NAME, 0), b"Avo Gamepad");
+        assert_eq!(read(&mut pad, CFG_ID_NAME, 0), b"Xbox Wireless Controller");
 
         let keys = read(&mut pad, CFG_EV_BITS, EV_KEY as u8);
         let has = |bits: &[u8], code: u16| bits.get(code as usize / 8).is_some_and(|b| b >> (code % 8) & 1 == 1);
@@ -501,7 +501,7 @@ mod tests {
 
     #[test]
     fn an_unbound_driver_takes_its_unread_events_along() {
-        let mut pad = Input::new(Description::gamepad("Avo Gamepad"));
+        let mut pad = Input::new(Description::gamepad("Xbox Wireless Controller"));
         pad.sender().send(&GamepadReport::new(1, [0; 8]).events_since(None));
         assert!(!pad.state.lock().unwrap().pending.is_empty());
         pad.reset();

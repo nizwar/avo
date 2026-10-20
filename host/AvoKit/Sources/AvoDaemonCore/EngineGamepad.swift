@@ -4,8 +4,10 @@ import AvoProtocol
 /// in engine/hvf/vmm/src/virtio/input.rs) that avo-vmm's `gamepad` command
 /// drives. HostAgent plays the Input channel's GAMEPAD records on it.
 enum EngineGamepad {
-    /// Its name in Android (/sys/class/input/input*/name).
-    static let name = "Avo Gamepad"
+    /// Its name in Android (/sys/class/input/input*/name): the one an Xbox
+    /// controller has there, since some games (Call of Duty: Mobile) accept
+    /// only controllers whose name they know.
+    static let name = "Xbox Wireless Controller"
 
     /// The engine command for `state`, from GameController units (-1…1 with
     /// y up, triggers 0…1) to evdev ones: sticks ±32767 with y down,

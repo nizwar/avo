@@ -547,7 +547,9 @@ fn boot(options: &Options, renderer: Option<&RenderHost>) -> Result<machine::Sto
     }
     let keyboard = Input::new(Description::keyboard("Avo Keyboard"));
     // Plugged in last (below), so the devices before it keep their PCI slots.
-    let gamepad = Input::new(Description::gamepad("Avo Gamepad"));
+    // Named like an Xbox controller on Android: games such as Call of Duty:
+    // Mobile accept only controllers whose name they know.
+    let gamepad = Input::new(Description::gamepad("Xbox Wireless Controller"));
     let controls = Controls::new(touchscreens, keyboard.sender(), gamepad.sender(), displays, frame_handle,
                                  options.display, gnss);
     machine.add_virtio(Box::new(keyboard));

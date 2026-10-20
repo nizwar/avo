@@ -33,7 +33,7 @@ import Testing
     }
 
     @Test func scriptsFindTheGamepadByNameAndRebindOnlyAnUnboundInputDevice() {
-        #expect(EngineGamepad.detachScript.contains("= 'Avo Gamepad' ]"))
+        #expect(EngineGamepad.detachScript.contains("= 'Xbox Wireless Controller' ]"))
         #expect(EngineGamepad.detachScript.contains("/sys/bus/virtio/drivers/virtio_input/unbind"))
         #expect(EngineGamepad.attachScript.contains("= 0x0012 ] && [ ! -e $v/driver ]"))
         #expect(!EngineGamepad.attachScript.contains("\n"), "one shell line")
