@@ -284,6 +284,13 @@ public protocol GPUFallbackEngine: VMEngine {
     func forgetGPUCrashes()
 }
 
+/// An engine whose running Android can take the GPU layers the next start
+/// names before that start (VMMEngine, HostAgent.stageGPULayers): the
+/// profile's GPU layers, the gfxstream sync layer, or both.
+public protocol GPULayerEngine: VMEngine {
+    func stageGPULayers(profile: Bool, gfxstreamSync: Bool) async
+}
+
 /// One GPU launch of avo-vmm, fed by the event pump, a once-a-second check
 /// and the process's termination handler (on their own threads). Exactly
 /// one of them gets a failure, so the fallback runs once.

@@ -216,7 +216,11 @@ GLES 3.1 and Vulkan 1.3.
   first vertex instead of its last. Apps' own Vulkan instances do not see the
   extension. Processes that start before HostAgent names the layer, every
   boot (SurfaceFlinger, system_server, SystemUI), stay at ES 2.0; they work
-  with either.
+  with either. A software start removes the file: unnamed, libvulkan still
+  opens every `libVkLayer*.so` in that folder in every app (userdebug), and
+  apps whose packer refuses libraries from `/data/local` kill themselves when
+  one turns up (FLUJO, ijiami). A Renderer change or "Try GPU Again" puts it
+  back before the restart, so the GPU start names it at once.
 - **Native ASTC** (`engine/hvf/vmm/layer/native_astc.c`, `virtio/gpu/astc.rs`):
   gfxstream decompresses ASTC into RGBA8 itself unless the driver samples
   *linear-tiled* ASTC, which Metal never does, and an emulated ASTC texture
@@ -468,11 +472,15 @@ when "Emulate this phone's hardware" is on, the profile's SoC naming
 Android is up, because doing it at first boot would break it: naming a Vulkan
 layer system-wide before its file exists stops the graphics services. So the
 daemon installs `libGLES_avo_profile.so` into `/data/local/debug/gles` and
-`libVkLayer_avo_profile.so` into `/data/local/debug/vulkan` at every boot
-that lacks them, emulated or not, and sets `debug.gles.layers` and
-`debug.vulkan.layers` only on a boot that began with the files in place: a
-process that started before the install would fail to create a Vulkan
-instance (`GuestGPUProfile`). The GLES
+`libVkLayer_avo_profile.so` into `/data/local/debug/vulkan` on a boot that
+emulates the GPU, and sets `debug.gles.layers` and `debug.vulkan.layers`
+only on a boot that began with the files in place: a process that started
+before the install would fail to create a Vulkan instance
+(`GuestGPUProfile`). A boot that emulates no GPU removes the files, since
+libvulkan opens the Vulkan one in every app even unnamed (see the gfxstream
+sync layer above for the apps that refuse it), and turning emulation on, or
+picking a profile with a GPU, installs them before the restart that setting
+needs. The GLES
 layer answers an app's own `glGetString` with the profile's vendor, renderer
 and driver version instead of ANGLE's; the Vulkan layer reports the profile's
 GPU to an app's own Vulkan. Both leave SurfaceFlinger, HWUI, WebView and

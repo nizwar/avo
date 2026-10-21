@@ -34,6 +34,12 @@ import Foundation
 /// vkCreateInstance fail (VK_ERROR_LAYER_NOT_PRESENT), and with it ANGLE,
 /// HWUI and system_server. So the property is set only on a boot that began
 /// with the file in place: the boot that first installs it waits for the next.
+///
+/// A boot without the GPU removes the file again (`removeScript`): unnamed,
+/// libvulkan still opens it in every app, and some apps kill themselves over
+/// a library from `/data/local` (GuestGPUProfile says which). A setting that
+/// asks for the GPU again puts it back at once (HostAgent.stageGPULayers), so
+/// the restart it needs begins with the file.
 enum GuestGfxstreamSync {
     static let layerName = "VK_LAYER_AVO_gfxstream_sync"
     static let fileName = "libVkLayer_avo_gfxstream_sync.so"
@@ -81,6 +87,16 @@ enum GuestGfxstreamSync {
             "chcon u:object_r:apk_data_file:s0 /data/local/debug \(directory) \(temporary)",
             "mv -f \(temporary) \(path)",
             "rm -f \(staging)",
+        ].joined(separator: "\n")
+    }
+
+    /// Removes the layer, and the folders that leaves empty, for a boot
+    /// without the GPU: `rmdir` keeps a folder another layer is in.
+    static func removeScript() -> String {
+        [
+            "set -e",
+            "rm -f \(path) \(directory)/.avo-gfxsync.new",
+            "rmdir \(directory) /data/local/debug 2>/dev/null || true",
         ].joined(separator: "\n")
     }
 

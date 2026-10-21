@@ -622,6 +622,15 @@ extension VMMEngine: GPUFallbackEngine {
     }
 }
 
+/// Settings › Graphics and "Try GPU Again": the GPU layers the next start
+/// names go in while this one runs (GuestGPUProfile, GuestGfxstreamSync).
+extension VMMEngine: GPULayerEngine {
+    public func stageGPULayers(profile: Bool, gfxstreamSync: Bool) async {
+        await wakeIfPaused()
+        await lock.withLock({ self.agent })?.stageGPULayers(profile: profile, gfxstreamSync: gfxstreamSync)
+    }
+}
+
 /// Settings › Fingerprints: HostAgent enrolls and touches fingerprints in
 /// the virtual sensor of userdebug Cuttlefish (GuestFingerprints).
 extension VMMEngine: FingerprintEngine {

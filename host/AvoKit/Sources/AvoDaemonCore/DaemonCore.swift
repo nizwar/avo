@@ -419,6 +419,8 @@ public actor DaemonCore {
         try await clearForVMChange(.restart)
         GPUFallbackRecord.remove(paths: deps.paths)
         (deps.engine as? any GPUFallbackEngine)?.forgetGPUCrashes()
+        // A software start removed the gfxstream sync layer the GPU start names.
+        await (deps.engine as? any GPULayerEngine)?.stageGPULayers(profile: false, gfxstreamSync: true)
         await vm.stop()
         try await ensureRunning()
     }
@@ -728,6 +730,14 @@ public actor DaemonCore {
         if new.rendererMode != old.rendererMode {
             GPUFallbackRecord.remove(paths: deps.paths)
             (deps.engine as? any GPUFallbackEngine)?.forgetGPUCrashes()
+        }
+        // The GPU layers the next start names go in now, so the restart these
+        // settings need begins with them; the ones it drops go at that start.
+        if new.emulateHardware != old.emulateHardware || new.deviceProfileID != old.deviceProfileID
+            || new.rendererMode != old.rendererMode, let engine = deps.engine as? any GPULayerEngine {
+            let profile = deps.profiles.profile(id: new.deviceProfileID)
+            await engine.stageGPULayers(profile: GuestGPUProfile.emulatesGPU(profile, emulateHardware: new.emulateHardware),
+                                        gfxstreamSync: new.rendererMode != .software)
         }
         if new.fpsLimit != old.fpsLimit { await applyFrameRateLimit(new.fpsLimit) }
         if new.adbEnabled != old.adbEnabled || new.adbPort != old.adbPort {
