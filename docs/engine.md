@@ -225,8 +225,8 @@ GLES 3.1 and Vulkan 1.3.
   Android has the overlays of a `remount` (Google apps) and the known vendor
   build, the same layer runs inside the Vulkan driver instead, so a GPU start
   puts nothing of Avo's in `/data/local/debug` and FLUJO runs. HostAgent puts
-  a wrapping `vulkan.ranchu.so` on the vendor overlay, with the real driver
-  and the software one beside it, and an init file bind-mounts that folder
+  a wrapping `vulkan.ranchu.so` on the vendor overlay, with a copy of the real
+  driver beside it (once Android is ready), and an init file bind-mounts that folder
   over the APEX's `hw` folder at `post-fs-data` on a GPU start whose
   identity.prop has `ro.boot.avo.vkwrap=1`. Below libvulkan the layer sees
   presents as `QueueSignalReleaseImageANDROID`, one per image, and new

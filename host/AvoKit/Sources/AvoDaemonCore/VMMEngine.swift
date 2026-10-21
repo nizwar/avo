@@ -314,6 +314,8 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         await agent.shareFolder(Self.sharedFolderFlags(launch.config).last.map { URL(filePath: $0, directoryHint: .isDirectory) })
         await agent.useDisplayRate(launch.displayRate)
         await agent.useBluetooth(netsimd != nil)
+        // Whether Android has Avo's Vulkan driver wrapper, for the next start's failures.
+        await agent.noteVulkanWrapper { [paths = launch.paths] in GuestVulkanWrapper.noteInstalled($0, paths: paths) }
         await agent.applyDeviceSettings(wifi: launch.config.wifiEnabled, shareMacBluetooth: launch.config.shareMacBluetooth,
                                         cellular: launch.config.cellularEnabled)
         await agent.sampleProcesses(lock.withLock { processSink })
@@ -337,7 +339,6 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
             do {
                 // VMManager gives up first (up to 15 minutes for a first boot).
                 try await agent.prepare(deadline: ContinuousClock.now + .seconds(960))
-                GuestVulkanWrapper.noteInstalled(await agent.hasVulkanWrapper, paths: launch.paths)
             } catch {
                 logger.error("Android did not get ready: \(String(describing: error), privacy: .public)")
             }

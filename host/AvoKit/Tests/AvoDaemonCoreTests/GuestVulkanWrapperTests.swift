@@ -82,7 +82,9 @@ import Testing
         #expect(!GuestVulkanWrapper.installScript(build).contains("base64"))
         let dir = GuestVulkanWrapper.installedDir
         #expect(lines.contains("cp \(GuestVulkanWrapper.hwDir)/vulkan.ranchu.so \(dir)/\(GuestVulkanWrapper.realName)"))
-        #expect(lines.contains("cp \(GuestVulkanWrapper.hwDir)/\(GuestVulkanWrapper.softwareName) \(dir)/\(GuestVulkanWrapper.softwareName)"))
+        // Only GPU starts mount it: the software driver needs no copy.
+        #expect(!lines.contains { $0.contains("vulkan.pastel.so") })
+        #expect(lines.contains("umask 022"), "a restrictive shell would make the folder root's alone")
         #expect(lines.contains("cp \(GuestVulkanWrapper.staged) \(dir)/vulkan.ranchu.so"))
         #expect(lines.contains { $0.hasPrefix("chcon \(GuestVulkanWrapper.label) \(dir)") })
         // The old init file goes before the files change, the new one comes last, by rename.

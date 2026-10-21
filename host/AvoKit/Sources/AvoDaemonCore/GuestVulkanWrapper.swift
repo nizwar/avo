@@ -11,12 +11,12 @@ import Foundation
 /// (ranchu) from `/apex/com.google.cf.vulkan/lib64/hw/vulkan.ranchu.so`. Avo
 /// puts a directory over that `hw` one (a bind mount, like `GuestComposer`'s
 /// over the composer binary) holding a wrapping `vulkan.ranchu.so`
-/// (`VulkanWrapperHelper`, from guest/vkwrap), the real driver beside it as
-/// `vulkan.ranchu.avoreal.so`, and the unchanged software driver
-/// `vulkan.pastel.so`. The wrapper opens the real driver and runs the sync
-/// layer over it (guest/vkwrap/src/vk_wrap.c). The real driver's own
-/// dependencies stay in the parent `lib64` directory, which the bind mount
-/// leaves in place, so it still links.
+/// (`VulkanWrapperHelper`, from guest/vkwrap) and the real driver beside it
+/// as `vulkan.ranchu.avoreal.so`; the software driver (`vulkan.pastel.so`)
+/// needs no copy, since only GPU starts mount it. The wrapper opens the real
+/// driver and runs the sync layer over it (guest/vkwrap/src/vk_wrap.c). The
+/// real driver's own dependencies stay in the parent `lib64` directory, which
+/// the bind mount leaves in place, so it still links.
 ///
 /// Like the composer, this needs the overlays of a `remount` (Google apps)
 /// and the known vendor build, and the copy and its init file apply from the
@@ -36,8 +36,6 @@ enum GuestVulkanWrapper {
     /// The real driver, beside the wrapper for it to open. `vk_wrap.c`'s
     /// `REAL_PATH` must match.
     static let realName = "vulkan.ranchu.avoreal.so"
-    /// The software driver, copied in unchanged so it still resolves.
-    static let softwareName = "vulkan.pastel.so"
 
     /// The replacement `hw` directory, on the vendor overlay of a `remount`.
     static let installedDir = "/vendor/etc/avo/vkhw"
@@ -147,13 +145,16 @@ enum GuestVulkanWrapper {
     }
 
     /// Run as root after adb pushed this build's wrapper to `staged`: the
-    /// wrapper and copies of the real and the software driver go onto the
-    /// vendor overlay, then the init file that mounts them from the next GPU
-    /// start. The old init file goes first, so a failed step leaves nothing
-    /// to mount; the step fails without the overlays.
+    /// wrapper and a copy of the real driver go onto the vendor overlay, then
+    /// the init file that mounts them from the next GPU start. The old init
+    /// file goes first, so a failed step leaves nothing to mount; the step
+    /// fails without the overlays. The overlay's scratch partition is
+    /// mounted `sync`: the 5 MB copy takes a while.
     static func installScript(_ build: Build) -> String {
         ([
             "set -e",
+            // Folders a restrictive shell (umask 077) would make root's alone.
+            "umask 022",
             "grep -q '^overlay /vendor overlay' /proc/mounts",
             "grep -q '^overlay /system overlay' /proc/mounts",
             "[ \"$(getprop ro.vendor.build.fingerprint)\" = '\(build.fingerprint)' ]",
@@ -163,9 +164,8 @@ enum GuestVulkanWrapper {
             "rm -f \(initFile)",
             "rm -rf \(installedDir)",
             "mkdir -p \(installedDir)",
-            // The real driver and the software driver, copied out from the APEX.
+            // The real driver, copied out from the APEX.
             "cp \(hwDir)/\(driverName) \(installedDir)/\(realName)",
-            "cp \(hwDir)/\(softwareName) \(installedDir)/\(softwareName)",
             "cp \(staged) \(installedDir)/\(driverName)",
             "chown -R root:shell \(installedDir)",
             "chmod 755 \(installedDir)",
@@ -184,6 +184,7 @@ enum GuestVulkanWrapper {
     static func updateScript(_ build: Build) -> String {
         ([
             "set -e",
+            "umask 022",
             "[ \"$(sha256sum \(installedDir)/\(realName) | cut -d ' ' -f 1)\" = \(build.driverSHA256) ]",
             stagedCheck,
             "remount >/dev/null 2>&1",

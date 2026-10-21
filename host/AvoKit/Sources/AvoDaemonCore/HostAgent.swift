@@ -60,6 +60,11 @@ actor HostAgent: DisplayResizing {
     /// It runs at the next GPU start (this start's engine lets it), so that
     /// start needs no gfxstream sync layer in /data/local/debug.
     private var vulkanWrapperNextStart = false
+    /// What the boot's start found (`checkVulkanWrapper`), whether the engine
+    /// lets the wrapper run, and who keeps `hasVulkanWrapper` (VMMEngine).
+    private var vulkanWrapperState: GuestVulkanWrapper.State?
+    private var vulkanWrapperAllowed = false
+    private var vulkanWrapperNoted: (@Sendable (Bool) -> Void)?
     /// Android is paused (VMMEngine's pause): the watches skip their turns,
     /// which would only queue up commands for it ("Pause").
     private(set) var paused = false
@@ -184,6 +189,7 @@ actor HostAgent: DisplayResizing {
             await self?.noticeGPUDebugLayers()
             await self?.applyWiFi()
             await self?.showFourGForLTE()
+            await self?.installVulkanWrapper()
         }
         Task { [weak self] in await self?.sharedFolder?.start() }
         // Each watch ends with the agent too: one an engine crash left behind
@@ -436,44 +442,73 @@ actor HostAgent: DisplayResizing {
         }
     }
 
+    /// Before `prepare`: told whether Android has Avo's Vulkan driver
+    /// wrapper whenever the agent learns it (VMMEngine keeps it for the next start).
+    func noteVulkanWrapper(_ note: @escaping @Sendable (Bool) -> Void) {
+        vulkanWrapperNoted = note
+    }
+
     /// Avo's Vulkan driver wrapper (GuestVulkanWrapper): whether it runs the
-    /// gfxstream sync layer this boot. Where the overlays and the vendor build
-    /// allow, it goes in, or this build of it, for the GPU starts the engine
-    /// lets it run (`switchProperty`).
+    /// gfxstream sync layer this boot. Putting it in, or this build of it,
+    /// waits until Android is ready (`installVulkanWrapper`): it applies from
+    /// the next GPU start anyway.
     private func checkVulkanWrapper() async -> Bool {
         guard GuestVulkanWrapper.wrapper != nil, let output = try? await root(GuestVulkanWrapper.stateCommand).output else {
             return false
         }
-        let allowed = (try? await shell("getprop \(GuestVulkanWrapper.switchProperty)"))?.trimmed == "1"
+        vulkanWrapperAllowed = (try? await shell("getprop \(GuestVulkanWrapper.switchProperty)"))?.trimmed == "1"
         let state = GuestVulkanWrapper.state(output: output)
+        vulkanWrapperState = state
         switch state {
-        case let .running(current, build):
-            hasVulkanWrapper = true
-            vulkanWrapperNextStart = allowed
+        case .running:
+            setVulkanWrapper(true)
             logger.notice("Vulkan driver: Avo's wrapper runs the gfxstream sync layer this start")
-            if !current, let build, await pushVulkanWrapper(), (try? await root(GuestVulkanWrapper.updateScript(build)))?.succeeded == true {
-                logger.notice("Vulkan driver: Avo's wrapper updated for apps started from now on")
-            }
             return true
         case .pending:
-            hasVulkanWrapper = true
-            vulkanWrapperNextStart = allowed
+            setVulkanWrapper(true)
+            noteVulkanWrapperNextStart()
         case .unknown:
+            setVulkanWrapper(false)
             logger.notice("Vulkan driver: unknown vendor build; the gfxstream sync layer stays in /data/local/debug")
-        case let .stock(build):
-            if await pushVulkanWrapper(), (try? await root(GuestVulkanWrapper.installScript(build)))?.succeeded == true {
-                hasVulkanWrapper = true
-                vulkanWrapperNextStart = allowed
-            } else {
-                logger.notice("Vulkan driver: Avo's wrapper not installed (no remount overlays?); the gfxstream sync layer stays in /data/local/debug")
-            }
-        }
-        if hasVulkanWrapper, allowed {
-            logger.notice("Vulkan driver: Avo's wrapper runs the gfxstream sync layer from the next GPU start")
-        } else if hasVulkanWrapper {
-            logger.notice("Vulkan driver: Avo's wrapper stays off (it failed a GPU start); the gfxstream sync layer stays in /data/local/debug")
+        case .stock:
+            setVulkanWrapper(false)
         }
         return false
+    }
+
+    /// Once Android is ready: puts the wrapper in for the next GPU start, or
+    /// this build of it over an older one that runs, unless the wrapper
+    /// failed a GPU start (the engine then leaves it off).
+    private func installVulkanWrapper() async {
+        switch vulkanWrapperState {
+        case let .running(current: false, build?)?:
+            if await pushVulkanWrapper(), (try? await root(GuestVulkanWrapper.updateScript(build)))?.succeeded == true {
+                logger.notice("Vulkan driver: Avo's wrapper updated for the apps started from now on")
+            }
+        case let .stock(build)? where vulkanWrapperAllowed:
+            guard await pushVulkanWrapper(), (try? await root(GuestVulkanWrapper.installScript(build)))?.succeeded == true else {
+                logger.notice("Vulkan driver: Avo's wrapper not installed (no remount overlays?); the gfxstream sync layer stays in /data/local/debug")
+                return
+            }
+            setVulkanWrapper(true)
+            noteVulkanWrapperNextStart()
+        default:
+            break
+        }
+    }
+
+    private func setVulkanWrapper(_ installed: Bool) {
+        hasVulkanWrapper = installed
+        vulkanWrapperNextStart = installed && vulkanWrapperAllowed
+        vulkanWrapperNoted?(installed)
+    }
+
+    private func noteVulkanWrapperNextStart() {
+        if vulkanWrapperAllowed {
+            logger.notice("Vulkan driver: Avo's wrapper runs the gfxstream sync layer from the next GPU start")
+        } else {
+            logger.notice("Vulkan driver: Avo's wrapper stays off (it failed a GPU start); the gfxstream sync layer stays in /data/local/debug")
+        }
     }
 
     /// This build's wrapper to `GuestVulkanWrapper.staged`.
