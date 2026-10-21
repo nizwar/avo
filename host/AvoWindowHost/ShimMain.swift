@@ -54,6 +54,8 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     private(set) var androidStatus = VMStatus.stopped
     /// Where the engine keeps what Android plays: recordings take their sound from it.
     private(set) var audioTap: AudioTapLocation?
+    /// How many notifications the app has in Android (its Dock badge).
+    private var notificationCount = 0
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "Shim")
 
     init(package: String, label: String, notificationKey: String?) {
@@ -81,6 +83,8 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
                 openWindow(notificationKey: pendingNotificationKey)
                 pendingNotificationKey = nil
                 for await event in client.events { handle(event) }
+                notificationCount = 0
+                updateDockBadge()
                 // The daemon restarted: our displays are gone (a recording keeps what it has).
                 for window in windows {
                     window.stopRecording()
@@ -159,6 +163,7 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
             let old = self.config
             self.config = config
             for window in windows { window.configurationChanged(from: old, immediate: false) }
+            updateDockBadge()
         case .appStopped(let stopped) where stopped == package:
             // Force stopped in the Control Panel: Android already ended it.
             appEnded = true
@@ -168,6 +173,9 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
             ShimFingerprints.shared.update(status)
         case .audioTap(let location):
             audioTap = location
+        case .notificationCount(let counted, let count) where counted == package:
+            notificationCount = count
+            updateDockBadge()
         case .location(let status):
             // The Location panel and Quick Settings (LocationPanel.swift).
             LocationModel.shared.update(status)
@@ -253,6 +261,12 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     /// windows in the phone's-screen mode (nil for Avo's own identity).
     var deviceProfile: DeviceProfile? { profiles.first { $0.id == config.deviceProfileID } }
     var deviceDisplay: DeviceProfile.Display? { config.deviceDisplay(in: profiles) }
+
+    /// The number on the Dock icon, as a phone's launcher shows it (Settings › Notifications).
+    private func updateDockBadge() {
+        let label = config.dockBadges && notificationCount > 0 ? notificationCount.formatted() : nil
+        if NSApp.dockTile.badgeLabel != label { NSApp.dockTile.badgeLabel = label }
+    }
 
     /// Keep on Top changed in one window: every window of the app follows.
     func windowModesChanged() {

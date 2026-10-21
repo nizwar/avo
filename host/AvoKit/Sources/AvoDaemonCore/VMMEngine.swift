@@ -583,6 +583,15 @@ extension VMMEngine: FingerprintEngine {
     }
 }
 
+/// Library › Widgets: Avo Widgets, which HostAgent installs.
+extension VMMEngine: WidgetsEngine {
+    func widgetsGuest() async throws -> any WidgetsGuest {
+        await wakeIfPaused()
+        guard let agent = lock.withLock({ self.agent }), await agent.isReady else { throw AvoError.vmNotRunning }
+        return agent
+    }
+}
+
 /// Google apps (Settings › System): userdebug Cuttlefish lets root turn off
 /// dm-verity and remount the system partitions, which HostAgent does.
 extension VMMEngine: SystemAppsEngine {

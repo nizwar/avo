@@ -55,6 +55,12 @@ final class ControlPanelModel {
     private(set) var icons: [String: NSImage] = [:]
     /// Android's recent notifications, newest first.
     private(set) var notifications: [AndroidNotification] = []
+    /// Android widgets on the Mac (Library › Widgets).
+    private(set) var widgets: [PlacedWidget] = []
+    /// The widgets Android's apps offer, as last asked (nil: not yet).
+    private(set) var widgetProviders: [WidgetProvider]?
+    /// Why the last ask failed (Android not running, Avo Widgets not ready yet).
+    private(set) var widgetProvidersProblem: String?
     /// Whether macOS shows Avo's notifications (System Settings › Notifications);
     /// nil until the daemon says (MacNotificationsViews.swift).
     private(set) var macNotifications: MacNotificationPermission?
@@ -387,6 +393,8 @@ final class ControlPanelModel {
             snapshot?.config = config
         case .notifications(let list):
             notifications = list
+        case .widgets(let list):
+            widgets = list
         case .macNotifications(let permission):
             notificationPermissionGeneration += 1
             macNotifications = permission
@@ -668,6 +676,27 @@ final class ControlPanelModel {
     func clearNotifications() {
         notifications = []
         perform { try await $0.clearNotifications() }
+    }
+
+    // MARK: Widgets
+
+    func refreshWidgetProviders() async {
+        guard let client else { return }
+        do {
+            widgetProviders = try await client.widgetProviders()
+            widgetProvidersProblem = nil
+        } catch {
+            widgetProvidersProblem = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    func addWidget(_ provider: WidgetProvider) {
+        perform { _ = try await $0.addWidget(provider.provider) }
+    }
+
+    func removeWidget(_ widget: PlacedWidget) {
+        widgets.removeAll { $0.id == widget.id }
+        perform { try await $0.removeWidget(widget.id) }
     }
 
     /// System Settings › Notifications › Avo (the daemon posts them).

@@ -805,6 +805,9 @@
         }
       }
     },
+    "Add" : {
+
+    },
     "Add Finger" : {
       "localizations" : {
         "id" : {
@@ -814,6 +817,9 @@
           }
         }
       }
+    },
+    "Add a Widget" : {
+
     },
     "Add fingers to Android in its Settings app." : {
       "localizations" : {
@@ -1057,6 +1063,9 @@
         }
       }
     },
+    "An open app’s Dock icon shows how many notifications it has in Android, as a phone’s home screen does." : {
+
+    },
     "An upgrade can take your current apps and data along, but the older Android can’t use them afterwards." : {
       "localizations" : {
         "id" : {
@@ -1217,6 +1226,9 @@
           }
         }
       }
+    },
+    "Android asks for its settings when it is added" : {
+
     },
     "Android can’t start fresh there." : {
       "localizations" : {
@@ -2686,6 +2698,9 @@
           }
         }
       }
+    },
+    "Badges in the Dock" : {
+
     },
     "Balanced (%lld%%)" : {
       "localizations" : {
@@ -5470,6 +5485,9 @@
         }
       }
     },
+    "Its size on the Mac, in points" : {
+
+    },
     "Keep Android’s Data on “%@”" : {
       "localizations" : {
         "id" : {
@@ -6261,6 +6279,9 @@
         }
       }
     },
+    "No widgets" : {
+
+    },
     "None (F-Droid, Aurora Store)" : {
       "localizations" : {
         "id" : {
@@ -6270,6 +6291,9 @@
           }
         }
       }
+    },
+    "None of the apps in Android offers a widget yet." : {
+
     },
     "Not Now" : {
       "localizations" : {
@@ -6551,6 +6575,9 @@
           }
         }
       }
+    },
+    "On Your Mac" : {
+
     },
     "On this display the lowest is %lld%%, because Android's density can't go below 120 dpi." : {
       "localizations" : {
@@ -7052,6 +7079,9 @@
           }
         }
       }
+    },
+    "Put Android widgets on your Mac. Each one sits on the desktop and stays live: it updates and takes clicks as on a phone. Hover over one to move it, keep it on top or remove it." : {
+
     },
     "Quality (%lld%%)" : {
       "localizations" : {
@@ -8096,6 +8126,9 @@
         }
       }
     },
+    "Start Android to see the widgets its apps offer. Widgets you added come back when it runs." : {
+
+    },
     "Start Android to see what its apps use." : {
       "localizations" : {
         "id" : {
@@ -8474,6 +8507,9 @@
           }
         }
       }
+    },
+    "Takes the widget off the Mac" : {
+
     },
     "Taking Google apps out of the system partitions…" : {
       "localizations" : {
@@ -9610,6 +9646,9 @@
           }
         }
       }
+    },
+    "Widgets" : {
+
     },
     "Width" : {
       "localizations" : {

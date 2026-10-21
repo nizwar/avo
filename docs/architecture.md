@@ -93,6 +93,13 @@ split bundles are looked up across density splits.
 - Desktop alias (on by default) and Dock tile (off by default) follow the
   Control Panel options and are removed on uninstall. Aliases never replace a
   real file.
+- Dock badges (Settings › System › Notifications, on by default): the daemon
+  keeps the notifications Android shows (`activeNotifications`, the same ones
+  the Notifications list takes: no ongoing, foreground-service or group
+  summary ones, none without text) and sends each app's App Shims
+  `notificationCount` when it changes and when they connect. The shim sets
+  `NSApp.dockTile.badgeLabel`. A shim runs only while the app has a window,
+  so an app that is not open shows no badge.
 
 ## Windows (spec §2, "Native")
 
@@ -876,6 +883,54 @@ through HostAgent (`GuestFingerprints` has the commands and their parsing):
 - **No hardware token:** the virtual sensor signs no hardware auth token, so
   keys bound to biometric authentication (CryptoObject) stay locked even after
   a recognized finger.
+
+## Android widgets (Library › Widgets)
+
+Android apps' home screen widgets show on the Mac in floating panels, live:
+they update and take clicks as on a phone.
+
+- **In Android:** Avo Widgets (`guest/widgets`, `dev.avo.widgets`), built
+  like Avo Links and installed by HostAgent at each start when Android's copy
+  differs. `appwidget grantbind` (as root) lets it bind any app's widget
+  without asking; QUERY_ALL_PACKAGES lets it see every app's.
+  - `WidgetsProvider`: `content read --uri content://dev.avo.widgets/providers`
+    lists the widgets as JSON (provider, labels, size in dp, a preview PNG);
+    `content call … --method delete --arg SLOT` lets go of a removed panel's
+    widget. Only the shell and root may ask.
+  - `WidgetActivity`: one widget filling a display of its own, started with
+    `avo-widget://SLOT?provider=…` (`GuestWidgets.startCommand`, a task per
+    panel). A slot keeps its Android widget id in the app's preferences, so a
+    panel shows the same widget after a restart. One shared `AppWidgetHost`
+    listens while any activity shows a widget. It ends with its display.
+- **The list:** the daemon keeps `widgets.json` (`PlacedWidget`: slot,
+  provider, size) and sends `DaemonEvent.widgets` to Control Panels.
+- **The panels** (`WidgetPanels`, in AvoWindowHost) run in the daemon's own
+  process, which is there whenever Android is. They are an in-process client
+  (`DaemonCore.registerInProcess`, role `shim(dev.avo.widgets)`), so they need
+  no XPC connection or shim hash. Each opens a display with
+  `OpenDisplayRequest.widget`; `openDisplay` turns it into the activity's
+  launch. The renderer draws them with `avo_keyed`: Android's empty, pure
+  black display around the widget becomes transparent, so a panel has the
+  widget's own shape. The panel sits just above the desktop's icons, or on
+  top (hover bar: move, keep on top, remove).
+- **Taps:** widget views are made with `MainDisplayContext`, which starts
+  a tapped widget's PendingIntent on Android's own screen
+  (`setLaunchDisplayId(0)`), where an app Avo knows gets its window at the
+  next look. Anything that still starts on a widget's display (an app the
+  widget starts itself) is moved there by the look every 2 s; an app Avo has
+  no window for just leaves the widget's display.
+- **Settings:** a widget that asks for its settings first opens in a
+  larger panel (`AndroidWidgets.setupSize`). The task watch reports each
+  widget display's top activity (`displayContentChanged`); once the widget is
+  back on top, the panel shrinks to the widget's size (a re-plug).
+- **Size:** a new panel takes whole launcher cells (80 × 100 dp, as a 4 × 5
+  home screen), as many as the widget wants or its minimum takes; widgets
+  often draw past their minimum, and what they leave empty is transparent.
+  Dragging an edge resizes the panel; at the end of the drag its display
+  takes the new size (a re-plug) and the widget lays out again.
+- **Limits:** each panel takes one of the 15 scanouts, and an open panel
+  keeps Android from pausing when idle. Pure black inside a widget shows
+  through.
 
 ## Android's location (GPS)
 

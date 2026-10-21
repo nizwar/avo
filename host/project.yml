@@ -155,6 +155,9 @@ targets:
       - package: AvoKit
         product: AvoHostKit
         embed: false
+      # Android widgets' panels (WidgetPanels), run in the daemon; Avo.app embeds the framework.
+      - target: AvoWindowHost
+        embed: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(AVO_BUNDLE_ID_PREFIX).daemon

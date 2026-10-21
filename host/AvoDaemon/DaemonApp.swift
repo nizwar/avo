@@ -4,6 +4,7 @@ import AvoADB
 import AvoDaemonCore
 import AvoKit
 import AvoShimKit
+import AvoWindowHost
 import CryptoKit
 import os
 import Security
@@ -15,6 +16,8 @@ final class DaemonAppDelegate: NSObject, NSApplicationDelegate {
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "Daemon")
     private var service: DaemonService?
     private var menuBar: MenuBarController?
+    /// Android widgets on the Mac, in floating panels (Library › Widgets).
+    private var widgetPanels: WidgetPanels?
     private var location: MacLocation?
     private var macState: MacSystemState?
     /// Restarts the daemon on a new Avo once an update replaced Avo.app (AppUpdateWatcher.swift).
@@ -138,6 +141,17 @@ final class DaemonAppDelegate: NSObject, NSApplicationDelegate {
         let service = DaemonService(core: core, policy: Self.callerPolicy(avoApp: avoApp), listener: listener)
         service.resume()
         self.service = service
+        let panels = WidgetPanels()
+        widgetPanels = panels
+        Task { @MainActor in
+            let id = await core.registerInProcess(role: .shim(package: AndroidWidgets.package), proxy: ClientProxy(panels.client))
+            panels.connect(WidgetPanelsBackend(
+                openDisplay: { try await core.openDisplay($0, client: id) },
+                resizeDisplay: { try await core.resizeDisplay($0, width: $1, height: $2, dpi: $3, client: id) },
+                closeDisplay: { await core.closeDisplay($0, client: id) },
+                sendInput: { await core.sendInput($0, client: id) },
+                removeWidget: { try await core.removeWidget($0, client: id) }))
+        }
         let menuBar = MenuBarController(core: core, avoApp: avoApp)
         self.menuBar = menuBar
         let updateWatcher = AppUpdateWatcher(avoApp: avoApp, core: core, logger: logger)

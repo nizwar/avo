@@ -60,7 +60,7 @@ final class DisplayView: NSView, @preconcurrency NSTextInputClient {
     override func makeBackingLayer() -> CALayer { renderer.layer }
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-    override var isOpaque: Bool { true }
+    override var isOpaque: Bool { !renderer.keysOutBlack }
 
     func setDisplaySize(_ size: CGSize) {
         displaySize = size

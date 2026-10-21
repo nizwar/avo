@@ -17,6 +17,7 @@
 		1138D23B2432621A0392F88E /* SettingsPanes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57272A45292573622BEB9050 /* SettingsPanes.swift */; };
 		128569D3D4414E7CCAC8FBF0 /* AvoWindowHost.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 248B6565DC21EC727F3D7C71 /* AvoWindowHost.framework */; };
 		12B4999A17C07FA0376DF28D /* WheelScrolling.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF22EB11A4CB702484B63BA7 /* WheelScrolling.swift */; };
+		18D8B4E25D143F13C679325F /* WidgetPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 757FE7FE5E8552F4983486D2 /* WidgetPanels.swift */; };
 		18D8C01B3F511120069B064D /* KeymapController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A074AE3498D751BAF59ECA /* KeymapController.swift */; };
 		1B1204EF16529C260E2187CD /* AvoHostKit in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 957B5B66D0F5E689DE4D838D /* AvoHostKit */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		1CA74D2CBF37CCEABC2AD104 /* ScreenLockViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F76FFA7A8CF6177165575DE /* ScreenLockViews.swift */; };
@@ -88,7 +89,9 @@
 		9EB8D450C0C503B5EFB30482 /* HazeTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12A275DEF061CFBDBEF5CC62 /* HazeTheme.swift */; };
 		9FAA8E4EF51EE25F06A5AA3C /* KeymapPainter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D63B45E8FF7A8CD3EA868420 /* KeymapPainter.swift */; };
 		A09E9299E5A5031C018DBE5C /* CaptureFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = EADFC800FDCF147039B429D8 /* CaptureFiles.swift */; };
+		A1B784729F3E35B8F50ED563 /* LibraryWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 905C8E6CAB4242DDF3E1E469 /* LibraryWidgets.swift */; };
 		A3E94E28A8A33351A9FC58CC /* AppUsageCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 133C04954F11344B77B5022D /* AppUsageCard.swift */; };
+		A49072EADBFC83C7D3B0CB7D /* AvoWindowHost.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 248B6565DC21EC727F3D7C71 /* AvoWindowHost.framework */; };
 		A4A31EDC272A86BE61A24F45 /* AndroidDataChoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A3463515835B3ED9B627C58 /* AndroidDataChoice.swift */; };
 		A8B0E2263B945A2E87DD64B1 /* SetupCarriedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80402279174CF43A99B84FE9 /* SetupCarriedData.swift */; };
 		A9658D77E881DBF56C0FB819 /* AndroidWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6B98E4EAC479449B37A4DA1 /* AndroidWindowController.swift */; };
@@ -165,16 +168,23 @@
 			remoteGlobalIDString = 42DEABA5A84D92F2DA57154E;
 			remoteInfo = avoctl;
 		};
+		D9F58849320AE65152714BFC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F110EACC3625723C5C5EF47B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 694851832BD5A0D904312EAF;
+			remoteInfo = AvoWindowHost;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		1D53782E6B5857E8BE21FBDA /* Embed Dependencies */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = Contents/Library/Helpers;
+			dstPath = Contents/Library/Shim;
 			dstSubfolderSpec = 1;
 			files = (
-				47016DFED92044DBDCC83456 /* AvoDaemon.app in Embed Dependencies */,
+				326B9CFA8AD399ABB0184081 /* AvoShim.app in Embed Dependencies */,
 			);
 			name = "Embed Dependencies";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -193,10 +203,10 @@
 		C7672177C149A74FB486AFCE /* Embed Dependencies */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = Contents/Library/Shim;
+			dstPath = Contents/Library/Helpers;
 			dstSubfolderSpec = 1;
 			files = (
-				326B9CFA8AD399ABB0184081 /* AvoShim.app in Embed Dependencies */,
+				47016DFED92044DBDCC83456 /* AvoDaemon.app in Embed Dependencies */,
 			);
 			name = "Embed Dependencies";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -276,6 +286,7 @@
 		6443F229E33272C0A1B90151 /* ScreenRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRecorder.swift; sourceTree = "<group>"; };
 		65F7E2A3C00C21BDBF58BE20 /* ReportProblem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportProblem.swift; sourceTree = "<group>"; };
 		7041D0AA8B7A00CB09C30AC6 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		757FE7FE5E8552F4983486D2 /* WidgetPanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetPanels.swift; sourceTree = "<group>"; };
 		75A225255260D6D6FA585B52 /* FrameRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameRouter.swift; sourceTree = "<group>"; };
 		76B7EBE203806538C8FDEE11 /* ShimMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShimMain.swift; sourceTree = "<group>"; };
 		7A4D9E1DB1788819C8F17DA9 /* AvoDaemon.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AvoDaemon.entitlements; sourceTree = "<group>"; };
@@ -288,6 +299,7 @@
 		8BC81EDA9B2997933033B2D0 /* FrameRateHint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameRateHint.swift; sourceTree = "<group>"; };
 		8BEACB0E1606E0C9E8530E4F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		903260C33E7D650A332BF9E4 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		905C8E6CAB4242DDF3E1E469 /* LibraryWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryWidgets.swift; sourceTree = "<group>"; };
 		926265DAA0B720EAF8BF3858 /* StorageLocationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageLocationViews.swift; sourceTree = "<group>"; };
 		946A4C5DF4F4F105214BC3E3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		955B641751C45E99B315D024 /* MetalFX.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalFX.framework; path = System/Library/Frameworks/MetalFX.framework; sourceTree = SDKROOT; };
@@ -378,6 +390,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				40BB43C8EB6FA24466005634 /* AvoHostKit in Frameworks */,
+				A49072EADBFC83C7D3B0CB7D /* AvoWindowHost.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -497,6 +510,7 @@
 				9D722692C6D18A39B469780F /* LibraryNotifications.swift */,
 				1986CB9B7D4C96CDD6360302 /* LibraryOnboarding.swift */,
 				C2BC11CE910091D745949D83 /* LibrarySidebar.swift */,
+				905C8E6CAB4242DDF3E1E469 /* LibraryWidgets.swift */,
 				801D5BA6131483549457E5CD /* LibraryWindow.swift */,
 				7ADF0EF092F403AF5496C807 /* Localizable.xcstrings */,
 				AE536E637F769B87027A72CC /* MacNotificationsViews.swift */,
@@ -605,6 +619,7 @@
 				76B7EBE203806538C8FDEE11 /* ShimMain.swift */,
 				4BD8108EF46DAE00801D9C67 /* SpatialUpscaler.swift */,
 				BF22EB11A4CB702484B63BA7 /* WheelScrolling.swift */,
+				757FE7FE5E8552F4983486D2 /* WidgetPanels.swift */,
 			);
 			path = AvoWindowHost;
 			sourceTree = "<group>";
@@ -662,6 +677,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				8D1A74767E8E9BE2EB993356 /* PBXTargetDependency */,
 			);
 			name = AvoDaemon;
 			packageProductDependencies = (
@@ -780,9 +796,9 @@
 			targets = (
 				243453C01CA644BAF15DD378 /* Avo */,
 				41761C4E2C66BAA7B6933779 /* AvoDaemon */,
-				4F7A38BABD13756D57420C24 /* AvoShim */,
 				694851832BD5A0D904312EAF /* AvoWindowHost */,
 				42DEABA5A84D92F2DA57154E /* avoctl */,
+				4F7A38BABD13756D57420C24 /* AvoShim */,
 			);
 		};
 /* End PBXProject section */
@@ -898,6 +914,7 @@
 				B67F6DA128DF5A02F67CC4F5 /* ShimMain.swift in Sources */,
 				503949AFD1AAE5E77994DA66 /* SpatialUpscaler.swift in Sources */,
 				12B4999A17C07FA0376DF28D /* WheelScrolling.swift in Sources */,
+				18D8B4E25D143F13C679325F /* WidgetPanels.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -933,6 +950,7 @@
 				EB01F61B50DFA0D9586A8835 /* LibraryNotifications.swift in Sources */,
 				0892E09C99877F8269BE8E9F /* LibraryOnboarding.swift in Sources */,
 				FCE84B743F1B4CCB9BED05E5 /* LibrarySidebar.swift in Sources */,
+				A1B784729F3E35B8F50ED563 /* LibraryWidgets.swift in Sources */,
 				824B4DCB7896D35C75E806E6 /* LibraryWindow.swift in Sources */,
 				BEB389B8C9A2E025B8131B2D /* MacNotificationsViews.swift in Sources */,
 				9109B36B6B2C9AD9B5563C72 /* NotificationsPane.swift in Sources */,
@@ -1004,6 +1022,11 @@
 			isa = PBXTargetDependency;
 			target = 694851832BD5A0D904312EAF /* AvoWindowHost */;
 			targetProxy = 308972D269D6F21093513D9C /* PBXContainerItemProxy */;
+		};
+		8D1A74767E8E9BE2EB993356 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 694851832BD5A0D904312EAF /* AvoWindowHost */;
+			targetProxy = D9F58849320AE65152714BFC /* PBXContainerItemProxy */;
 		};
 		FE38E82FB77BBBBEA12FC992 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;

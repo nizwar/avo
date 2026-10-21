@@ -93,7 +93,7 @@ public actor DaemonCore {
         var visible = true
     }
 
-    private let deps: Dependencies
+    let deps: Dependencies
     /// For the extensions in other files (SharedFolderBridge.swift).
     nonisolated var dependencies: Dependencies { deps }
     public nonisolated let vm: VMManager
@@ -120,6 +120,11 @@ public actor DaemonCore {
     private var lastClipboardFromGuest: String?
     /// Android's notifications since the daemon started, newest first.
     private var recentNotifications: [AndroidNotification] = []
+    /// The notifications Android shows now, key → package: the apps' Dock
+    /// badges. Unlike `recentNotifications` it is never cut short.
+    private var activeNotifications: [String: String] = [:]
+    /// Android widgets on the Mac (DaemonWidgets.swift).
+    var placedWidgets: [PlacedWidget]
     /// In-process watchers of the VM status (the menu bar). `vm.statusUpdates`
     /// is an AsyncStream, which hands each element to one reader only, so
     /// this actor is its only reader and passes every update on.
@@ -180,6 +185,7 @@ public actor DaemonCore {
         self.vm = vm
         fingerprints = FingerprintCenter(paths: deps.paths, engine: deps.engine)
         usage = AppUsageRecorder(url: deps.paths.usage)
+        placedWidgets = Self.loadWidgets(deps.paths)
         adb = ADBForwarder { try await vm.adbSocket() }
         location = LocationCenter(engine: deps.engine as? any LocationEngine, wake: { try? await vm.wake() })
     }
@@ -328,9 +334,12 @@ public actor DaemonCore {
         if role == .controlPanel {
             proxy.send(.appActivity(appActivity()))
             proxy.send(.notifications(recentNotifications))
+            proxy.send(.widgets(placedWidgets))
             proxy.send(.macNotifications(await deps.notifications.permission()))
         } else {
             if case .shim = role, let audioTap { proxy.send(.audioTap(audioTap)) }
+            if case .shim(let package) = role { proxy.send(.notificationCount(package: package, count: notificationCount(of: package))) }
+            if role == .shim(package: AndroidWidgets.package) { proxy.send(.widgets(placedWidgets)) }
             publishActivity()
         }
         return DaemonHello(daemonVersion: deps.softwareVersion, status: await vm.status)
@@ -349,7 +358,7 @@ public actor DaemonCore {
         }
     }
 
-    private func broadcast(_ event: DaemonEvent, to filter: (ClientHello.Role) -> Bool = { _ in true }) {
+    func broadcast(_ event: DaemonEvent, to filter: (ClientHello.Role) -> Bool = { _ in true }) {
         for client in clients.values where filter(client.role) { client.proxy.send(event) }
     }
 
@@ -366,7 +375,7 @@ public actor DaemonCore {
     /// whose windows follow graphics changes (the engine has no use for it).
     private func receivesConfiguration(_ role: ClientHello.Role) -> Bool { role != .engine }
 
-    private func requireControlPanel(_ id: ClientID) throws {
+    func requireControlPanel(_ id: ClientID) throws {
         guard clients[id]?.role == .controlPanel else { throw AvoError.unauthorizedCaller }
     }
 
@@ -631,6 +640,8 @@ public actor DaemonCore {
             displays.removeAll()
             runningPackages.removeAll()
             publishActivity()
+            // Android's notifications went with it; the next start reports them again.
+            setActiveNotifications { $0.removeAll() }
         default:
             break
         }
@@ -1315,6 +1326,17 @@ public actor DaemonCore {
         launch.notificationKey = request.notificationKey ?? ""
         launch.dataUri = request.dataURI ?? ""
         launch.mimeType = request.mimeType ?? ""
+        if package == AndroidWidgets.package {
+            // A widget panel: its widget, nothing the panel says otherwise.
+            guard let widget = placedWidgets.first(where: { $0.id == request.widget }) else {
+                displays[id] = nil
+                throw AvoError.displayUnavailable("no such widget")
+            }
+            launch.component = AndroidWidgets.activity
+            launch.dataUri = AndroidWidgets.launchURI(slot: widget.id, provider: widget.provider)
+            launch.notificationKey = ""
+            launch.mimeType = ""
+        }
         do {
             try await vm.controlSession().request(.launch(launch))
         } catch {
@@ -1324,7 +1346,8 @@ public actor DaemonCore {
             throw error
         }
         await vm.setOpenDisplays(displays.count)
-        usageWindowOpened(id, package: package)
+        // A widget is no app the Library counts time for.
+        if package != AndroidWidgets.package { usageWindowOpened(id, package: package) }
         publishActivity()
         return id
     }
@@ -1504,6 +1527,7 @@ public actor DaemonCore {
             deps.notifications.post(notification, appName: appName, icon: await registry.icon(for: notification.package))
             // Ongoing ones and empty group summaries are not worth a row.
             guard !notification.ongoing, !(notification.title.isEmpty && notification.body.isEmpty) else { return }
+            setActiveNotifications { $0[notification.key] = notification.package }
             let posted = notification.postedAtMs > 0 ? Date(timeIntervalSince1970: Double(notification.postedAtMs) / 1000) : Date()
             recentNotifications.removeAll { $0.key == notification.key }
             recentNotifications.insert(AndroidNotification(key: notification.key, package: notification.package, appName: appName,
@@ -1514,6 +1538,7 @@ public actor DaemonCore {
             deps.notifications.remove(key: removed.key)
             // Dismissed or withdrawn in Android: gone from the list as well.
             recentNotifications.removeAll { $0.key == removed.key }
+            setActiveNotifications { $0[removed.key] = nil }
             await publishNotifications()
         case .clipboardChanged(let changed):
             lastClipboardFromGuest = changed.text
@@ -1545,6 +1570,27 @@ public actor DaemonCore {
 
     private func publishNotifications() async {
         broadcast(.notifications(recentNotifications), to: isControlPanel)
+    }
+
+    // MARK: Notifications (Dock badges)
+
+    func notificationCount(of package: String) -> Int {
+        Self.counts(activeNotifications)[package, default: 0]
+    }
+
+    private static func counts(_ notifications: [String: String]) -> [String: Int] {
+        notifications.values.reduce(into: [:]) { $0[$1, default: 0] += 1 }
+    }
+
+    /// Changes what Android shows, and tells the App Shims of each app
+    /// whose count changed.
+    private func setActiveNotifications(_ change: (inout [String: String]) -> Void) {
+        let old = Self.counts(activeNotifications)
+        change(&activeNotifications)
+        let new = Self.counts(activeNotifications)
+        for package in Set(old.keys).union(new.keys) where old[package] != new[package] {
+            broadcast(.notificationCount(package: package, count: new[package, default: 0])) { $0 == .shim(package: package) }
+        }
     }
 
     /// The Notifications pane and Settings › System ask again while they
@@ -1586,6 +1632,7 @@ public actor DaemonCore {
         guard !keys.isEmpty else { return }
         for key in keys { deps.notifications.remove(key: key) }
         recentNotifications.removeAll { keys.contains($0.key) }
+        setActiveNotifications { active in for key in keys { active[key] = nil } }
         await publishNotifications()
         guard let control = try? await vm.controlSession() else { return }
         for key in keys.sorted() {

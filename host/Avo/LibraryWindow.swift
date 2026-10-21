@@ -9,7 +9,7 @@ import UniformTypeIdentifiers
 // the status pill floats below this one (StatusPill.swift).
 
 enum LibrarySection: String, CaseIterable, Identifiable {
-    case home, games, apps, notifications, activity
+    case home, games, apps, widgets, notifications, activity
 
     var id: String { rawValue }
 
@@ -18,6 +18,7 @@ enum LibrarySection: String, CaseIterable, Identifiable {
         case .home: "Home"
         case .games: "Games"
         case .apps: "Apps"
+        case .widgets: "Widgets"
         case .notifications: "Notifications"
         case .activity: "System Status"
         }
@@ -28,6 +29,7 @@ enum LibrarySection: String, CaseIterable, Identifiable {
         case .home: "house"
         case .games: "gamecontroller"
         case .apps: "square.grid.2x2"
+        case .widgets: "rectangle.3.group"
         case .notifications: "bell"
         case .activity: "waveform.path.ecg"
         }
@@ -176,6 +178,9 @@ private struct LibraryMain: View {
                         .transition(arrival)
                 case .activity:
                     SystemStatusView()
+                        .transition(arrival)
+                case .widgets:
+                    LibraryWidgets()
                         .transition(arrival)
                 case .home, .games, .apps:
                     VStack(alignment: .leading, spacing: 26) {

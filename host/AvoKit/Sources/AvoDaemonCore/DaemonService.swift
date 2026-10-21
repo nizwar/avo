@@ -356,6 +356,22 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
         run(reply) { [self] in try await core.lockAndroidForFingerprints(client: id) }
     }
 
+    func widgetProviders(reply: @escaping @Sendable (Data?, NSError?) -> Void) {
+        run(reply) { [self] in AvoXPC.encode(try await core.widgetProviders(client: id)) }
+    }
+
+    func placedWidgets(reply: @escaping @Sendable (Data?, NSError?) -> Void) {
+        run(reply) { [self] in AvoXPC.encode(try await core.placedWidgets(client: id)) }
+    }
+
+    func addWidget(_ provider: String, reply: @escaping @Sendable (Data?, NSError?) -> Void) {
+        run(reply) { [self] in AvoXPC.encode(try await core.addWidget(provider, client: id)) }
+    }
+
+    func removeWidget(_ widget: String, reply: @escaping @Sendable (NSError?) -> Void) {
+        run(reply) { [self] in try await core.removeWidget(widget, client: id) }
+    }
+
     func permissions(package: String, reply: @escaping @Sendable (Data?, NSError?) -> Void) {
         run(reply) { [self] in AvoXPC.encode(try await core.permissions(for: package, client: id)) }
     }

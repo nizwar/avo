@@ -88,6 +88,8 @@ actor HostAgent: DisplayResizing {
     /// found nothing on it (see `watchTasks`).
     private var startedAt: [UInt32: ContinuousClock.Instant] = [:]
     private var emptyChecks: [UInt32: Int] = [:]
+    /// What each widget panel's display shows on top (`reportWidgetTops`).
+    private var widgetTops: [UInt32: String] = [:]
     private var watching: Task<Void, Never>?
     /// Tasks seen in front on display 0 (Android's own screen, never shown).
     private var frontOnDefault: Set<Int> = []
@@ -109,6 +111,8 @@ actor HostAgent: DisplayResizing {
     private var linkSink: (@Sendable (URL) -> Void)?
     private var linkReader = GuestLinkReader()
     private var linkWatch: Task<Void, Never>?
+    /// Installing Avo Widgets this start (true once Android has this build's copy).
+    private var widgetsInstall: Task<Bool, Never>?
     /// Android's screen lock while it keeps Android locked, where its changes
     /// go, the kind of credential this start found (none: nothing to watch),
     /// and the checks and the unlock running now (see "Screen lock").
@@ -184,6 +188,7 @@ actor HostAgent: DisplayResizing {
             }
         }
         linkWatch = Task { [weak self] in await self?.runLinks() }
+        widgetsInstall = Task { [weak self] in await self?.installWidgets() ?? false }
         polling = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(3))
@@ -227,6 +232,7 @@ actor HostAgent: DisplayResizing {
         defaultWatch?.cancel()
         clipboardWatch?.cancel()
         linkWatch?.cancel()
+        widgetsInstall?.cancel()
         await sharedFolder?.stop()
         _ = try? await root("reboot -p")
         await adb?.close()
@@ -678,7 +684,14 @@ actor HostAgent: DisplayResizing {
             // A task the app already has on Android's own screen (started by
             // adb or another app, or sent to the background) moves here as it
             // is; otherwise the app starts here.
-            if launch.component.isEmpty,
+            if launch.package == AndroidWidgets.package {
+                // A widget panel: Avo Widgets shows the panel's widget.
+                guard await widgetsInstall?.value == true else { throw AvoError.displayUnavailable("Avo Widgets is not installed") }
+                let output = try await shell(GuestWidgets.startCommand(data: launch.dataUri, display: androidID))
+                if output.contains("Error") || output.contains("Exception") {
+                    throw AvoError.displayUnavailable(output.trimmed)
+                }
+            } else if launch.component.isEmpty,
                let task = Self.rootTask(of: launch.package, onDisplay: 0, in: try await shell("am stack list")) {
                 _ = try await shell("am display move-stack \(task) \(androidID)")
             } else {
@@ -765,6 +778,8 @@ actor HostAgent: DisplayResizing {
     /// Android 17 restores a re-plugged display's tasks; older versions
     /// leave them on display 0.
     private func bringBack(_ display: Display, to androidID: Int) async throws {
+        // A widget panel's activity ends with its display (WidgetActivity).
+        guard display.package != AndroidWidgets.package else { return }
         let tasks = try await shell("am stack list")
         if Self.hasTask(of: display.package, onDisplay: androidID, in: tasks) { return }
         let component = try await launcherComponent(display.package)
@@ -777,6 +792,37 @@ actor HostAgent: DisplayResizing {
     static func startCommand(_ component: String, display: Int) -> String {
         "am start --display \(display) -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f 0x10200000 -n "
             + quote(component)
+    }
+
+    /// A widget panel's display shows its widget, or the widget's settings
+    /// while it is being set up (the panel is larger then): each change goes
+    /// to the panel as the display's content (`title`: the top activity).
+    private func reportWidgetTops(_ output: String) async {
+        for display in displays.values where display.package == AndroidWidgets.package {
+            guard let androidID = display.androidID,
+                  let top = Self.topActivity(of: AndroidWidgets.package, onDisplay: androidID, in: output),
+                  widgetTops[display.id] != top else { continue }
+            widgetTops[display.id] = top
+            var changed = Avo_V1_DisplayContentChanged()
+            changed.displayID = display.id
+            changed.package = display.package
+            changed.title = top
+            await send(Avo_V1_Envelope(.displayContentChanged(changed)))
+        }
+    }
+
+    /// `taskId=66: dev.avo.widgets/… visible=true topActivity=ComponentInfo{com.example/com.example.Setup}`:
+    /// the top activity of `package`'s task on a display.
+    static func topActivity(of package: String, onDisplay androidID: Int, in output: String) -> String? {
+        var onDisplay = false
+        for line in output.split(separator: "\n") {
+            if line.hasPrefix("RootTask ") {
+                onDisplay = line.contains(" displayId=\(androidID) ")
+            } else if onDisplay, line.contains(": \(package)/"), let range = line.range(of: "topActivity=ComponentInfo{") {
+                return String(line[range.upperBound...].prefix { $0 != "}" })
+            }
+        }
+        return nil
     }
 
     /// `RootTask id=20 bounds=[…] displayId=3 …` followed by its
@@ -832,6 +878,7 @@ actor HostAgent: DisplayResizing {
         var output = stacks
         if output == nil { output = try? await shell("am stack list") }
         guard let output else { return true }
+        await reportWidgetTops(output)
         for id in settled {
             guard let androidID = displays[id]?.androidID, !resizing.contains(id) else { continue }
             if Self.hasVisibleTask(onDisplay: androidID, in: output) {
@@ -1087,8 +1134,13 @@ actor HostAgent: DisplayResizing {
         var taken: Set<UInt32> = []
         for display in displays.values where !resizing.contains(display.id) {
             guard let androidID = display.androidID else { continue }
-            for task in Self.visibleRootTasks(onDisplay: androidID, in: output)
-            where task.package != display.package && known[task.package] != nil {
+            for task in Self.visibleRootTasks(onDisplay: androidID, in: output) where task.package != display.package {
+                guard known[task.package] != nil else {
+                    // A widget's tap opened an app Avo has no window for: it
+                    // leaves the widget's display, which shows the widget only.
+                    if display.package == AndroidWidgets.package { _ = try? await shell("am display move-stack \(task.root) 0") }
+                    continue
+                }
                 if await moveIntoEndedWindow(task.root, of: task.package, in: output, taken: &taken) { continue }
                 _ = try? await shell("am display move-stack \(task.root) 0")
                 moved.insert(task.root)
@@ -1292,6 +1344,7 @@ actor HostAgent: DisplayResizing {
         // A resize waiting for the launch or the loop has nothing left to wait for.
         defer { finishResize(id) }
         guard let display = displays.removeValue(forKey: id) else { return }
+        widgetTops[id] = nil
         // Before the first await, so no launch takes the scanout meanwhile.
         releasing.insert(display.scanout)
         touches[id] = nil
@@ -2445,6 +2498,36 @@ extension HostAgent {
         return Self.uid(of: Self.linksPackage, in: (try? await shell("pm list packages -U " + Self.linksPackage)) ?? "")
     }
 
+    /// Installs Avo Widgets when Android's copy is not this build's, and
+    /// lets it bind widgets (each start: a reinstall forgets it).
+    private func installWidgets() async -> Bool {
+        guard let adb, let apk = Self.widgetsAPK else { return false }
+        var installed: String?
+        if let path = Self.baseAPKPath(in: (try? await shell("pm path " + AndroidWidgets.package)) ?? "") {
+            installed = Self.sha256(sumOutput: (try? await shell("sha256sum " + Self.quote(path))) ?? "")
+        }
+        if installed != apk.sha256 {
+            do {
+                try await Self.install(apk.data, adb: adb)
+            } catch let error where "\(error)".contains("INSTALL_FAILED_UPDATE_INCOMPATIBLE") {
+                // Signed with another key (built elsewhere): only a new install goes on.
+                _ = try? await shell("pm uninstall " + AndroidWidgets.package)
+                guard (try? await Self.install(apk.data, adb: adb)) != nil else {
+                    logger.error("Avo Widgets did not install")
+                    return false
+                }
+            } catch {
+                logger.error("Avo Widgets did not install: \(String(describing: error), privacy: .public)")
+                return false
+            }
+            logger.notice("installed Avo Widgets")
+        }
+        if let result = try? await root(GuestWidgets.grantCommand), !result.succeeded {
+            logger.error("Avo Widgets may not bind widgets: \(result.output.trimmed, privacy: .public)")
+        }
+        return true
+    }
+
     private static func install(_ apk: Data, adb: ADBConnection) async throws {
         let part = ADBConnection.InstallPart(name: "base.apk", size: UInt64(apk.count)) {
             AsyncThrowingStream { $0.yield(apk); $0.finish() }
@@ -2732,6 +2815,20 @@ extension HostAgent: FingerprintGuest {
     func fingerprintPush(_ data: Data, to path: String) async throws {
         guard let adb else { throw AvoError.guestUnavailable }
         try await adb.push(AsyncStream { $0.yield(data); $0.finish() }, to: path)
+    }
+}
+
+// MARK: - Widgets (Library › Widgets: Avo Widgets, GuestWidgets)
+
+extension HostAgent: WidgetsGuest {
+    func widgetProviders() async throws -> [WidgetProvider] {
+        guard await widgetsInstall?.value == true else { throw AvoError.guestUnavailable }
+        return try GuestWidgets.providers(try await shell(GuestWidgets.listCommand))
+    }
+
+    func deleteWidget(slot: String) async {
+        guard await widgetsInstall?.value == true else { return }
+        _ = try? await shell(GuestWidgets.deleteCommand(slot: slot))
     }
 }
 

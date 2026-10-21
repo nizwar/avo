@@ -644,6 +644,9 @@
         }
       }
     },
+    "Android no longer has this widget." : {
+
+    },
     "Android reported an error." : {
       "localizations" : {
         "id" : {
@@ -2442,6 +2445,9 @@
           }
         }
       }
+    },
+    "This Android shows no widgets." : {
+
     },
     "This Mac can give Android at most %lld GB." : {
       "localizations" : {

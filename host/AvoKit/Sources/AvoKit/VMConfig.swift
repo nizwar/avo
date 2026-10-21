@@ -106,6 +106,8 @@ public struct VMConfig: Codable, Equatable, Sendable {
     public var adbPort: Int
     /// Android's GPS reports where this Mac is (CoreLocation).
     public var shareLocation: Bool
+    /// An app's Dock icon shows how many notifications it has in Android.
+    public var dockBadges: Bool
 
     // Shortcuts (spec §4)
     public var createDesktopAlias: Bool
@@ -118,7 +120,7 @@ public struct VMConfig: Codable, Equatable, Sendable {
                 graphicsOverrides: [String: AppGraphicsOverride] = [:], performanceHUD: PerformanceHUDLevel = .off,
                 defaultWindowSize: WindowSize = WindowSize(width: 412, height: 892),
                 rooted: Bool = false, deviceProfileID: String = DeviceProfile.defaultID, emulateHardware: Bool = false,
-                gms: GMSMode = .none, adbEnabled: Bool = false, adbPort: Int = VMConfig.defaultADBPort, shareLocation: Bool = true,
+                gms: GMSMode = .none, adbEnabled: Bool = false, adbPort: Int = VMConfig.defaultADBPort, shareLocation: Bool = true, dockBadges: Bool = true,
                 createDesktopAlias: Bool = true, addToDock: Bool = false) {
         self.memoryMiB = memoryMiB
         self.cpuCount = cpuCount
@@ -143,6 +145,7 @@ public struct VMConfig: Codable, Equatable, Sendable {
         self.adbEnabled = adbEnabled
         self.adbPort = adbPort
         self.shareLocation = shareLocation
+        self.dockBadges = dockBadges
         self.createDesktopAlias = createDesktopAlias
         self.addToDock = addToDock
     }
@@ -225,7 +228,7 @@ public struct VMConfig: Codable, Equatable, Sendable {
         case memoryMiB, cpuCount, balloonWhenIdle, autoPauseMinutes, dataDiskGiB, imageLocation, shareFolder, sharedFolderPath
         case renderer, rendererMode, fpsLimit
         case appGraphics, gameGraphics, graphicsOverrides, performanceHUD
-        case defaultWindowSize, rooted, deviceProfileID, emulateHardware, gms, adbEnabled, adbPort, shareLocation
+        case defaultWindowSize, rooted, deviceProfileID, emulateHardware, gms, adbEnabled, adbPort, shareLocation, dockBadges
         case createDesktopAlias, addToDock
     }
 
@@ -288,6 +291,7 @@ public struct VMConfig: Codable, Equatable, Sendable {
         adbEnabled = try value(.adbEnabled, defaults.adbEnabled)
         adbPort = try value(.adbPort, defaults.adbPort)
         shareLocation = try value(.shareLocation, defaults.shareLocation)
+        dockBadges = try value(.dockBadges, defaults.dockBadges)
         createDesktopAlias = try value(.createDesktopAlias, defaults.createDesktopAlias)
         addToDock = try value(.addToDock, defaults.addToDock)
     }
@@ -460,6 +464,7 @@ extension VMConfig {
         check(\.adbEnabled, "adbEnabled", .immediate)
         check(\.adbPort, "adbPort", .immediate)
         check(\.shareLocation, "shareLocation", .immediate)
+        check(\.dockBadges, "dockBadges", .immediate)
         // Shortcuts.
         check(\.createDesktopAlias, "createDesktopAlias", .immediate)
         check(\.addToDock, "addToDock", .immediate)

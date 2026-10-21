@@ -44,6 +44,8 @@ public struct AvoPaths: Sendable, Equatable {
     /// user chose another folder in Settings › Storage).
     public var dataDisk: URL { data.appending(path: "userdata.img") }
     public var snapshots: URL { vm.appending(path: "snapshots", directoryHint: .isDirectory) }
+    /// Android widgets on the Mac (Library › Widgets).
+    public var widgets: URL { applicationSupport.appending(path: "widgets.json") }
     public var desktop: URL { home.appending(path: "Desktop", directoryHint: .isDirectory) }
 
     /// Unix socket the engine exposes for guest vsock ports.

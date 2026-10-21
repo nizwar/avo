@@ -63,6 +63,44 @@ import Testing
         await #expect(throws: AvoError.unauthorizedCaller) { try await harness.core.dismissNotifications([Self.key(1)], client: shim) }
     }
 
+    /// The app's Dock badge: its App Shim hears how many notifications
+    /// Android shows, on connecting and as that changes.
+    @Test func appShimsHearTheirNotificationCount() async throws {
+        let harness = try Harness(apps: [FakeBridgeAgent.app(Self.hello, label: "Avo Hello")])
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        let (panel, _) = await harness.connect(.controlPanel)
+        try await harness.core.startVM(client: panel)
+        for n in 1...2 { await Self.post(n, on: harness) }
+        #expect(await eventually { await harness.core.notificationCount(of: Self.hello) == 2 })
+
+        let (_, shimEvents) = await harness.connect(.shim(package: Self.hello))
+        let (_, otherEvents) = await harness.connect(.shim(package: "dev.avo.other"))
+        func count() -> Int? {
+            for event in shimEvents.events.reversed() {
+                if case .notificationCount(Self.hello, let count) = event { return count }
+            }
+            return nil
+        }
+        #expect(await eventually { count() == 2 })
+
+        // Posted again (updated): still one.
+        await Self.post(2, on: harness)
+        await Self.post(3, on: harness)
+        #expect(await eventually { count() == 3 })
+
+        // Removed in Android, and dismissed on the Mac.
+        var removed = Avo_V1_NotificationRemoved()
+        removed.key = Self.key(1)
+        await harness.agent.emit(.notificationRemoved(removed))
+        #expect(await eventually { count() == 2 })
+        try await harness.core.clearNotifications(client: panel)
+        #expect(count() == 0)
+
+        // Another app's shim hears only its own count.
+        #expect(!otherEvents.events.contains { if case .notificationCount(Self.hello, _) = $0 { true } else { false } })
+    }
+
     /// An app with a window: Android opens the notification there (and drops
     /// it when the app made it go away on opening); reopening the shim only
     /// brings the window to the front.

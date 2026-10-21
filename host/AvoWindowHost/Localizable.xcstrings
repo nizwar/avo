@@ -38,6 +38,9 @@
         }
       }
     },
+    "%@ closed." : {
+
+    },
     "%@ dp" : {
       "localizations" : {
         "id" : {
@@ -177,6 +180,9 @@
           }
         }
       }
+    },
+    "%@ shows when Android is running." : {
+
     },
     "%@ turns the eye now. Drag its area over the part of the game that turns the camera." : {
       "localizations" : {
@@ -2220,6 +2226,9 @@
         }
       }
     },
+    "Keep on Desktop" : {
+
+    },
     "Keep on Top" : {
       "localizations" : {
         "id" : {
@@ -2350,6 +2359,9 @@
           }
         }
       }
+    },
+    "Loading %@…" : {
+
     },
     "Location" : {
       "localizations" : {
@@ -3381,6 +3393,9 @@
         }
       }
     },
+    "Remove Widget" : {
+
+    },
     "Removed “%@”." : {
       "localizations" : {
         "id" : {
@@ -3750,6 +3765,9 @@
           }
         }
       }
+    },
+    "Set Up %@" : {
+
     },
     "Sharing this Mac’s location is off in Settings › Privacy & Security, so Android will have no location." : {
       "localizations" : {
@@ -4686,6 +4704,9 @@
           }
         }
       }
+    },
+    "Unlock Android to see this widget." : {
+
     },
     "Unlock Android with its PIN, pattern or password first." : {
       "localizations" : {

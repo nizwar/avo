@@ -27,6 +27,15 @@ final class MetalRenderer: @unchecked Sendable {
     private let downsamplePipeline: MTLRenderPipelineState
     private let copyPipeline: MTLRenderPipelineState
     private let rcasPipeline: MTLRenderPipelineState
+    private let keyedPipeline: MTLRenderPipelineState
+    /// Widget panels: black is transparent and the layer is not opaque
+    /// (`avo_keyed`). Set before the first frame.
+    var keysOutBlack = false {
+        didSet {
+            layer.isOpaque = !keysOutBlack
+            layer.backgroundColor = keysOutBlack ? CGColor(gray: 0, alpha: 0) : CGColor(gray: 0, alpha: 1)
+        }
+    }
     private let renderQueue = DispatchQueue(label: "dev.avo.render", qos: .userInteractive)
     private let lock = NSLock()
     private var textures: [MTLTexture] = []
@@ -148,6 +157,7 @@ final class MetalRenderer: @unchecked Sendable {
             downsamplePipeline = try pipeline("avo_downsample")
             copyPipeline = try pipeline("avo_copy")
             rcasPipeline = try pipeline("avo_rcas")
+            keyedPipeline = try pipeline("avo_keyed")
         } catch {
             return nil
         }
@@ -629,6 +639,8 @@ final class MetalRenderer: @unchecked Sendable {
         let sharpening = SIMD4<Float>(Float(rect.x), Float(rect.y), con, 0)
         let encoded: Bool
         switch path {
+        case _ where keysOutBlack:
+            encoded = pass(buffer, into: drawable.texture, viewport: rect, pipeline: keyedPipeline, texture: texture)
         case let .metalFX(output):
             guard let scaler, let blit = buffer.makeBlitCommandEncoder() else { encoded = false; break }
             // A private copy first: the scaler then reads memory the engine never rewrites.
@@ -715,7 +727,7 @@ final class MetalRenderer: @unchecked Sendable {
         let descriptor = MTLRenderPassDescriptor()
         descriptor.colorAttachments[0].texture = target
         descriptor.colorAttachments[0].loadAction = clear ? .clear : .dontCare
-        descriptor.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
+        descriptor.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: keysOutBlack ? 0 : 1)
         descriptor.colorAttachments[0].storeAction = .store
         guard let encoder = buffer.makeRenderCommandEncoder(descriptor: descriptor) else { return false }
         var quad = SIMD4<Float>(-1, 1, 2, 2)

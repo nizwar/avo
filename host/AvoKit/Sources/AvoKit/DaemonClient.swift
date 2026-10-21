@@ -258,6 +258,33 @@ public final class DaemonClient: @unchecked Sendable {
         try await voidCall { $0.cancelFingerprintRequest(reply: $1) }
     }
 
+    // MARK: Widgets
+
+    public func widgetProviders() async throws -> [WidgetProvider] {
+        let data: Data = try await call { proxy, done in
+            proxy.widgetProviders { data, error in done(Self.result(data, error)) }
+        }
+        return try AvoXPC.decode([WidgetProvider].self, from: data)
+    }
+
+    public func placedWidgets() async throws -> [PlacedWidget] {
+        let data: Data = try await call { proxy, done in
+            proxy.placedWidgets { data, error in done(Self.result(data, error)) }
+        }
+        return try AvoXPC.decode([PlacedWidget].self, from: data)
+    }
+
+    public func addWidget(_ provider: String) async throws -> PlacedWidget {
+        let data: Data = try await call { proxy, done in
+            proxy.addWidget(provider) { data, error in done(Self.result(data, error)) }
+        }
+        return try AvoXPC.decode(PlacedWidget.self, from: data)
+    }
+
+    public func removeWidget(_ id: String) async throws {
+        try await voidCall { $0.removeWidget(id, reply: $1) }
+    }
+
     public func lockAndroidForFingerprints() async throws {
         try await voidCall { $0.lockAndroidForFingerprints(reply: $1) }
     }

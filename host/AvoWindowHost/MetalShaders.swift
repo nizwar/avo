@@ -27,6 +27,17 @@ enum MetalShaders {
         return float4(t.sample(s, in.uv).rgb, 1);
     }
 
+    // Widget panels: Android's empty display around a widget is pure black,
+    // which becomes transparent so the panel takes the widget's own shape.
+    // A frame composed over black is premultiplied by its coverage already;
+    // alpha ramps up over the darkest few steps, so antialiased edges fade
+    // out and dark widget backgrounds stay solid.
+    fragment float4 avo_keyed(Out in [[stage_in]], texture2d<float> t [[texture(0)]]) {
+        constexpr sampler s(filter::linear, address::clamp_to_edge);
+        float3 c = t.sample(s, in.uv).rgb;
+        return float4(c, saturate(max(c.r, max(c.g, c.b)) / 0.06));
+    }
+
     fragment float4 avo_nearest(Out in [[stage_in]], texture2d<float> t [[texture(0)]]) {
         constexpr sampler s(filter::nearest, address::clamp_to_edge);
         return float4(t.sample(s, in.uv).rgb, 1);

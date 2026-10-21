@@ -79,6 +79,12 @@ struct MacNotificationsSection: View {
                 }
             }
             .refreshesMacNotifications()
+            if let config = model.config {
+                Toggle(isOn: Binding(get: { config.dockBadges }, set: { value in model.update { $0.dockBadges = value } })) {
+                    HelpTitle("Badges in the Dock",
+                              help: "An open app’s Dock icon shows how many notifications it has in Android, as a phone’s home screen does.")
+                }
+            }
         }
     }
 }

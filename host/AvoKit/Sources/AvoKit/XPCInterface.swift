@@ -153,6 +153,15 @@ import IOSurface
     /// lets fingerprints work again after too many tries.
     func lockAndroidForFingerprints(reply: @escaping @Sendable (NSError?) -> Void)
 
+    // MARK: Widgets (Library › Widgets; Control Panel only)
+    /// The widgets Android's apps offer (asks Android). Reply: JSON `[WidgetProvider]`.
+    func widgetProviders(reply: @escaping @Sendable (Data?, NSError?) -> Void)
+    /// The widgets on the Mac. Reply: JSON `[PlacedWidget]`.
+    func placedWidgets(reply: @escaping @Sendable (Data?, NSError?) -> Void)
+    /// Puts provider `provider`'s widget on the Mac. Reply: JSON `PlacedWidget`.
+    func addWidget(_ provider: String, reply: @escaping @Sendable (Data?, NSError?) -> Void)
+    func removeWidget(_ id: String, reply: @escaping @Sendable (NSError?) -> Void)
+
     // MARK: Location (an app window's Location panel; App Shims and Control Panels)
     /// What Android's GPS reports, with the route's points. `watch`: send
     /// this client `DaemonEvent.location` at every change (once a second
@@ -398,9 +407,11 @@ public struct OpenDisplayRequest: Codable, Sendable {
     public var notificationKey: String?
     public var dataURI: String?
     public var mimeType: String?
+    /// A widget panel's `PlacedWidget.id` (package `AndroidWidgets.package`).
+    public var widget: String?
 
     public init(package: String, width: UInt32, height: UInt32, dpi: UInt32,
-                notificationKey: String? = nil, dataURI: String? = nil, mimeType: String? = nil) {
+                notificationKey: String? = nil, dataURI: String? = nil, mimeType: String? = nil, widget: String? = nil) {
         self.package = package
         self.width = width
         self.height = height
@@ -408,6 +419,7 @@ public struct OpenDisplayRequest: Codable, Sendable {
         self.notificationKey = notificationKey
         self.dataURI = dataURI
         self.mimeType = mimeType
+        self.widget = widget
     }
 }
 
@@ -473,6 +485,12 @@ public enum DaemonEvent: Codable, Sendable, Equatable {
     case configurationChanged(VMConfig)
     /// Android's recent notifications, newest first (sent to the Control Panel).
     case notifications([AndroidNotification])
+    /// The widgets on the Mac, when they change (sent to Control Panels).
+    case widgets([PlacedWidget])
+    /// How many of an app's notifications Android shows, for its Dock badge:
+    /// when that changes and when its App Shim connects (sent to that app's
+    /// App Shims).
+    case notificationCount(package: String, count: Int)
     /// Whether macOS shows Avo's notifications: when a Control Panel connects
     /// and when the user answers macOS's alert (sent to the Control Panel).
     case macNotifications(MacNotificationPermission)
