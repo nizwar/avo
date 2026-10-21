@@ -221,6 +221,20 @@ GLES 3.1 and Vulkan 1.3.
   apps whose packer refuses libraries from `/data/local` kill themselves when
   one turns up (FLUJO, ijiami). A Renderer change or "Try GPU Again" puts it
   back before the restart, so the GPU start names it at once.
+- **Vulkan driver wrapper** (`guest/vkwrap`, `GuestVulkanWrapper`): where
+  Android has the overlays of a `remount` (Google apps) and the known vendor
+  build, the same layer runs inside the Vulkan driver instead, so a GPU start
+  puts nothing of Avo's in `/data/local/debug` and FLUJO runs. HostAgent puts
+  a wrapping `vulkan.ranchu.so` on the vendor overlay, with the real driver
+  and the software one beside it, and an init file bind-mounts that folder
+  over the APEX's `hw` folder at `post-fs-data` on a GPU start whose
+  identity.prop has `ro.boot.avo.vkwrap=1`. Below libvulkan the layer sees
+  presents as `QueueSignalReleaseImageANDROID`, one per image, and new
+  handles before libvulkan writes its dispatch pointer into them; it handles
+  both. Every process uses the wrapper from the start, so SurfaceFlinger and
+  SystemUI get ES 3.1 too. A GPU start that fails while the wrapper runs
+  turns it off for that build of it (`vkwrap-failed.json`), and the GPU gets
+  one more start without it before Avo falls back to software.
 - **Native ASTC** (`engine/hvf/vmm/layer/native_astc.c`, `virtio/gpu/astc.rs`):
   gfxstream decompresses ASTC into RGBA8 itself unless the driver samples
   *linear-tiled* ASTC, which Metal never does, and an emulated ASTC texture

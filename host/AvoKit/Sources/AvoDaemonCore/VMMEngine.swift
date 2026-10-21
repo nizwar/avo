@@ -83,6 +83,9 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     private var relaunch: Task<Void, Never>?
     private var rendererStatus: RendererStatus?
     private var gpuCrashes = GPUCrashHistory()
+    /// This GPU launch runs Avo's Vulkan driver wrapper: a failure takes it
+    /// out before the GPU is given up (GuestVulkanWrapper.Failure).
+    private var vulkanWrapperRuns = false
     /// Android is paused (PausableEngine, "Pause" below), and its sound
     /// streams as the engine reports them (`sound playback|capture on|off`).
     private var paused = false
@@ -172,10 +175,14 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
 
     /// That file for a launch: written again for every avo-vmm process, so
     /// a software relaunch after a failed GPU boot says `software`.
+    /// `vulkanWrapper` lets Android run Avo's Vulkan driver wrapper on a GPU
+    /// start (GuestVulkanWrapper.switchProperty).
     static func identityProperties(profile: DeviceProfile?, plan: GPUPlan, emulateHardware: Bool = false,
+                                   vulkanWrapper: Bool = false,
                                    markers: (AvoIdentity.Renderer) -> AvoIdentity.Markers) -> String {
         AvoIdentity.propertyFile(profile: profile, markers: markers(plan.isGPU ? .gpu : .software),
                                  emulateHardware: emulateHardware)
+            + (vulkanWrapper ? "\(GuestVulkanWrapper.switchProperty)=1\n" : "")
     }
 
     public func start(_ launch: EngineLaunch) async throws {
@@ -191,8 +198,14 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     private func launch(_ launch: EngineLaunch, plan: GPUPlan) async throws {
         try launch.paths.validateSocketPaths()
         let version = avoVersion
-        try Self.identityProperties(profile: launch.profile, plan: plan, emulateHardware: launch.config.emulateHardware) { .current(version: version, renderer: $0) }
+        // Avo's Vulkan driver wrapper, unless it failed a GPU start; whether
+        // Android has it, as of its last ready boot, says if this start may fail by it.
+        let wrapper = GuestVulkanWrapper.allowed(paths: launch.paths)
+        let wrapperRuns = wrapper && plan.isGPU && GuestVulkanWrapper.installed(paths: launch.paths)
+        try Self.identityProperties(profile: launch.profile, plan: plan, emulateHardware: launch.config.emulateHardware,
+                                    vulkanWrapper: wrapper) { .current(version: version, renderer: $0) }
             .write(to: Self.identityFile(launch.paths), atomically: true, encoding: .utf8)
+        lock.withLock { vulkanWrapperRuns = wrapperRuns }
         lock.withLock {
             paused = false
             playing = false
@@ -324,6 +337,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
             do {
                 // VMManager gives up first (up to 15 minutes for a first boot).
                 try await agent.prepare(deadline: ContinuousClock.now + .seconds(960))
+                GuestVulkanWrapper.noteInstalled(await agent.hasVulkanWrapper, paths: launch.paths)
             } catch {
                 logger.error("Android did not get ready: \(String(describing: error), privacy: .public)")
             }
@@ -523,10 +537,25 @@ extension VMMEngine {
     }
 
     /// Writes the fallback record and publishes software; the plan for the
-    /// launch that replaces the failed one.
+    /// launch that replaces the failed one. A GPU launch that ran Avo's
+    /// Vulkan driver wrapper loses the wrapper instead, and the GPU gets one
+    /// more launch without it.
     private func recordFailure(_ failure: GPUFailure, launch: EngineLaunch, plan: GPUPlan) -> GPUPlan {
         let log = launch.paths.logs.appending(path: "avo-vmm.log")
         let detail = Self.gpuError(inLog: log)
+        // The failed log stays for bug reports: the next launch writes a new one.
+        let failedLog = launch.paths.logs.appending(path: "avo-vmm-gpu-failed.log")
+        if case .gpu = plan, lock.withLock({ vulkanWrapperRuns }), let sha256 = GuestVulkanWrapper.wrapper?.sha256 {
+            logger.error("renderer: GPU failed (\(failure.rawValue, privacy: .public)) with Avo's Vulkan driver wrapper: \(detail ?? "-", privacy: .public); trying the GPU without it")
+            do {
+                try GuestVulkanWrapper.Failure(sha256: sha256, failure: failure, date: Date()).save(paths: launch.paths)
+                try? FileManager.default.removeItem(at: failedLog)
+                try? FileManager.default.copyItem(at: log, to: failedLog)
+                return plan
+            } catch {
+                logger.error("renderer: cannot turn Avo's Vulkan driver wrapper off: \(error.localizedDescription, privacy: .public)")
+            }
+        }
         logger.error("renderer: GPU failed (\(failure.rawValue, privacy: .public)): \(detail ?? "-", privacy: .public); using software")
         if case let .gpu(emulator) = plan {
             let record = GPUFallbackRecord(failure: failure, detail: detail, date: Date(),
@@ -537,8 +566,6 @@ extension VMMEngine {
             publish(GPUPlan.software(.failed, failure).status(requested: launch.config.rendererMode, emulator: .found(emulator),
                                                               fallback: record))
         }
-        // The software launch writes a new log; keep the failed one for bug reports.
-        let failedLog = launch.paths.logs.appending(path: "avo-vmm-gpu-failed.log")
         try? FileManager.default.removeItem(at: failedLog)
         try? FileManager.default.copyItem(at: log, to: failedLog)
         return .software(.failed, failure)
@@ -546,7 +573,8 @@ extension VMMEngine {
 
     /// A GPU boot failed after the sockets came up: power that Android off
     /// (10 s), then terminate it (SIGKILL after 5 s), and start it again in
-    /// software. VMManager keeps waiting for Android meanwhile.
+    /// software (on the GPU without Avo's Vulkan driver wrapper, when the
+    /// failed one ran it). VMManager keeps waiting for Android meanwhile.
     private func fallBack(_ failure: GPUFailure, monitor: GPUBootMonitor, launch: EngineLaunch, plan: GPUPlan) {
         let next = recordFailure(failure, launch: launch, plan: plan)
         lock.withLock {
