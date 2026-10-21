@@ -29,11 +29,13 @@ mkdir -p "$OUT"
 
 # No build ID and no paths: the same sources and NDK give the same bytes, so
 # the daemon replaces the guest's copy only when something changed.
-# 16 KiB pages work on 4 KiB and 16 KiB kernels.
+# 16 KiB pages work on 4 KiB and 16 KiB kernels. -Bsymbolic: the wrapper's
+# calls to the layer's vkGetInstanceProcAddr/vkGetDeviceProcAddr stay its own,
+# whatever else in the process exports those names.
 FLAGS=(-std=c11 -O2 -fPIC -shared -fvisibility=hidden -Wall -Wextra -Werror
        -I"$GFXSYNC"
        -ffile-prefix-map="$HERE"=. -ffile-prefix-map="$GFXSYNC"=.
-       -Wl,--build-id=none -Wl,-z,max-page-size=16384 -Wl,--no-undefined)
+       -Wl,--build-id=none -Wl,-z,max-page-size=16384 -Wl,--no-undefined -Wl,-Bsymbolic)
 LIB="vulkan.ranchu.so"
 (cd "$HERE" && "$CC" "${FLAGS[@]}" -o "$OUT/$LIB" src/vk_wrap.c "$GFXSYNC/vk_layer.c" "$GFXSYNC/frag_outputs.c" -llog)
 "$BIN/llvm-strip" --strip-unneeded "$OUT/$LIB"

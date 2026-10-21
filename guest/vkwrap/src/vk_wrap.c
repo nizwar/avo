@@ -21,11 +21,17 @@
 // and vkCreateDevice straight. So the wrapper puts that link back — pointing
 // at the real driver — ahead of the layer's own vkCreateInstance and
 // vkCreateDevice, and hands everything else to the layer's
-// vkGetInstanceProcAddr / vkGetDeviceProcAddr unchanged. The layer then runs
-// exactly as it does in /data/local/debug, over the real driver's functions.
+// vkGetInstanceProcAddr / vkGetDeviceProcAddr unchanged, except the global
+// functions asked for with no instance (vkEnumerateInstanceVersion, from
+// which libvulkan takes the driver's Vulkan version), which the real driver
+// answers. The layer then runs over the real driver's functions, with two
+// differences it handles itself: a new handle still holds the driver's
+// loader magic (HWVULKAN_DISPATCH_MAGIC) until libvulkan replaces it after
+// the create call, and presents come as QueueSignalReleaseImageANDROID.
 #include <android/log.h>
 #include <dlfcn.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -91,6 +97,9 @@ typedef struct hw_module_methods_t {
     int (*open)(const struct hw_module_t* module, const char* id, struct hw_device_t** device);
 } hw_module_methods_t;
 
+// hardware/hardware.h as built for 64 bits (__LP64__): the reserved words
+// are 64-bit there, which puts hwvulkan_device_t's entry points after 120
+// bytes (checked below).
 typedef struct hw_module_t {
     uint32_t tag;
     uint16_t module_api_version;
@@ -100,19 +109,22 @@ typedef struct hw_module_t {
     const char* author;
     struct hw_module_methods_t* methods;
     void* dso;
-    uint32_t reserved[32 - 7];
+    uint64_t reserved[32 - 7];
 } hw_module_t;
 
 typedef struct hw_device_t {
     uint32_t tag;
     uint32_t version;
     struct hw_module_t* module;
-    uint32_t reserved[12];
+    uint64_t reserved[12];
     int (*close)(struct hw_device_t* device);
 } hw_device_t;
 
-#define HWVULKAN_MODULE_TAG 0x484D5401  // 'HWMT'
-#define HWVULKAN_DEVICE_TAG 0x484D4401  // 'HWDT'
+#define HARDWARE_MODULE_TAG 0x48574D54  // 'HWMT'
+#define HARDWARE_DEVICE_TAG 0x48574454  // 'HWDT'
+#define HARDWARE_HAL_API_VERSION 0x0100
+#define HWVULKAN_MODULE_API_VERSION_0_1 0x0001
+#define HWVULKAN_DEVICE_API_VERSION_0_1 0x00010000
 
 typedef struct hwvulkan_module_t {
     struct hw_module_t common;
@@ -124,6 +136,10 @@ typedef struct hwvulkan_device_t {
     PFN_vkCreateInstance CreateInstance;
     PFN_vkGetInstanceProcAddr GetInstanceProcAddr;
 } hwvulkan_device_t;
+
+_Static_assert(offsetof(hw_module_t, dso) == 40, "hw_module_t as libhardware lays it out");
+_Static_assert(offsetof(hwvulkan_device_t, EnumerateInstanceExtensionProperties) == 120,
+               "hwvulkan_device_t as libvulkan reads it");
 
 // MARK: The sync layer, linked in (guest/gfxsync/src/vk_layer.c)
 
@@ -139,6 +155,9 @@ extern PFN_vkVoidFunction vkGetDeviceProcAddr(VkDevice, const char*);
 static pthread_once_t real_once = PTHREAD_ONCE_INIT;
 static hwvulkan_device_t* real_device;
 static PFN_vkGetInstanceProcAddr real_gipa;
+// The real driver's vkGetDeviceProcAddr, which it hands out only for an
+// instance: taken from the first one made.
+static _Atomic(PFN_vkGetDeviceProcAddr) real_gdpa;
 
 static void open_real(void) {
     void* dso = dlopen(REAL_PATH, RTLD_NOW | RTLD_LOCAL);
@@ -193,7 +212,11 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo*
     };
     VkInstanceCreateInfo with_link = *info;
     with_link.pNext = &chain;
-    return layer_create(&with_link, allocator, out);
+    VkResult result = layer_create(&with_link, allocator, out);
+    if (result == VK_SUCCESS && !atomic_load(&real_gdpa)) {
+        atomic_store(&real_gdpa, (PFN_vkGetDeviceProcAddr)r->GetInstanceProcAddr(*out, "vkGetDeviceProcAddr"));
+    }
+    return result;
 }
 
 // The loader-device link the HAL path lacks: libvulkan calls the driver's
@@ -205,8 +228,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical, co
     PFN_vkCreateDevice layer_create =
         (PFN_vkCreateDevice)vkGetInstanceProcAddr(VK_NULL_HANDLE, "vkCreateDevice");
     PFN_vkGetInstanceProcAddr gipa = r->GetInstanceProcAddr;
-    if (!layer_create || !gipa) return VK_ERROR_INITIALIZATION_FAILED;
-    PFN_vkGetDeviceProcAddr gdpa = (PFN_vkGetDeviceProcAddr)gipa(VK_NULL_HANDLE, "vkGetDeviceProcAddr");
+    // A device belongs to an instance made through CreateInstance above.
+    PFN_vkGetDeviceProcAddr gdpa = atomic_load(&real_gdpa);
+    if (!layer_create || !gipa || !gdpa) return VK_ERROR_INITIALIZATION_FAILED;
     AvoDeviceLink link = {
         .next = NULL,
         .next_get_instance_proc_addr = gipa,
@@ -226,9 +250,16 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical, co
 // libvulkan builds its instance dispatch from this. The layer answers for the
 // functions it wraps and for vkCreateDevice/vkGetDeviceProcAddr; the wrapper
 // stands in only for the two create functions that need the loader link.
+// With no instance, the real driver answers (global functions).
 static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL GetInstanceProcAddr(VkInstance instance, const char* name) {
-    if (name && strcmp(name, "vkCreateInstance") == 0) return (PFN_vkVoidFunction)CreateInstance;
-    if (name && strcmp(name, "vkCreateDevice") == 0) return (PFN_vkVoidFunction)CreateDevice;
+    if (!name) return NULL;
+    if (strcmp(name, "vkGetInstanceProcAddr") == 0) return (PFN_vkVoidFunction)GetInstanceProcAddr;
+    if (strcmp(name, "vkCreateInstance") == 0) return (PFN_vkVoidFunction)CreateInstance;
+    if (strcmp(name, "vkCreateDevice") == 0) return (PFN_vkVoidFunction)CreateDevice;
+    if (instance == VK_NULL_HANDLE) {
+        hwvulkan_device_t* r = real();
+        return r ? r->GetInstanceProcAddr(VK_NULL_HANDLE, name) : NULL;
+    }
     return vkGetInstanceProcAddr(instance, name);
 }
 
@@ -240,7 +271,8 @@ static int close_device(struct hw_device_t* device) {
 }
 
 static hwvulkan_device_t wrapper_device = {
-    .common = {.tag = HWVULKAN_DEVICE_TAG, .version = 0, .module = NULL, .reserved = {0}, .close = close_device},
+    .common = {.tag = HARDWARE_DEVICE_TAG, .version = HWVULKAN_DEVICE_API_VERSION_0_1, .module = NULL, .reserved = {0},
+               .close = close_device},
     .EnumerateInstanceExtensionProperties = EnumerateInstanceExtensionProperties,
     .CreateInstance = CreateInstance,
     .GetInstanceProcAddr = GetInstanceProcAddr,
@@ -258,9 +290,9 @@ static struct hw_module_methods_t wrapper_methods = {.open = open_wrapper};
 
 EXPORT hwvulkan_module_t HMI = {
     .common = {
-        .tag = HWVULKAN_MODULE_TAG,
-        .module_api_version = 1,  // HWVULKAN_MODULE_API_VERSION_0_1
-        .hal_api_version = 0,
+        .tag = HARDWARE_MODULE_TAG,
+        .module_api_version = HWVULKAN_MODULE_API_VERSION_0_1,
+        .hal_api_version = HARDWARE_HAL_API_VERSION,
         .id = HWVULKAN_HARDWARE_MODULE_ID,
         .name = "Avo gfxstream Vulkan wrapper",
         .author = "Avo",
