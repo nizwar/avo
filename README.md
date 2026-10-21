@@ -46,7 +46,9 @@ your Mac's GPU through gfxstream and Metal.
 **Apps as Mac apps**
 - One window per Android app, with its own Dock icon, Launchpad and
   Spotlight entries; full screen with the menu bar and title bar on hover.
-- Notifications in Notification Center; a shared clipboard;
+- Notifications in Notification Center, with their buttons and Reply right
+  from the banner; what Android plays in Control Center and on the media
+  keys and AirPods; a shared clipboard;
   Android links open in the Mac's default browser.
 - Install `.apk`, `.xapk`, `.apkm` and `.apks` files (OBB data included) by
   double-clicking, dropping them on Avo, or from Google Play.

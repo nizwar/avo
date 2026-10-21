@@ -38,6 +38,7 @@
 		3A479B91F6B1973D718741D6 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = D66E6FED60FD73E9889C21B7 /* InfoPlist.xcstrings */; };
 		3B17A894C265E7F52B64E424 /* avoctl in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = C07D584FB71811F8CF054BA0 /* avoctl */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		3C3AD50A49B107F416BDE07A /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8013D3F2A040EAA894360D64 /* CoreHaptics.framework */; };
+		4079183167533C198BC9FC97 /* MacNowPlaying.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61A8FAD080DE0A465326E9C6 /* MacNowPlaying.swift */; };
 		40BB43C8EB6FA24466005634 /* AvoHostKit in Frameworks */ = {isa = PBXBuildFile; productRef = 1309BB8E795B40B4B3FCC1E4 /* AvoHostKit */; };
 		461C56E9076279938C7ADE84 /* DaemonApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 247F00D3F568BF9DAA251E37 /* DaemonApp.swift */; };
 		47016DFED92044DBDCC83456 /* AvoDaemon.app in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 441AA532CF90E8475DCB42F9 /* AvoDaemon.app */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -281,6 +282,7 @@
 		5B112861945965A970CF1B86 /* SetupPermissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupPermissions.swift; sourceTree = "<group>"; };
 		5DC33FB72869E092F27052D3 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		6133B2A1F9245B08C4BF4106 /* StatusPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusPill.swift; sourceTree = "<group>"; };
+		61A8FAD080DE0A465326E9C6 /* MacNowPlaying.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacNowPlaying.swift; sourceTree = "<group>"; };
 		620F07B134A6F78EB2D009F6 /* HelpButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpButton.swift; sourceTree = "<group>"; };
 		62921557685448757297D8EE /* ScreenLockViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenLockViews.swift; sourceTree = "<group>"; };
 		6443F229E33272C0A1B90151 /* ScreenRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRecorder.swift; sourceTree = "<group>"; };
@@ -573,6 +575,7 @@
 				3CD6BB66680DDF324313F398 /* MacIntegrations.swift */,
 				100F7F7DDE625723D3B3FC5F /* MacLinks.swift */,
 				A15CC47DB33A24C8B89FF454 /* MacLocation.swift */,
+				61A8FAD080DE0A465326E9C6 /* MacNowPlaying.swift */,
 				08BF662568EB77466F4A1FEA /* MacSystemState.swift */,
 				DCA411BF620B4A6CD56B68BF /* main.swift */,
 				0618B7045A2A842D4AD57B6E /* MenuBarController.swift */,
@@ -982,6 +985,7 @@
 				2E063FFE47A966F37777D8A2 /* MacIntegrations.swift in Sources */,
 				32472F4671F159BE72CC2628 /* MacLinks.swift in Sources */,
 				ECA7FE3A58397A06902EE5EA /* MacLocation.swift in Sources */,
+				4079183167533C198BC9FC97 /* MacNowPlaying.swift in Sources */,
 				58C8B111F8EB6806128D23F4 /* MacSystemState.swift in Sources */,
 				D274969A8BFA690ADC2E7160 /* MenuBarController.swift in Sources */,
 				B92DD580800E68A7C3F6715C /* MenuBarPanel.swift in Sources */,

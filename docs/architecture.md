@@ -100,6 +100,24 @@ split bundles are looked up across density splits.
   `notificationCount` when it changes and when they connect. The shim sets
   `NSApp.dockTile.badgeLabel`. A shim runs only while the app has a window,
   so an app that is not open shows no badge.
+- Notification buttons: an Android notification's actions come with it
+  (`Notification.actions`, NotificationAction) and become a Notification
+  Center category per set of buttons (`UserNotificationPresenter`, at most 64
+  kept): a button that takes text (a free-form RemoteInput, Reply) is a text
+  field with Send, the others plain buttons. Pressing one sends
+  `PerformNotificationAction`; Android fires the button's PendingIntent as
+  its shade does, with the text as the RemoteInput's result
+  (SOURCE_FREE_FORM_INPUT). The app's update of an answered notification comes
+  back quietly, as in Android.
+- Now Playing: what Android plays (the first playing media session, or else
+  the most recent one with a title) is in Control Center and on the media
+  keys and AirPods (`MacNowPlaying`, MPNowPlayingInfoCenter and
+  MPRemoteCommandCenter, in the daemon): title, artist, album, artwork,
+  duration and position, and play, pause, next, previous and scrubbing when
+  the app allows them. The commands go to that session itself
+  (`MediaCommand`), not to whichever Android's own media keys would pick.
+  Avo takes the commands only while something plays in Android, so with
+  nothing playing the media keys stay with the Mac's apps.
 
 ## Windows (spec §2, "Native")
 

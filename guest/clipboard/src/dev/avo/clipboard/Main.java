@@ -17,7 +17,10 @@ import java.util.Base64;
  *   ... set BASE64        replace the clipboard with this text
  *   ... watch             print "clip BASE64" whenever the clipboard text changes
  *   ... appinfo PACKAGE...  label, version, size and launcher icon per app (see AppInfo)
- *   ... dismiss KEY...      dismisses these notifications, as a swipe in the shade (see Dismiss)
+ *   ... dismiss KEY...      dismisses these notifications, as a swipe in the shade (see Notifications)
+ *   ... actions KEY...      these notifications' buttons (see Notifications)
+ *   ... act KEY INDEX [BASE64]  presses one, with the text of a reply (see Notifications)
+ *   ... media watch     what Android plays, for the Mac's Now Playing; takes play, pause... on stdin (see Media)
  * </pre>
  *
  * Text travels as Base64 (UTF-8) so it fits on one line.
@@ -80,6 +83,25 @@ public final class Main {
         return Base64.getEncoder().encodeToString(text.getBytes(StandardCharsets.UTF_8));
     }
 
+    private interface Command {
+        void run() throws Exception;
+    }
+
+    /**
+     * Runs a command and exits, with 1 and {@code error ...} on stderr when
+     * it fails: an uncaught exception would hang app_process, which tries
+     * to report the crash to a system that does not know it.
+     */
+    private static void exitAfter(Command command) {
+        try {
+            command.run();
+        } catch (Throwable error) {
+            System.err.println("error " + error);
+            System.exit(1);
+        }
+        System.exit(0);
+    }
+
     public static void main(String[] args) throws Exception {
         String command = args.length > 0 ? args[0] : "";
         if (command.equals("appinfo")) {
@@ -87,8 +109,18 @@ public final class Main {
             System.exit(0); // the system context's threads would keep it running
         }
         if (command.equals("dismiss")) {
-            Dismiss.run(Arrays.copyOfRange(args, 1, args.length));
+            Notifications.dismiss(Arrays.copyOfRange(args, 1, args.length));
             System.exit(0);
+        }
+        if (command.equals("actions")) {
+            Notifications.actions(Arrays.copyOfRange(args, 1, args.length));
+            System.exit(0);
+        }
+        if (command.equals("act")) {
+            exitAfter(() -> Notifications.act(args[1], Integer.parseInt(args[2]), args.length > 3 ? args[3] : null));
+        }
+        if (command.equals("media")) {
+            exitAfter(() -> Media.run(Arrays.copyOfRange(args, 1, args.length)));
         }
         Main clipboard = new Main();
         switch (command) {
@@ -115,7 +147,7 @@ public final class Main {
                 }
             }
             default:
-                System.err.println("usage: get | set BASE64 | watch | appinfo PACKAGE... | dismiss KEY...");
+                System.err.println("usage: get | set BASE64 | watch | appinfo PACKAGE... | dismiss KEY... | actions KEY... | act KEY INDEX [BASE64] | media watch");
                 System.exit(2);
         }
     }

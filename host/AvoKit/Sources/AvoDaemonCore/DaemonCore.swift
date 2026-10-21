@@ -41,6 +41,7 @@ public actor DaemonCore {
         public var host: HostInfo
         public var shortcuts: ShortcutManager
         public var notifications: any NotificationPresenter
+        public var nowPlaying: any NowPlayingPresenter
         public var clipboard: any ClipboardBridge
         public var launcher: any AppLauncher
         public var softwareVersion: String
@@ -55,7 +56,7 @@ public actor DaemonCore {
 
         public init(paths: AvoPaths, engine: any VMEngine, adbKey: ADBKey, profiles: DeviceProfileCatalog, host: HostInfo,
                     shortcuts: ShortcutManager, notifications: any NotificationPresenter = NoNotifications(),
-                    clipboard: any ClipboardBridge = NoClipboard(), launcher: any AppLauncher = NoLauncher(),
+                    nowPlaying: any NowPlayingPresenter = NoNowPlaying(), clipboard: any ClipboardBridge = NoClipboard(), launcher: any AppLauncher = NoLauncher(),
                     softwareVersion: String, bootTimeout: Duration = .seconds(180), volumes: (any VolumeWatching)? = nil,
                     imageOverride: String? = nil, screenText: ScreenTextEngine? = nil,
                     loadImage: @escaping @Sendable () throws -> AndroidImage) {
@@ -66,6 +67,7 @@ public actor DaemonCore {
             self.host = host
             self.shortcuts = shortcuts
             self.notifications = notifications
+            self.nowPlaying = nowPlaying
             self.clipboard = clipboard
             self.launcher = launcher
             self.softwareVersion = softwareVersion
@@ -128,6 +130,9 @@ public actor DaemonCore {
     /// The notifications Android shows now, key → package: the apps' Dock
     /// badges. Unlike `recentNotifications` it is never cut short.
     private var activeNotifications: [String: String] = [:]
+    /// The artwork of what Android plays, as it last sent it (NowPlaying
+    /// sends it only when it changes).
+    private var nowPlayingArtwork: Data?
     /// Android widgets on the Mac (DaemonWidgets.swift).
     var placedWidgets: [PlacedWidget]
     /// In-process watchers of the VM status (the menu bar). `vm.statusUpdates`
@@ -244,6 +249,12 @@ public actor DaemonCore {
         }
         deps.notifications.observeDismissals { [weak self] key in
             Task { await self?.dismissNotifications([key]) }
+        }
+        deps.notifications.observeActions { [weak self] key, index, reply in
+            Task { await self?.performNotificationAction(key: key, index: index, reply: reply) }
+        }
+        deps.nowPlaying.start { [weak self] command in
+            Task { await self?.sendMediaCommand(command) }
         }
         deps.notifications.start { [weak self] package, key in
             Task { await self?.openNotification(package: package, key: key) }
@@ -655,6 +666,9 @@ public actor DaemonCore {
             publishActivity()
             // Android's notifications went with it; the next start reports them again.
             setActiveNotifications { $0.removeAll() }
+            // And what it played.
+            nowPlayingArtwork = nil
+            deps.nowPlaying.show(nil, appName: "", artwork: nil)
         default:
             break
         }
@@ -1638,6 +1652,15 @@ public actor DaemonCore {
             recentNotifications.removeAll { $0.key == removed.key }
             setActiveNotifications { $0[removed.key] = nil }
             await publishNotifications()
+        case .nowPlaying(let playing):
+            if playing.artworkChanged { nowPlayingArtwork = playing.artworkJpeg.isEmpty ? nil : playing.artworkJpeg }
+            guard !playing.package.isEmpty else {
+                nowPlayingArtwork = nil
+                deps.nowPlaying.show(nil, appName: "", artwork: nil)
+                return
+            }
+            let appName = await registry.record(playing.package)?.displayName ?? playing.package
+            deps.nowPlaying.show(playing, appName: appName, artwork: nowPlayingArtwork)
         case .clipboardChanged(let changed) where clipboardShared:
             lastClipboardFromGuest = changed.text
             deps.clipboard.set(changed.text)
@@ -1758,6 +1781,24 @@ public actor DaemonCore {
             // The new window starts with the notification (Launch.notificationKey).
             try? await deps.launcher.open(shim: URL(filePath: shim), arguments: ["--notification-key", key])
         }
+    }
+
+    /// A notification's button pressed in Notification Center (Reply with
+    /// what was typed): Android fires it, and the app's own update or removal
+    /// of the notification follows as usual.
+    private func performNotificationAction(key: String, index: UInt32, reply: String?) async {
+        guard let control = try? await vm.controlSession() else { return }
+        var action = Avo_V1_PerformNotificationAction()
+        action.key = key
+        action.index = index
+        action.replyText = reply ?? ""
+        _ = try? await control.request(.performNotificationAction(action))
+    }
+
+    /// Play, pause, next… from the Mac's media keys or Control Center.
+    private func sendMediaCommand(_ command: Avo_V1_MediaCommand) async {
+        guard let control = try? await vm.controlSession() else { return }
+        _ = try? await control.request(.mediaCommand(command))
     }
 
     /// Ctrl+V (⌘V in an app window) going down.

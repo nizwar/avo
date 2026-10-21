@@ -50,7 +50,7 @@ unresponsive.
 
 `request_id` is non-zero for requests. The guest answers with either a typed
 response (`AppList`, `PermissionList`) or a `Reply` carrying the same id.
-Events (`AppInstalled`, `Notification`, …) always have `request_id = 0`.
+Events (`AppInstalled`, `Notification`, `NowPlaying`, …) always have `request_id = 0`.
 
 | Request (host → guest) | Response |
 | --- | --- |
@@ -60,6 +60,7 @@ Events (`AppInstalled`, `Notification`, …) always have `request_id = 0`.
 | `Resize`, `Close`, `SetDisplayVisibility`, `SetRefreshRate`, `FocusDisplay` | `Reply` |
 | `Install`, `Uninstall`, `ForceStop`, `DeleteAppData`, `SetPermission` | `Reply` |
 | `ShareFiles`, `OpenNotification`, `DismissNotification`, `SetClipboard` | `Reply` |
+| `PerformNotificationAction`, `MediaCommand` | `Reply` |
 
 ### Opening an app (one window per app)
 

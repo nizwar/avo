@@ -515,7 +515,12 @@ daemon plays it over ADB (vsock 6520, root through `su` on userdebug):
   windows for apps started by adb or other apps on Android's own screen
   (TaskStarted);
 - clipboard both ways through `avo-clipboard.jar` (guest/clipboard, run with
-  `app_process` as the shell user), notifications from `cmd notification`,
+  `app_process` as the shell user), notifications from `cmd notification`
+  with their buttons from the same helper (`actions`, for those whose record
+  says `actions=N`; `act` presses one, filling a Reply's RemoteInput with the
+  text typed on the Mac), what Android plays from its `media watch` (one
+  long-running `exec:` stream: Now Playing lines out, play/pause/seek
+  commands in, for the session it shows),
   the Mac's location (CoreLocation), or a place or route from an app
   window's Location panel, as GNSS fixes (`LocationCenter`);
 - links apps open go to the Mac through Avo Links (guest/links, installed

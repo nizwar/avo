@@ -325,6 +325,22 @@ public nonisolated struct Avo_V1_Envelope: @unchecked Sendable {
     set {_uniqueStorage()._payload = .focusDisplay(newValue)}
   }
 
+  public var performNotificationAction: Avo_V1_PerformNotificationAction {
+    get {
+      if case .performNotificationAction(let v)? = _storage._payload {return v}
+      return Avo_V1_PerformNotificationAction()
+    }
+    set {_uniqueStorage()._payload = .performNotificationAction(newValue)}
+  }
+
+  public var mediaCommand: Avo_V1_MediaCommand {
+    get {
+      if case .mediaCommand(let v)? = _storage._payload {return v}
+      return Avo_V1_MediaCommand()
+    }
+    set {_uniqueStorage()._payload = .mediaCommand(newValue)}
+  }
+
   /// Guest -> host.
   public var appInstalled: Avo_V1_AppInstalled {
     get {
@@ -422,6 +438,14 @@ public nonisolated struct Avo_V1_Envelope: @unchecked Sendable {
     set {_uniqueStorage()._payload = .taskStarted(newValue)}
   }
 
+  public var nowPlaying: Avo_V1_NowPlaying {
+    get {
+      if case .nowPlaying(let v)? = _storage._payload {return v}
+      return Avo_V1_NowPlaying()
+    }
+    set {_uniqueStorage()._payload = .nowPlaying(newValue)}
+  }
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public nonisolated enum OneOf_Payload: Equatable, Sendable {
@@ -449,6 +473,8 @@ public nonisolated struct Avo_V1_Envelope: @unchecked Sendable {
     case dismissNotification(Avo_V1_DismissNotification)
     case setRefreshRate(Avo_V1_SetRefreshRate)
     case focusDisplay(Avo_V1_FocusDisplay)
+    case performNotificationAction(Avo_V1_PerformNotificationAction)
+    case mediaCommand(Avo_V1_MediaCommand)
     /// Guest -> host.
     case appInstalled(Avo_V1_AppInstalled)
     case appRemoved(Avo_V1_AppRemoved)
@@ -462,6 +488,7 @@ public nonisolated struct Avo_V1_Envelope: @unchecked Sendable {
     case permissionList(Avo_V1_PermissionList)
     case displayContentChanged(Avo_V1_DisplayContentChanged)
     case taskStarted(Avo_V1_TaskStarted)
+    case nowPlaying(Avo_V1_NowPlaying)
 
   }
 
@@ -1127,6 +1154,48 @@ public nonisolated struct Avo_V1_Notification: Sendable {
 
   public var silent: Bool = false
 
+  /// Its buttons (Notification.actions), in Android's order.
+  public var actions: [Avo_V1_NotificationAction] = []
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+public nonisolated struct Avo_V1_NotificationAction: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// Its place in Notification.actions, which PerformNotificationAction names.
+  public var index: UInt32 = 0
+
+  public var title: String = String()
+
+  /// It takes typed text (a free-form RemoteInput: Reply).
+  public var reply: Bool = false
+
+  /// What its text field shows while empty (the RemoteInput's label).
+  public var replyHint: String = String()
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+/// A notification's button pressed on the Mac: Android fires it as a tap in
+/// its shade does, with `reply_text` as the answer of a Reply button.
+public nonisolated struct Avo_V1_PerformNotificationAction: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var key: String = String()
+
+  public var index: UInt32 = 0
+
+  public var replyText: String = String()
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -1171,6 +1240,168 @@ public nonisolated struct Avo_V1_DismissNotification: Sendable {
   public init() {}
 }
 
+/// What Android plays (its media session the Mac shows), sent as it changes.
+/// An empty `package`: nothing plays.
+public nonisolated struct Avo_V1_NowPlaying: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var package: String = String()
+
+  public var title: String = String()
+
+  public var artist: String = String()
+
+  public var album: String = String()
+
+  public var durationMs: Int64 = 0
+
+  /// Where it is as this is sent; it moves on at `speed` while playing.
+  public var positionMs: Int64 = 0
+
+  public var speed: Float = 0
+
+  public var state: Avo_V1_NowPlaying.State = .unspecified
+
+  /// What the app lets the Mac do.
+  public var canNext: Bool = false
+
+  public var canPrevious: Bool = false
+
+  public var canSeek: Bool = false
+
+  /// Set when the artwork changed (empty: it has none now); otherwise the
+  /// last artwork sent still holds.
+  public var artworkChanged: Bool = false
+
+  public var artworkJpeg: Data = Data()
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public nonisolated enum State: SwiftProtobuf.Enum, Swift.CaseIterable {
+    public typealias RawValue = Int
+    case unspecified // = 0
+    case playing // = 1
+    case paused // = 2
+    case buffering // = 3
+    case stopped // = 4
+    case UNRECOGNIZED(Int)
+
+    public init() {
+      self = .unspecified
+    }
+
+    public init?(rawValue: Int) {
+      switch rawValue {
+      case 0: self = .unspecified
+      case 1: self = .playing
+      case 2: self = .paused
+      case 3: self = .buffering
+      case 4: self = .stopped
+      default: self = .UNRECOGNIZED(rawValue)
+      }
+    }
+
+    public var rawValue: Int {
+      switch self {
+      case .unspecified: return 0
+      case .playing: return 1
+      case .paused: return 2
+      case .buffering: return 3
+      case .stopped: return 4
+      case .UNRECOGNIZED(let i): return i
+      }
+    }
+
+    // The compiler won't synthesize support with the UNRECOGNIZED case.
+    public static let allCases: [Avo_V1_NowPlaying.State] = [
+      .unspecified,
+      .playing,
+      .paused,
+      .buffering,
+      .stopped,
+    ]
+
+  }
+
+  public init() {}
+}
+
+/// A media key or Control Center's controls, for what NowPlaying shows.
+public nonisolated struct Avo_V1_MediaCommand: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var command: Avo_V1_MediaCommand.Command = .unspecified
+
+  /// COMMAND_SEEK: where to.
+  public var positionMs: Int64 = 0
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public nonisolated enum Command: SwiftProtobuf.Enum, Swift.CaseIterable {
+    public typealias RawValue = Int
+    case unspecified // = 0
+    case play // = 1
+    case pause // = 2
+    case toggle // = 3
+    case next // = 4
+    case previous // = 5
+    case stop // = 6
+    case seek // = 7
+    case UNRECOGNIZED(Int)
+
+    public init() {
+      self = .unspecified
+    }
+
+    public init?(rawValue: Int) {
+      switch rawValue {
+      case 0: self = .unspecified
+      case 1: self = .play
+      case 2: self = .pause
+      case 3: self = .toggle
+      case 4: self = .next
+      case 5: self = .previous
+      case 6: self = .stop
+      case 7: self = .seek
+      default: self = .UNRECOGNIZED(rawValue)
+      }
+    }
+
+    public var rawValue: Int {
+      switch self {
+      case .unspecified: return 0
+      case .play: return 1
+      case .pause: return 2
+      case .toggle: return 3
+      case .next: return 4
+      case .previous: return 5
+      case .stop: return 6
+      case .seek: return 7
+      case .UNRECOGNIZED(let i): return i
+      }
+    }
+
+    // The compiler won't synthesize support with the UNRECOGNIZED case.
+    public static let allCases: [Avo_V1_MediaCommand.Command] = [
+      .unspecified,
+      .play,
+      .pause,
+      .toggle,
+      .next,
+      .previous,
+      .stop,
+      .seek,
+    ]
+
+  }
+
+  public init() {}
+}
+
 public nonisolated struct Avo_V1_SetClipboard: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -1209,7 +1440,7 @@ nonisolated extension Avo_V1_Orientation: SwiftProtobuf._ProtoNameProviding {
 
 nonisolated extension Avo_V1_Envelope: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Envelope"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{2}\u{8}hello\0\u{1}goodbye\0\u{1}ping\0\u{1}pong\0\u{1}reply\0\u{2}\u{6}launch\0\u{1}resize\0\u{1}close\0\u{1}install\0\u{1}uninstall\0\u{3}set_clipboard\0\u{3}list_apps\0\u{3}force_stop\0\u{3}delete_app_data\0\u{3}get_permissions\0\u{3}set_permission\0\u{3}share_files\0\u{3}set_display_visibility\0\u{3}open_notification\0\u{3}dismiss_notification\0\u{3}set_refresh_rate\0\u{3}focus_display\0\u{4}\u{e}app_installed\0\u{3}app_removed\0\u{3}display_ready\0\u{3}task_closed\0\u{1}notification\0\u{3}notification_removed\0\u{3}clipboard_changed\0\u{3}orientation_request\0\u{3}app_list\0\u{3}permission_list\0\u{3}display_content_changed\0\u{3}task_started\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{2}\u{8}hello\0\u{1}goodbye\0\u{1}ping\0\u{1}pong\0\u{1}reply\0\u{2}\u{6}launch\0\u{1}resize\0\u{1}close\0\u{1}install\0\u{1}uninstall\0\u{3}set_clipboard\0\u{3}list_apps\0\u{3}force_stop\0\u{3}delete_app_data\0\u{3}get_permissions\0\u{3}set_permission\0\u{3}share_files\0\u{3}set_display_visibility\0\u{3}open_notification\0\u{3}dismiss_notification\0\u{3}set_refresh_rate\0\u{3}focus_display\0\u{3}perform_notification_action\0\u{3}media_command\0\u{4}\u{c}app_installed\0\u{3}app_removed\0\u{3}display_ready\0\u{3}task_closed\0\u{1}notification\0\u{3}notification_removed\0\u{3}clipboard_changed\0\u{3}orientation_request\0\u{3}app_list\0\u{3}permission_list\0\u{3}display_content_changed\0\u{3}task_started\0\u{3}now_playing\0")
 
   fileprivate class _StorageClass {
     var _protocolVersion: UInt32 = 0
@@ -1534,6 +1765,32 @@ nonisolated extension Avo_V1_Envelope: SwiftProtobuf.Message, SwiftProtobuf._Mes
             _storage._payload = .focusDisplay(v)
           }
         }()
+        case 37: try {
+          var v: Avo_V1_PerformNotificationAction?
+          var hadOneofValue = false
+          if let current = _storage._payload {
+            hadOneofValue = true
+            if case .performNotificationAction(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._payload = .performNotificationAction(v)
+          }
+        }()
+        case 38: try {
+          var v: Avo_V1_MediaCommand?
+          var hadOneofValue = false
+          if let current = _storage._payload {
+            hadOneofValue = true
+            if case .mediaCommand(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._payload = .mediaCommand(v)
+          }
+        }()
         case 50: try {
           var v: Avo_V1_AppInstalled?
           var hadOneofValue = false
@@ -1690,6 +1947,19 @@ nonisolated extension Avo_V1_Envelope: SwiftProtobuf.Message, SwiftProtobuf._Mes
             _storage._payload = .taskStarted(v)
           }
         }()
+        case 62: try {
+          var v: Avo_V1_NowPlaying?
+          var hadOneofValue = false
+          if let current = _storage._payload {
+            hadOneofValue = true
+            if case .nowPlaying(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._payload = .nowPlaying(v)
+          }
+        }()
         default: break
         }
       }
@@ -1797,6 +2067,14 @@ nonisolated extension Avo_V1_Envelope: SwiftProtobuf.Message, SwiftProtobuf._Mes
         guard case .focusDisplay(let v)? = _storage._payload else { preconditionFailure() }
         try visitor.visitSingularMessageField(value: v, fieldNumber: 36)
       }()
+      case .performNotificationAction?: try {
+        guard case .performNotificationAction(let v)? = _storage._payload else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 37)
+      }()
+      case .mediaCommand?: try {
+        guard case .mediaCommand(let v)? = _storage._payload else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 38)
+      }()
       case .appInstalled?: try {
         guard case .appInstalled(let v)? = _storage._payload else { preconditionFailure() }
         try visitor.visitSingularMessageField(value: v, fieldNumber: 50)
@@ -1844,6 +2122,10 @@ nonisolated extension Avo_V1_Envelope: SwiftProtobuf.Message, SwiftProtobuf._Mes
       case .taskStarted?: try {
         guard case .taskStarted(let v)? = _storage._payload else { preconditionFailure() }
         try visitor.visitSingularMessageField(value: v, fieldNumber: 61)
+      }()
+      case .nowPlaying?: try {
+        guard case .nowPlaying(let v)? = _storage._payload else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 62)
       }()
       case nil: break
       }
@@ -3081,7 +3363,7 @@ nonisolated extension Avo_V1_ShareFiles: SwiftProtobuf.Message, SwiftProtobuf._M
 
 nonisolated extension Avo_V1_Notification: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Notification"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}package\0\u{1}key\0\u{1}title\0\u{1}body\0\u{3}posted_at_ms\0\u{3}large_icon_png\0\u{1}group\0\u{1}ongoing\0\u{1}silent\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}package\0\u{1}key\0\u{1}title\0\u{1}body\0\u{3}posted_at_ms\0\u{3}large_icon_png\0\u{1}group\0\u{1}ongoing\0\u{1}silent\0\u{1}actions\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3098,6 +3380,7 @@ nonisolated extension Avo_V1_Notification: SwiftProtobuf.Message, SwiftProtobuf.
       case 7: try { try decoder.decodeSingularStringField(value: &self.group) }()
       case 8: try { try decoder.decodeSingularBoolField(value: &self.ongoing) }()
       case 9: try { try decoder.decodeSingularBoolField(value: &self.silent) }()
+      case 10: try { try decoder.decodeRepeatedMessageField(value: &self.actions) }()
       default: break
       }
     }
@@ -3131,6 +3414,9 @@ nonisolated extension Avo_V1_Notification: SwiftProtobuf.Message, SwiftProtobuf.
     if self.silent != false {
       try visitor.visitSingularBoolField(value: self.silent, fieldNumber: 9)
     }
+    if !self.actions.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.actions, fieldNumber: 10)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3144,6 +3430,92 @@ nonisolated extension Avo_V1_Notification: SwiftProtobuf.Message, SwiftProtobuf.
     if lhs.group != rhs.group {return false}
     if lhs.ongoing != rhs.ongoing {return false}
     if lhs.silent != rhs.silent {return false}
+    if lhs.actions != rhs.actions {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Avo_V1_NotificationAction: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".NotificationAction"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}index\0\u{1}title\0\u{1}reply\0\u{3}reply_hint\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularUInt32Field(value: &self.index) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.title) }()
+      case 3: try { try decoder.decodeSingularBoolField(value: &self.reply) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.replyHint) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.index != 0 {
+      try visitor.visitSingularUInt32Field(value: self.index, fieldNumber: 1)
+    }
+    if !self.title.isEmpty {
+      try visitor.visitSingularStringField(value: self.title, fieldNumber: 2)
+    }
+    if self.reply != false {
+      try visitor.visitSingularBoolField(value: self.reply, fieldNumber: 3)
+    }
+    if !self.replyHint.isEmpty {
+      try visitor.visitSingularStringField(value: self.replyHint, fieldNumber: 4)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Avo_V1_NotificationAction, rhs: Avo_V1_NotificationAction) -> Bool {
+    if lhs.index != rhs.index {return false}
+    if lhs.title != rhs.title {return false}
+    if lhs.reply != rhs.reply {return false}
+    if lhs.replyHint != rhs.replyHint {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Avo_V1_PerformNotificationAction: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".PerformNotificationAction"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}key\0\u{1}index\0\u{3}reply_text\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.key) }()
+      case 2: try { try decoder.decodeSingularUInt32Field(value: &self.index) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.replyText) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.key.isEmpty {
+      try visitor.visitSingularStringField(value: self.key, fieldNumber: 1)
+    }
+    if self.index != 0 {
+      try visitor.visitSingularUInt32Field(value: self.index, fieldNumber: 2)
+    }
+    if !self.replyText.isEmpty {
+      try visitor.visitSingularStringField(value: self.replyText, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Avo_V1_PerformNotificationAction, rhs: Avo_V1_PerformNotificationAction) -> Bool {
+    if lhs.key != rhs.key {return false}
+    if lhs.index != rhs.index {return false}
+    if lhs.replyText != rhs.replyText {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3242,6 +3614,139 @@ nonisolated extension Avo_V1_DismissNotification: SwiftProtobuf.Message, SwiftPr
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
+}
+
+nonisolated extension Avo_V1_NowPlaying: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".NowPlaying"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}package\0\u{1}title\0\u{1}artist\0\u{1}album\0\u{3}duration_ms\0\u{3}position_ms\0\u{1}speed\0\u{1}state\0\u{3}can_next\0\u{3}can_previous\0\u{3}can_seek\0\u{3}artwork_changed\0\u{3}artwork_jpeg\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.package) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.title) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.artist) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.album) }()
+      case 5: try { try decoder.decodeSingularInt64Field(value: &self.durationMs) }()
+      case 6: try { try decoder.decodeSingularInt64Field(value: &self.positionMs) }()
+      case 7: try { try decoder.decodeSingularFloatField(value: &self.speed) }()
+      case 8: try { try decoder.decodeSingularEnumField(value: &self.state) }()
+      case 9: try { try decoder.decodeSingularBoolField(value: &self.canNext) }()
+      case 10: try { try decoder.decodeSingularBoolField(value: &self.canPrevious) }()
+      case 11: try { try decoder.decodeSingularBoolField(value: &self.canSeek) }()
+      case 12: try { try decoder.decodeSingularBoolField(value: &self.artworkChanged) }()
+      case 13: try { try decoder.decodeSingularBytesField(value: &self.artworkJpeg) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.package.isEmpty {
+      try visitor.visitSingularStringField(value: self.package, fieldNumber: 1)
+    }
+    if !self.title.isEmpty {
+      try visitor.visitSingularStringField(value: self.title, fieldNumber: 2)
+    }
+    if !self.artist.isEmpty {
+      try visitor.visitSingularStringField(value: self.artist, fieldNumber: 3)
+    }
+    if !self.album.isEmpty {
+      try visitor.visitSingularStringField(value: self.album, fieldNumber: 4)
+    }
+    if self.durationMs != 0 {
+      try visitor.visitSingularInt64Field(value: self.durationMs, fieldNumber: 5)
+    }
+    if self.positionMs != 0 {
+      try visitor.visitSingularInt64Field(value: self.positionMs, fieldNumber: 6)
+    }
+    if self.speed.bitPattern != 0 {
+      try visitor.visitSingularFloatField(value: self.speed, fieldNumber: 7)
+    }
+    if self.state != .unspecified {
+      try visitor.visitSingularEnumField(value: self.state, fieldNumber: 8)
+    }
+    if self.canNext != false {
+      try visitor.visitSingularBoolField(value: self.canNext, fieldNumber: 9)
+    }
+    if self.canPrevious != false {
+      try visitor.visitSingularBoolField(value: self.canPrevious, fieldNumber: 10)
+    }
+    if self.canSeek != false {
+      try visitor.visitSingularBoolField(value: self.canSeek, fieldNumber: 11)
+    }
+    if self.artworkChanged != false {
+      try visitor.visitSingularBoolField(value: self.artworkChanged, fieldNumber: 12)
+    }
+    if !self.artworkJpeg.isEmpty {
+      try visitor.visitSingularBytesField(value: self.artworkJpeg, fieldNumber: 13)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Avo_V1_NowPlaying, rhs: Avo_V1_NowPlaying) -> Bool {
+    if lhs.package != rhs.package {return false}
+    if lhs.title != rhs.title {return false}
+    if lhs.artist != rhs.artist {return false}
+    if lhs.album != rhs.album {return false}
+    if lhs.durationMs != rhs.durationMs {return false}
+    if lhs.positionMs != rhs.positionMs {return false}
+    if lhs.speed != rhs.speed {return false}
+    if lhs.state != rhs.state {return false}
+    if lhs.canNext != rhs.canNext {return false}
+    if lhs.canPrevious != rhs.canPrevious {return false}
+    if lhs.canSeek != rhs.canSeek {return false}
+    if lhs.artworkChanged != rhs.artworkChanged {return false}
+    if lhs.artworkJpeg != rhs.artworkJpeg {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Avo_V1_NowPlaying.State: SwiftProtobuf._ProtoNameProviding {
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0STATE_UNSPECIFIED\0\u{1}STATE_PLAYING\0\u{1}STATE_PAUSED\0\u{1}STATE_BUFFERING\0\u{1}STATE_STOPPED\0")
+}
+
+nonisolated extension Avo_V1_MediaCommand: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".MediaCommand"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}command\0\u{3}position_ms\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularEnumField(value: &self.command) }()
+      case 2: try { try decoder.decodeSingularInt64Field(value: &self.positionMs) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.command != .unspecified {
+      try visitor.visitSingularEnumField(value: self.command, fieldNumber: 1)
+    }
+    if self.positionMs != 0 {
+      try visitor.visitSingularInt64Field(value: self.positionMs, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Avo_V1_MediaCommand, rhs: Avo_V1_MediaCommand) -> Bool {
+    if lhs.command != rhs.command {return false}
+    if lhs.positionMs != rhs.positionMs {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Avo_V1_MediaCommand.Command: SwiftProtobuf._ProtoNameProviding {
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0COMMAND_UNSPECIFIED\0\u{1}COMMAND_PLAY\0\u{1}COMMAND_PAUSE\0\u{1}COMMAND_TOGGLE\0\u{1}COMMAND_NEXT\0\u{1}COMMAND_PREVIOUS\0\u{1}COMMAND_STOP\0\u{1}COMMAND_SEEK\0")
 }
 
 nonisolated extension Avo_V1_SetClipboard: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {

@@ -82,6 +82,8 @@ final class DaemonAppDelegate: NSObject, NSApplicationDelegate {
             host: HostInfo.current(),
             shortcuts: ShortcutManager(builder: builder, paths: paths),
             notifications: UserNotificationPresenter(),
+            // What Android plays, in Control Center and on the media keys.
+            nowPlaying: MacNowPlaying(),
             clipboard: PasteboardBridge(),
             launcher: WorkspaceLauncher(),
             // With the build, so the Control Panel tells a daemon left from before an update.
