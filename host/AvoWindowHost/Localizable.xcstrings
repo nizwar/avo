@@ -574,6 +574,16 @@
         }
       }
     },
+    "All Apps" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Semua App"
+          }
+        }
+      }
+    },
     "Anchor Tap" : {
       "localizations" : {
         "id" : {
@@ -1120,6 +1130,16 @@
         }
       }
     },
+    "Click a button or stick to place its control, or drag it to where it goes on the game (onto a control to bind it). With a control selected, press a button on the controller or click it here to bind it." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klik tombol atau stick untuk menaruh kontrolnya, atau seret ke tempatnya di game (ke sebuah kontrol untuk mengikatnya). Saat sebuah kontrol dipilih, tekan tombol di controller atau klik di sini untuk mengikatnya."
+          }
+        }
+      }
+    },
     "Click the map or search for a place, then move Android there." : {
       "localizations" : {
         "id" : {
@@ -1266,6 +1286,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Salin"
+          }
+        }
+      }
+    },
+    "Could not read the screen: %@" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidak dapat membaca layar: %@"
           }
         }
       }
@@ -1506,12 +1536,12 @@
         }
       }
     },
-    "Drag a button or stick onto the game to place a control there, or onto a control to bind it. With a control selected, press a button on the controller or click it here." : {
+    "Drag to make the panel larger or smaller" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Seret tombol atau stik ke game untuk menaruh kontrol di sana, atau ke sebuah kontrol untuk mengikatnya. Saat kontrol dipilih, tekan tombolnya di kontroler atau klik di sini."
+            "value" : "Seret untuk memperbesar atau memperkecil panel"
           }
         }
       }
@@ -2369,6 +2399,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lokasi"
+          }
+        }
+      }
+    },
+    "Location for" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokasi untuk"
           }
         }
       }
@@ -4393,6 +4433,16 @@
         }
       }
     },
+    "This App" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Ini"
+          }
+        }
+      }
+    },
     "This Mac" : {
       "localizations" : {
         "id" : {
@@ -4419,6 +4469,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aplikasi ini"
+          }
+        }
+      }
+    },
+    "This app follows every app’s location." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App ini mengikuti lokasi semua app."
+          }
+        }
+      }
+    },
+    "This app gets its own location, starting where every app is. Android reports it while this window is in front." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App ini punya lokasi sendiri, dimulai dari lokasi semua app. Android melaporkannya selama jendela ini di depan."
           }
         }
       }
@@ -4888,12 +4958,22 @@
         }
       }
     },
-    "Where Android’s GPS says it is. Every app gets the same location." : {
+    "Where Android’s GPS says it is for every app. An app can have its own in its window’s Location panel." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Posisi menurut GPS Android. Semua aplikasi mendapat lokasi yang sama."
+            "value" : "Tempat yang dilaporkan GPS Android untuk semua app. Sebuah app bisa punya lokasi sendiri lewat panel Lokasi di jendelanya."
+          }
+        }
+      }
+    },
+    "Where Android’s GPS says it is: every app’s location, or this app’s own while its window is in front." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tempat yang dilaporkan GPS Android: lokasi semua app, atau lokasi app ini sendiri selama jendelanya di depan."
           }
         }
       }

@@ -133,7 +133,9 @@ public final class DiskArbitrationWatcher: VolumeWatching, @unchecked Sendable {
 
     private func appeared(_ disk: DADisk) {
         let (bsd, mountPoint) = Self.info(disk)
-        if let bsd, let mountPoint { mounts[bsd] = mountPoint }
+        // A BSD name comes back for another disk (a disk image) once its own
+        // is gone: it never keeps the old disk's mount point.
+        if let bsd { mounts[bsd] = mountPoint }
         events?(.changed)
     }
 
@@ -144,7 +146,7 @@ public final class DiskArbitrationWatcher: VolumeWatching, @unchecked Sendable {
                 mounts[bsd] = mountPoint
             } else if let old = mounts.removeValue(forKey: bsd) {
                 // Unmounted (a forced unmount asks nobody).
-                if refusal?(old) != nil { events?(.disappeared(mountPoint: old)) }
+                if refusal?(old) != nil { confirmGone(old) }
             }
         }
         events?(.changed)
@@ -152,11 +154,32 @@ public final class DiskArbitrationWatcher: VolumeWatching, @unchecked Sendable {
 
     private func disappeared(_ disk: DADisk) {
         let (bsd, mountPoint) = Self.info(disk)
-        if let point = mountPoint ?? bsd.flatMap({ mounts.removeValue(forKey: $0) }), refusal?(point) != nil {
-            logger.error("the volume at \(point, privacy: .public) went away while Android used it")
-            events?(.disappeared(mountPoint: point))
-        }
+        let known = bsd.flatMap { mounts.removeValue(forKey: $0) }
+        if let point = mountPoint ?? known, refusal?(point) != nil { confirmGone(point) }
         events?(.changed)
+    }
+
+    /// Stops Android only once its volume is really gone: a disk that
+    /// disappears under a name or path Avo last saw for it is not proof
+    /// (building a disk image once stopped Android while its drive stayed
+    /// mounted). Still mounted, it is checked once more a second later, when
+    /// a forced unmount has had its time.
+    private func confirmGone(_ point: String, again: Bool = true) {
+        if Self.isMounted(point) {
+            guard again else { return }
+            queue.asyncAfter(deadline: .now() + 1) { [self] in confirmGone(point, again: false) }
+            return
+        }
+        logger.error("the volume at \(point, privacy: .public) went away while Android used it")
+        events?(.disappeared(mountPoint: point))
+    }
+
+    /// A volume is mounted at `path` (not a folder of another volume).
+    static func isMounted(_ path: String) -> Bool {
+        var info = statfs()
+        guard statfs(path, &info) == 0 else { return false }
+        let mountedOn = withUnsafeBytes(of: &info.f_mntonname) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+        return VolumeGuard.normalized(mountedOn) == VolumeGuard.normalized(path)
     }
 
     private func approveUnmount(_ disk: DADisk) -> Unmanaged<DADissenter>? {

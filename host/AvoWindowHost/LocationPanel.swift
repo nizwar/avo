@@ -7,15 +7,16 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 // The Location panel (Controls › Location…, ⌥⌘L, or Quick Settings ›
-// Location): where Android's GPS says it is, on an Apple Maps map, and what
-// it should say instead: a place (a click on the map, a search, or
+// Location; in the Control Panel, Settings › Devices › Location › Choose…,
+// for every app): where Android's GPS says it is, on an Apple Maps map, and
+// what it should say instead: a place (a click on the map, a search, or
 // coordinates typed in), a route (stops clicked on the map, by road or in
 // straight lines, or a GPX, KML or KMZ file) played at a walk, a run, by
 // bike or by car, faster if wanted, once or over and over, or this Mac's own
 // location again. It is Android's and the daemon's (LocationCenter): every
-// app gets the same fix, and a route keeps playing with this panel and
-// every window closed. The panel never asks macOS where the Mac is; the
-// daemon says.
+// app gets the same fix, and a route keeps playing with this panel and every
+// window closed. The panel never asks macOS where the Mac is; the daemon
+// says.
 
 private func L(_ key: String.LocalizationValue) -> String { String(localized: key, bundle: .windowHost) }
 
@@ -39,8 +40,13 @@ final class LocationModel: ObservableObject {
     /// The points of the route in `status` (fetched again for a new route).
     @Published private(set) var route: LocationRoute?
     @Published private(set) var problem: String?
+    /// The Control Panel's: every app's location, with no app to choose for.
+    private(set) var allAppsOnly = false
     private var client: DaemonClient?
     private var watchers = 0
+    /// The Control Panel's switch for the daemon's location events, which its
+    /// Settings pane uses too (nil in an App Shim: the client's own).
+    private var watch: (@MainActor (Bool) -> Void)?
     private var problemTask: Task<Void, Never>?
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "Location")
 
@@ -50,15 +56,27 @@ final class LocationModel: ObservableObject {
         if watchers > 0 { refresh() }
     }
 
+    /// After the Control Panel's `hello` (ControlPanelLocationWindow).
+    func connectControlPanel(_ client: DaemonClient, watch: @escaping @MainActor (Bool) -> Void) {
+        allAppsOnly = true
+        self.watch = watch
+        connect(client)
+    }
+
     /// A panel or Quick Settings shows the location: the daemon sends every change meanwhile.
     func beginWatching() {
         watchers += 1
+        if watchers == 1 { watch?(true) }
         refresh()
     }
 
     func endWatching() {
         watchers = max(watchers - 1, 0)
         guard watchers == 0, let client else { return }
+        if let watch {
+            watch(false)
+            return
+        }
         Task { _ = try? await client.location(watch: false) }
     }
 
@@ -138,7 +156,7 @@ final class LocationModel: ObservableObject {
 
 // MARK: - The window
 
-/// One Location window per App Shim, shared by its windows.
+/// One Location window per App Shim, shared by its windows (or the Control Panel's).
 @MainActor
 final class LocationPanel: NSObject, NSWindowDelegate {
     static let shared = LocationPanel()
@@ -175,6 +193,26 @@ final class LocationPanel: NSObject, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         LocationModel.shared.endWatching()
         window = nil
+    }
+}
+
+/// The Location window in the Control Panel (Settings › Devices › Location ›
+/// Choose…): every app's location, set with no app window open.
+@MainActor
+public enum ControlPanelLocationWindow {
+    /// After each `hello`: the window talks to the daemon through `client`,
+    /// and `watch` turns the Control Panel's location events on or off.
+    public static func connect(_ client: DaemonClient, watch: @escaping @MainActor (Bool) -> Void) {
+        LocationModel.shared.connectControlPanel(client, watch: watch)
+    }
+
+    public static func show() {
+        LocationPanel.shared.show()
+    }
+
+    /// A `DaemonEvent.location` the Control Panel got.
+    public static func update(_ status: LocationStatus) {
+        LocationModel.shared.update(status)
     }
 }
 
@@ -839,13 +877,25 @@ private struct LocationSidebar: View {
                     .font(QuickHaze.hubot(18, 700))
                     .foregroundStyle(QuickHaze.text)
                     .accessibilityAddTraits(.isHeader)
-                Text(verbatim: L("Where Android’s GPS says it is. Every app gets the same location."))
+                Text(verbatim: model.allAppsOnly
+                    ? L("Where Android’s GPS says it is for every app. An app can have its own in its window’s Location panel.")
+                    : L("Where Android’s GPS says it is: every app’s location, or this app’s own while its window is in front."))
                     .font(QuickHaze.mona(11.5))
                     .foregroundStyle(QuickHaze.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 4)
             .padding(.bottom, 2)
+            // Android has one GPS: an app's own location is what every app
+            // hears while its window is in front (LocationCenter in the daemon).
+            if !model.allAppsOnly {
+                QuickSegmented(label: L("Location for"), options: [(false, L("All Apps")), (true, L("This App"))],
+                               selection: model.status.map { $0.ownLocation == true }, fill: true,
+                               help: { own in own ? L("This app gets its own location, starting where every app is. Android reports it while this window is in front.")
+                                                  : L("This app follows every app’s location.") }) { own in
+                    model.send(own ? .ownLocation : .followAllApps)
+                }
+            }
             AndroidLocationCard(model: model, editor: editor)
             if let route = model.status?.route, model.status?.source == .route {
                 NowPlayingCard(model: model, editor: editor, route: route)
@@ -881,7 +931,7 @@ private struct AndroidLocationCard: View {
 
     var body: some View {
         let status = model.status
-        QuickCard(title: L("Android Is At"), scope: L("Every app")) {
+        QuickCard(title: L("Android Is At"), scope: status?.ownLocation == true ? L("This app") : L("Every app")) {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: symbol(status))
                     .font(.system(size: 15, weight: .semibold))

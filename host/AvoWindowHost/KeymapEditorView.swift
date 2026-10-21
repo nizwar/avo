@@ -120,8 +120,7 @@ final class KeymapEditorView: NSView {
         set { UserDefaults.standard.set(min(max(newValue, opacityRange.lowerBound), opacityRange.upperBound), forKey: "AvoKeymapEditorOpacity") }
     }
 
-    init(displayRect: @escaping () -> CGRect, profile: KeymapProfile, showingController: Bool = false,
-         onSave: @escaping (KeymapProfile) -> String?) {
+    init(displayRect: @escaping () -> CGRect, profile: KeymapProfile, onSave: @escaping (KeymapProfile) -> String?) {
         self.displayRect = displayRect
         self.profile = profile
         self.onSave = onSave
@@ -133,7 +132,7 @@ final class KeymapEditorView: NSView {
         // Out by default while a controller is connected or the layout uses one; then as the player left it.
         let shown = UserDefaults.standard.object(forKey: Self.panelShownKey) as? Bool
             ?? (GamepadHub.shared.info != nil || profile.usesGamepad)
-        if showingController || shown { showPanel(true) }
+        if shown { showPanel(true) }
         if let warning = Self.newerControlsWarning(profile) { setStatus(warning, problem: true) }
     }
 
@@ -340,8 +339,13 @@ final class KeymapEditorView: NSView {
         // Long messages wrap within the window instead of running off it
         // (set first, so this pass already uses it).
         status.preferredMaxLayoutWidth = max(bounds.width - 44, 120)
+        let room = max(bounds.width - 2 * Self.panelMargin, ControllerPanelModel.minWidth)
+        if abs(controllerPanel.maxWidth - room) > 0.5 { controllerPanel.maxWidth = room }
         super.layout()
-        placePanel()
+        // The panel's place needs its size, known only now. A place set after
+        // the layout waits for the next pass, so lay out again: else a panel
+        // just opened stays in the top left corner until it is dragged.
+        if placePanel() { super.layout() }
     }
 
     private func showHintSettings() {
@@ -1166,7 +1170,7 @@ final class KeymapEditorView: NSView {
 
     var showsController: Bool { panelHost != nil }
 
-    /// The Controller button, the panel's ×, and Edit Controller Mapping…: remembered per app.
+    /// The Controller button and the panel's ×: remembered per app.
     func setShowsController(_ on: Bool) {
         UserDefaults.standard.set(on, forKey: Self.panelShownKey)
         showPanel(on)
@@ -1193,11 +1197,14 @@ final class KeymapEditorView: NSView {
         panel.reset = { [weak self] in self?.confirmControllerReset() }
         panel.close = { [weak self] in self?.setShowsController(false) }
         panel.move = { [weak self] translation, ended in self?.movePanel(by: translation, ended: ended) }
+        panel.resize = { [weak self] ended in self?.panelResized(ended: ended) }
     }
 
     private func showPanel(_ on: Bool) {
         controllerToggle.state = on ? .on : .off
         guard on != showsController else { return }
+        // A move or resize the panel never heard the end of starts over.
+        panelMoveStart = nil
         guard on else {
             panelHost?.removeFromSuperview()
             panelHost = nil
@@ -1244,12 +1251,15 @@ final class KeymapEditorView: NSView {
     }
 
     /// Keeps the panel in its place as the window and the panel change size.
-    private func placePanel() {
-        guard panelMoveStart == nil, let host = panelHost, let leading = panelLeading, let top = panelTop else { return }
+    /// Whether it moved it.
+    private func placePanel() -> Bool {
+        guard panelMoveStart == nil, let host = panelHost, let leading = panelLeading, let top = panelTop else { return false }
         let room = panelRoom(host), place = panelPlace
         let x = (Self.panelMargin + room.width * place.x).rounded(), y = (Self.panelMargin + room.height * place.y).rounded()
-        if abs(leading.constant - x) > 0.5 { leading.constant = x }
-        if abs(top.constant - y) > 0.5 { top.constant = y }
+        var moved = false
+        if abs(leading.constant - x) > 0.5 { leading.constant = x; moved = true }
+        if abs(top.constant - y) > 0.5 { top.constant = y; moved = true }
+        return moved
     }
 
     /// The header dragged: the panel follows the pointer, never off the editor.
@@ -1266,6 +1276,27 @@ final class KeymapEditorView: NSView {
             panelPlace = CGPoint(x: room.width > 0 ? (x - Self.panelMargin) / room.width : 0.5,
                                  y: room.height > 0 ? (y - Self.panelMargin) / room.height : 0)
         }
+    }
+
+    /// The panel's corner dragged: it grows from where it is (kept there
+    /// meanwhile, as during a move), then stays inside the editor, and its
+    /// width is remembered.
+    private func panelResized(ended: Bool) {
+        guard let host = panelHost, let leading = panelLeading, let top = panelTop else { return }
+        guard ended else {
+            if panelMoveStart == nil { panelMoveStart = (leading.constant, top.constant) }
+            return
+        }
+        panelMoveStart = nil
+        UserDefaults.standard.set(Double(controllerPanel.width), forKey: ControllerPanelModel.widthKey)
+        layoutSubtreeIfNeeded()
+        let room = panelRoom(host)
+        let x = min(max(leading.constant, Self.panelMargin), Self.panelMargin + room.width)
+        let y = min(max(top.constant, Self.panelMargin), Self.panelMargin + room.height)
+        leading.constant = x.rounded()
+        top.constant = y.rounded()
+        panelPlace = CGPoint(x: room.width > 0 ? (x - Self.panelMargin) / room.width : 0.5,
+                             y: room.height > 0 ? (y - Self.panelMargin) / room.height : 0)
     }
 
     /// What the panel shows of the layout: what each part drives, what drives the selected control, the settings.
@@ -1369,6 +1400,36 @@ final class KeymapEditorView: NSView {
         return nil
     }
 
+    /// Where a part of the controller clicked in the panel places its
+    /// control: where touch games usually have it (the movement joystick
+    /// bottom left, the camera right, the face buttons bottom right as the
+    /// controller has them, shoulders and triggers at the top corners).
+    static func usualSpot(for element: GamepadElement) -> NormalizedPoint {
+        switch element {
+        case .stick(.left), .dpad: NormalizedPoint(0.16, 0.72)
+        case .stick(.right): NormalizedPoint(0.72, 0.5)
+        case .button(let button):
+            switch button {
+            case .a: NormalizedPoint(0.86, 0.80)
+            case .b: NormalizedPoint(0.93, 0.68)
+            case .x: NormalizedPoint(0.79, 0.68)
+            case .y: NormalizedPoint(0.86, 0.56)
+            case .leftShoulder: NormalizedPoint(0.10, 0.36)
+            case .leftTrigger: NormalizedPoint(0.10, 0.24)
+            case .rightShoulder: NormalizedPoint(0.90, 0.36)
+            case .rightTrigger: NormalizedPoint(0.90, 0.24)
+            case .dpadUp: NormalizedPoint(0.16, 0.60)
+            case .dpadDown: NormalizedPoint(0.16, 0.84)
+            case .dpadLeft: NormalizedPoint(0.08, 0.72)
+            case .dpadRight: NormalizedPoint(0.24, 0.72)
+            case .leftThumbstick: NormalizedPoint(0.26, 0.86)
+            case .rightThumbstick: NormalizedPoint(0.62, 0.86)
+            case .menu: NormalizedPoint(0.56, 0.08)
+            case .options: NormalizedPoint(0.44, 0.08)
+            }
+        }
+    }
+
     /// The menu of controls that `element` can place at `p`; a stick's also has its press's.
     private func showPlacements(for element: GamepadElement, at p: CGPoint) {
         let menu = NSMenu()
@@ -1462,7 +1523,10 @@ final class KeymapEditorView: NSView {
     /// press; one pushed on the controller says so instead).
     private func controllerPressed(_ element: GamepadElement, inPanel: Bool) {
         guard let id = selected, let control = profile.controls.first(where: { $0.id == id }) else {
-            if inPanel || { if case .button = element { true } else { false } }() {
+            // Clicked in the panel: its controls to place, where games usually have them.
+            if inPanel {
+                showPlacements(for: element, at: painter.point(Self.usualSpot(for: element)))
+            } else if case .button = element {
                 setStatus(String(localized: "\(padLabel(element)): select a control on the game first, or drag \(padLabel(element)) onto the game.",
                                  bundle: .windowHost))
             }

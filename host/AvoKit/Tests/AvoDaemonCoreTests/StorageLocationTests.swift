@@ -519,6 +519,18 @@ import Testing
         #expect(guarded.reason(for: "/Volumes/SSD") == nil)
     }
 
+    /// A disk that goes stops Android only when the data's volume is no
+    /// longer mounted: a disk image ejected under a name the drive once had
+    /// is not the drive.
+    @Test func onlyAVolumeThatIsNoLongerMountedIsGone() throws {
+        #expect(DiskArbitrationWatcher.isMounted("/"))
+        let folder = FileManager.default.temporaryDirectory.appending(path: "avo-mount-\(UUID().uuidString.prefix(8))")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        #expect(!DiskArbitrationWatcher.isMounted(folder.path), "a folder of the Mac's disk")
+        #expect(!DiskArbitrationWatcher.isMounted("/Volumes/Avo No Such Drive"))
+    }
+
     @Test func candidatesAllowOnlyWhatIsSafe() {
         let volume = VolumeSummary(name: "SSD", mountPoint: "/Volumes/SSD", format: "exfat", freeBytes: 20_000_000_000,
                                    capacityBytes: 500_000_000_000, isInternal: false, isRemovable: true, isReadOnly: false, isNetwork: false)

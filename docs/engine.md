@@ -35,7 +35,9 @@ device comes last (see "Shared folder" below). Frames go to shared memory
   in smoltcp and goes on over ordinary Mac sockets (SYN-ACK only once the
   Mac's connection is up), UDP per guest port, ping through the Mac's
   unprivileged ICMP socket. No privileges, no vmnet entitlement, no ports
-  opened on the Mac. eth0 (mobile) and eth1 (Ethernet) have no carrier.
+  opened on the Mac. eth0 (mobile data, `buried_eth0`) has a network of
+  its own with the same addresses, for the modem's data calls (below);
+  eth1 (Ethernet) has no carrier.
 - **Sound** (`virtio/sound.rs`, virtio-snd): one playback and one capture
   stream, S16 8–48 kHz, through Core Audio's AudioQueue on the Mac's default
   output and input. Playback runs on the device's own clock, one period
@@ -58,7 +60,10 @@ device comes last (see "Shared folder" below). Frames go to shared memory
   xruns with 20 ms HAL periods, at default and Oboe-sized (two-burst)
   buffers. Capture runs
   on a clock, the microphone joins when macOS allows it (the daemon asks in
-  Avo's name when Android first records, `microphone` event). A start is
+  Avo's name when Android first records, `microphone` event), and never
+  while Settings › Devices keeps it from Android (`microphone off` on the
+  control socket, `--no-microphone` from the start: Android records
+  silence, and turning it off closes a microphone that is open). A start is
   answered at once and the AudioQueue opens on a thread of its own (the
   first one in a process took 2 s on a vCPU, and Android's audio stalled for
   as long); Core Audio is warmed up in the background when the device
@@ -98,9 +103,37 @@ device comes last (see "Shared folder" below). Frames go to shared memory
   runs in 21 ms periods. Measured on the test VM: a two-burst AAudio stream
   went from 11 underruns a second to none, and a game's write to the Mac
   playing it from about 255 ms (AAudio's default buffer) to about 82 ms.
-- **Modem** (`modem.rs`): Cuttlefish's radio HAL needs a modem simulator;
-  this one answers AT commands like a modem without a SIM, so telephony
-  settles on "No SIM" instead of the phone process failing to start forever.
+- **Cameras** (`virtio/media.rs`, `camera.rs`; with `--cameras`):
+  two V4L2 capture devices in ChromeOS's virtio-media protocol (device
+  48), back then front as two functions of one PCI device, so the guest's
+  `virtio_media` module (loaded after v4l2loopback's /dev/video0) makes
+  them /dev/video1 and /dev/video2. Each streams Motion-JPEG at 640×480,
+  1280×720 or 1920×1080, 30 or 15 frames a second, from MMAP buffers in
+  its shared memory region (shmid 0, 64 MiB of Mac memory mapped into
+  BAR 2 whole). The bootconfig then picks the `.v4l2` variant of the
+  image's camera APEX, AOSP's external camera HAL, instead of the emulated
+  cameras. Frames come from the daemon (below); a camera Android does not
+  have lists no format, and the HAL passes it over.
+- **Modem** (`modem.rs`): Cuttlefish's radio HAL needs a modem simulator
+  (AT commands over vsock 9600), or the phone process fails to start
+  forever. This one has no SIM ("No SIM", a Wi-Fi-only phone) until the
+  control socket's `cellular` or `--cellular` puts in a test SIM: PLMN
+  001/01 named Avo (the image's APN list has APNs for it), IMSI
+  001010123456789, ICCID 89001010000000000018, number +1 555 555 0100,
+  registered at home on GPRS, EDGE, UMTS, HSPA, LTE or NR (standalone)
+  with 0–4 signal bars by Android's default thresholds. A data call gets
+  10.0.2.15/24, gateway 10.0.2.2 and DNS 10.0.2.3 on `buried_eth0`, whose
+  network is NAT like the Wi-Fi's, under the same `network` limits. The
+  answers are what Cuttlefish's reference RIL (reference-ril.c) reads,
+  mostly as its modem simulator gives them; a change reaches a running
+  Android as unsolicited lines: `+CREG` and `+CSQ` for another network
+  type, `+CSQ` for other bars, `+CFUN: 0` for the SIM going in or out (the
+  RIL reads the SIM only when the radio's state changes; Android turns the
+  radio on again at once, or, in airplane mode, when it turns it on). The
+  IMEI is the radio HAL's own (867400022047199). Calls and SMS fail.
+  Android's status bar shows the bars, and the network type (G, E, 3G, 3G,
+  LTE or 4G as the carrier config says, 5G) only while mobile data is its
+  default network, not beside Wi-Fi.
 - **Shared folder** (`virtio/fs.rs`, `virtio/fs/server.rs`; `--shared-dir
   <folder>`): virtio-fs (device 26, tag `avo_shared`, one request queue of
   1024, no DAX window) with a FUSE 7.31 server over the Mac folder: nodes
@@ -195,7 +228,12 @@ GLES 3.1 and Vulkan 1.3.
   `vkCmdPipelineBarrier2` or `vkCmdWaitEvents` into a sampled layout the
   guest layer adds one, and it turns `vkCmdCopyBufferToImage2` into
   `vkCmdCopyBufferToImage`, whose data gfxstream keeps (otherwise such
-  textures read back black, stale or magenta).
+  textures read back black, stale or magenta). The same layer traces what
+  the guest's renderers ask of MoltenVK when `AVO_VK_TRACE=1` is set or
+  `~/Library/Logs/Avo/vk-trace.on` exists as the engine starts: each kind of
+  image, view and sampler, every layout past Metal's 16 samplers a stage, and
+  every failed pipeline, image or image-format query, once each, with the
+  time, as `[vk-trace]` lines in `avo-vmm.log`. Off, it hooks nothing.
 - **Frames**: on each flush the engine reads the composed buffer back into the
   same shared-memory frames as software (0.6–1.2 ms a frame measured at
   720×1280 and 1080×1920), so the daemon, MetalFX and recording are
@@ -352,9 +390,13 @@ The control socket (`control.sock`, one text command per line):
 | `touch <i> [id:x:y …]` / `key <code> <0\|1>` | input |
 | `gamepad <buttons> <lx> <ly> <rx> <ry> <lt> <rt> <hatx> <haty>` | the gamepad's whole state in evdev units; only changes reach the guest |
 | `location <lat> <lng> [alt] [accuracy] [speed] [bearing]` / `location off` | the GPS fix Android's GNSS HAL reads from /dev/gnss1 (about once a second, timestamped when read, and carried on along its bearing at its speed for up to a second since it was set); a playing route sends it four times a second (architecture.md, "Android's location") |
+| `network <down kbps> <up kbps> <latency ms>` / `network off` | limits Android's network link to a mobile network type's speed and delay (Settings › Devices › Network speed; 0 is no limit, the latency is the round trip's); each direction queues at most 1 MiB, beyond which frames drop (link.rs). The daemon sends it after every start and when the setting changes |
+| `cellular <gprs\|edge\|umts\|hspa\|lte\|nr> <bars 0-4>` / `cellular off` | the modem's test SIM, registered at home on that network type with that signal, or no SIM (the default; `--cellular TYPE:BARS` sets it from the start). Live: Android hears of another type or signal at once, and of a SIM going in or out once it has turned the radio back on (modem.rs) |
+| `microphone on\|off` | whether Android may use the Mac's microphone (Settings › Devices › Microphone); off, it records silence and the microphone is never opened (virtio/sound.rs) |
+| `camera feed` | turns the connection into the cameras' frames: each a 16-byte header (camera, width, height, length; u32 little endian) and that many bytes of JPEG (camera.rs) |
 | `snapshot <i> <path>` | next frame as a BMP |
 | `pause` / `resume` | stop the vCPUs / let them run again (both idempotent); `pause` answers once no vCPU runs guest code, or with an error when one does not stop within 5 s (the others go on) |
-| `subscribe` | events: `frames …` (new layout), `frame <i> <seq>`, `frames-off <i>`, `microphone` (Android started recording), `sound playback on\|off` and `sound capture on\|off` (sticky: Android's sound streams), `paused` and `resumed <ms>` (how long the guest stood still), `audio playback <epoch> <path>` (sticky: the ring of what Android played); with the GPU also `gpu active <device>`, `gpu context` (Android's first rendering context this boot), `gpu first-frame <i>` and `gpu stalled <ms>` |
+| `subscribe` | events: `frames …` (new layout), `frame <i> <seq>`, `frames-off <i>`, `microphone` (Android started recording), `sound playback on\|off` and `sound capture on\|off` (sticky: Android's sound streams), `paused` and `resumed <ms>` (how long the guest stood still), `audio playback <epoch> <path>` (sticky: the ring of what Android played), `camera <i> on <w> <h> <fps>` and `camera <i> off` (sticky: Android streams camera *i*, 0 back and 1 front, with `--cameras`); with the GPU also `gpu active <device>`, `gpu context` (Android's first rendering context this boot), `gpu first-frame <i>` and `gpu stalled <ms>` |
 
 **Pause** (`pause.rs`). The vCPUs stop at a gate before their next
 `hv_vcpu_run` (a kick takes them out of the guest; one in WFI comes back
@@ -414,12 +456,30 @@ driver straight from libEGL's dispatch tables, so the GLES layer swaps
 `glGetString` in those two tables on the app's first `eglMakeCurrent`
 (`guest/gpuprofile/src/gles_layer.c`).
 
-The profile's CPU (`hardware.cpu`: each cluster's MIDR and cpufreq table) is
-carried by the data model and shown in the Control Panel, but the engine does
-not present it to the guest yet — `/proc/cpuinfo` and `/sys/devices/system/cpu`
-still describe the host vCPUs. Setting the vCPU `MIDR_EL1` per cluster and
-populating the guest's `virtual-cpufreq` perf table from the profile is the
-remaining engine work for hardware emulation.
+The profile's CPU (`hardware.cpu`: each cluster's MIDR and frequencies) is
+the engine's (`--cpu-clusters`, `vmm/src/cpu.rs`). Each vCPU's `MIDR_EL1` is
+its cluster's, so `/proc/cpuinfo` and `/sys/devices/system/cpu/*/regs` name
+the phone's cores, and the guest gets `virtual-cpufreq` (the image's
+`virtual-cpufreq.ko`, a page of registers per vCPU at 0x0904_0000): every
+cluster is one cpufreq policy with the phone's range, as on the phone
+(the OnePlus 13: policy0 is cpu0–5 at 384 MHz–3.53 GHz, policy6 cpu6–7 at
+1.02–4.32 GHz). The frequencies are names only: the guest's requests are
+ignored and the current frequency reads as the top, so the scheduler's
+frequency invariance sees every vCPU at full speed, and without
+`capacity-dmips-mhz` it keeps treating the vCPUs as the equals they are.
+The daemon fits the phone to Android's cores
+(`DeviceHardware.CPU.fitted(to:)`): fewer vCPUs keep the phone's fastest
+clusters, more grow its slowest, and Android numbers them from the slowest,
+as phones do.
+
+A faked MIDR also selects the guest kernel's errata workarounds, which are
+pure cost on a Mac core. Most are for KVM, AArch32 or tracing, or cheap (the
+TLB invalidation on every return to user space for the Cortex-A510 and A520).
+Two would slow every app and are kept out: a Cortex-A73 (erratum 858921:
+the counter is trapped and `clock_gettime` leaves the vDSO) is never
+presented, and an early Cortex-A53 (errata 826319 and others: apps' cache
+maintenance is trapped) is presented as r0p4. Qualcomm's A73- and A53-based
+Kryo cores report their own parts (0x51/0x800, 0x801), as their phones do.
 
 **The host agent.** Cuttlefish has no Bridge Agent, so `HostAgent` in the
 daemon plays it over ADB (vsock 6520, root through `su` on userdebug):
@@ -428,9 +488,15 @@ daemon plays it over ADB (vsock 6520, root through `su` on userdebug):
   rate this boot (above); a task already on
   Android's own screen moves there (`am display move-stack`), else the app
   starts there like a launcher would;
-- resizing re-plugs the display at the new size (Android's composer ignores
-  mode changes of a connected display; Android 17 moves the tasks back).
-  A scanout is plugged again, by a re-plug or a new window, only once
+- resizing gives the plugged scanout its new size when Avo's composer runs
+  (`GuestComposer`: a patched copy of the image's RanchuHwc that reports a
+  connected display's new mode, so SurfaceFlinger reconnects it and the
+  Android display keeps its id; installed on the `remount` overlays and
+  bind-mounted by an init file from the next boot). Otherwise it re-plugs
+  the display at the new size (the image's composer ignores mode changes
+  of a connected display; Android 17 moves the tasks back, under a new
+  display id, which breaks apps that keep per-display objects: Flutter's
+  text fields stop taking keys). A scanout is plugged again, by a re-plug or a new window, only once
   SurfaceFlinger and DisplayManager have dropped its old display, not when
   its EDID went: SurfaceFlinger crashed on a plug in between
   (architecture.md, "Resolution and scaling");
@@ -460,8 +526,8 @@ daemon plays it over ADB (vsock 6520, root through `su` on userdebug):
 - ADB support (Settings › System) splices 127.0.0.1:5555 to adbd, so adb and
   Android Studio see it as `emulator-5554` / `AVO_Droid`;
 - once per data disk: Wi-Fi on and joined to VirtWifi, media volume at full
-  (the Mac's volume sets how loud), Bluetooth and Thread off (no radios to
-  simulate them); every boot: UWB off (otherwise Android files a full bug
+  (the Mac's volume sets how loud), Thread off (no radio to simulate it),
+  Bluetooth off only without netsimd (below); every boot: UWB off (otherwise Android files a full bug
   report for the missing radio), the audio HAL without the MMAP and offload
   streams it only simulates and with 20 ms mixer periods ("Sound" above),
   multi audio focus on (every app keeps audio focus when another asks for it,
@@ -585,8 +651,95 @@ google.com/android/uncertified, which AOSP test-keys builds need before
 Google lets them sign in. A new data disk gets a new ID. The Play Store and
 the Google app are system apps, so Apps offers no Uninstall for them.
 
-Not there yet: camera (Cuttlefish's vsock camera protocol), Bluetooth,
-zero-copy GPU frames, microG.
+**Bluetooth.** Cuttlefish's HCI HAL (`bt_hci`) speaks H4 on /dev/hvc5,
+where Cuttlefish's host runs Root Canal. With the Android Emulator installed,
+the daemon passes `--bluetooth <emulator>/netsimd` and avo-vmm starts that
+netsimd (Root Canal inside; `--hci-port` on a free local port, its files in
+`run/netsim`, its log in the instance's `netsimd.log`) and passes the bytes
+both ways between hvc5 and the port (`bluetooth.rs`). Android's Bluetooth
+turns on and scans, advertises and pairs inside netsim's virtual air.
+Without netsimd Android's Bluetooth has no controller, so the host agent
+turns it off once per data disk as before.
+
+The Mac's Bluetooth LE devices join that air (`MacBluetoothBridge`).
+macOS gives no app the HCI of its controller, so they come through
+CoreBluetooth: avo-vmm announces the port (`bluetooth hci <port>`, sticky)
+and, while Android's Bluetooth is on (`settings get global bluetooth_on`,
+every 3 s), the daemon scans and gives each device worth showing a chip of
+its own on the port (`BLEProxyChip`, driven as its host by `HCIChip`; at
+most 12, not Apple's Continuity chatter, gone 30 s after the Mac last heard
+it). The chip advertises what the device advertises (rebuilt from
+CoreBluetooth's dictionary, `BLEAdvertisement`) from a random static
+address derived from the device's CoreBluetooth identifier. When Android
+connects, the Mac connects to the device and the chip serves its GATT
+database (`GATTServer`: GAP and GATT of its own, then the device's
+services; reads, writes, long writes, notifications and indications go to
+the device through `MacBluetoothLink`). Pairing is refused (SMP "pairing
+not supported"; CoreBluetooth pairs with the device itself) and L2CAP
+channels on a PSM are not offered. Classic Bluetooth (headsets, older
+controllers) has no way through. macOS asks for Bluetooth access the first
+time Android's Bluetooth is on (`NSBluetoothAlwaysUsageDescription`, in
+Avo.app and the daemon). `ProxyChipInNetsim` tests the chip against a real
+netsimd (`AVO_NETSIMD=…/netsimd swift test`).
+
+**Cameras.** Settings › Devices › Cameras gives each of Android's cameras
+a source (`backCamera`, `frontCamera`; `CameraSource`): Emulated, None or
+one of this Mac's cameras. While both are Emulated, Android keeps the
+image's emulated cameras, and avo-vmm runs as before. Any other choice
+starts Android with `--cameras` (the cameras it has: `back,front`, `back`,
+`front` or `none`), and the daemon feeds them (`CameraFeed`): when
+Android streams one (`camera <i> on …`), its source starts, the Mac's
+camera through AVFoundation (its picture cropped to fill Android's size;
+its light is on only while Android uses it) or, for an emulated one, a
+scene drawn on the Mac (sky, a moving sun, the camera's name and the
+time), and its frames go to the engine as JPEG on a `camera feed`
+connection. The engine hands each new frame of the stream's size to the
+oldest queued buffer; while none comes it repeats the last one for 2 s,
+then sends a plain gray JPEG of its own at the stream's rate, so the HAL
+never waits on the Mac (it reads three frames before a stream counts as
+started). macOS asks for camera access in Avo's name the first time
+(`NSCameraUsageDescription` and `com.apple.security.device.camera` in the
+daemon); until then, or when the chosen camera and every other is gone,
+Android sees a picture that says why. Which cameras Android has applies at
+its next start; another source for a camera it has applies at once.
+
+The external camera HAL, as built, gives every camera the facing
+"external" (apps that ask for the back or front camera find none) and,
+without /vendor/etc/external_camera_config.xml, allows 720p at 7.5 frames
+a second. Every boot with `--cameras` the host agent bind-mounts a copy of
+camera.device-external-impl.so over the APEX's (`GuestCamera`, only the
+known build, only when /dev/video1 and /dev/video2 are virtio-media):
+its `ANDROID_LENS_FACING_EXTERNAL` becomes a call to code in the padding
+after `.plt` that faces video1 back and video2 front, and it reads its
+configuration from /data/local/tmp/avo-camera/config.xml (cameras 0 and 1
+as on a phone, 30 frames a second at every size, v4l2loopback ignored);
+then the HAL and cameraserver start again. With `remount` overlays, a
+file on the vendor overlay declares the camera features the emulated
+APEX would (`android.hardware.camera`, `.front`, `.any`, `.autofocus`),
+from the next start on.
+
+**Settings › Devices.** Wi-Fi (`wifiEnabled`: the host agent sets Android's switch at every start and on a change; off, Android is offline), Network speed (`networkSpeed`, the `network` command above) and the Mac's Bluetooth devices (`shareMacBluetooth`, MacBluetoothBridge) apply at once (`DeviceSettingsEngine`). Location moved here from Privacy & Security. Mobile data with a SIM, signal bars and the network type in Android's status bar go to the engine as the `cellular` command above (modem.rs).
+
+Each of the Mac's devices Android may use has a switch there; off, Android has no such hardware and Avo never asks macOS for it. Bluetooth (`bluetoothEnabled`) and Cameras (`camerasEnabled`) are plugged in at the start: off, avo-vmm runs without netsimd (the host agent turns Android's Bluetooth off at every start without a controller) or with `--cameras none`. The Microphone (`microphoneEnabled`, the `microphone` command above) and the Clipboard (`shareClipboard`: the daemon stops watching the Mac's pasteboard and passes nothing either way) follow at once; Location is the switch to share the Mac's location.
+
+**Root.** With `rooted` on (Settings › System › Developer), avo-vmm boots
+a Magisk-patched copy of the image's init_boot (`--init-boot`,
+`vm/magisk/init_boot.img`, kept with the SHA-256 of the init_boot it came
+from). `MagiskRoot` makes it once per image while Android runs: the daemon
+downloads Magisk v30.7 from its GitHub release (checked against its
+SHA-256; Magisk is GPL and never ships with Avo), pushes it and the
+image's init_boot to `/data/local/tmp/avo-magisk`, runs Magisk's own
+`boot_patch.sh` there as root (the userdebug `su`), reads `new-boot.img`
+back and installs Magisk's app; then Android starts again with it
+(DaemonCore's `rootIfAsked`, also at a start of an image not patched yet).
+The generic ramdisk is last in the initrd, so Magisk's init is `/init`;
+Avo's property overrides before it still apply. If the patch fails, root
+turns off again and a Mac notification says why. Off, the image's own
+init_boot boots at the next start; nothing in the image or the data disk
+changes either way.
+
+Not there yet: camera (Cuttlefish's vsock camera protocol), classic
+Bluetooth, zero-copy GPU frames, microG.
 
 ## Legacy: the crosvm contract
 

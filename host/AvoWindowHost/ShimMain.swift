@@ -40,6 +40,12 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     private var pendingNotificationKey: String?
     private let frames = FrameRouter()
     private var client: DaemonClient?
+    /// The daemon answered `hello`: a window may open its display. Until
+    /// then the launch's window is on its way, and a reopen (a Dock click, or
+    /// a second request to open the app while it starts) must not open
+    /// another: its display would be asked for before the daemon knows the
+    /// shim, and refused ("The caller is not allowed…").
+    private var connected = false
     private(set) var config = VMConfig()
     /// The device profiles (they never change while the daemon runs): the
     /// chosen one's screen is what "Phone's screen" gives Android.
@@ -66,8 +72,6 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMenu()
-        // Translate Screen's text recognition, ready before it is asked for (off the main thread, low priority).
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { ScreenTextReader.warmUp() }
         let version = Bundle(for: ShimAppDelegate.self).object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
         let client = DaemonClient(role: .shim(package: package), version: "avo-shim \(version)", frameReceiver: frames)
         self.client = client
@@ -80,6 +84,7 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
                 }
                 ShimFingerprints.shared.connect(client)
                 LocationModel.shared.connect(client)
+                connected = true
                 openWindow(notificationKey: pendingNotificationKey)
                 pendingNotificationKey = nil
                 for await event in client.events { handle(event) }
@@ -291,7 +296,7 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
             for window in pictures { window.togglePictureInPicture() }
             return true
         }
-        if !flag { openWindow(notificationKey: nil) }
+        if !flag, connected { openWindow(notificationKey: nil) }
         return true
     }
 
@@ -392,8 +397,6 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
         let editor = gameMenu.addItem(withTitle: String(localized: "Edit Key Mapping…", bundle: .windowHost), action: #selector(AndroidWindowController.toggleKeymapEditor),
                                       keyEquivalent: "k")
         editor.keyEquivalentModifierMask = [.command, .shift]
-        gameMenu.addItem(withTitle: String(localized: "Edit Controller Mapping…", bundle: .windowHost),
-                         action: #selector(AndroidWindowController.editControllerMapping), keyEquivalent: "")
         gameMenu.addItem(withTitle: String(localized: "Game Mode", bundle: .windowHost), action: #selector(AndroidWindowController.toggleGameMode),
                          keyEquivalent: "g")
         gameMenu.addItem(withTitle: String(localized: "Show Key Mapping on Game", bundle: .windowHost), action: #selector(toggleKeymapHints(_:)),
@@ -435,6 +438,7 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     }
 
     @objc private func newWindow() {
+        guard connected else { return }
         openWindow(notificationKey: nil)
     }
 

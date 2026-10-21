@@ -65,6 +65,77 @@ final class ControlLocationEngine: LocationEngine, @unchecked Sendable {
         await #expect(throws: AvoError.self) { try await center.change(.point(GeoPoint(latitude: 95, longitude: 0), name: nil)) }
     }
 
+    static let jakarta = GeoPoint(latitude: -6.1754, longitude: 106.8272)
+    static let pontianak = GeoPoint(latitude: -0.0263, longitude: 109.3425)
+
+    /// An app's own location is what Android's GPS reports while its window
+    /// is in front; every other app, and every app when it closes, gets
+    /// every app's location.
+    @Test func anAppsOwnLocationGoesWithItsWindow() async throws {
+        let engine = RecordingLocationEngine()
+        let center = LocationCenter(engine: engine)
+        _ = try await center.change(.point(Self.jakarta, name: "Jakarta"))
+        // "This App": it starts where every app is, and changes on its own.
+        var mine = try await center.change(.ownLocation, for: "id.suruhkami")
+        #expect(mine.ownLocation == true && mine.pointName == "Jakarta")
+        mine = try await center.change(.point(Self.pontianak, name: "Pontianak"), for: "id.suruhkami")
+        #expect(mine.pointName == "Pontianak")
+        #expect(await center.status(for: "com.other").pointName == "Jakarta")
+        #expect(await center.status(for: "com.other").ownLocation == false)
+        #expect(engine.last??.latitude == Self.jakarta.latitude, "its window is not in front")
+
+        await center.appFocused("id.suruhkami")
+        #expect(engine.last??.latitude == Self.pontianak.latitude)
+        #expect(await center.status().activeApp == "id.suruhkami")
+        await center.appFocused("com.other")
+        #expect(engine.last??.latitude == Self.jakarta.latitude)
+        // Between apps without their own: nothing to tell Android.
+        let count = engine.fixes.count
+        await center.appFocused("com.third")
+        #expect(engine.fixes.count == count)
+
+        // The Control Panel lists it; closing it gives Android every app's place again.
+        let apps = try #require(await center.status().apps)
+        #expect(apps.map(\.package) == ["id.suruhkami"] && apps.first?.pointName == "Pontianak")
+        await center.appFocused("id.suruhkami")
+        await center.appClosed("id.suruhkami")
+        #expect(engine.last??.latitude == Self.jakarta.latitude)
+
+        // "All Apps" again, or removed in Settings: it follows every app's.
+        _ = try await center.change(.followAllApps, for: "id.suruhkami")
+        #expect(await center.status(for: "id.suruhkami").pointName == "Jakarta")
+        _ = try await center.change(.ownLocation, for: "id.suruhkami")
+        _ = try await center.change(.removeApp("id.suruhkami"))
+        #expect(await center.status().apps?.isEmpty == true)
+    }
+
+    @Test func placesAreKeptForTheNextStart() async throws {
+        let store = FileManager.default.temporaryDirectory.appending(path: "avo-location-\(UUID().uuidString.prefix(8)).json")
+        defer { try? FileManager.default.removeItem(at: store) }
+        do {
+            let center = LocationCenter(engine: nil, store: store)
+            _ = try await center.change(.point(Self.jakarta, name: "Jakarta"))
+            _ = try await center.change(.ownLocation, for: "id.suruhkami")
+            _ = try await center.change(.point(Self.pontianak, name: "Pontianak"), for: "id.suruhkami")
+            // A route plays from where it is chosen: the place before it is kept.
+            _ = try await center.change(.route(Self.route, LocationPlayback(pace: .walk)))
+        }
+        let engine = RecordingLocationEngine()
+        let next = LocationCenter(engine: engine, store: store)
+        #expect(await next.status().pointName == "Jakarta")
+        #expect(await next.status(for: "id.suruhkami").pointName == "Pontianak")
+        #expect(await next.status(for: "id.suruhkami").ownLocation == true)
+        // The engine has every app's place before Android starts (it reported
+        // its own built-in place until something changed).
+        await next.restore()
+        let sent = try #require(engine.last ?? nil)
+        #expect(abs(sent.latitude - Self.jakarta.latitude) < 1e-9 && abs(sent.longitude - Self.jakarta.longitude) < 1e-9)
+        // This Mac's location is not restored: CoreLocation sends it.
+        let mac = RecordingLocationEngine()
+        await LocationCenter(engine: mac).restore()
+        #expect(mac.fixes.isEmpty)
+    }
+
     @Test func aRouteMovesOnlyWhileAndroidRuns() async throws {
         let engine = RecordingLocationEngine()
         let center = LocationCenter(engine: engine)

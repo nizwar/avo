@@ -1,5 +1,7 @@
 import AppKit
+import AVFoundation
 import AvoKit
+import AvoWindowHost
 import SwiftUI
 
 // Control Panel tabs from spec §6. Changes apply immediately; the daemon
@@ -398,6 +400,7 @@ struct SystemPane: View {
     /// The sections to show: the Settings window spreads them over its panes.
     var sections: SystemSections = .all
     @State private var confirmADB = false
+    @State private var confirmRoot = false
     @State private var confirmReset = false
 
     var body: some View {
@@ -434,7 +437,7 @@ struct SystemPane: View {
                         }
                     }
                     if config.emulateHardware, let hardware = profile.hardware {
-                        DeviceSpecCard(hardware: hardware, display: profile.display)
+                        DeviceSpecCard(hardware: hardware, display: profile.display, vcpus: config.cpuCount)
                     }
                 }
             }
@@ -461,15 +464,132 @@ struct SystemPane: View {
             .shown(sections.contains(.googleApps))
             GoogleAppsSection(confirmReset: $confirmReset)
                 .shown(sections.contains(.googleApps))
+            Section("Network") {
+                Toggle(isOn: Binding(get: { config.wifiEnabled }, set: { value in model.update { $0.wifiEnabled = value } })) {
+                    HelpTitle("Wi-Fi", help: "Android reaches the internet through this Mac, over Wi-Fi. Turned off, Android is offline, as a phone with Wi-Fi off and no mobile data.")
+                }
+                LabeledContent {
+                    HazePicker("Speed", selection: Binding(get: { config.networkSpeed }, set: { value in model.update { $0.networkSpeed = value } })) {
+                        ForEach(NetworkSpeed.allCases, id: \.self) { speed in Text(Self.title(of: speed)).tag(speed) }
+                    }
+                } label: {
+                    HelpTitle("Network speed") {
+                        Text("Slows Android’s connection down to what a mobile network of that kind usually gives, speed and delay both, to try an app on a slow connection. Full speed is this Mac’s own.")
+                        Text("It applies at once, to every app; Android still says it is on Wi-Fi.")
+                    }
+                }
+            }
+            .shown(sections.contains(.network))
+            Section("Mobile network") {
+                Toggle(isOn: Binding(get: { config.cellularEnabled }, set: { value in model.update { $0.cellularEnabled = value } })) {
+                    HelpTitle("SIM card") {
+                        Text("Android gets a SIM on a simulated mobile network: the status bar shows its type and signal, apps read them, and with Wi-Fi off mobile data reaches the internet through this Mac.")
+                        Text("Its speed is Network speed’s: choose the same type there for a connection as slow as the badge says.")
+                    }
+                }
+                if config.cellularEnabled {
+                    LabeledContent("Network type") {
+                        HazePicker("Network type", selection: Binding(get: { config.mobileNetworkType },
+                                                                       set: { value in model.update { $0.mobileNetworkType = value } })) {
+                            ForEach(MobileNetworkType.allCases.reversed(), id: \.self) { type in Text(Self.title(of: type)).tag(type) }
+                        }
+                    }
+                    LabeledContent("Signal") {
+                        HazePicker("Signal", selection: Binding(get: { config.cellularSignal }, set: { value in model.update { $0.cellularSignal = value } })) {
+                            ForEach(Array((0...4).reversed()), id: \.self) { bars in Text(Self.signalTitle(bars)).tag(bars) }
+                        }
+                    }
+                }
+            }
+            .shown(sections.contains(.mobile))
+            // Each of the Mac's devices Android may use, with a switch: off,
+            // Android has no such hardware and Avo never asks macOS for it.
+            Section("Bluetooth") {
+                Toggle(isOn: Binding(get: { config.bluetoothEnabled }, set: { value in model.update { $0.bluetoothEnabled = value } })) {
+                    HelpTitle("Bluetooth") {
+                        Text("Android has Bluetooth: its apps scan, connect and pair as on a phone. It needs the Android Emulator (Android Studio’s SDK Manager installs it).")
+                        Text("Off, Android has no Bluetooth, and Avo never uses the Mac’s. Applies when Android restarts.")
+                    }
+                }
+                if config.bluetoothEnabled {
+                    Toggle(isOn: Binding(get: { config.shareMacBluetooth }, set: { value in model.update { $0.shareMacBluetooth = value } })) {
+                        HelpTitle("Share this Mac’s Bluetooth devices") {
+                            Text("While Bluetooth is on in Android, its apps find and use the Bluetooth LE devices this Mac sees: watches, sensors, beacons. macOS asks for permission the first time.")
+                            Text("Headsets and other classic Bluetooth devices, and pairing, are not supported yet.")
+                        }
+                    }
+                    RestartNote(text: "Android’s Bluetooth needs the Android Emulator (Android Studio’s SDK Manager installs it); without it, Bluetooth stays off in Android.")
+                }
+            }
+            .shown(sections.contains(.bluetooth))
+            Section {
+                Toggle("Cameras", isOn: Binding(get: { config.camerasEnabled }, set: { value in model.update { $0.camerasEnabled = value } }))
+                if config.camerasEnabled {
+                    CameraPicker(title: "Back camera", selection: Binding(get: { config.backCamera },
+                                                                          set: { value in model.update { $0.backCamera = value } }))
+                    CameraPicker(title: "Front camera", selection: Binding(get: { config.frontCamera },
+                                                                           set: { value in model.update { $0.frontCamera = value } }))
+                }
+                RestartNote(text: "Turning cameras on or off, or giving Android a Mac camera or no camera, applies when Android restarts; switching between cameras after that applies at once.")
+            } header: {
+                HelpTitle("Cameras") {
+                    Text("Emulated shows a picture drawn for the camera, with no camera needed. One of this Mac’s cameras shows what it sees while an Android app uses it (its light is on only then). macOS asks for permission the first time.")
+                    Text("Android apps find the back camera and the front one as on a phone. The Mac’s camera is not mirrored; apps mirror their own preview of the front one.")
+                    Text("Off, Android has no camera, and Avo never uses the Mac’s.")
+                }
+            }
+            .shown(sections.contains(.cameras))
+            Section("Microphone") {
+                Toggle(isOn: Binding(get: { config.microphoneEnabled }, set: { value in model.update { $0.microphoneEnabled = value } })) {
+                    HelpTitle("Microphone") {
+                        Text("Android’s apps hear this Mac’s microphone while they record, like voice notes and calls. macOS asks for permission the first time.")
+                        Text("Off, they record silence, and Avo never opens the microphone. Applies at once.")
+                    }
+                }
+            }
+            .shown(sections.contains(.microphone))
             Section("Location") {
                 Toggle(isOn: Binding(get: { config.shareLocation }, set: { value in model.update { $0.shareLocation = value } })) {
                     HelpTitle("Share this Mac’s location with Android",
                               help: "Apps that ask for GPS get where this Mac is (as macOS knows it, usually from Wi-Fi). macOS asks for permission the first time.")
                 }
-                // An app window's Location panel (AvoWindowHost/LocationPanel.swift).
-                RestartNote(text: "To put Android somewhere else, or move it along a route, choose Controls › Location… in an app window (⌥⌘L).")
+                LabeledContent {
+                    HStack(spacing: 8) {
+                        Text(verbatim: LocationNames.summary(source: model.location?.source, name: model.location?.pointName,
+                                                             point: model.location?.fix?.point))
+                            .foregroundStyle(Haze.textSecondary)
+                        Button("Choose…") { model.showLocationWindow() }
+                    }
+                } label: {
+                    HelpTitle("All apps",
+                              help: "Where Android is for every app: this Mac’s location, a place, or a route Android moves along. A place stays for the next start. Choose… shows it on a map.")
+                }
+                ForEach(model.location?.apps ?? [], id: \.package) { app in
+                    LabeledContent {
+                        HStack(spacing: 8) {
+                            Text(verbatim: LocationNames.summary(source: app.source, name: app.pointName, point: app.point))
+                                .foregroundStyle(Haze.textSecondary)
+                            Button("Use All Apps’ Location") { model.removeAppLocation(app.package) }
+                        }
+                    } label: {
+                        Text(verbatim: model.apps.first { $0.package == app.package }?.displayName ?? app.package)
+                    }
+                }
+                // The Location window (AvoWindowHost/LocationPanel.swift), here or in an app window.
+                RestartNote(text: "To give one app a location of its own, choose Controls › Location… in its window (⌥⌘L), then This App. Android reports it while that app’s window is in front.")
             }
             .shown(sections.contains(.location))
+            .onAppear { model.watchLocation(true) }
+            .onDisappear { model.watchLocation(false) }
+            Section("Clipboard") {
+                Toggle(isOn: Binding(get: { config.shareClipboard }, set: { value in model.update { $0.shareClipboard = value } })) {
+                    HelpTitle("Share the clipboard") {
+                        Text("Text copied on the Mac can be pasted in Android, and text copied in Android on the Mac.")
+                        Text("Off, Avo never reads or writes the Mac’s clipboard. Applies at once.")
+                    }
+                }
+            }
+            .shown(sections.contains(.clipboard))
             MacNotificationsSection()
                 .shown(sections.contains(.notifications))
             Section("Developer") {
@@ -491,6 +611,15 @@ struct SystemPane: View {
                     IssueText(field: "adbPort")
                     ADBStatusRow()
                 }
+                // Magisk (MagiskRoot in the daemon); what it costs is said again before it turns on.
+                Toggle(isOn: Binding(get: { config.rooted }, set: { value in
+                    if value { confirmRoot = true } else { model.update { $0.rooted = false } }
+                })) {
+                    HelpTitle("Root access (Magisk)") {
+                        Text("Apps can ask for root, and Magisk asks you about each one. Avo downloads Magisk from its GitHub page, adds it to Android’s boot ramdisk and starts Android again with it. Android’s data stays as it is.")
+                        Text("Apps that check the device’s integrity (banking, payments, some games) may refuse to run while Android is rooted. Turned off, Android starts without Magisk the next time.")
+                    }
+                }
             }
             .shown(sections.contains(.developer))
             Section("Shortcuts") {
@@ -508,6 +637,16 @@ struct SystemPane: View {
                 }
             }
             .shown(sections.contains(.shortcuts))
+            Section("Translate Screen") {
+                // One engine in the daemon for every app (ScreenTextEngine).
+                Toggle(isOn: Binding(get: { config.translationAtStartup }, set: { value in model.update { $0.translationAtStartup = value } })) {
+                    HelpTitle("Start the translation engine with Avo") {
+                        Text("Translate Screen (⌘⇧T in an app window) reads the text on screen and translates it on this Mac. One engine does it for every app.")
+                        Text("On, the engine gets ready as Avo starts, so the first translation in any app shows at once. Off, it starts when an app first translates, and the apps after it use the same engine.")
+                    }
+                }
+            }
+            .shown(sections.contains(.translation))
             Section("Maintenance") {
                 Button("Reset Android…", role: .destructive) { confirmReset = true }
                     .disabled(model.isInstallingGoogleApps)
@@ -522,10 +661,48 @@ struct SystemPane: View {
         } message: {
             Text("Lets adb, Android Studio or scrcpy on this Mac control Android. Only this Mac can connect, but any app on it can then install apps and read Android’s data, so turn it off when you don’t need it.")
         }
+        .confirmationDialog("Turn on root access?", isPresented: $confirmRoot, titleVisibility: .visible) {
+            Button("Turn On Root") { model.update { $0.rooted = true } }
+        } message: {
+            Text("Avo downloads Magisk from GitHub and starts Android again with it. Apps that check the device’s integrity (banking, payments, some games) may refuse to run while Android is rooted.")
+        }
         .confirmationDialog("Reset Android?", isPresented: $confirmReset, titleVisibility: .visible) {
             Button("Erase All Apps and Data", role: .destructive) { model.resetAndroid() }
         } message: {
             resetMessage
+        }
+    }
+
+    /// A mobile network type as Settings › Devices lists it, by its status bar badge.
+    static func title(of type: MobileNetworkType) -> String {
+        switch type {
+        case .nr: "5G"
+        case .lte: String(localized: "4G LTE")
+        case .hspa: String(localized: "3G (HSPA)")
+        case .umts: String(localized: "3G (UMTS)")
+        case .edge: String(localized: "E (EDGE)")
+        case .gprs: String(localized: "G (GPRS)")
+        }
+    }
+
+    static func signalTitle(_ bars: Int) -> String {
+        switch bars {
+        case 0: String(localized: "No signal")
+        case 4: String(localized: "4 bars (full)")
+        default: String(localized: "\(bars) bars")
+        }
+    }
+
+    /// A network speed as Settings › Devices lists it, with its download speed.
+    static func title(of speed: NetworkSpeed) -> String {
+        switch speed {
+        case .full: String(localized: "Full speed")
+        case .nr: String(localized: "5G · 200 Mbit/s")
+        case .lte: String(localized: "4G LTE · 30 Mbit/s")
+        case .hspa: String(localized: "H+ · 7.2 Mbit/s")
+        case .umts: String(localized: "3G · 1.9 Mbit/s")
+        case .edge: String(localized: "E (EDGE) · 237 kbit/s")
+        case .gprs: String(localized: "G (GPRS) · 80 kbit/s")
         }
     }
 
@@ -559,7 +736,14 @@ struct SystemSections: OptionSet {
     static let developer = SystemSections(rawValue: 1 << 6)
     static let shortcuts = SystemSections(rawValue: 1 << 7)
     static let maintenance = SystemSections(rawValue: 1 << 8)
-    static let all = SystemSections(rawValue: (1 << 9) - 1)
+    static let network = SystemSections(rawValue: 1 << 9)
+    static let bluetooth = SystemSections(rawValue: 1 << 10)
+    static let mobile = SystemSections(rawValue: 1 << 11)
+    static let cameras = SystemSections(rawValue: 1 << 12)
+    static let microphone = SystemSections(rawValue: 1 << 13)
+    static let clipboard = SystemSections(rawValue: 1 << 14)
+    static let translation = SystemSections(rawValue: 1 << 15)
+    static let all = SystemSections(rawValue: (1 << 16) - 1)
 }
 
 extension View {
@@ -616,5 +800,79 @@ struct CopyButton: View {
         }
         .buttonStyle(HazeLinkButtonStyle())
         .help(copied ? Text("Copied") : Text("Copy"))
+    }
+}
+
+/// One of Android's cameras (CameraSource): emulated, none, or one of this
+/// Mac's cameras, which come and go as they are plugged in. A chosen camera
+/// that is not connected stays chosen (CameraFeed then uses the Mac's
+/// default camera).
+struct CameraPicker: View {
+    let title: LocalizedStringKey
+    @Binding var selection: CameraSource
+    @State private var cameras = Self.macCameras()
+
+    var body: some View {
+        LabeledContent(title) {
+            HazePicker(title, selection: $selection) {
+                Text("Emulated").tag(CameraSource.emulated)
+                Text("None").tag(CameraSource.none)
+                Section("This Mac") {
+                    ForEach(cameras, id: \.uniqueID) { camera in Text(verbatim: camera.name).tag(CameraSource.mac(camera.uniqueID)) }
+                    if let id = selection.macCameraID, !cameras.contains(where: { $0.uniqueID == id }) {
+                        Text("Not connected").tag(selection)
+                    }
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)) { _ in cameras = Self.macCameras() }
+        .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasDisconnectedNotification)) { _ in cameras = Self.macCameras() }
+    }
+
+    /// The Mac's cameras, built in, plugged in and Continuity (an iPhone).
+    static func macCameras() -> [(uniqueID: String, name: String)] {
+        AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .external, .continuityCamera],
+                                         mediaType: .video, position: .unspecified)
+            .devices.map { ($0.uniqueID, $0.localizedName) }
+    }
+}
+
+/// A location as Settings names it.
+enum LocationNames {
+    static func summary(source: LocationStatus.Source?, name: String?, point: GeoPoint?) -> String {
+        switch source {
+        case .mac?, nil: return String(localized: "This Mac’s location")
+        case .route?: return name.map { String(localized: "Route: \($0)") } ?? String(localized: "A route")
+        case .point?:
+            if let name { return name }
+            guard let point else { return String(localized: "A chosen place") }
+            return String(format: "%.5f, %.5f", point.latitude, point.longitude)
+        }
+    }
+}
+
+extension ControlPanelModel {
+    /// Settings › Devices › Location or its Location window shows (every
+    /// change comes as `DaemonEvent.location` while one does) or not.
+    func watchLocation(_ on: Bool) {
+        locationWatchers = max(locationWatchers + (on ? 1 : -1), 0)
+        guard let client = daemonClient else { return }
+        let watching = locationWatchers > 0
+        Task { @MainActor in
+            if let status = try? await client.location(watch: watching), watching { location = status }
+        }
+    }
+
+    /// Settings › Devices › Location › Choose…: every app's location, on a map.
+    func showLocationWindow() {
+        ControlPanelLocationWindow.show()
+    }
+
+    /// The app uses every app's location again.
+    func removeAppLocation(_ package: String) {
+        guard let client = daemonClient else { return }
+        Task { @MainActor in
+            if let status = try? await client.changeLocation(.removeApp(package)) { location = status }
+        }
     }
 }

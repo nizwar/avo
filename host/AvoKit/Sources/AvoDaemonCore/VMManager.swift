@@ -101,10 +101,13 @@ public actor VMManager {
         let settings = settings()
         let task = Task { try await self.boot(settings) }
         booting = task
-        defer { booting = nil }
+        defer { if booting == task { booting = nil } }
         do {
             try await task.value
         } catch {
+            // Called off by a stop or by Android's own reboot, which tidy up
+            // and say what happened themselves (the next boot may be under way).
+            if error is CancellationError { throw error }
             await teardown()
             update(VMStatus(state: error as? AvoError == .imageMissing ? .notInstalled : .failed,
                             detail: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription))
@@ -208,6 +211,14 @@ public actor VMManager {
     private func engineExited(_ error: (any Error)?) async {
         guard status.state != .stopped else { return }
         pausedAt = nil
+        // Android itself rebooted or asked for a reset: a boot still waiting
+        // for its Control channel ends now instead of at its timeout
+        // (minutes), and makes way for the next start. Only these: the exit
+        // of an engine stopped on purpose can come after the next boot began.
+        if error is AndroidRebooted || error is AndroidFactoryReset {
+            booting?.cancel()
+            booting = nil
+        }
         await teardown()
         if error is AndroidFactoryReset {
             logger.notice("Android asked for a factory reset")

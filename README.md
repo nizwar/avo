@@ -177,7 +177,12 @@ website/    The project website (static, English and Indonesian)
 
 ## Limitations
 
-- Camera and Bluetooth are not supported yet.
+- Android's back and front cameras are emulated, or show one of the Mac's
+  cameras (Settings › Devices › Cameras); they have no flash, zoom or
+  manual controls. Bluetooth turns on when the Android Emulator
+  is installed (a virtual controller, netsimd) and reaches the Bluetooth LE
+  devices the Mac sees, like watches, sensors and beacons; classic Bluetooth
+  (headsets) and pairing do not work yet.
 - Apps that rely on hardware attestation (most banking and some DRM apps)
   generally do not run, and some online games refuse to run in a virtual
   machine. Avo does not try to get around that.

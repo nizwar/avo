@@ -28,6 +28,8 @@ public enum AvoError: Error, Codable, Equatable, Sendable, LocalizedError {
     case fingerprint(FingerprintProblem)
     /// Android's data cannot be used where it is (StorageLocation.swift).
     case storage(StorageProblem)
+    /// Translate Screen's engine did not translate (ScreenTextRequests.swift).
+    case translation(TranslationProblem)
 
     public var errorDescription: String? {
         switch self {
@@ -53,6 +55,7 @@ public enum AvoError: Error, Codable, Equatable, Sendable, LocalizedError {
             String(localized: "Too many wrong tries. Android accepts the next one in about a minute.", bundle: .avoKit)
         case .fingerprint(let problem): problem.message
         case .storage(let problem): problem.message
+        case .translation(let problem): problem.message
         }
     }
 }

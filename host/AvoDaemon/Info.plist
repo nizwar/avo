@@ -39,6 +39,14 @@
 	     responsible) reads and writes it, and macOS asks once. -->
 	<key>NSRemovableVolumesUsageDescription</key>
 	<string>Android's data can be kept on an external drive (Settings › Storage › Location). Avo reads and writes it there while Android runs.</string>
+	<!-- The Mac's Bluetooth devices for Android (MacBluetoothBridge): the daemon
+	     scans while Android's Bluetooth is on; Avo.app is held responsible. -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>With Bluetooth on in Android, its apps find and use the Bluetooth devices this Mac sees, like watches, sensors and beacons.</string>
+	<!-- Settings › Devices › Cameras (CameraFeed): the daemon runs the Mac's
+	     camera while an Android app uses it; Avo.app is held responsible. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Android apps that use the camera, like video calls and scanners, see this Mac's camera while they use it.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Android apps that record, like voice notes and calls, hear this Mac's microphone while they record.</string>
 	<key>NSPrincipalClass</key>

@@ -19,12 +19,22 @@
 //! snapshot <index> <path>            next frame of a scanout as a BMP
 //! location <lat> <lng> [alt] [accuracy] [speed] [bearing]   GPS fix for Android (gnss.rs)
 //! location off                       no fix
+//! network <down kbps> <up kbps> <latency ms>   limit Android's network link (0: no limit; link.rs)
+//! network off                        no limits
+//! cellular <gprs|edge|umts|hspa|lte|nr> <bars 0-4>   a SIM registered on that
+//!                                     network with that signal (modem.rs)
+//! cellular off                       no SIM
+//! microphone on|off                  whether Android may use the Mac's
+//!                                     microphone (virtio/sound.rs; off, it
+//!                                     records silence)
 //! tap <x> <y> / swipe <x1> <y1> <x2> <y2> [ms]   pixels of scanout 0 (debugging)
 //! pause                              stop the vCPUs (pause.rs); `ok` once none
 //!                                     runs guest code, an error when one does
 //!                                     not stop within 5 s (the others go on)
 //! resume                             let them run again (both idempotent)
 //! subscribe                          turn this connection into an event stream
+//! camera feed                        turn this connection into the cameras'
+//!                                     frames (camera.rs)
 //! ```
 //!
 //! Besides the frame events (frames.rs), subscribers get `microphone` when
@@ -34,6 +44,10 @@
 //! `paused` / `resumed <ms>` (how long the guest stood still) follow pauses.
 //! `audio playback <epoch> <path>` (sticky) names the shared memory with
 //! what Android played, for screen recordings (virtio/sound/tap.rs).
+//! `bluetooth hci <port>` (sticky) is netsimd's HCI port, with `--bluetooth`
+//! (bluetooth.rs). `camera <index> on <width> <height> <fps>` and
+//! `camera <index> off` (sticky) say when Android streams a camera of
+//! `--cameras` (camera.rs).
 //!
 //! In GPU mode (virtio/gpu/render.rs) they also get `gpu active <device>`
 //! (the renderer runs, on that GPU), `gpu context` (the guest created its
@@ -354,6 +368,13 @@ impl Controls {
                 ]);
             }
             Some("gamepad") => self.gamepad(parse_gamepad(&words[1..])?),
+            Some("network") => crate::link::LINK.set(crate::link::Conditions::parse(&words[1..])?),
+            Some("cellular") => crate::modem::CELLULAR.set(crate::modem::Service::parse(&words[1..])?),
+            Some("microphone") => crate::virtio::sound::MICROPHONE.set(match words.get(1).copied() {
+                Some("on") => true,
+                Some("off") => false,
+                _ => return Err("microphone on|off".into()),
+            }),
             Some("location") => {
                 if words.get(1) == Some(&"off") {
                     self.gnss.set(None);
@@ -425,8 +446,23 @@ pub fn serve(path: &Path, controls: Arc<Controls>) -> Result<(), String> {
             for stream in listener.incoming().flatten() {
                 std::thread::spawn(move || {
                     let Ok(mut writer) = stream.try_clone() else { return };
-                    let reader = BufReader::new(stream);
-                    for line in reader.lines().map_while(Result::ok) {
+                    let mut reader = BufReader::new(stream);
+                    let mut line = String::new();
+                    loop {
+                        line.clear();
+                        match reader.read_line(&mut line) {
+                            Ok(0) | Err(_) => return,
+                            Ok(_) => {}
+                        }
+                        let line = line.trim_end_matches(['\n', '\r']);
+                        if line.trim() == "camera feed" {
+                            if writer.write_all(b"ok\n").is_ok()
+                                && let Err(e) = crate::camera::read_feed(&crate::camera::HUB, &mut reader)
+                            {
+                                eprintln!("[vmm] camera feed: {e}");
+                            }
+                            return;
+                        }
                         let Some(controls) = CURRENT.lock().unwrap().clone() else { return };
                         if line.trim() == "subscribe" {
                             // The layouts that already exist are queued and the subscriber
@@ -442,7 +478,7 @@ pub fn serve(path: &Path, controls: Arc<Controls>) -> Result<(), String> {
                             }
                             return;
                         }
-                        let reply = match controls.run(&line) {
+                        let reply = match controls.run(line) {
                             Ok(()) => "ok\n".to_string(),
                             Err(e) => format!("error {e}\n"),
                         };

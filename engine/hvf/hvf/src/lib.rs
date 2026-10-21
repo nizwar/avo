@@ -228,7 +228,8 @@ impl VcpuHandle {
         check("hv_vcpus_exit", unsafe { sys::hv_vcpus_exit(&mut id, 1) })
     }
 
-    /// Makes every listed vCPU return from `run` (or skip its next run).
+    /// Makes every listed vCPU in `run` return from it. A vCPU outside
+    /// `run` at the time (handling an exit) does not see it.
     pub fn kick_all(handles: &[VcpuHandle]) -> Result<()> {
         let mut ids: Vec<sys::hv_vcpu_t> = handles.iter().map(|h| h.0).collect();
         check("hv_vcpus_exit", unsafe { sys::hv_vcpus_exit(ids.as_mut_ptr(), ids.len() as u32) })
@@ -347,4 +348,6 @@ impl Drop for Vcpu {
     }
 }
 
-pub use sys::{HV_SYS_REG_CNTV_CTL_EL0, HV_SYS_REG_CNTV_CVAL_EL0, HV_SYS_REG_MPIDR_EL1, HV_SYS_REG_SCTLR_EL1, HV_SYS_REG_SP_EL1};
+pub use sys::{
+    HV_SYS_REG_CNTV_CTL_EL0, HV_SYS_REG_CNTV_CVAL_EL0, HV_SYS_REG_MIDR_EL1, HV_SYS_REG_MPIDR_EL1, HV_SYS_REG_SCTLR_EL1, HV_SYS_REG_SP_EL1,
+};

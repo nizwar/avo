@@ -171,6 +171,21 @@ import IOSurface
     /// route and how it plays). Reply: JSON `LocationStatus`.
     func changeLocation(_ request: Data, reply: @escaping @Sendable (Data?, NSError?) -> Void)
 
+    // MARK: Translate Screen (App Shims)
+    /// Gets the text engine ready (Vision's models, the languages translated
+    /// last) unless it is already: Translate Screen just turned on in a window.
+    func wakeScreenText(reply: @escaping @Sendable (NSError?) -> Void)
+    /// The text in a frame. `request`: JSON `ScreenTextRequest`; `pixels`: the
+    /// frame's. Reply: JSON `ScreenTextReading`.
+    func readScreenText(_ request: Data, pixels: Data, reply: @escaping @Sendable (Data?, NSError?) -> Void)
+    /// `request`: JSON `TranslationRequest`. Reply: JSON `[String]`, the
+    /// translations in the texts' order.
+    func translateTexts(_ request: Data, reply: @escaping @Sendable (Data?, NSError?) -> Void)
+    /// The translations the engine has already (any app's), at once.
+    /// `request`: JSON `TranslationRequest`. Reply: JSON `[String?]`, nil
+    /// for a text not translated yet.
+    func knownTranslations(_ request: Data, reply: @escaping @Sendable (Data?, NSError?) -> Void)
+
     // MARK: Displays (App Shims)
     /// `request`: JSON `OpenDisplayRequest`. Reply: JSON `OpenDisplayReply`.
     func openDisplay(_ request: Data, reply: @escaping @Sendable (Data?, NSError?) -> Void)

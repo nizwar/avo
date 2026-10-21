@@ -13,7 +13,7 @@ import SwiftUI
 
 enum SettingsPane: String, CaseIterable, Identifiable {
     case general, android, googleApps, performance, storage
-    case graphics
+    case graphics, devices
     case privacy, fingerprints
     case developer, about
 
@@ -21,7 +21,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 
     static let groups: [[SettingsPane]] = [
         [.general, .android, .googleApps, .performance, .storage],
-        [.graphics],
+        [.graphics, .devices],
         [.privacy, .fingerprints],
         [.developer, .about],
     ]
@@ -32,6 +32,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .android: "Android"
         case .googleApps: "Google Apps"
         case .graphics: "Graphics"
+        case .devices: "Devices"
         case .performance: "Performance"
         case .storage: "Storage"
         case .fingerprints: "Fingerprints"
@@ -47,6 +48,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .android: "candybarphone"
         case .googleApps: "play.fill"
         case .graphics: "cpu"
+        case .devices: "antenna.radiowaves.left.and.right"
         case .performance: "gauge.with.dots.needle.67percent"
         case .storage: "internaldrive.fill"
         case .fingerprints: "touchid"
@@ -63,6 +65,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .android, .about: Color(haze: 0x4F7A2F)
         case .googleApps: Color(haze: 0x2F9E52)
         case .graphics: Color(haze: 0x7A5AF5)
+        case .devices: Color(haze: 0x0A84FF)
         case .performance: Color(haze: 0xFF9F0A)
         case .fingerprints: Color(haze: 0xFF375F)
         case .privacy: Color(haze: 0x5E5CE6)
@@ -74,7 +77,8 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     var keywords: [String] {
         switch self {
         case .general: [String(localized: "Shortcuts"), String(localized: "Dock"), String(localized: "Desktop alias"),
-                        String(localized: "Notifications"), String(localized: "Notification Center")]
+                        String(localized: "Notifications"), String(localized: "Notification Center"),
+                        String(localized: "Translate Screen"), String(localized: "Translation")]
         case .android: [String(localized: "Android version"), String(localized: "Reset Android")]
         case .googleApps: [String(localized: "Google Play"), "MindTheGapps", "GApps", String(localized: "Android ID")]
         // Display was a pane of its own: its settings are in Graphics now.
@@ -82,12 +86,17 @@ enum SettingsPane: String, CaseIterable, Identifiable {
                          String(localized: "Frame rate"), "FPS", "GPU", "4K", String(localized: "Aspect ratio"),
                          String(localized: "Phone’s screen"), String(localized: "Display"), String(localized: "Default window size"),
                          String(localized: "Orientation"), String(localized: "Performance HUD"), "HUD"]
+        case .devices: ["Wi-Fi", "Bluetooth", String(localized: "Location"), "GPS", String(localized: "Network speed"),
+                        "5G", "4G", "LTE", "3G", "EDGE", String(localized: "Offline"), "SIM", String(localized: "Mobile network"),
+                        String(localized: "Mobile data"), String(localized: "Signal"), String(localized: "Cameras"),
+                        String(localized: "Camera"), "Webcam", String(localized: "Microphone"), String(localized: "Clipboard"),
+                        String(localized: "Privacy")]
         case .performance: [String(localized: "Memory"), "RAM", String(localized: "CPU cores")]
         case .storage: [String(localized: "Data disk"), String(localized: "Android storage"), String(localized: "GPU shader cache"),
                         String(localized: "Location"), String(localized: "External drive"), String(localized: "Shared Folder"),
                         String(localized: "Avo Shared")]
         case .fingerprints: [String(localized: "Fingers")]
-        case .privacy: [String(localized: "Identify as"), String(localized: "Device profile"), String(localized: "Location"), "GPS",
+        case .privacy: [String(localized: "Identify as"), String(localized: "Device profile"),
                         String(localized: "Emulate this phone’s hardware")]
         case .developer: ["ADB", "adb", "scrcpy", "Android Studio"]
         case .about: [String(localized: "Version"), String(localized: "Software Update"), String(localized: "Check for Updates")]
@@ -108,6 +117,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .android: String(localized: "Android")
         case .googleApps: String(localized: "Google Apps")
         case .graphics: String(localized: "Graphics")
+        case .devices: String(localized: "Devices")
         case .performance: String(localized: "Performance")
         case .storage: String(localized: "Storage")
         case .fingerprints: String(localized: "Fingerprints")
@@ -123,7 +133,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch name {
         case "system": return .googleApps
         case "notifications": return .general
-        case "location": return .privacy
+        case "location": return .devices
         case "display": return .graphics
         default: return nil
         }
@@ -520,14 +530,15 @@ private struct SettingsDetail: View {
     var body: some View {
         Group {
             switch pane {
-            case .general: SystemPane(sections: [.shortcuts, .notifications])
+            case .general: SystemPane(sections: [.shortcuts, .translation, .notifications])
             case .android: SystemPane(sections: [.androidVersion, .maintenance])
             case .googleApps: SystemPane(sections: .googleApps)
             case .graphics: GraphicsPane()
             case .performance: PerformancePane()
             case .storage: StoragePane()
             case .fingerprints: FingerprintsPane()
-            case .privacy: SystemPane(sections: [.identity, .location])
+            case .devices: SystemPane(sections: [.network, .mobile, .bluetooth, .cameras, .microphone, .location, .clipboard])
+            case .privacy: SystemPane(sections: .identity)
             case .developer: SystemPane(sections: .developer)
             case .about: AboutPane()
             }

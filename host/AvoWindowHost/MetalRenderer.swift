@@ -11,9 +11,10 @@ import QuartzCore
 /// screen recording has the GPU draw each frame a second time, into the
 /// recorder's buffer.
 ///
-/// Android's frame fills the window or is aspect-fitted with black bars
+/// Android's frame fills the window or is aspect-fitted
 /// (`DisplaySizing.presentationRect`, which `DisplayView` uses for touches
-/// too). How it is scaled (`DisplaySizing.scalingPath`): 1:1 when the sizes
+/// too), over a blurred, dimmed copy of itself instead of black bars. When
+/// a held frame (a resize) gives way to Android's new one, it fades out over it. How it is scaled (`DisplaySizing.scalingPath`): 1:1 when the sizes
 /// match, MetalFX Spatial when it is enlarged, an averaging filter when it
 /// is shrunk, and bilinear while the window is being resized or a scaler is
 /// still being built. An optional RCAS pass sharpens 1:1 pictures.
@@ -36,6 +37,10 @@ final class MetalRenderer: @unchecked Sendable {
             layer.backgroundColor = keysOutBlack ? CGColor(gray: 0, alpha: 0) : CGColor(gray: 0, alpha: 1)
         }
     }
+    private let blurPipeline: MTLRenderPipelineState
+    private let backdropPipeline: MTLRenderPipelineState
+    /// Blends: the held frame fading out over the new one.
+    private let fadePipeline: MTLRenderPipelineState
     private let renderQueue = DispatchQueue(label: "dev.avo.render", qos: .userInteractive)
     private let lock = NSLock()
     private var textures: [MTLTexture] = []
@@ -75,6 +80,15 @@ final class MetalRenderer: @unchecked Sendable {
     }
     private var hold: Hold?
     private var holdGeneration = 0
+    /// The frame a hold kept up, fading out over the new one since `start` (under `lock`).
+    private struct Fade {
+        let texture: MTLTexture
+        /// Keeps the frame's memory, as `Hold.surface` does.
+        let surface: IOSurface?
+        let start: TimeInterval
+    }
+    private var fade: Fade?
+    private static let fadeDuration: TimeInterval = 0.2
     /// After `releaseHold`, the hold waits this long for a frame of the expected size.
     private static let releaseGrace: TimeInterval = 1
 
@@ -103,6 +117,10 @@ final class MetalRenderer: @unchecked Sendable {
     private lazy var upscalers = SpatialUpscalerCache(device: device, queue: renderQueue)
     /// Bilinear output that RCAS sharpens, the size of the presentation rect.
     private var scratch: MTLTexture?
+    /// The frame shrunk, then blurred, for the backdrop behind a fitted frame.
+    private var ambient: (shrunk: MTLTexture, blurred: MTLTexture)?
+    /// The long side of `ambient`, in pixels.
+    private static let ambientSize = 48
     /// Draws on the GPU not yet completed: at most two, so a slow GPU drops
     /// frames instead of queueing them up (and their latency).
     private let inFlight = DispatchSemaphore(value: 2)
@@ -144,12 +162,20 @@ final class MetalRenderer: @unchecked Sendable {
 
         do {
             let library = try device.makeLibrary(source: MetalShaders.source, options: nil)
-            func pipeline(_ fragment: String) throws -> MTLRenderPipelineState {
+            func pipeline(_ fragment: String, blends: Bool = false) throws -> MTLRenderPipelineState {
                 let descriptor = MTLRenderPipelineDescriptor()
                 descriptor.vertexFunction = library.makeFunction(name: "avo_vertex")
                 descriptor.fragmentFunction = library.makeFunction(name: fragment)
                 // The drawable, the recorder's buffers and the scratch texture are all BGRA.
                 descriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
+                if blends {
+                    let attachment = descriptor.colorAttachments[0]!
+                    attachment.isBlendingEnabled = true
+                    attachment.sourceRGBBlendFactor = .sourceAlpha
+                    attachment.destinationRGBBlendFactor = .oneMinusSourceAlpha
+                    attachment.sourceAlphaBlendFactor = .one
+                    attachment.destinationAlphaBlendFactor = .zero
+                }
                 return try device.makeRenderPipelineState(descriptor: descriptor)
             }
             linearPipeline = try pipeline("avo_linear")
@@ -158,6 +184,9 @@ final class MetalRenderer: @unchecked Sendable {
             copyPipeline = try pipeline("avo_copy")
             rcasPipeline = try pipeline("avo_rcas")
             keyedPipeline = try pipeline("avo_keyed")
+            blurPipeline = try pipeline("avo_blur")
+            backdropPipeline = try pipeline("avo_backdrop")
+            fadePipeline = try pipeline("avo_fade", blends: true)
         } catch {
             return nil
         }
@@ -327,9 +356,9 @@ final class MetalRenderer: @unchecked Sendable {
         }
     }
 
-    /// Keeps the frame on screen up while Android re-plugs its display at
-    /// `size`: between the unplug and the app's return Android has nothing
-    /// to show, and drawing that would flash black. `frameSize` reports the
+    /// Keeps the frame on screen up while Android changes its display to
+    /// `size` (in place, or by a re-plug: between the unplug and the app's
+    /// return Android has nothing to show, and drawing that would flash black). `frameSize` reports the
     /// held frame meanwhile, so touches land where the picture is. The hold
     /// ends at the first frame of `size` after `releaseHold()`, or by itself
     /// after `timeout`. A new hold replaces the expected size and the timeout.
@@ -338,6 +367,7 @@ final class MetalRenderer: @unchecked Sendable {
         let generation = lock.withLock { () -> Int? in
             let now = CACurrentMediaTime()
             holdGeneration += 1
+            fade = nil
             if hold != nil {
                 hold?.expected = size
                 hold?.deadline = now + seconds
@@ -403,20 +433,36 @@ final class MetalRenderer: @unchecked Sendable {
     /// expected size ends the hold, or the newest frame does after a second.
     /// Also called when the resize failed, so a hold never outlives its re-plug.
     func releaseHold() {
-        let generation = lock.withLock { () -> Int? in
-            guard hold != nil, hold?.released == nil else { return nil }
-            hold?.released = CACurrentMediaTime()
-            return hold?.generation
+        let (generation, ended) = lock.withLock { () -> (Int?, Bool) in
+            guard let hold, hold.released == nil else { return (nil, false) }
+            let now = CACurrentMediaTime()
+            // A display resized in place may have sent its new size before the reply: that frame shows now.
+            if let index = current, textures.indices.contains(index),
+               textures[index].width == hold.expected.width, textures[index].height == hold.expected.height {
+                endHold(at: now)
+                return (nil, true)
+            }
+            self.hold?.released = now
+            return (hold.generation, false)
         }
+        if ended { redraw() }
         if let generation { endHoldLater(generation, after: Self.releaseGrace) }
+    }
+
+    /// Lets go of the held frame, which fades out over the new one (under `lock`).
+    private func endHold(at time: TimeInterval) {
+        guard let hold else { return }
+        fade = Fade(texture: hold.texture, surface: hold.surface, start: time)
+        self.hold = nil
     }
 
     /// Ends hold `generation` once it is due, and draws the newest frame.
     private func endHoldLater(_ generation: Int, after seconds: TimeInterval) {
         renderQueue.asyncAfter(deadline: .now() + seconds + 0.005) { [self] in
             let ended = lock.withLock { () -> Bool in
-                guard let hold, hold.generation == generation, Self.holdIsDue(hold, at: CACurrentMediaTime()) else { return false }
-                self.hold = nil
+                let now = CACurrentMediaTime()
+                guard let hold, hold.generation == generation, Self.holdIsDue(hold, at: now) else { return false }
+                endHold(at: now)
                 return true
             }
             if ended { redraw() }
@@ -428,7 +474,7 @@ final class MetalRenderer: @unchecked Sendable {
         guard let hold else { return true }
         let arrived = hold.released != nil && texture.width == hold.expected.width && texture.height == hold.expected.height
         guard arrived || Self.holdIsDue(hold, at: time) else { return false }
-        self.hold = nil
+        endHold(at: time)
         return true
     }
 
@@ -631,12 +677,18 @@ final class MetalRenderer: @unchecked Sendable {
 
         // `.native` covers the whole drawable only for the few-pixel gap of a
         // 1:1 frame; a frame aspect-fitted at exactly ×1 (a drag that widened
-        // the window) keeps black bars, not edge pixels smeared across them.
+        // the window) keeps its bars, not edge pixels smeared across them.
         let nativeViewport = target.width - rect.width <= DisplaySizing.widthAlignment && target.height - rect.height <= 2
             ? PixelRect(x: 0, y: 0, width: target.width, height: target.height) : rect
         let origin = SIMD4<Float>(Float(rect.x), Float(rect.y), 0, 0)
         let con = exp2(-2 * (1 - Float(min(options.sharpness, 100)) / 100))
         let sharpening = SIMD4<Float>(Float(rect.x), Float(rect.y), con, 0)
+        // Where the frame leaves part of the drawable: a blurred copy of it there, not black bars.
+        let viewport: PixelRect
+        if case .native = path { viewport = nativeViewport } else { viewport = rect }
+        let covered = viewport.x <= 0 && viewport.y <= 0 && viewport.x + viewport.width >= target.width
+            && viewport.y + viewport.height >= target.height
+        let load: MTLLoadAction = !keysOutBlack && !covered && drawBackdrop(buffer, of: texture, into: drawable.texture, target: target) ? .load : .clear
         let encoded: Bool
         switch path {
         case _ where keysOutBlack:
@@ -652,35 +704,36 @@ final class MetalRenderer: @unchecked Sendable {
             scaler.scaler.inputContentHeight = source.height
             scaler.scaler.encode(commandBuffer: buffer)
             if output == rect.size {
-                encoded = pass(buffer, into: drawable.texture, viewport: rect, pipeline: sharpen ? rcasPipeline : copyPipeline,
+                encoded = pass(buffer, into: drawable.texture, load: load, viewport: rect, pipeline: sharpen ? rcasPipeline : copyPipeline,
                                texture: scaler.output, params: sharpen ? sharpening : origin)
             } else {
                 // Beyond MetalFX's ×4: bilinear does the rest.
-                encoded = pass(buffer, into: drawable.texture, viewport: rect, pipeline: linearPipeline, texture: scaler.output)
+                encoded = pass(buffer, into: drawable.texture, load: load, viewport: rect, pipeline: linearPipeline, texture: scaler.output)
             }
         case .bilinear where sharpen:
             guard let scratch = scratchTexture(rect.size),
-                  pass(buffer, into: scratch, clear: false, viewport: PixelRect(x: 0, y: 0, width: rect.width, height: rect.height),
+                  pass(buffer, into: scratch, load: .dontCare, viewport: PixelRect(x: 0, y: 0, width: rect.width, height: rect.height),
                        pipeline: linearPipeline, texture: texture)
             else { encoded = false; break }
-            encoded = pass(buffer, into: drawable.texture, viewport: rect, pipeline: rcasPipeline, texture: scratch, params: sharpening)
+            encoded = pass(buffer, into: drawable.texture, load: load, viewport: rect, pipeline: rcasPipeline, texture: scratch, params: sharpening)
         case .bilinear:
-            encoded = pass(buffer, into: drawable.texture, viewport: rect, pipeline: linearPipeline, texture: texture)
+            encoded = pass(buffer, into: drawable.texture, load: load, viewport: rect, pipeline: linearPipeline, texture: texture)
         case .native:
             // The copy repeats the edge pixels into a gap of a few pixels.
-            encoded = pass(buffer, into: drawable.texture, viewport: nativeViewport, pipeline: sharpen ? rcasPipeline : copyPipeline,
+            encoded = pass(buffer, into: drawable.texture, load: load, viewport: nativeViewport, pipeline: sharpen ? rcasPipeline : copyPipeline,
                            texture: texture, params: sharpen ? sharpening : origin)
         case .nearest:
-            encoded = pass(buffer, into: drawable.texture, viewport: rect, pipeline: nearestPipeline, texture: texture)
+            encoded = pass(buffer, into: drawable.texture, load: load, viewport: rect, pipeline: nearestPipeline, texture: texture)
         case let .downsample(taps):
             let footprint = SIMD4<Float>(1 / Float(max(rect.width, 1)), 1 / Float(max(rect.height, 1)), Float(taps), 0)
-            encoded = pass(buffer, into: drawable.texture, viewport: rect, pipeline: downsamplePipeline, texture: texture,
+            encoded = pass(buffer, into: drawable.texture, load: load, viewport: rect, pipeline: downsamplePipeline, texture: texture,
                            params: footprint)
         }
         guard encoded else {
             inFlight.signal()
             return
         }
+        drawFade(buffer, into: drawable.texture, target: target)
         lock.withLock {
             lastPath = path
             lastFallback = fallback
@@ -722,11 +775,11 @@ final class MetalRenderer: @unchecked Sendable {
     }
 
     /// Encodes one full-viewport quad sampling `texture` into `target`.
-    private func pass(_ buffer: MTLCommandBuffer, into target: MTLTexture, clear: Bool = true, viewport: PixelRect,
+    private func pass(_ buffer: MTLCommandBuffer, into target: MTLTexture, load: MTLLoadAction = .clear, viewport: PixelRect,
                       pipeline: MTLRenderPipelineState, texture: MTLTexture, params: SIMD4<Float> = .zero) -> Bool {
         let descriptor = MTLRenderPassDescriptor()
         descriptor.colorAttachments[0].texture = target
-        descriptor.colorAttachments[0].loadAction = clear ? .clear : .dontCare
+        descriptor.colorAttachments[0].loadAction = load
         descriptor.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: keysOutBlack ? 0 : 1)
         descriptor.colorAttachments[0].storeAction = .store
         guard let encoder = buffer.makeRenderCommandEncoder(descriptor: descriptor) else { return false }
@@ -741,6 +794,58 @@ final class MetalRenderer: @unchecked Sendable {
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
         encoder.endEncoding()
         return true
+    }
+
+    /// Covers the drawable with `texture` shrunk, blurred and dimmed, for the
+    /// parts the fitted frame leaves (render queue). False when it could not.
+    private func drawBackdrop(_ buffer: MTLCommandBuffer, of texture: MTLTexture, into drawable: MTLTexture,
+                              target: PixelSize) -> Bool {
+        let (width, height) = (max(texture.width, 1), max(texture.height, 1))
+        let long = Self.ambientSize
+        let size = width >= height ? PixelSize(width: long, height: max(1, long * height / width))
+                                   : PixelSize(width: max(1, long * width / height), height: long)
+        if ambient?.shrunk.width != size.width || ambient?.shrunk.height != size.height {
+            let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: size.width,
+                                                                      height: size.height, mipmapped: false)
+            descriptor.storageMode = .private
+            descriptor.usage = [.renderTarget, .shaderRead]
+            ambient = device.makeTexture(descriptor: descriptor).flatMap { shrunk in
+                device.makeTexture(descriptor: descriptor).map { (shrunk, $0) }
+            }
+        }
+        guard let ambient else { return false }
+        let small = PixelRect(x: 0, y: 0, width: size.width, height: size.height)
+        let texel = SIMD2<Float>(1 / Float(size.width), 1 / Float(size.height))
+        // Each small pixel averages the 8 x 8 samples over its footprint.
+        guard pass(buffer, into: ambient.shrunk, load: .dontCare, viewport: small, pipeline: downsamplePipeline,
+                   texture: texture, params: SIMD4(texel.x, texel.y, 8, 0)),
+              pass(buffer, into: ambient.blurred, load: .dontCare, viewport: small, pipeline: blurPipeline,
+                   texture: ambient.shrunk, params: SIMD4(texel.x, texel.y, 0, 0))
+        else { return false }
+        let frameAspect = Float(width) / Float(height)
+        let targetAspect = Float(max(target.width, 1)) / Float(max(target.height, 1))
+        let shown = targetAspect > frameAspect ? SIMD2<Float>(1, frameAspect / targetAspect)
+                                               : SIMD2<Float>(targetAspect / frameAspect, 1)
+        return pass(buffer, into: drawable, load: .dontCare, viewport: PixelRect(x: 0, y: 0, width: target.width, height: target.height),
+                    pipeline: backdropPipeline, texture: ambient.blurred, params: SIMD4(shown.x, shown.y, 0, 0))
+    }
+
+    /// The frame a hold kept up, fading out over the new one, and the next
+    /// step of the fade (render queue).
+    private func drawFade(_ buffer: MTLCommandBuffer, into drawable: MTLTexture, target: PixelSize) {
+        let now = CACurrentMediaTime()
+        let fade = lock.withLock { () -> Fade? in
+            if let current = self.fade, now - current.start >= Self.fadeDuration { self.fade = nil }
+            return self.fade
+        }
+        guard let fade else { return }
+        let progress = Float(min(max((now - fade.start) / Self.fadeDuration, 0), 1))
+        let alpha = 1 - progress * progress * (3 - 2 * progress)
+        let rect = DisplaySizing.presentationRect(source: PixelSize(width: fade.texture.width, height: fade.texture.height),
+                                                  target: target)
+        _ = pass(buffer, into: drawable, load: .load, viewport: rect, pipeline: fadePipeline, texture: fade.texture,
+                 params: SIMD4(alpha, 0, 0, 0))
+        renderQueue.asyncAfter(deadline: .now() + 1.0 / 120) { [weak self] in self?.redraw() }
     }
 
     /// The scratch texture at `size`, made again when the size changes (render queue).

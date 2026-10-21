@@ -68,6 +68,11 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     private var agent: HostAgent?
     private var control: EngineControl?
     private var tasks: [Task<Void, Never>] = []
+    /// The cameras the Mac feeds (CameraFeed), when Android has them.
+    private var cameras: CameraFeed?
+    /// The running start, and whether it booted Magisk's init_boot (RootEngine).
+    private var launched: EngineLaunch?
+    private var bootedWithMagisk = false
     /// The Mac's location for Android's GPS (sent again after every start).
     private var location: LocationFix?
     /// System Status' samples of Android's processes (given to every start's agent).
@@ -111,7 +116,8 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     /// Software adds nothing: avo-vmm then runs exactly as before GPU support.
     /// A reboot from inside Android (Restart, `adb reboot`) ends avo-vmm, and
     /// the daemon starts Android again: its start prepares every boot.
-    public static func arguments(images: URL, launch: EngineLaunch, gpu: GPUPlan = .software(.chosen, nil)) -> [String] {
+    public static func arguments(images: URL, launch: EngineLaunch, gpu: GPUPlan = .software(.chosen, nil),
+                                 netsimd: URL? = nil, initBoot: URL? = nil) -> [String] {
         let config = launch.config
         let paths = launch.paths
         var gpuFlags: [String] = []
@@ -131,6 +137,20 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
                 "--density", "\(config.bootDensity ?? 320)",
                 "--properties", identityFile(paths).path,
                 "--exit-on-reboot"] + gpuFlags + sharedFolderFlags(config) + refreshRateFlags(launch.displayRate)
+                + (netsimd.map { ["--bluetooth", $0.path] } ?? [])
+                + (initBoot.map { ["--init-boot", $0.path] } ?? [])
+                + config.cameraFlags
+                + (config.microphoneEnabled ? [] : ["--no-microphone"])
+                + cpuFlags(launch)
+    }
+
+    /// "Emulate this phone's hardware": the profile's CPU for Android's
+    /// cores (`DeviceHardware.CPU.fitted(to:)`), as avo-vmm presents it: each
+    /// vCPU's MIDR and a cpufreq policy per cluster. Otherwise the Mac's cores.
+    static func cpuFlags(_ launch: EngineLaunch) -> [String] {
+        guard launch.config.emulateHardware, let cpu = launch.profile?.hardware?.cpu,
+              let clusters = cpu.engineClusters(vcpus: launch.config.cpuCount) else { return [] }
+        return ["--cpu-clusters", clusters]
     }
 
     /// Display 0's refresh rate, which every app display gets too (HostAgent):
@@ -187,7 +207,13 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         process.executableURL = executable
         // The image of this start (CuttlefishImage.prepareStart): chosen in
         // the Control Panel, so it can differ from the one at daemon launch.
-        process.arguments = Self.arguments(images: launch.image.directory, launch: launch, gpu: plan)
+        // Android's Bluetooth controller: the Android Emulator's netsimd, when
+        // there is one and Settings › Devices gives Android Bluetooth.
+        let netsimd = launch.config.bluetoothEnabled ? AndroidEmulator.netsimd(home: launch.paths.home) : nil
+        // Root: Magisk's init_boot, once one was made for this image (MagiskRoot).
+        let initBoot = launch.config.rooted ? MagiskRoot.patchedImage(for: launch.image, paths: launch.paths) : nil
+        process.arguments = Self.arguments(images: launch.image.directory, launch: launch, gpu: plan, netsimd: netsimd,
+                                           initBoot: initBoot)
         let monitor = plan.isGPU ? GPUBootMonitor() : nil
         lock.withLock { self.gpuMonitor = monitor }
         let log = launch.paths.logs.appending(path: "avo-vmm.log")
@@ -274,13 +300,22 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         await agent.forwardScreenLock { screenLockSink.yield($0) }
         await agent.shareFolder(Self.sharedFolderFlags(launch.config).last.map { URL(filePath: $0, directoryHint: .isDirectory) })
         await agent.useDisplayRate(launch.displayRate)
+        await agent.useBluetooth(netsimd != nil)
+        await agent.applyDeviceSettings(wifi: launch.config.wifiEnabled, shareMacBluetooth: launch.config.shareMacBluetooth,
+                                        cellular: launch.config.cellularEnabled)
         await agent.sampleProcesses(lock.withLock { processSink })
+        // Settings › Devices › Cameras: the Mac's cameras, or scenes, while Android streams them.
+        let cameras = launch.config.cameraFlags.isEmpty ? nil : CameraFeed(socketPath: controlPath, sources: launch.config.cameraSources)
         let events = try control.events()
         let pump = Task {
             do {
                 for try await line in events {
                     if line.hasPrefix("gpu ") { self.gpuEvent(line, monitor: monitor, launch: launch, plan: plan) }
                     if line.hasPrefix("sound ") { self.soundEvent(line) }
+                    if line.hasPrefix("bluetooth hci "), let port = line.split(separator: " ").last.flatMap({ UInt16($0) }) {
+                        await agent.useBluetoothPort(port)
+                    }
+                    if line.hasPrefix("camera ") { cameras?.handle(line) }
                     bridge.handle(line)
                 }
             } catch {}
@@ -300,14 +335,18 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
             // launch replacing it takes over) or stop() came: not the engine's state.
             if let monitor, monitor.hasFallenBack || monitor.isStopped { return (false, nil) }
             self.process = process
+            self.cameras = cameras
             self.vsockPath = vsock
             self.control = control
             self.agent = agent
             self.tasks = tasks
+            self.launched = launch
+            self.bootedWithMagisk = initBoot != nil
             return (true, self.location)
         }
         guard current else {
             for task in tasks { task.cancel() }
+            cameras?.stop()
             await control.close()
             guard monitor?.isStopped == true else { return }
             // stop() did not see this process yet.
@@ -315,6 +354,10 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
             throw CancellationError()
         }
         if let location { try? await control.send(location.command) }
+        // Settings › Devices › Network speed: the engine starts at full speed.
+        if launch.config.networkSpeed != .full { try? await control.send(launch.config.networkSpeed.engineCommand) }
+        // Settings › Devices › Mobile network: the modem starts without a SIM.
+        if launch.config.cellularEnabled { try? await control.send(launch.config.cellularCommand) }
     }
 
     public func stop() async {
@@ -342,14 +385,18 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         for _ in 0..<200 where process.isRunning { try? await Task.sleep(for: .milliseconds(100)) }
         await Self.end(process)
         for task in tasks { task.cancel() }
+        lock.withLock { self.cameras }?.stop()
         await lock.withLock { self.control }?.close()
         lock.withLock {
             self.process = nil
+            self.cameras = nil
             self.vsockPath = nil
             self.agent = nil
             self.control = nil
             self.tasks = []
             self.gpuMonitor = nil
+            self.launched = nil
+            self.bootedWithMagisk = false
         }
     }
 
@@ -594,6 +641,42 @@ extension VMMEngine: WidgetsEngine {
 
 /// Google apps (Settings › System): userdebug Cuttlefish lets root turn off
 /// dm-verity and remount the system partitions, which HostAgent does.
+extension VMMEngine: DeviceSettingsEngine {
+    public func applyDeviceSettings(_ config: VMConfig) async {
+        let (control, agent, cameras) = lock.withLock { (self.control, self.agent, self.cameras) }
+        cameras?.use(config.cameraSources)
+        try? await control?.send(config.microphoneEnabled ? "microphone on" : "microphone off")
+        try? await control?.send(config.networkSpeed.engineCommand)
+        try? await control?.send(config.cellularCommand)
+        await agent?.applyDeviceSettings(wifi: config.wifiEnabled, shareMacBluetooth: config.shareMacBluetooth,
+                                         cellular: config.cellularEnabled)
+    }
+}
+
+extension VMMEngine: RootEngine {
+    public func bootedRooted() async -> Bool {
+        lock.withLock { bootedWithMagisk }
+    }
+
+    public func hasPatchedImage() async -> Bool {
+        guard let launch = lock.withLock({ launched }) else { return false }
+        return MagiskRoot.patchedImage(for: launch.image, paths: launch.paths) != nil
+    }
+
+    public func prepareRoot() async throws {
+        await wakeIfPaused()
+        guard let (agent, launch) = lock.withLock({ agent.flatMap { a in launched.map { (a, $0) } } }), await agent.isReady else {
+            throw AvoError.vmNotRunning
+        }
+        let apk = try await MagiskRoot.apk(paths: launch.paths)
+        let stock = MagiskRoot.stockImage(of: launch.image)
+        let hash = try MagiskRoot.sha256(of: stock)
+        let patched = try await agent.patchInitBoot(stock: stock, apk: apk)
+        try MagiskRoot.store(patched, stock: hash, paths: launch.paths)
+        logger.notice("root: Magisk \(MagiskRoot.release.version, privacy: .public) patched init_boot; Android starts rooted next time")
+    }
+}
+
 extension VMMEngine: SystemAppsEngine {
     public func systemApps() async throws -> any SystemAppsGuest {
         await wakeIfPaused()

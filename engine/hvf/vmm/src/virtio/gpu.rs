@@ -16,7 +16,7 @@ pub mod edid;
 mod fence;
 mod gfxstream;
 pub mod guest;
-mod hostmem;
+pub mod hostmem;
 pub mod render;
 
 use super::queue::{Chain, Queue};

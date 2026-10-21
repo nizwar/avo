@@ -458,6 +458,16 @@
         }
       }
     },
+    "Allow Avo in System Settings › Privacy & Security › Camera, or choose another camera in Avo › Settings › Devices." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Izinkan Avo di Pengaturan Sistem › Privasi & Keamanan › Kamera, atau pilih kamera lain di Avo › Pengaturan › Perangkat."
+          }
+        }
+      }
+    },
     "Android already has “%@”. Choose another finger to add." : {
       "localizations" : {
         "id" : {
@@ -653,6 +663,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Android melaporkan kesalahan."
+          }
+        }
+      }
+    },
+    "Android restarted while it started with Magisk, so Avo started it again without root. Your apps and data are as they were." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android memulai ulang saat dinyalakan dengan Magisk, jadi Avo menyalakannya lagi tanpa root. Aplikasi dan data Anda tetap seperti semula."
           }
         }
       }
@@ -937,6 +957,16 @@
         }
       }
     },
+    "Answer macOS’s question to see the Mac’s camera here." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jawab pertanyaan macOS untuk melihat kamera Mac di sini."
+          }
+        }
+      }
+    },
     "Avo cannot unlock this Android." : {
       "localizations" : {
         "id" : {
@@ -953,6 +983,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Avo tidak menemukan %@."
+          }
+        }
+      }
+    },
+    "Avo can’t use the Mac’s camera" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avo tidak bisa memakai kamera Mac"
           }
         }
       }
@@ -1003,6 +1043,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Avo sudah sedang memindahkan tempat data Android."
+          }
+        }
+      }
+    },
+    "Avo is asking to use the camera" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avo meminta izin memakai kamera"
           }
         }
       }
@@ -1107,6 +1157,16 @@
         }
       }
     },
+    "Back camera" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kamera belakang"
+          }
+        }
+      }
+    },
     "Build %@ has no Android image to download." : {
       "localizations" : {
         "id" : {
@@ -1177,6 +1237,16 @@
         }
       }
     },
+    "Connect it again, or choose another camera in Avo › Settings › Devices." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sambungkan lagi, atau pilih kamera lain di Avo › Pengaturan › Perangkat."
+          }
+        }
+      }
+    },
     "Copying Google apps to Android" : {
       "localizations" : {
         "id" : {
@@ -1243,6 +1313,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Jari %lld"
+          }
+        }
+      }
+    },
+    "Front camera" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kamera depan"
           }
         }
       }
@@ -1602,6 +1682,36 @@
         }
       }
     },
+    "Magisk could not be downloaded from GitHub" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magisk tidak bisa diunduh dari GitHub"
+          }
+        }
+      }
+    },
+    "Magisk could not patch Android’s boot ramdisk" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magisk tidak bisa mem-patch ramdisk boot Android"
+          }
+        }
+      }
+    },
+    "Magisk’s patched boot ramdisk is not a boot image" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ramdisk boot hasil patch Magisk bukan boot image"
+          }
+        }
+      }
+    },
     "More cores than this Mac’s %lld performance cores can slow macOS down." : {
       "localizations" : {
         "id" : {
@@ -1772,6 +1882,16 @@
         }
       }
     },
+    "Root could not be turned on" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Root tidak bisa diaktifkan"
+          }
+        }
+      }
+    },
     "Sharpness must be between 0 and 100." : {
       "localizations" : {
         "id" : {
@@ -1928,6 +2048,16 @@
         }
       }
     },
+    "The Magisk download is not the expected file" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File Magisk yang diunduh bukan file yang diharapkan"
+          }
+        }
+      }
+    },
     "The VM engine exited with status %lld." : {
       "localizations" : {
         "id" : {
@@ -1984,6 +2114,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pemanggil tidak diizinkan berkomunikasi dengan daemon Avo."
+          }
+        }
+      }
+    },
+    "The camera isn’t connected" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kamera tidak terhubung"
           }
         }
       }
@@ -2128,6 +2268,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ukuran tampilan harus antara %lld%% dan %lld%%."
+          }
+        }
+      }
+    },
+    "The languages for this translation aren’t downloaded." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bahasa untuk terjemahan ini belum diunduh."
           }
         }
       }
@@ -2575,6 +2725,16 @@
         }
       }
     },
+    "This version of macOS translates only in an app window." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versi macOS ini hanya menerjemahkan di jendela app."
+          }
+        }
+      }
+    },
     "Too many wrong tries. Android accepts the next one in about a minute." : {
       "localizations" : {
         "id" : {
@@ -2768,6 +2928,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "stik kiri: sensitivitas harus antara 0,25× dan 4×"
+          }
+        }
+      }
+    },
+    "macOS can’t translate between these languages." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS tidak dapat menerjemahkan antarbahasa ini."
           }
         }
       }

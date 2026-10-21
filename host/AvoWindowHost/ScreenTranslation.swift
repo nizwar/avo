@@ -8,18 +8,23 @@ import os
 /// screen (ScreenTextReader), translates it on the Mac with Apple's
 /// Translation framework into the Mac's language or the one chosen under
 /// Translate Into, and draws the translation over the app
-/// (ScreenTranslationOverlay) until ⌘⇧T or Esc.
+/// (ScreenTranslationOverlay) until ⌘⇧T or Esc. The reading and the
+/// translating are the daemon's text engine's, one for every app
+/// (ScreenTextEngine), ready from Avo's start or from the first app that
+/// translated; only languages macOS must download first are translated in
+/// the window, which can show the system's download sheet.
 ///
 /// It follows the screen. Ten times a second it compares the frame on
 /// screen with the one the plates were read from (ScreenWatch): the plates
-/// over anything that changed go at once (a scroll, another screen, a
-/// dialog), and the screen is read again as soon as it holds still. A plate
-/// only ever shows over the text it was read from: what a read finds is
-/// checked against the frame on screen when the read ends, and again at
-/// every look and every translation that arrives. Text read before keeps its
-/// translation, a screen read lately is not read again, and new text goes to
-/// the translator one piece at a time from the top, each plate showing as
-/// soon as its translation arrives.
+/// over anything that changed go at once (another screen, a dialog), those
+/// over text a scroll moved move with it (ScreenFollow), and the screen is
+/// read again as soon as it holds still. A plate only ever shows over the
+/// text it was read from: what a read finds is checked against the frame on
+/// screen when the read ends, and again at every look and every translation
+/// that arrives. Text read before keeps its translation (in any app: the
+/// engine keeps them while Avo runs), a screen read lately is not read
+/// again, and new text goes to the translator one piece at a time from the
+/// top, each plate showing as soon as its translation arrives.
 ///
 /// Nothing reaches Android: clicks go through the translation to the app,
 /// and while the key mapping has the keys (Game Mode) Esc stays the game's,
@@ -30,6 +35,8 @@ final class ScreenTranslationController {
     private let button: TitlebarButton
     private let showNotice: (String) -> Void
     private let keysBelongToGame: () -> Bool
+    /// The daemon, whose text engine reads and translates.
+    private let engine: () -> DaemonClient?
     private lazy var overlay = ScreenTranslationOverlay(displayRect: { [weak displayView] in displayView?.displayRect ?? .zero })
     private let hosted = HostedTranslator()
     /// The view whose task hands out `hosted`'s sessions. Held here, not by
@@ -51,6 +58,12 @@ final class ScreenTranslationController {
     private var lookTask: Task<Void, Never>?
     /// The frame looked at last: the one read once the screen settles on it.
     private var latestFrame: CGImage?
+    /// The strip of the frame looked at last, for `follow`.
+    private var latestStrip: ScreenSample?
+    /// The plates over text a scroll moved, moved with it (ScreenFollow).
+    private var follow = ScreenFollow()
+    /// Reads that failed in a row: one is tried again, three end the translation.
+    private var failedReads = 0
     /// The last look left something to do even if no new frame comes.
     private var lookAgain = true
     private var readTask: Task<Void, Never>?
@@ -70,6 +83,8 @@ final class ScreenTranslationController {
 
     private struct Current {
         var sample: ScreenSample
+        /// The frame's strip, which a scroll's slides are measured from.
+        var strip: ScreenSample?
         var reading: ScreenTextReader.Reading
         /// The language of each block to translate (one in the target language is not).
         var sources: [Int: Locale.Language]
@@ -82,10 +97,11 @@ final class ScreenTranslationController {
     private var translations = RecentCache<String, String>(capacity: 2000)
     /// The text on screen without a translation yet, from the top.
     private var untranslated: [(text: String, source: Locale.Language)] = []
+    /// New text came: ask the engine first which of it any app translated already.
+    private var needsLookUp = false
     private var translateTask: Task<Void, Never>?
-    /// Language pairs on the Mac, which translate on macOS 26 without SwiftUI's session.
-    private var installedPairs: Set<String> = []
-    /// Language pairs that translate in SwiftUI's session: several texts go at once.
+    /// Language pairs the engine left to SwiftUI's session in this window
+    /// (not downloaded yet, or macOS 15): several texts go at once.
     private var hostedPairs: Set<String> = []
     /// Language pairs that failed since translation started or the language
     /// changed: they are not asked again (the system would show its download
@@ -104,11 +120,12 @@ final class ScreenTranslationController {
     private var progressDelay: Task<Void, Never>?
 
     init(displayView: DisplayView, button: TitlebarButton, notice: @escaping (String) -> Void,
-         keysBelongToGame: @escaping () -> Bool) {
+         keysBelongToGame: @escaping () -> Bool, engine: @escaping () -> DaemonClient?) {
         self.displayView = displayView
         self.button = button
         showNotice = notice
         self.keysBelongToGame = keysBelongToGame
+        self.engine = engine
         // Translate Into lists them by the time a menu opens.
         Task { _ = await TranslationLanguages.supported() }
     }
@@ -128,6 +145,9 @@ final class ScreenTranslationController {
     private func start() {
         guard !isActive, let container = displayView.superview else { return }
         isActive = true
+        // Ready already, unless no app translated since Avo started and
+        // Settings › General doesn't start it with Avo.
+        if let client = engine() { Task { try? await client.wakeScreenText() } }
         announced = false
         reportedProblem = false
         failedPairs = []
@@ -156,6 +176,8 @@ final class ScreenTranslationController {
         })
         showState()
         watch.reset()
+        follow = ScreenFollow()
+        failedReads = 0
         current = nil
         lookAgain = true
         waitForFirstPlates()
@@ -183,14 +205,15 @@ final class ScreenTranslationController {
         waitingForFirstPlates = false
         untranslated = []
         watch.reset()
+        follow = ScreenFollow()
         current = nil
         latestFrame = nil
+        latestStrip = nil
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         keyMonitor = nil
         for observer in observers { NotificationCenter.default.removeObserver(observer) }
         observers = []
         hosted.cancelAll()
-        installedPairs = []
         hostedPairs = []
         overlay.clear()
         overlay.removeFromSuperview()
@@ -243,7 +266,7 @@ final class ScreenTranslationController {
         waitForFirstPlates()
         let supported = TranslationLanguages.known
         guard let current, let target = TranslationLanguages.target(among: supported) else { return }
-        show(current.reading, of: current.sample, into: target, supported: supported)
+        show(current.reading, of: current.sample, strip: current.strip, into: target, supported: supported)
     }
 
     // MARK: Following the screen
@@ -260,28 +283,30 @@ final class ScreenTranslationController {
         // and costs nothing once nothing waits to be read.
         if let latest = watch.latest, let latestFrame, renderer.statistics().idle,
            renderer.frameSize == CGSize(width: latest.width, height: latest.height) {
-            if lookAgain { apply(watch.look(at: latest, time: Self.now), frame: latestFrame) }
+            if lookAgain { apply(watch.look(at: latest, time: Self.now), frame: latestFrame, strip: latestStrip) }
             return
         }
         lookTask = Task { [weak self] in
             let image = await renderer.captureFrame()
-            var sample: ScreenSample?
-            if let image { sample = await ScreenTextReader.sample(of: image) }
+            var samples: (sample: ScreenSample, strip: ScreenSample)?
+            if let image { samples = await ScreenTextReader.samples(of: image) }
             guard let self, !Task.isCancelled else { return }
             lookTask = nil
             guard isActive else { return }
-            guard let image, let sample else {
+            guard let image, let samples else {
                 // No frame at all: the app has not drawn anything yet.
                 if watch.latest == nil { end(CaptureFiles.Failure.noFrame.localizedDescription) }
                 return
             }
             latestFrame = image
+            latestStrip = samples.strip
             lookNumber += 1
-            apply(watch.look(at: sample, time: Self.now), frame: image)
+            if current != nil { follow.look(at: samples.strip) }
+            apply(watch.look(at: samples.sample, time: Self.now), frame: image, strip: samples.strip)
         }
     }
 
-    private func apply(_ step: ScreenWatch.Step, frame: CGImage) {
+    private func apply(_ step: ScreenWatch.Step, frame: CGImage, strip: ScreenSample?) {
         lookAgain = step.pending
         // What changed since the plates' frame, which the look worked out already.
         if let current, let shown = watch.shown, shown == current.sample {
@@ -289,12 +314,12 @@ final class ScreenTranslationController {
         }
         refreshPlates()
         guard step.read, let sample = watch.latest else { return }
-        read(frame, sample: sample)
+        read(frame, sample: sample, strip: strip)
     }
 
     /// Reads the text in `frame` (unless that screen was read lately) and
     /// shows its translation.
-    private func read(_ frame: CGImage, sample: ScreenSample) {
+    private func read(_ frame: CGImage, sample: ScreenSample, strip: ScreenSample?) {
         readTask = Task { [weak self] in
             let supported = await TranslationLanguages.supported()
             guard let self, !Task.isCancelled, isActive else { return }
@@ -306,11 +331,33 @@ final class ScreenTranslationController {
             if let known = readings.first(where: { $0.sample.matches(sample) })?.reading {
                 reading = known
             } else {
+                guard let client = engine() else {
+                    end(AvoError.daemonUnreachable(String(localized: "not connected", bundle: .windowHost)).localizedDescription)
+                    return
+                }
                 let started = Self.now
                 showProgressIfReadTakesLong()
                 let languages = supported.compactMap(ScreenTextLanguages.naturalLanguageCode(for:))
-                reading = await ScreenTextReader.read(frame, languages: languages)
+                do {
+                    reading = try await ScreenTextReader.read(frame, languages: languages, with: client)
+                } catch {
+                    guard !Task.isCancelled, isActive else { return }
+                    let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                    logger.error("cannot read the screen: \(message, privacy: .public)")
+                    failedReads += 1
+                    guard failedReads >= 3 else {
+                        // Tried again at the next look that finds the screen still.
+                        readEnded()
+                        readTask = nil
+                        watch.abandonedReading()
+                        lookAgain = true
+                        return
+                    }
+                    end(String(localized: "Could not read the screen: \(message)", bundle: .windowHost))
+                    return
+                }
                 guard !Task.isCancelled, isActive else { return }
+                failedReads = 0
                 readEnded()
                 logger.info("read \(reading.blocks.count) blocks in \(Int((Self.now - started) * 1000)) ms")
             }
@@ -320,7 +367,7 @@ final class ScreenTranslationController {
             readings.insert((sample, reading), at: 0)
             if readings.count > 8 { readings.removeLast() }
             watch.finishedReading(sample, foundNewText: foundNewText)
-            show(reading, of: sample, into: target, supported: supported)
+            show(reading, of: sample, strip: strip, into: target, supported: supported)
         }
     }
 
@@ -347,8 +394,8 @@ final class ScreenTranslationController {
     }
 
     /// A read that takes long shows the pill, and after 4 s says that Vision
-    /// is getting ready: the first time it meets text in another script on
-    /// this Mac, it builds a model for it (most of a minute).
+    /// is getting ready: the first time on this Mac (or after a macOS
+    /// update) the engine builds its models, which takes most of a minute.
     private func showProgressIfReadTakesLong() {
         readProgress?.cancel()
         readProgress = Task { [weak self] in
@@ -372,7 +419,7 @@ final class ScreenTranslationController {
     /// Shows `reading`, the text of the frame `sample` was taken of, in
     /// `target`: the plates whose translation is known at once, the others
     /// as their translations arrive.
-    private func show(_ reading: ScreenTextReader.Reading, of sample: ScreenSample, into target: Locale.Language,
+    private func show(_ reading: ScreenTextReader.Reading, of sample: ScreenSample, strip: ScreenSample?, into target: Locale.Language,
                       supported: [Locale.Language]) {
         var sources: [Int: Locale.Language] = [:]
         var wanted: [(text: String, source: Locale.Language)] = []
@@ -401,9 +448,12 @@ final class ScreenTranslationController {
                 wanted.append((block.text, source))
             }
         }
-        current = Current(sample: sample, reading: reading, sources: sources, target: target)
+        current = Current(sample: sample, strip: strip, reading: reading, sources: sources, target: target)
         currentNumber += 1
+        // A scroll from here on moves these plates.
+        follow.start(from: strip)
         untranslated = wanted
+        needsLookUp = !wanted.isEmpty
         refreshPlates()
         // Nothing left to wait for (all of it translated before, or nothing that needs it).
         if wanted.isEmpty { stopWaiting() }
@@ -423,7 +473,8 @@ final class ScreenTranslationController {
     }
 
     /// Shows the plates of what was read last that have a translation and
-    /// still sit on their text: none over anything that changed since.
+    /// still sit on their text: none over anything that changed since,
+    /// except text a scroll moved, whose plates move with it.
     private func refreshPlates() {
         guard isActive, let current, let latest = watch.latest else {
             overlay.show([], frameSize: .zero)
@@ -445,10 +496,16 @@ final class ScreenTranslationController {
             // A longer translation may take the room on its right: a change there spoils it too.
             var area = block.rect
             area.size.width += block.room
-            guard !changes.spoils(area) else { continue }
+            var shift = 0.0
+            if changes.spoils(area) {
+                // Its text slid with a scroll: the plate goes along, unless other text is there now.
+                guard let moved = follow.moved(block.rect) else { continue }
+                shift = moved.minY - block.rect.minY
+            }
             plates.append(ScreenTranslationOverlay.Plate(id: index, text: translation, rect: block.rect, lineHeight: block.lineHeight,
                                                          alignment: block.alignment, room: block.room,
-                                                         background: NSColor(block.background), foreground: NSColor(block.foreground)))
+                                                         background: NSColor(block.background), foreground: NSColor(block.foreground),
+                                                         shift: shift))
         }
         overlay.show(plates, frameSize: current.reading.frameSize)
         if !plates.isEmpty { stopWaiting() }
@@ -463,6 +520,12 @@ final class ScreenTranslationController {
         translateTask = Task { [weak self] in
             while true {
                 guard let self, !Task.isCancelled else { return }
+                if needsLookUp, let client = engine() {
+                    needsLookUp = false
+                    await lookUpKnown(with: client)
+                    guard !Task.isCancelled, isActive else { return }
+                    refreshPlates()
+                }
                 guard isActive, let batch = nextBatch() else {
                     translateTask = nil
                     // All of it translated: if no plate shows (every translation
@@ -483,6 +546,26 @@ final class ScreenTranslationController {
                     failed(from: batch.source, to: batch.target, error)
                 }
                 refreshPlates()
+            }
+        }
+    }
+
+    /// Asks the engine which of the text on screen it translated already
+    /// (in this window or another app's, since Avo started): those plates
+    /// show at once, before anything new is translated, as macOS translates
+    /// only about five texts a second.
+    private func lookUpKnown(with client: DaemonClient) async {
+        guard let target = current?.target else { return }
+        var bySource: [Locale.Language: [String]] = [:]
+        for item in untranslated {
+            let pair = Self.pair(item.source, target)
+            guard !hostedPairs.contains(pair), !failedPairs.contains(pair) else { continue }
+            bySource[item.source, default: []].append(item.text)
+        }
+        for (source, texts) in bySource {
+            guard let known = try? await client.knownTranslations(texts, from: source, to: target) else { continue }
+            for (text, translation) in zip(texts, known) {
+                if let translation { translations.insert(translation, for: Self.key(text, source, target)) }
             }
         }
     }
@@ -517,19 +600,19 @@ final class ScreenTranslationController {
         showNotice(Self.message(for: error, target: TranslationLanguages.name(of: target)))
     }
 
-    /// Shows "Translating the screen…" when no plate shows within 0.7 s of
-    /// starting (or of choosing another language), and that Vision is
-    /// getting ready when the first read takes longer than 4 s: the first
-    /// read on a Mac builds Vision's models, which takes most of a minute.
+    /// Shows "Translating the screen…" when no plate shows within a second
+    /// of starting (or of choosing another language), and that Vision is
+    /// getting ready when the first read is still going after 4 s: the
+    /// first read on a Mac builds Vision's models, which takes most of a minute.
     private func waitForFirstPlates() {
         waitingForFirstPlates = true
         progressDelay?.cancel()
         progressDelay = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(700))
+            try? await Task.sleep(for: .milliseconds(1000))
             guard let self, !Task.isCancelled, waitingForFirstPlates else { return }
             overlay.showProgress(true)
-            try? await Task.sleep(for: .milliseconds(3300))
-            guard !Task.isCancelled, waitingForFirstPlates, watch.shown == nil else { return }
+            try? await Task.sleep(for: .milliseconds(3000))
+            guard !Task.isCancelled, waitingForFirstPlates, watch.shown == nil, readTask != nil else { return }
             overlay.showProgress(true, slow: true)
         }
     }
@@ -550,25 +633,20 @@ final class ScreenTranslationController {
         "\(pair(source, target))\u{1F}\(text)"
     }
 
-    /// On macOS 26, languages already on the Mac translate in a session of
-    /// their own; otherwise (and on macOS 15) the session comes from
-    /// SwiftUI, which also asks to download languages the Mac does not have.
+    /// The daemon's engine translates languages already on the Mac (macOS
+    /// 26). Languages to download first, and every pair on macOS 15, get a
+    /// session from SwiftUI in this window, which also asks to download them.
     private func translate(_ texts: [String], from source: Locale.Language, to target: Locale.Language) async throws -> [String] {
         let pair = Self.pair(source, target)
-        if #available(macOS 26.0, *) {
-            if !installedPairs.contains(pair), !hostedPairs.contains(pair), await TranslationLanguages.installed(source, target) {
-                installedPairs.insert(pair)
-            }
-            if installedPairs.contains(pair) {
-                do {
-                    return try await HostedTranslator.translateInstalled(texts, from: source, to: target)
-                } catch TranslationError.notInstalled {
-                    // Removed since: the system offers to download it again.
-                    installedPairs.remove(pair)
-                }
+        if !hostedPairs.contains(pair), let client = engine() {
+            do {
+                return try await client.translate(texts, from: source, to: target)
+            } catch AvoError.translation(.notInstalled), AvoError.translation(.needsWindow) {
+                hostedPairs.insert(pair)
+            } catch AvoError.translation(.unsupported) {
+                throw TranslationError.unsupportedLanguagePairing
             }
         }
-        hostedPairs.insert(pair)
         return try await hosted.translate(texts, from: source, to: target)
     }
 
@@ -641,7 +719,7 @@ extension AndroidWindowController {
 /// the task translates every job for those languages before it ends.
 ///
 /// A session is not Sendable, so it is only ever used off the main actor,
-/// where the task (or `translateInstalled`) got it.
+/// where the task got it.
 @MainActor
 final class HostedTranslator: ObservableObject {
     @Published fileprivate var configuration: TranslationSession.Configuration?
@@ -724,13 +802,6 @@ final class HostedTranslator: ObservableObject {
         await translator.endServing()
     }
 
-    /// `texts` translated by languages already on the Mac, in a session made for them.
-    @available(macOS 26.0, *)
-    nonisolated static func translateInstalled(_ texts: [String], from source: Locale.Language,
-                                               to target: Locale.Language) async throws -> [String] {
-        try await translations(of: texts, with: TranslationSession(installedSource: source, target: target))
-    }
-
     /// `texts` translated in one batch, in their order (one the session
     /// returns nothing for stays as it was).
     private nonisolated static func translations(of texts: [String], with session: TranslationSession) async throws -> [String] {
@@ -783,11 +854,6 @@ enum TranslationLanguages {
     /// Off the main actor: LanguageAvailability may not cross into it.
     private nonisolated static func fetchSupported() async -> [Locale.Language] {
         await LanguageAvailability().supportedLanguages
-    }
-
-    /// Whether `source` and `target` are on the Mac, with no download to ask for.
-    nonisolated static func installed(_ source: Locale.Language, _ target: Locale.Language) async -> Bool {
-        await LanguageAvailability().status(from: source, to: target) == .installed
     }
 
     /// What `supported()` found, or nothing before it returned.

@@ -257,8 +257,9 @@ Setiap poin brief dijabarkan menjadi perilaku yang bisa diuji.
 
 ### 7. Opsi root (checkbox)
 
-- Implementasinya berupa dua overlay partisi `system`: stock dan rooted
-  (KernelSU).
+- Implementasinya kini Magisk: salinan init_boot image yang di-patch Magisk
+  (`MagiskRoot`, docs/engine.md "Root"), menggantikan rancangan awal berupa
+  dua overlay partisi `system` (stock dan rooted, KernelSU).
 - Mencentang opsi ini menukar overlay saat boot berikutnya, tanpa menyentuh data
   user.
 - Saat dicentang, tampilkan peringatan bahwa aplikasi yang memeriksa integritas
@@ -298,7 +299,9 @@ membaca hardware:
   milik ANGLE); SurfaceFlinger, HWUI, WebView dan instance Vulkan milik ANGLE
   sengaja tidak disentuh agar layar tetap benar.
 - **CPU** — mesin melaporkan model inti tiap cluster (MIDR) dan frekuensinya,
-  sehingga `/proc/cpuinfo` dan `/sys/devices/system/cpu` cocok dengan target.
+  sehingga `/proc/cpuinfo` dan `/sys/devices/system/cpu` cocok dengan target
+  (satu policy cpufreq per cluster). Frekuensinya hanya nama: tiap vCPU tetap
+  berjalan secepat Mac mengizinkan.
 - Yang tetap jujur dan tak dipalsukan (mengubahnya memecah aplikasi/driver):
   `ro.hardware` dan HAL, daftar ABI, level API, dan kemampuan GPU sebenarnya.
   Aplikasi yang bercabang pada `.so`/HAL khusus-Qualcomm tetap jatuh ke jalur
@@ -316,6 +319,9 @@ membaca hardware:
 - Gestur trackpad diterjemahkan ke gerakan Android: scroll dua jari, pinch untuk
   zoom, dan swipe.
 - Kamera, mikrofon, dan lokasi diteruskan dengan prompt izin bawaan macOS.
+  Kamera belakang dan depan Android masing-masing bisa emulasi, tidak ada,
+  atau salah satu kamera Mac (Pengaturan › Perangkat › Kamera); kamera Mac
+  hanya menyala selama app Android memakainya.
 - Audio lewat virtio-snd ke CoreAudio.
 - Quick boot dari snapshot, dan VM tetap jalan di latar belakang dengan memori
   yang dikembalikan saat idle.
@@ -451,7 +457,7 @@ paling menentukan apakah produk terasa native.
 - [x] Nama proyek: Avo.
 - [x] Versi AOSP: 16 atau lebih baru.
 - [x] Engine VM: crosvm, dengan backend Hypervisor.framework yang ditulis sendiri.
-- [x] Root: KernelSU.
+- [x] Root: Magisk (KernelSU direncanakan semula; image Cuttlefish tidak membawanya).
 - [x] Game acuan: Delta Force, PUBG Mobile, Genshin Impact, Clash of Clans,
   ditambah game lain usulan komunitas.
 - [x] Logo: arah C, "Monogram a" (lihat [brand.md](brand.md)).

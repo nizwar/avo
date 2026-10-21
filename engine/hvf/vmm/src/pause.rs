@@ -198,9 +198,11 @@ pub struct Seat<'a> {
 
 impl Seat<'_> {
     /// Before each `hv_vcpu_run`: parks while a pause is asked for, until
-    /// it ends or `stopping` (the machine's own stop) is set.
+    /// it ends or `stopping` (the machine's own stop) is set. A stop is
+    /// looked for on every run: the kick that comes with it is lost on a vCPU
+    /// that is handling an exit at the time (an MMIO or WFI loop).
     pub fn before_run(&mut self, stopping: &AtomicBool) -> Pass {
-        if self.in_guest && !self.gate.requested.load(Ordering::SeqCst) {
+        if self.in_guest && !self.gate.requested.load(Ordering::SeqCst) && !stopping.load(Ordering::SeqCst) {
             return Pass::Run;
         }
         let gate = self.gate;

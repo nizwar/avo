@@ -6,6 +6,7 @@ pub mod console;
 pub mod fs;
 pub mod gpu;
 pub mod input;
+pub mod media;
 pub mod net;
 pub mod queue;
 pub mod rng;
@@ -47,10 +48,14 @@ pub trait VirtioDevice: Send {
         0xff_0000
     }
     /// Size of the device's shared memory region (virtio 1.2 §4.1.4.7), if
-    /// it has one: the transport puts it in 64-bit BAR 2 as shmid 1, which
-    /// is what virtio-gpu calls its host-visible memory.
+    /// it has one: the transport puts it in 64-bit BAR 2.
     fn shared_memory_size(&self) -> Option<u64> {
         None
+    }
+    /// The region's shmid: 1 is what virtio-gpu calls its host-visible
+    /// memory, 0 virtio-media's MMAP buffers.
+    fn shared_memory_id(&self) -> u8 {
+        1
     }
     /// Where the guest placed that region (`None`: not usable right now).
     fn set_shared_memory_base(&mut self, _base: Option<u64>) {}
@@ -100,13 +105,12 @@ const NOTIFY: u64 = 0x3000;
 const BAR_SIZE: u64 = 0x4000;
 const NOTIFY_MULTIPLIER: u32 = 4;
 const NO_VECTOR: u16 = 0xffff;
-/// The BAR and shmid of a device's shared memory region.
+/// The BAR of a device's shared memory region.
 const SHM_BAR: usize = 2;
-const SHM_ID: u8 = 1;
 
-/// `virtio_pci_cap64` for a shared memory region filling BAR 2.
-fn shared_memory_cap(length: u64) -> Vec<u8> {
-    let mut raw = vec![0x09, 0, 24, 8, SHM_BAR as u8, SHM_ID, 0, 0];
+/// `virtio_pci_cap64` for shared memory region `id` filling BAR 2.
+fn shared_memory_cap(id: u8, length: u64) -> Vec<u8> {
+    let mut raw = vec![0x09, 0, 24, 8, SHM_BAR as u8, id, 0, 0];
     raw.extend_from_slice(&0u32.to_le_bytes()); // offset
     raw.extend_from_slice(&(length as u32).to_le_bytes());
     raw.extend_from_slice(&0u32.to_le_bytes()); // offset, high half
@@ -171,7 +175,7 @@ impl VirtioPci {
         ];
         if let Some(size) = self.device.shared_memory_size() {
             config.add_bar64(SHM_BAR, Bar { size, prefetchable: true });
-            capabilities.push(shared_memory_cap(size));
+            capabilities.push(shared_memory_cap(self.device.shared_memory_id(), size));
         }
         config.set_capabilities(&capabilities);
         config

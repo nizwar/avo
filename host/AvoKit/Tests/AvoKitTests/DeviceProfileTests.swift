@@ -249,6 +249,59 @@ import Testing
         #expect(DeviceHardware(cpu: badFreq).validate().contains("cpu cluster 0 min frequency above max"))
     }
 
+    /// The CPU avo-vmm presents (`--cpu-clusters`): the Snapdragon 8 Gen 3,
+    /// for as many cores as Android has.
+    @Test func aPhonesCPUFitsAndroidsCores() {
+        typealias Cluster = DeviceHardware.CPU.Cluster
+        let a520 = Cluster(cores: 2, implementer: 0x41, part: 0xD80, revision: 1, maxFreqKHz: 2_265_600, minFreqKHz: 300_000)
+        let a720 = Cluster(cores: 3, implementer: 0x41, part: 0xD81, maxFreqKHz: 2_956_800, minFreqKHz: 499_200)
+        let a720Fast = Cluster(cores: 2, implementer: 0x41, part: 0xD81, maxFreqKHz: 3_148_800, minFreqKHz: 499_200)
+        let x4 = Cluster(cores: 1, implementer: 0x41, part: 0xD82, maxFreqKHz: 3_302_400, minFreqKHz: 576_000)
+        let cpu = DeviceHardware.CPU(clusters: [a520, a720, a720Fast, x4])
+        #expect(a520.midr == 0x410F_D801)
+        #expect(Cluster(cores: 6, implementer: 0x51, part: 0x001, variant: 3, revision: 1).midr == 0x513F_0011)
+        #expect(cpu.fitted(to: 8) == cpu)
+        // Fewer vCPUs: the phone's fastest cores, still numbered from the slowest.
+        #expect(cpu.fitted(to: 4).clusters.map(\.cores) == [1, 2, 1])
+        #expect(cpu.fitted(to: 4).clusters.map(\.maxFreqKHz) == [2_956_800, 3_148_800, 3_302_400])
+        #expect(cpu.fitted(to: 1).clusters == [x4])
+        // More: the slowest cluster grows.
+        #expect(cpu.fitted(to: 10).clusters.map(\.cores) == [4, 3, 2, 1])
+        // Listed fastest first (as the README's example), Android numbers them the same.
+        #expect(DeviceHardware.CPU(clusters: [x4, a720Fast, a720, a520]).fitted(to: 8) == cpu)
+        #expect(cpu.fitted(to: 0).clusters.isEmpty)
+        #expect(cpu.engineClusters(vcpus: 8)
+            == "2x410fd801@300000-2265600,3x410fd810@499200-2956800,2x410fd810@499200-3148800,1x410fd820@576000-3302400")
+        #expect(cpu.engineClusters(vcpus: 2) == "1x410fd810@499200-3148800,1x410fd820@576000-3302400")
+        // Without a lowest frequency, 300 MHz; without a top one, nothing to present.
+        let noMin = DeviceHardware.CPU(clusters: [Cluster(cores: 4, implementer: 0x41, part: 0xD05, maxFreqKHz: 2_000_000)])
+        #expect(noMin.engineClusters(vcpus: 4) == "4x410fd050@300000-2000000")
+        let noMax = DeviceHardware.CPU(clusters: [Cluster(cores: 4, implementer: 0x41, part: 0xD05)])
+        #expect(noMax.engineClusters(vcpus: 4) == nil)
+        // Cores whose errata Linux works around at a cost on every CPU: an
+        // early Cortex-A53 shows as r0p4, a Cortex-A73 leaves the Mac's cores.
+        let early = DeviceHardware.CPU(clusters: [Cluster(cores: 4, implementer: 0x41, part: 0xD03, maxFreqKHz: 2_000_000)])
+        #expect(early.engineClusters(vcpus: 4) == "4x410fd034@300000-2000000")
+        let a73 = DeviceHardware.CPU(clusters: [Cluster(cores: 4, implementer: 0x41, part: 0xD03, revision: 4, maxFreqKHz: 1_800_000),
+                                                Cluster(cores: 4, implementer: 0x41, part: 0xD09, maxFreqKHz: 2_400_000)])
+        #expect(a73.engineClusters(vcpus: 8) == nil)
+        // MIDR fields beyond their bits are a profile mistake.
+        let wide = DeviceHardware.CPU(clusters: [Cluster(cores: 1, implementer: 0x41, part: 0xD05, variant: 16, revision: 16)])
+        #expect(DeviceHardware(cpu: wide).validate() == ["cpu cluster 0 variant out of range", "cpu cluster 0 revision out of range"])
+    }
+
+    @Test func everyRepositoryPhoneGivesTheEngineItsCPU() throws {
+        let catalog = try DeviceProfileCatalog(directory: Self.repoProfiles)
+        for profile in catalog.profiles.filter(\.hasHardware) {
+            let cpu = try #require(profile.hardware?.cpu, "\(profile.id) has no CPU")
+            for vcpus in [2, 4, 8, 12] {
+                let spec = try #require(cpu.engineClusters(vcpus: vcpus), "\(profile.id)")
+                let cores = spec.split(separator: ",").map { Int($0.prefix { $0 != "x" }) ?? 0 }
+                #expect(cores.reduce(0, +) == vcpus, "\(profile.id): \(spec)")
+            }
+        }
+    }
+
     @Test func profileWithoutHardwareHasNoneToEmulate() {
         let profile = DeviceProfile(id: "x", name: "X", properties: Self.validProperties)
         #expect(!profile.hasHardware)

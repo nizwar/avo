@@ -2,8 +2,9 @@
 ///
 /// Every pass draws the same full-viewport quad (`avo_vertex`); the viewport
 /// places it, so the fragment shaders work in drawable pixels or in the
-/// quad's 0...1 texture coordinates. Every fragment shader returns alpha 1:
-/// the guest leaves the alpha byte undefined, and the layer is opaque.
+/// quad's 0...1 texture coordinates. Every fragment shader but `avo_fade`
+/// returns alpha 1: the guest leaves the alpha byte undefined, and the layer
+/// is opaque.
 enum MetalShaders {
     static let source = """
     #include <metal_stdlib>
@@ -99,6 +100,57 @@ enum MetalShaders {
         float3 lobeC = max(-hitMin, hitMax);
         float lobe = max(-0.1875, min(max(lobeC.r, max(lobeC.g, lobeC.b)), 0.0)) * p.z;
         return float4(saturate((lobe * (b + d + f + h) + e) / (4.0 * lobe + 1.0)), 1);
+    }
+
+    // Behind a fitted frame instead of black bars, in three passes: the frame
+    // shrunk to a few dozen pixels (avo_downsample), blurred there
+    // (avo_blur), then stretched over the drawable, dimmed (avo_backdrop).
+
+    // 5 x 5 Gaussian at the small size. p = (1/width, 1/height, 0, 0).
+    fragment float4 avo_blur(Out in [[stage_in]], texture2d<float> t [[texture(0)]],
+                             constant float4 &p [[buffer(0)]]) {
+        constexpr sampler s(filter::linear, address::clamp_to_edge);
+        float3 sum = 0;
+        float weight = 0;
+        for (int y = -2; y <= 2; y++) {
+            for (int x = -2; x <= 2; x++) {
+                float w = exp(-float(x * x + y * y) / 4.5);
+                sum += t.sample(s, in.uv + float2(x, y) * p.xy).rgb * w;
+                weight += w;
+            }
+        }
+        return float4(sum / weight, 1);
+    }
+
+    // Covers the drawable the way the frame would if cropped, with a cubic
+    // B-spline from four bilinear taps, so the few pixels show no seams.
+    // p = (the part of the small picture that shows: x, y, 0, 0).
+    fragment float4 avo_backdrop(Out in [[stage_in]], texture2d<float> t [[texture(0)]],
+                                 constant float4 &p [[buffer(0)]]) {
+        constexpr sampler s(filter::linear, address::clamp_to_edge);
+        float2 size = float2(t.get_width(), t.get_height());
+        float2 c = ((in.uv - 0.5) * p.xy + 0.5) * size - 0.5;
+        float2 i = floor(c);
+        float2 f = c - i;
+        float2 w0 = (1 - f) * (1 - f) * (1 - f) / 6;
+        float2 w1 = (3 * f * f * f - 6 * f * f + 4) / 6;
+        float2 w3 = f * f * f / 6;
+        float2 w2 = 1 - w0 - w1 - w3;
+        float2 g0 = w0 + w1;
+        float2 g1 = w2 + w3;
+        float2 h0 = (i - 0.5 + w1 / g0) / size;
+        float2 h1 = (i + 1.5 + w3 / g1) / size;
+        float3 color = g0.y * (g0.x * t.sample(s, h0).rgb + g1.x * t.sample(s, float2(h1.x, h0.y)).rgb)
+                     + g1.y * (g0.x * t.sample(s, float2(h0.x, h1.y)).rgb + g1.x * t.sample(s, h1).rgb);
+        return float4(color * 0.5, 1);
+    }
+
+    // The previous frame fading out over the new one (the one shader that
+    // returns another alpha: its pipeline blends). p = (alpha, 0, 0, 0).
+    fragment float4 avo_fade(Out in [[stage_in]], texture2d<float> t [[texture(0)]],
+                             constant float4 &p [[buffer(0)]]) {
+        constexpr sampler s(filter::linear, address::clamp_to_edge);
+        return float4(t.sample(s, in.uv).rgb, p.x);
     }
     """
 }

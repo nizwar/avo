@@ -33,6 +33,7 @@
           "cores": 8,
           "implementer": 65,
           "part": 3331,
+          "revision": 4,
           "maxFreqKHz": 2200000,
           "minFreqKHz": 1001000
         }

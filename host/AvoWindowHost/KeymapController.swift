@@ -312,22 +312,16 @@ final class KeymapController {
 
     // MARK: Editor (Cmd+Shift+K)
 
-    /// Opens the editor, or closes it. `showingController` opens it with the
-    /// controller panel out (Edit Controller Mapping…), or brings the panel
-    /// out in an editor already open.
-    func toggleEditor(over window: NSWindow?, showingController: Bool = false) {
+    /// Opens the editor, or closes it. Its toolbar's Controller button brings
+    /// the controller panel out (ControllerPanel.swift).
+    func toggleEditor(over window: NSWindow?) {
         guard let window, let view else { return }
         if let overlay, overlay.isEditing {
-            if showingController, !overlay.showsController {
-                overlay.showController()
-            } else {
-                overlay.close()
-            }
+            overlay.close()
             return
         }
         focusLost()
-        let overlay = KeymapOverlay(window: window, view: view, package: package, profile: profile,
-                                    showingController: showingController) { [weak self] profile in
+        let overlay = KeymapOverlay(window: window, view: view, package: package, profile: profile) { [weak self] profile in
             do {
                 try self?.save(profile)
                 return nil

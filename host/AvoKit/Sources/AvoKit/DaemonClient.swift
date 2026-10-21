@@ -373,6 +373,41 @@ public final class DaemonClient: @unchecked Sendable {
         return try AvoXPC.decode(LocationStatus.self, from: data)
     }
 
+    // MARK: Translate Screen (the daemon's text engine, one for every app)
+
+    /// Gets the engine ready, unless it is already (Translate Screen turned on).
+    public func wakeScreenText() async throws {
+        try await voidCall { $0.wakeScreenText(reply: $1) }
+    }
+
+    /// The text in a frame whose pixels are `pixels`.
+    public func readScreenText(_ request: ScreenTextRequest, pixels: Data) async throws -> ScreenTextReading {
+        let payload = AvoXPC.encode(request)
+        let data: Data = try await call { proxy, done in
+            proxy.readScreenText(payload, pixels: pixels) { data, error in done(Self.result(data, error)) }
+        }
+        return try AvoXPC.decode(ScreenTextReading.self, from: data)
+    }
+
+    /// `texts` translated, in their order; throws `AvoError.translation` when the engine cannot.
+    public func translate(_ texts: [String], from source: Locale.Language, to target: Locale.Language) async throws -> [String] {
+        let payload = AvoXPC.encode(TranslationRequest(texts: texts, source: source, target: target))
+        let data: Data = try await call { proxy, done in
+            proxy.translateTexts(payload) { data, error in done(Self.result(data, error)) }
+        }
+        return try AvoXPC.decode([String].self, from: data)
+    }
+
+    /// The translations of `texts` the engine has already (any app's), nil
+    /// for the others: asked for every new screen before anything is translated.
+    public func knownTranslations(_ texts: [String], from source: Locale.Language, to target: Locale.Language) async throws -> [String?] {
+        let payload = AvoXPC.encode(TranslationRequest(texts: texts, source: source, target: target))
+        let data: Data = try await call { proxy, done in
+            proxy.knownTranslations(payload) { data, error in done(Self.result(data, error)) }
+        }
+        return try AvoXPC.decode([String?].self, from: data)
+    }
+
     public func openDisplay(_ request: OpenDisplayRequest) async throws -> UInt32 {
         let payload = AvoXPC.encode(request)
         let data: Data = try await call { proxy, done in

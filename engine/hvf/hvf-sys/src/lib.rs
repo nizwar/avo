@@ -51,6 +51,7 @@ pub const fn sys_reg(op0: u16, op1: u16, crn: u16, crm: u16, op2: u16) -> hv_sys
     (op0 << 14) | (op1 << 11) | (crn << 7) | (crm << 3) | op2
 }
 
+pub const HV_SYS_REG_MIDR_EL1: hv_sys_reg_t = sys_reg(3, 0, 0, 0, 0);
 pub const HV_SYS_REG_MPIDR_EL1: hv_sys_reg_t = sys_reg(3, 0, 0, 0, 5);
 pub const HV_SYS_REG_SCTLR_EL1: hv_sys_reg_t = sys_reg(3, 0, 1, 0, 0);
 pub const HV_SYS_REG_SP_EL1: hv_sys_reg_t = sys_reg(3, 4, 4, 1, 0);

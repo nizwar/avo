@@ -31,15 +31,19 @@
       "clusters": [
         {
           "cores": 4,
-          "implementer": 65,
-          "part": 3331,
+          "implementer": 81,
+          "part": 2049,
+          "variant": 10,
+          "revision": 4,
           "maxFreqKHz": 1900000,
           "minFreqKHz": 300000
         },
         {
           "cores": 4,
-          "implementer": 65,
-          "part": 3337,
+          "implementer": 81,
+          "part": 2048,
+          "variant": 10,
+          "revision": 2,
           "maxFreqKHz": 2400000,
           "minFreqKHz": 614400
         }
@@ -57,5 +61,5 @@
       "vkDriverInfo": "Driver Build: 0415.0"
     }
   },
-  "notes": "Community-maintained template. Values follow the device's stock build.prop and GPU driver strings; verify them against a current firmware dump before relying on them in a pull request. The hardware block is used only when \"Emulate this phone's hardware\" is on."
+  "notes": "Community-maintained template. Values follow the device's stock build.prop and GPU driver strings; verify them against a current firmware dump before relying on them in a pull request. The hardware block is used only when \"Emulate this phone's hardware\" is on. The CPU block uses Qualcomm's own MIDRs for the Kryo 265 cores (Silver: implementer 0x51, part 0x801, r10p4; Gold: part 0x800, r10p2), as the Kryo 260 family reports them, not the Cortex-A53 and A73 they derive from."
 }

@@ -44,6 +44,17 @@ public struct AndroidEmulator: Equatable, Sendable {
         return inspect(home.appending(path: "Library/Android/sdk/emulator", directoryHint: .isDirectory))
     }
 
+    /// The emulator's netsimd (Root Canal inside), Android's Bluetooth
+    /// controller (`--bluetooth`, engine/hvf/vmm/src/bluetooth.rs). Any
+    /// version will do: avo-vmm only uses its HCI port.
+    public static func netsimd(home: URL,
+                               override: String? = UserDefaults.standard.string(forKey: "AvoAndroidEmulator")) -> URL? {
+        let directory = override.flatMap { $0.isEmpty ? nil : URL(filePath: $0, directoryHint: .isDirectory) }
+            ?? home.appending(path: "Library/Android/sdk/emulator", directoryHint: .isDirectory)
+        let netsimd = directory.appending(path: "netsimd")
+        return FileManager.default.isExecutableFile(atPath: netsimd.path) ? netsimd : nil
+    }
+
     public static func inspect(_ directory: URL) -> Lookup {
         guard let text = try? String(contentsOf: directory.appending(path: "source.properties"), encoding: .utf8),
               let (version, build) = revision(sourceProperties: text) else { return .missing }

@@ -42,10 +42,13 @@ public protocol ClipboardBridge: Sendable {
     /// Text copied on the Mac that `onChange` has not had yet, now (before a
     /// paste in Android, which must not wait for the next look).
     func takeChange() -> String?
+    /// Stops watching the Mac's clipboard (Settings › Devices › Clipboard off).
+    func stop()
 }
 
 public extension ClipboardBridge {
     func takeChange() -> String? { nil }
+    func stop() {}
 }
 
 /// Opens App Shims (for notification clicks).

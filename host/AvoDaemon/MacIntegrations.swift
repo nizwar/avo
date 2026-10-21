@@ -230,6 +230,13 @@ final class PasteboardBridge: ClipboardBridge, @unchecked Sendable {
         }
     }
 
+    func stop() {
+        DispatchQueue.main.async { [self] in
+            timer?.invalidate()
+            timer = nil
+        }
+    }
+
     func set(_ text: String) {
         DispatchQueue.main.async { [self] in
             let pasteboard = NSPasteboard.general

@@ -108,6 +108,38 @@ public struct VMConfig: Codable, Equatable, Sendable {
     public var shareLocation: Bool
     /// An app's Dock icon shows how many notifications it has in Android.
     public var dockBadges: Bool
+    // Devices (Settings › Devices)
+    /// Android's Wi-Fi is on (its one network today; off, Android is offline).
+    public var wifiEnabled: Bool
+    /// How fast Android's network is: the Mac's, or a mobile network type's.
+    public var networkSpeed: NetworkSpeed
+    /// While Android's Bluetooth is on, it reaches the Bluetooth LE devices
+    /// this Mac sees (MacBluetoothBridge).
+    public var shareMacBluetooth: Bool
+    /// Android has a SIM on a mobile network (avo-vmm's modem): its status
+    /// bar shows the network type and signal, and mobile data goes through
+    /// this Mac too. Off, Android is a Wi-Fi-only phone.
+    public var cellularEnabled: Bool
+    public var mobileNetworkType: MobileNetworkType
+    /// Signal bars, 0 (none) to 4.
+    public var cellularSignal: Int
+    /// What Android's back and front cameras show (CameraSource).
+    public var backCamera: CameraSource
+    public var frontCamera: CameraSource
+    // The Mac's devices Android may use, each kept from it when off
+    // (Settings › Devices): Android then has no such hardware, and Avo never
+    // asks macOS for it.
+    /// Android has cameras (the ones above); off, none at all.
+    public var camerasEnabled: Bool
+    /// Android may use the Mac's microphone; off, it records silence.
+    public var microphoneEnabled: Bool
+    /// Android has Bluetooth (with the Android Emulator's netsimd); off, none.
+    public var bluetoothEnabled: Bool
+    /// Text copied on the Mac reaches Android and the other way round.
+    public var shareClipboard: Bool
+    /// Translate Screen's engine (one for every app, in the daemon) gets
+    /// ready as the daemon starts; off, when an app first translates.
+    public var translationAtStartup: Bool
 
     // Shortcuts (spec §4)
     public var createDesktopAlias: Bool
@@ -121,6 +153,12 @@ public struct VMConfig: Codable, Equatable, Sendable {
                 defaultWindowSize: WindowSize = WindowSize(width: 412, height: 892),
                 rooted: Bool = false, deviceProfileID: String = DeviceProfile.defaultID, emulateHardware: Bool = false,
                 gms: GMSMode = .none, adbEnabled: Bool = false, adbPort: Int = VMConfig.defaultADBPort, shareLocation: Bool = true, dockBadges: Bool = true,
+                wifiEnabled: Bool = true, networkSpeed: NetworkSpeed = .full, shareMacBluetooth: Bool = true,
+                cellularEnabled: Bool = false, mobileNetworkType: MobileNetworkType = .lte, cellularSignal: Int = 4,
+                backCamera: CameraSource = .emulated, frontCamera: CameraSource = .emulated,
+                camerasEnabled: Bool = true, microphoneEnabled: Bool = true, bluetoothEnabled: Bool = true,
+                shareClipboard: Bool = true,
+                translationAtStartup: Bool = true,
                 createDesktopAlias: Bool = true, addToDock: Bool = false) {
         self.memoryMiB = memoryMiB
         self.cpuCount = cpuCount
@@ -146,6 +184,19 @@ public struct VMConfig: Codable, Equatable, Sendable {
         self.adbPort = adbPort
         self.shareLocation = shareLocation
         self.dockBadges = dockBadges
+        self.wifiEnabled = wifiEnabled
+        self.networkSpeed = networkSpeed
+        self.shareMacBluetooth = shareMacBluetooth
+        self.cellularEnabled = cellularEnabled
+        self.mobileNetworkType = mobileNetworkType
+        self.cellularSignal = cellularSignal
+        self.backCamera = backCamera
+        self.frontCamera = frontCamera
+        self.camerasEnabled = camerasEnabled
+        self.microphoneEnabled = microphoneEnabled
+        self.bluetoothEnabled = bluetoothEnabled
+        self.shareClipboard = shareClipboard
+        self.translationAtStartup = translationAtStartup
         self.createDesktopAlias = createDesktopAlias
         self.addToDock = addToDock
     }
@@ -229,6 +280,9 @@ public struct VMConfig: Codable, Equatable, Sendable {
         case renderer, rendererMode, fpsLimit
         case appGraphics, gameGraphics, graphicsOverrides, performanceHUD
         case defaultWindowSize, rooted, deviceProfileID, emulateHardware, gms, adbEnabled, adbPort, shareLocation, dockBadges
+        case wifiEnabled, networkSpeed, shareMacBluetooth, cellularEnabled, mobileNetworkType, cellularSignal
+        case backCamera, frontCamera, camerasEnabled, microphoneEnabled, bluetoothEnabled, shareClipboard
+        case translationAtStartup
         case createDesktopAlias, addToDock
     }
 
@@ -292,6 +346,19 @@ public struct VMConfig: Codable, Equatable, Sendable {
         adbPort = try value(.adbPort, defaults.adbPort)
         shareLocation = try value(.shareLocation, defaults.shareLocation)
         dockBadges = try value(.dockBadges, defaults.dockBadges)
+        wifiEnabled = try value(.wifiEnabled, defaults.wifiEnabled)
+        networkSpeed = try value(.networkSpeed, defaults.networkSpeed)
+        shareMacBluetooth = try value(.shareMacBluetooth, defaults.shareMacBluetooth)
+        cellularEnabled = try value(.cellularEnabled, defaults.cellularEnabled)
+        mobileNetworkType = try value(.mobileNetworkType, defaults.mobileNetworkType)
+        cellularSignal = min(max(try value(.cellularSignal, defaults.cellularSignal), 0), 4)
+        backCamera = try value(.backCamera, defaults.backCamera)
+        frontCamera = try value(.frontCamera, defaults.frontCamera)
+        camerasEnabled = try value(.camerasEnabled, defaults.camerasEnabled)
+        microphoneEnabled = try value(.microphoneEnabled, defaults.microphoneEnabled)
+        bluetoothEnabled = try value(.bluetoothEnabled, defaults.bluetoothEnabled)
+        shareClipboard = try value(.shareClipboard, defaults.shareClipboard)
+        translationAtStartup = try value(.translationAtStartup, defaults.translationAtStartup)
         createDesktopAlias = try value(.createDesktopAlias, defaults.createDesktopAlias)
         addToDock = try value(.addToDock, defaults.addToDock)
     }
@@ -465,6 +532,24 @@ extension VMConfig {
         check(\.adbPort, "adbPort", .immediate)
         check(\.shareLocation, "shareLocation", .immediate)
         check(\.dockBadges, "dockBadges", .immediate)
+        // Devices: Android follows at once.
+        check(\.wifiEnabled, "wifiEnabled", .immediate)
+        check(\.networkSpeed, "networkSpeed", .immediate)
+        check(\.shareMacBluetooth, "shareMacBluetooth", .immediate)
+        check(\.cellularEnabled, "cellularEnabled", .immediate)
+        check(\.mobileNetworkType, "mobileNetworkType", .immediate)
+        check(\.cellularSignal, "cellularSignal", .immediate)
+        // Cameras: which ones Android has (and whose HAL) is set at its
+        // start; what a camera it has shows changes at once.
+        if cameraSources != old.cameraSources || camerasEnabled != old.camerasEnabled {
+            result.append(("cameras", cameraFlags == old.cameraFlags ? .immediate : .restartRequired))
+        }
+        // The engine plugs Bluetooth's controller in at its start; the
+        // microphone and the clipboard follow at once.
+        check(\.bluetoothEnabled, "bluetoothEnabled", .restartRequired)
+        check(\.microphoneEnabled, "microphoneEnabled", .immediate)
+        check(\.shareClipboard, "shareClipboard", .immediate)
+        check(\.translationAtStartup, "translationAtStartup", .immediate)
         // Shortcuts.
         check(\.createDesktopAlias, "createDesktopAlias", .immediate)
         check(\.addToDock, "addToDock", .immediate)

@@ -14,14 +14,12 @@ final class KeymapOverlay {
     var onClose: (() -> Void)?
 
     var isEditing: Bool { editor.superview != nil }
-    /// The controller panel is out (ControllerPanel.swift).
-    var showsController: Bool { editor.showsController }
 
-    init(window: NSWindow, view: DisplayView, package: String, profile: KeymapProfile?, showingController: Bool = false,
+    init(window: NSWindow, view: DisplayView, package: String, profile: KeymapProfile?,
          onSave: @escaping (KeymapProfile) -> String?) {
         editor = KeymapEditorView(displayRect: { [weak view] in view?.displayRect ?? .zero },
                                   profile: profile ?? KeymapProfile(package: package, name: String(localized: "My layout", bundle: .windowHost), controls: []),
-                                  showingController: showingController, onSave: onSave)
+                                  onSave: onSave)
         self.window = window
         editor.onClose = { [weak self] in self?.close() }
     }
@@ -38,10 +36,6 @@ final class KeymapOverlay {
         ])
         focusBefore = window.firstResponder
         window.makeFirstResponder(editor)
-    }
-
-    func showController() {
-        editor.setShowsController(true)
     }
 
     func close() {

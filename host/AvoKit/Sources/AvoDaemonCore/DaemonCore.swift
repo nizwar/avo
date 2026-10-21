@@ -50,12 +50,14 @@ public actor DaemonCore {
         public var volumes: (any VolumeWatching)?
         /// The `AvoCuttlefishImages` developer setting (an image folder).
         public var imageOverride: String?
+        /// Translate Screen's engine, one for every app (ScreenTextEngine.swift; none in tests).
+        public var screenText: ScreenTextEngine?
 
         public init(paths: AvoPaths, engine: any VMEngine, adbKey: ADBKey, profiles: DeviceProfileCatalog, host: HostInfo,
                     shortcuts: ShortcutManager, notifications: any NotificationPresenter = NoNotifications(),
                     clipboard: any ClipboardBridge = NoClipboard(), launcher: any AppLauncher = NoLauncher(),
                     softwareVersion: String, bootTimeout: Duration = .seconds(180), volumes: (any VolumeWatching)? = nil,
-                    imageOverride: String? = nil,
+                    imageOverride: String? = nil, screenText: ScreenTextEngine? = nil,
                     loadImage: @escaping @Sendable () throws -> AndroidImage) {
             self.paths = paths
             self.engine = engine
@@ -70,6 +72,7 @@ public actor DaemonCore {
             self.bootTimeout = bootTimeout
             self.volumes = volumes
             self.imageOverride = imageOverride
+            self.screenText = screenText
             self.loadImage = loadImage
         }
     }
@@ -118,6 +121,8 @@ public actor DaemonCore {
     /// Where the engine keeps what Android plays, for App Shims' screen recordings.
     private var audioTap: AudioTapLocation?
     private var lastClipboardFromGuest: String?
+    /// The Mac's clipboard is watched (Settings › Devices › Clipboard).
+    private var clipboardShared = false
     /// Android's notifications since the daemon started, newest first.
     private var recentNotifications: [AndroidNotification] = []
     /// The notifications Android shows now, key → package: the apps' Dock
@@ -140,6 +145,12 @@ public actor DaemonCore {
     /// running now, one at a time; its latest progress, and whether it can
     /// still stop (nothing in Android changed yet).
     private var googleAppsRun: Task<URL?, any Error>? { didSet { publishGoogleAppsBusy() } }
+    /// Root being prepared (Magisk; `rootIfAsked`).
+    private var rootRun: Task<Void, Never>?
+    /// The first start with Magisk is under way: Android rebooting before it
+    /// is ready means Magisk does not start this Android (it would reboot
+    /// over and over), so root goes off again (`rootFailedToBoot`).
+    private var rootTrial = false
     private var googleAppsRunID: UUID?
     private var googleAppsRecovering = false
     /// The run is a Remove (or finishes one), not an install.
@@ -187,7 +198,8 @@ public actor DaemonCore {
         usage = AppUsageRecorder(url: deps.paths.usage)
         placedWidgets = Self.loadWidgets(deps.paths)
         adb = ADBForwarder { try await vm.adbSocket() }
-        location = LocationCenter(engine: deps.engine as? any LocationEngine, wake: { try? await vm.wake() })
+        location = LocationCenter(engine: deps.engine as? any LocationEngine, wake: { try? await vm.wake() },
+                                  store: deps.paths.config.deletingLastPathComponent().appending(path: "location.json"))
     }
 
     /// Starts the event pumps. Call once after init.
@@ -236,9 +248,8 @@ public actor DaemonCore {
         deps.notifications.start { [weak self] package, key in
             Task { await self?.openNotification(package: package, key: key) }
         }
-        deps.clipboard.start { [weak self] text in
-            Task { await self?.hostClipboardChanged(text) }
-        }
+        shareClipboard(config.shareClipboard)
+        if config.translationAtStartup { deps.screenText?.wake() }
         let adb = self.adb
         let config = self.config
         Task { await adb.update(enabled: config.adbEnabled, port: config.adbPort) }
@@ -457,6 +468,7 @@ public actor DaemonCore {
     /// the usual start brings the new boot up, prepared as every boot is
     /// (displays, location, the shared folder, audio, layers).
     func androidRebooted() async {
+        if rootTrial { rootFailedToBoot() }
         do {
             try await ensureRunning()
         } catch {
@@ -631,6 +643,7 @@ public actor DaemonCore {
             // Android keeps the cap in its settings: this start follows the
             // configuration, also one changed while Android was stopped.
             await applyFrameRateLimit(config.fpsLimit)
+            rootIfAsked()
             storageCheckedAt = nil
             _ = await dataDiskStatus()
         case .stopped, .failed, .notInstalled:
@@ -719,6 +732,20 @@ public actor DaemonCore {
         if new.fpsLimit != old.fpsLimit { await applyFrameRateLimit(new.fpsLimit) }
         if new.adbEnabled != old.adbEnabled || new.adbPort != old.adbPort {
             await adb.update(enabled: new.adbEnabled, port: new.adbPort)
+        }
+        // Root on: Android starts again with Magisk at once (off waits for the next start).
+        if new.rooted, !old.rooted { rootIfAsked() }
+        // Settings › Devices: the running Android follows at once (a
+        // camera it has shows its new source; other camera changes wait for
+        // the next start).
+        if new.shareClipboard != old.shareClipboard { shareClipboard(new.shareClipboard) }
+        // Settings › General › Translate Screen: turned on, the engine gets ready now.
+        if new.translationAtStartup, !old.translationAtStartup { deps.screenText?.wake() }
+        if new.wifiEnabled != old.wifiEnabled || new.networkSpeed != old.networkSpeed || new.shareMacBluetooth != old.shareMacBluetooth
+            || new.cellularCommand != old.cellularCommand || new.cameraSources != old.cameraSources
+            || new.microphoneEnabled != old.microphoneEnabled,
+           let engine = deps.engine as? any DeviceSettingsEngine {
+            await engine.applyDeviceSettings(new)
         }
         if new.createDesktopAlias != old.createDesktopAlias || new.addToDock != old.addToDock {
             for app in await registry.all() {
@@ -1159,6 +1186,73 @@ public actor DaemonCore {
         }
     }
 
+    // MARK: Root (MagiskRoot)
+
+    /// With root on, a start without Magisk (root just turned on, or a new
+    /// Android version) gets Magisk: its init_boot is patched once per image
+    /// inside the running Android, then Android starts again with it. When
+    /// that fails, root turns off again and the Mac says why.
+    private func rootIfAsked() {
+        guard config.rooted, rootRun == nil, let engine = deps.engine as? any RootEngine else { return }
+        rootRun = Task { [weak self] in
+            await self?.prepareRoot(engine)
+        }
+    }
+
+    private func prepareRoot(_ engine: any RootEngine) async {
+        defer { rootRun = nil }
+        guard await vm.status.state == .running, config.rooted, await !engine.bootedRooted() else { return }
+        do {
+            if await !engine.hasPatchedImage() { try await engine.prepareRoot() }
+            // Turned off meanwhile: the patched copy waits for the next time.
+            guard config.rooted else { return }
+            logger.notice("root: starting Android again with Magisk")
+            await vm.stop()
+            bootedConfig = nil
+            rootTrial = true
+            try await bootVM()
+            rootTrial = false
+        } catch {
+            logger.error("root: \(String(describing: error), privacy: .public)")
+            // Android rebooted (androidRebooted may have seen to it first) or
+            // did not get ready with Magisk: it starts again without.
+            if rootTrial {
+                rootFailedToBoot()
+                try? await ensureRunning()
+                return
+            }
+            turnRootOff((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+        }
+    }
+
+    /// The first start with Magisk did not get Android ready: root goes off,
+    /// and the kernel's log of that start is kept beside the patched image.
+    private func rootFailedToBoot() {
+        rootTrial = false
+        let log = MagiskRoot.failedBootLog(deps.paths)
+        try? FileManager.default.createDirectory(at: MagiskRoot.directory(deps.paths), withIntermediateDirectories: true)
+        try? FileManager.default.removeItem(at: log)
+        try? FileManager.default.copyItem(at: deps.paths.instance.appending(path: "kernel.log"), to: log)
+        logger.error("root: Android did not start with Magisk; root is off again (kernel log: \(log.path, privacy: .public))")
+        turnRootOff(String(localized: "Android restarted while it started with Magisk, so Avo started it again without root. Your apps and data are as they were.", bundle: .avoKit))
+    }
+
+    /// Root back off, saved, with a notification saying why.
+    private func turnRootOff(_ reason: String) {
+        guard config.rooted else { return }
+        var off = config
+        off.rooted = false
+        config = off
+        try? off.save(to: deps.paths.config)
+        publish(off)
+        var notification = Avo_V1_Notification()
+        notification.package = AvoIdentifiers.daemonBundleID
+        notification.key = "avo-root"
+        notification.title = String(localized: "Root could not be turned on", bundle: .avoKit)
+        notification.body = reason
+        deps.notifications.post(notification, appName: "Avo", icon: nil)
+    }
+
     private func googleAppsInstaller(_ id: UUID, engine: any SystemAppsEngine,
                                      report: @escaping GoogleAppsInstaller.Report) -> GoogleAppsInstaller {
         var installer = GoogleAppsInstaller(
@@ -1389,6 +1483,7 @@ public actor DaemonCore {
             stop.package = display.package
             _ = try? await vm.controlSession().request(.forceStop(stop))
             runningPackages.remove(display.package)
+            await location.appClosed(display.package)
         }
         var request = Avo_V1_Close()
         request.displayID = id
@@ -1411,7 +1506,9 @@ public actor DaemonCore {
     /// The window became the Mac's key window (Avo_V1_FocusDisplay). The
     /// Bridge Agent's displays have their own focus and answer unsupported.
     public func focusDisplay(_ id: UInt32, client: ClientID) async {
-        guard ownedDisplay(id, by: client) != nil else { return }
+        guard let display = ownedDisplay(id, by: client) else { return }
+        // An app's own location goes with its window (LocationCenter).
+        await location.appFocused(display.package)
         var request = Avo_V1_FocusDisplay()
         request.displayID = id
         _ = try? await vm.controlSession().request(.focusDisplay(request))
@@ -1422,7 +1519,7 @@ public actor DaemonCore {
         guard !owned.isEmpty else { return }
         // A paste uses what was just copied on the Mac, not what the clipboard
         // sync last saw.
-        if Self.isPaste(record), let text = deps.clipboard.takeChange() {
+        if clipboardShared, Self.isPaste(record), let text = deps.clipboard.takeChange() {
             await hostClipboardChanged(text)
         }
         do {
@@ -1513,6 +1610,7 @@ public actor DaemonCore {
             await vm.setOpenDisplays(displays.count)
             // The app ended: it is no longer running at all.
             runningPackages.remove(closed.package.isEmpty ? display.package : closed.package)
+            if !displays.values.contains(where: { $0.package == display.package }) { await location.appClosed(display.package) }
             publishActivity()
         case .displayContentChanged(let changed):
             guard let display = displays[changed.displayID] else { return }
@@ -1540,7 +1638,7 @@ public actor DaemonCore {
             recentNotifications.removeAll { $0.key == removed.key }
             setActiveNotifications { $0[removed.key] = nil }
             await publishNotifications()
-        case .clipboardChanged(let changed):
+        case .clipboardChanged(let changed) where clipboardShared:
             lastClipboardFromGuest = changed.text
             deps.clipboard.set(changed.text)
         default:
@@ -1670,8 +1768,23 @@ public actor DaemonCore {
         return event.action == .down && event.keyCode == 50 && event.metaState & 0x1000 != 0
     }
 
+    /// Settings › Devices › Clipboard: the Mac's clipboard is read and
+    /// written only while it is shared.
+    private func shareClipboard(_ on: Bool) {
+        guard on != clipboardShared else { return }
+        clipboardShared = on
+        if on {
+            deps.clipboard.start { [weak self] text in
+                Task { await self?.hostClipboardChanged(text) }
+            }
+        } else {
+            deps.clipboard.stop()
+        }
+    }
+
     func hostClipboardChanged(_ text: String) async {
         // Copying on the Mac does not wake a paused Android: it gets the text when it goes on.
+        guard clipboardShared else { return }
         if text != lastClipboardFromGuest, await vm.status.isPaused {
             autoPause.clipboard = text
             return
@@ -1732,6 +1845,35 @@ extension DaemonCore {
             throw AvoError.screenLockRejected(throttled: false)
         }
         try await engine.unlockScreen(checked)
+    }
+}
+
+// MARK: - Translate Screen (App Shims; ScreenTextEngine.swift)
+
+extension DaemonCore {
+    /// Translate Screen turned on in an app's window: the engine gets ready
+    /// (unless it is already, from the daemon's start or another app).
+    public func wakeScreenText(client: ClientID) throws {
+        try screenText(for: client).wakeForWindow()
+    }
+
+    public func readScreenText(_ request: ScreenTextRequest, pixels: Data, client: ClientID) async throws -> ScreenTextReading {
+        try await screenText(for: client).read(request, pixels: pixels)
+    }
+
+    public func translateTexts(_ request: TranslationRequest, client: ClientID) async throws -> [String] {
+        try await screenText(for: client).translate(request)
+    }
+
+    public func knownTranslations(_ request: TranslationRequest, client: ClientID) async throws -> [String?] {
+        await (try screenText(for: client)).known(request)
+    }
+
+    /// The engine, for App Shims only.
+    private func screenText(for client: ClientID) throws -> ScreenTextEngine {
+        guard case .shim? = role(of: client) else { throw AvoError.unauthorizedCaller }
+        guard let engine = dependencies.screenText else { throw AvoError.internalError("Translate Screen is not available.") }
+        return engine
     }
 }
 

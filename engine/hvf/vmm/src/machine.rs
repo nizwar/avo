@@ -9,11 +9,13 @@
 //! 0x0800_0000  GICv3 distributor (Hypervisor.framework)
 //! 0x0900_0000  PL011 UART (kernel console)
 //! 0x0901_0000  PL031 RTC
+//! 0x0904_0000  virtual-cpufreq, a page per vCPU (a phone's CPU only; cpu.rs)
 //! 0x0A00_0000  GICv3 redistributors (32 MiB: room for 256 vCPUs)
 //! 0x8000_0000  RAM
 //! ```
 
 use crate::bus::Bus;
+use crate::cpu::{Clusters, VirtualCpufreq};
 use crate::fdt::{Fdt, Value};
 use crate::memory::GuestMemory;
 use crate::pause::{self, Pass, Seat};
@@ -31,6 +33,7 @@ const GIC_DIST: u64 = 0x0800_0000;
 const GIC_REDIST: u64 = 0x0A00_0000;
 const UART_BASE: u64 = 0x0900_0000;
 const RTC_BASE: u64 = 0x0901_0000;
+const CPUFREQ_BASE: u64 = 0x0904_0000;
 const UART_SPI: u32 = 1;
 const RTC_SPI: u32 = 2;
 /// PCI device N interrupts on SPI PCI_SPI_BASE + N.
@@ -48,6 +51,8 @@ pub struct Machine {
     pci: PciRoot,
     pci_spis: Vec<(DevFn, u32)>,
     cpus: usize,
+    /// A phone's cores and frequencies for the vCPUs (`present_cpu`).
+    clusters: Option<Clusters>,
     waker: Arc<Waker>,
 }
 
@@ -104,8 +109,21 @@ impl Machine {
             pci: PciRoot::new(),
             pci_spis: Vec::new(),
             cpus,
+            clusters: None,
             waker: Arc::new(Waker::default()),
         })
+    }
+
+    /// Presents a phone's CPU (cpu.rs): each vCPU gets its cluster's MIDR,
+    /// and the guest the virtual-cpufreq device with the clusters' tables.
+    pub fn present_cpu(&mut self, clusters: Clusters) -> Result<(), String> {
+        if clusters.cores() != self.cpus {
+            return Err(format!("the CPU clusters have {} cores for {} vCPUs", clusters.cores(), self.cpus));
+        }
+        let device = VirtualCpufreq::new(&clusters);
+        self.bus.insert(CPUFREQ_BASE, device.size(), Arc::new(device));
+        self.clusters = Some(clusters);
+        Ok(())
     }
 
     /// Plugs a virtio device into the next PCI slot.
@@ -183,6 +201,13 @@ impl Machine {
             fdt.end();
         }
         fdt.end();
+
+        if self.clusters.is_some() {
+            fdt.begin(&format!("cpufreq@{CPUFREQ_BASE:x}"));
+            fdt.prop("compatible", Value::Str("qemu,virtual-cpufreq"));
+            fdt.prop("reg", Value::Cells(&[split(CPUFREQ_BASE), split(crate::cpu::PAGE * self.cpus as u64)].concat()));
+            fdt.end();
+        }
 
         fdt.begin("psci");
         fdt.prop("compatible", Value::Strs(&["arm,psci-1.0", "arm,psci-0.2"]));
@@ -307,10 +332,14 @@ impl Machine {
             bus.insert(pci::MEM64_BASE, pci::MEM64_SIZE, Arc::new(PciMemory64Window(pci.clone())));
         }
         bus.insert(pci::MEM_BASE, pci::MEM_SIZE, Arc::new(PciMemoryWindow(pci)));
+        if let Some(clusters) = &self.clusters {
+            eprintln!("[vmm] CPU clusters {clusters}");
+        }
         let machine = Arc::new(Running {
             vm: self.vm.clone(),
             bus,
             cpus: self.cpus,
+            midr: (0..self.cpus).filter_map(|index| self.clusters.as_ref()?.midr(index)).collect(),
             power: Mutex::new(Power { ready: 0, on: vec![false; self.cpus], start: vec![None; self.cpus], stop: None }),
             power_changed: Condvar::new(),
             handles: Mutex::new(Vec::new()),
@@ -388,6 +417,8 @@ struct Running {
     vm: Arc<Vm>,
     bus: Bus,
     cpus: usize,
+    /// Each vCPU's MIDR_EL1 (a phone's CPU); empty: the Mac's.
+    midr: Vec<u32>,
     power: Mutex<Power>,
     power_changed: Condvar,
     handles: Mutex<Vec<VcpuHandle>>,
@@ -449,11 +480,13 @@ impl Running {
                 power.stop = Some(reason);
             }
         }
+        // Before the kick, which reaches only vCPUs in the guest: the others
+        // see this before they run again (Seat::before_run).
+        self.stopped.store(true, Ordering::SeqCst);
         self.power_changed.notify_all();
         self.waker.wake();
         let handles = self.handles.lock().unwrap().clone();
         let _ = VcpuHandle::kick_all(&handles);
-        self.stopped.store(true, Ordering::SeqCst);
         pause::GATE.wake();
     }
 
@@ -467,6 +500,12 @@ impl Running {
         let offset = vcpu.vtimer_offset().map_err(|e| e.to_string())?;
         // Affinity must be final before any vCPU runs (Hypervisor.framework GIC).
         vcpu.set_sys_reg(hvf::HV_SYS_REG_MPIDR_EL1, 1 << 31 | index as u64).map_err(|e| e.to_string())?;
+        if let Some(&midr) = self.midr.get(index) {
+            // Not worth a machine that never starts: the vCPU stays the Mac's core.
+            if let Err(e) = vcpu.set_sys_reg(hvf::HV_SYS_REG_MIDR_EL1, midr as u64) {
+                eprintln!("[vmm] vCPU {index}: MIDR {midr:#010x} not set ({e}), it reports the Mac's core");
+            }
+        }
         self.handles.lock().unwrap().push(vcpu.handle());
         {
             let mut power = self.power.lock().unwrap();
@@ -732,18 +771,27 @@ mod pause_tests {
         ticks as f64 / 24_000.0
     }
 
-    /// The process's only VM in the tests (Hypervisor.framework allows one).
-    #[test]
-    fn a_pause_stops_the_vcpus_and_their_counter() {
-        let mut machine = Machine::new(2, 256, Box::new(std::io::sink())).unwrap();
+    /// One VM at a time: Hypervisor.framework allows one per process, and a
+    /// pause stops every machine's vCPUs.
+    static ONE_VM: Mutex<()> = Mutex::new(());
+
+    /// Runs `guest` (after an arm64 Image header) on `machine` with PROBE.
+    fn start(mut machine: Machine, guest: &[u32], timeout: Duration) -> (Arc<Probe>, std::thread::JoinHandle<Result<Stop, String>>) {
         let probe = Arc::new(Probe::default());
         machine.bus.insert(PROBE, 0x1000, probe.clone());
         let mut kernel = vec![0u8; 64];
         kernel[..4].copy_from_slice(&0x1400_0010u32.to_le_bytes()); // b +64
-        kernel[16..24].copy_from_slice(&(64 + 4 * GUEST.len() as u64).to_le_bytes());
+        kernel[16..24].copy_from_slice(&(64 + 4 * guest.len() as u64).to_le_bytes());
         kernel[56..60].copy_from_slice(b"ARM\x64");
-        kernel.extend(GUEST.iter().flat_map(|word| word.to_le_bytes()));
-        let runner = std::thread::spawn(move || machine.run(&kernel, &[], "", Some(Duration::from_secs(3))));
+        kernel.extend(guest.iter().flat_map(|word| word.to_le_bytes()));
+        (probe, std::thread::spawn(move || machine.run(&kernel, &[], "", Some(timeout))))
+    }
+
+    #[test]
+    fn a_pause_stops_the_vcpus_and_their_counter() {
+        let _vm = ONE_VM.lock().unwrap_or_else(|e| e.into_inner());
+        let machine = Machine::new(2, 256, Box::new(std::io::sink())).unwrap();
+        let (probe, runner) = start(machine, &GUEST, Duration::from_secs(3));
 
         std::thread::sleep(Duration::from_millis(300));
         if runner.is_finished() {
@@ -776,5 +824,25 @@ mod pause_tests {
         assert_eq!(pause::GATE.pause(Duration::from_secs(2)), Ok(true));
         assert_eq!(runner.join().unwrap(), Ok(Stop::Timeout));
         pause::GATE.resume();
+    }
+
+    /// A phone's CPU: each vCPU reads its cluster's MIDR_EL1 (what the
+    /// guest's /proc/cpuinfo shows), the same loop storing it.
+    #[test]
+    fn each_vcpu_reports_its_clusters_core() {
+        let _vm = ONE_VM.lock().unwrap_or_else(|e| e.into_inner());
+        let mut machine = Machine::new(2, 256, Box::new(std::io::sink())).unwrap();
+        let clusters = Clusters::parse("1x410fd801@300000-2265600,1x410fd821@576000-3302400").unwrap();
+        machine.present_cpu(clusters).unwrap();
+        let mut guest = GUEST;
+        guest[10] = 0xd538_0017; // mrs x23, midr_el1
+        let (probe, runner) = start(machine, &guest, Duration::from_millis(500));
+        assert_eq!(runner.join().unwrap(), Ok(Stop::Timeout));
+        let seen = *probe.seen.lock().unwrap();
+        assert!(seen.iter().all(|cpu| cpu.0 > 0), "both vCPUs ran: {seen:?}");
+        assert_eq!([seen[0].1, seen[1].1], [0x410f_d801, 0x410f_d821]);
+        // As many cores as vCPUs, or none.
+        let mut two = Machine::new(2, 256, Box::new(std::io::sink())).unwrap();
+        assert!(two.present_cpu(Clusters::parse("8x410fd801@300000-2265600").unwrap()).is_err());
     }
 }

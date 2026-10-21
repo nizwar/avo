@@ -10,7 +10,8 @@ import SwiftUI
 // click a part here or press it on the controller. Its other tabs set the
 // sticks' dead zones and sensitivity, vibration, and the game's controller
 // presets. It floats over the game inside the editor, in the Quick
-// Settings' haze look, and is moved by its header.
+// Settings' haze look, is moved by its header and made larger (its diagram
+// with it) by its bottom-right corner.
 
 private func L(_ key: String.LocalizationValue) -> String { String(localized: key, bundle: .windowHost) }
 
@@ -35,6 +36,14 @@ final class ControllerPanelModel: ObservableObject {
     /// The parts that drive the selected control.
     @Published var selection: Set<GamepadElement> = []
     @Published var settings = GamepadSettings.standard
+    /// The panel's width, set by its corner (remembered per app).
+    @Published var width = ControllerPanelModel.savedWidth
+    /// The widest the editor has room for.
+    @Published var maxWidth = CGFloat.greatestFiniteMagnitude
+    static let minWidth: CGFloat = 344
+    static let widthKey = "AvoControllerPanelWidth"
+    /// 0 (never set) is the narrowest.
+    static var savedWidth: CGFloat { max(CGFloat(UserDefaults.standard.double(forKey: widthKey)), minWidth) }
 
     var layout: GamepadLayout { info?.layout ?? chosenLayout }
 
@@ -51,6 +60,8 @@ final class ControllerPanelModel: ObservableObject {
     var close: () -> Void = {}
     /// The header dragged by a translation (window points, y down); true when let go.
     var move: (CGSize, Bool) -> Void = { _, _ in }
+    /// The corner dragged (`width` follows); true when let go.
+    var resize: (Bool) -> Void = { _ in }
 
     private var listener: UUID?
     private var observer: (any NSObjectProtocol)?
@@ -113,6 +124,8 @@ struct ControllerPanelView: View {
     /// The panel's coordinates: its hosting view's, y down from its top left.
     static let space = "avo.controllerPanel"
     @ObservedObject var model: ControllerPanelModel
+    /// The width when the corner's drag began.
+    @State private var resizeStart: CGFloat?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -131,11 +144,47 @@ struct ControllerPanelView: View {
             }
         }
         .padding(12)
-        .frame(width: 344)
+        .frame(width: min(model.width, max(model.maxWidth, ControllerPanelModel.minWidth)))
         .background { QuickHaze.background.clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous)) }
         .overlay { RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(QuickHaze.text.opacity(0.12)) }
+        .overlay(alignment: .bottomTrailing) { if !model.collapsed { resizeCorner } }
         .environment(\.colorScheme, .dark)
         .coordinateSpace(name: Self.space)
+    }
+
+    /// Drag to make the panel (and its diagram) larger or smaller; it grows from its top left.
+    private var resizeCorner: some View {
+        Canvas { context, size in
+            for step in 0..<3 {
+                let inset = 3 + CGFloat(step) * 4
+                var line = Path()
+                line.move(to: CGPoint(x: size.width - inset, y: size.height - 2))
+                line.addLine(to: CGPoint(x: size.width - 2, y: size.height - inset))
+                context.stroke(line, with: .color(QuickHaze.text.opacity(0.4)), style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
+            }
+        }
+        .frame(width: 14, height: 14)
+        .padding(5)
+        .contentShape(Rectangle())
+        .help(L("Drag to make the panel larger or smaller"))
+        .onHover { inside in
+            if inside { NSCursor.frameResize(position: .bottomRight, directions: .all).push() } else { NSCursor.pop() }
+        }
+        .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
+            .onChanged { value in
+                let start = resizeStart ?? model.width
+                if resizeStart == nil {
+                    resizeStart = start
+                    model.resize(false)
+                }
+                let widest = max(model.maxWidth, ControllerPanelModel.minWidth)
+                model.width = min(max(start + value.translation.width, ControllerPanelModel.minWidth), widest).rounded()
+            }
+            .onEnded { _ in
+                resizeStart = nil
+                model.resize(true)
+            })
+        .accessibilityHidden(true)
     }
 
     private var header: some View {
@@ -190,7 +239,7 @@ private struct ButtonsTab: View {
                                selection: model.chosenLayout, fill: true) { model.chosenLayout = $0 }
             }
             ControllerDiagram(model: model)
-            QuickCaption(L("Drag a button or stick onto the game to place a control there, or onto a control to bind it. With a control selected, press a button on the controller or click it here."))
+            QuickCaption(L("Click a button or stick to place its control, or drag it to where it goes on the game (onto a control to bind it). With a control selected, press a button on the controller or click it here to bind it."))
         }
     }
 }
@@ -392,8 +441,8 @@ private struct DecorationView: View {
                 .foregroundStyle(QuickHaze.textTertiary.opacity(0.6))
                 .frame(width: frame.width * scale, height: frame.height * scale)
                 .background(Circle().fill(Color.black.opacity(0.22)))
-                .position(x: frame.midX * scale, y: frame.midY * scale)
                 .help(L("macOS keeps the Home button for itself"))
+                .position(x: frame.midX * scale, y: frame.midY * scale)
         }
     }
 }
@@ -423,7 +472,9 @@ private struct SpotView: View {
             .scaleEffect(dragging ? 0.9 : hovering ? 1.08 : 1)
             .animation(.easeOut(duration: 0.12), value: hovering)
             .animation(.easeOut(duration: 0.08), value: pressed)
-            .position(x: frame.midX * scale, y: frame.midY * scale)
+            // The part's own frame takes the pointer: after `position` (last,
+            // below) it would be the whole diagram, and the part drawn last
+            // (Menu) would take every click, hover and drag.
             .contentShape(Rectangle())
             .onHover { inside in
                 hovering = inside
@@ -445,6 +496,7 @@ private struct SpotView: View {
             .accessibilityValue(Text(verbatim: (model.bindings[spot.element] ?? []).joined(separator: ", ")))
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { model.click(spot.element) }
+            .position(x: frame.midX * scale, y: frame.midY * scale)
     }
 
     /// Pressed on the controller now (a stick: pushed past its dead zone, or pressed down).

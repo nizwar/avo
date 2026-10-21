@@ -2,6 +2,7 @@ import AppKit
 import AvoKeymap
 import AvoKit
 import AvoPackages
+import AvoWindowHost
 import Observation
 import os
 import Security
@@ -95,6 +96,12 @@ final class ControlPanelModel {
     var fingerprints: FingerprintStatus?
     /// A fingerprint change is on its way to Android.
     var fingerprintsBusy = false
+    /// Settings › Devices › Location: every app's location and the apps with
+    /// their own, while the pane shows (nil until asked).
+    var location: LocationStatus?
+    /// What shows the location now: the Settings pane, the Location window
+    /// (`watchLocation`).
+    @ObservationIgnored var locationWatchers = 0
     /// How much each app was used, by package (the Library's statistics).
     private(set) var usage: [String: AppUsage] = [:]
     /// Library › System Status (SystemStatusView.swift), fed while it shows.
@@ -240,6 +247,9 @@ final class ControlPanelModel {
                 self?.checkDaemonBuild(hello)
                 self?.status = hello.status
                 self?.systemStatus.connected(client)
+                // Settings › Devices › Location › Choose… (AvoWindowHost/LocationPanel.swift).
+                ControlPanelLocationWindow.connect(client) { [weak self] on in self?.watchLocation(on) }
+                if let self, locationWatchers > 0, let status = try? await client.location(watch: true) { location = status }
                 await self?.refresh()
             } catch {
                 guard let self, daemonState != .needsApproval else { return }
@@ -404,6 +414,9 @@ final class ControlPanelModel {
             if progress.isDone { Task { await refreshGoogleApps() } }
         case .fingerprints(let status):
             fingerprints = status
+        case .location(let status):
+            location = status
+            ControlPanelLocationWindow.update(status)
         case .appUsage(let list):
             usage = Dictionary(list.map { ($0.package, $0) }, uniquingKeysWith: { $1 })
         case .storageLocation(let location):

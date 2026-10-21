@@ -8,7 +8,7 @@ AVO_BUNDLE_ID_PREFIX = dev.avo
 AVO_APP_BUNDLE_ID = com.avodroid.emulator
 
 // Marketing version of the macOS app; the Android image is versioned separately.
-MARKETING_VERSION = 0.1.0
+MARKETING_VERSION = 0.2.0
 CURRENT_PROJECT_VERSION = 1
 
 MACOSX_DEPLOYMENT_TARGET = 15.0

@@ -61,6 +61,11 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     private let captureButton = TitlebarButton(symbol: "camera", label: String(localized: "Screenshot and Screen Recording", bundle: .windowHost),
                                                action: nil)
     private var titlebarActions: [TitlebarButton] { [backButton, gameModeButton, translateButton, captureButton] }
+    /// Keep on Top (also View › Keep on Top): a pin, filled while this app's
+    /// windows float over other apps'. Not one of `titlebarActions`: it works
+    /// without the display.
+    private let keepOnTopButton = TitlebarButton(symbol: "pin", label: String(localized: "Keep on Top", bundle: .windowHost),
+                                                 action: #selector(AndroidWindowController.toggleKeepOnTop))
     /// Touches Android's fingerprint sensor with a finger from Settings ›
     /// Fingerprints (FingerprintMenu.swift). Not one of `titlebarActions`: it
     /// works without the display, also on Android's lock screen.
@@ -73,7 +78,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// (ScreenTranslation.swift). Esc is the game's while the key mapping has the keys.
     lazy var translation = ScreenTranslationController(displayView: displayView, button: translateButton,
                                                        notice: { [weak self] text in self?.notice.show(text) },
-                                                       keysBelongToGame: { [weak self] in self?.keymapTakesClicks == true })
+                                                       keysBelongToGame: { [weak self] in self?.keymapTakesClicks == true },
+                                                       engine: { [weak self] in self?.client })
     /// Keeps a ProMotion or adaptive screen at Android's rate above 60 Hz.
     private lazy var frameRateHint = FrameRateHint(view: displayView, renderer: displayView.renderer)
     /// The screen recording in progress.
@@ -94,13 +100,15 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
 
     /// Back, then three icons that open menus of related actions (the same
     /// as the menu bar's): game controls, translation and capture; then the
-    /// fingerprint, whose menu has no menu bar counterpart, and last Quick Settings.
+    /// fingerprint, whose menu has no menu bar counterpart, Keep on Top, and
+    /// last Quick Settings.
     private lazy var titlebarButtons: NSTitlebarAccessoryViewController = {
         backButton.target = self
+        keepOnTopButton.target = self
         gameModeButton.popUpMenu = { [weak self] in self?.gameControlsMenu() }
         translateButton.popUpMenu = { [weak self] in self?.translationMenu() }
         captureButton.popUpMenu = { [weak self] in self?.captureMenu() }
-        let stack = NSStackView(views: titlebarActions + [fingerprintMenu.button, quickSettings.button])
+        let stack = NSStackView(views: titlebarActions + [fingerprintMenu.button, keepOnTopButton, quickSettings.button])
         stack.orientation = .horizontal
         stack.spacing = 2
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -126,9 +134,6 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         menu.addItem(withTitle: String(localized: "Game Mode", bundle: .windowHost), action: #selector(toggleGameMode), keyEquivalent: "g")
         menu.addItem(withTitle: String(localized: "Edit Key Mapping…", bundle: .windowHost), action: #selector(toggleKeymapEditor), keyEquivalent: "k")
             .keyEquivalentModifierMask = [.command, .shift]
-        // The same editor, with its controller panel out (ControllerPanel.swift).
-        menu.addItem(withTitle: String(localized: "Edit Controller Mapping…", bundle: .windowHost), action: #selector(editControllerMapping),
-                     keyEquivalent: "")
         menu.addItem(withTitle: String(localized: "Show Key Mapping on Game", bundle: .windowHost), action: #selector(toggleKeymapHints),
                      keyEquivalent: "")
         for item in menu.items { item.target = self }
@@ -767,10 +772,6 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         keymap?.toggleEditor(over: window)
     }
 
-    @objc func editControllerMapping() {
-        keymap?.toggleEditor(over: window, showingController: true)
-    }
-
     @objc func toggleGameMode() {
         guard let keymap else { return }
         keymap.setGameMode(!keymap.gameMode)
@@ -956,7 +957,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
             return picture != nil || !lockOverlay.isShowing
         }
         // The editor is drawn over the window, which Picture in Picture hides.
-        if item.action == #selector(toggleKeymapEditor) || item.action == #selector(editControllerMapping) { return picture == nil }
+        if item.action == #selector(toggleKeymapEditor) { return picture == nil }
         if item.action == #selector(toggleKeymapHints) {
             item.state = KeymapHints.visible ? .on : .off
             return keymap != nil
@@ -979,10 +980,15 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     }
 
     /// Floats over other apps' windows while Keep on Top is on; full screen
-    /// has its own Space.
+    /// has its own Space. The pin shows the setting either way.
     func applyWindowLevel() {
+        let on = Self.windowModes.keepOnTop
+        keepOnTopButton.state = on ? .on : .off
+        keepOnTopButton.contentTintColor = on ? .controlAccentColor : nil
+        keepOnTopButton.image = NSImage(systemSymbolName: on ? "pin.fill" : "pin", accessibilityDescription: keepOnTopButton.toolTip)?
+            .withSymbolConfiguration(.init(pointSize: 13, weight: .medium))
         guard let window else { return }
-        let floats = Self.windowModes.keepOnTop && !fullScreenTransition && !window.styleMask.contains(.fullScreen)
+        let floats = on && !fullScreenTransition && !window.styleMask.contains(.fullScreen)
         window.level = floats ? .floating : .normal
     }
 

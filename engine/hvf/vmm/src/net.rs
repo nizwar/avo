@@ -16,6 +16,7 @@
 //! datagram by datagram through one host socket per guest port, ICMP echo
 //! through the Mac's unprivileged ICMP socket. No ports are opened on the Mac.
 
+use crate::link::{LINK, Lane};
 use crate::virtio::net::{Downlink, Uplink};
 use mio::net::{TcpStream, UdpSocket};
 use mio::{Events, Interest, Poll, Token, Waker};
@@ -196,6 +197,9 @@ struct Stack {
     ip_id: u16,
     /// Frames for the guest, delivered once per round.
     out: Vec<Vec<u8>>,
+    /// The link's two directions while its speed or delay is limited (link.rs).
+    up: Lane,
+    down: Lane,
 }
 
 impl Stack {
@@ -234,6 +238,8 @@ impl Stack {
             next_token: FIRST_FLOW,
             ip_id: random_seed() as u16,
             out: Vec::new(),
+            up: Lane::default(),
+            down: Lane::default(),
         }
     }
 
@@ -251,12 +257,16 @@ impl Stack {
         let mut housekeeping = Instant::now();
         loop {
             let now = self.now();
-            let delay = self
+            let mut delay = self
                 .iface
                 .poll_delay(now, &self.sockets)
                 .map(|d| Duration::from_micros(d.total_micros()))
                 .unwrap_or(Duration::from_secs(1))
                 .min(Duration::from_secs(1));
+            // A limited link's next frame is due then.
+            for next in [self.up.next(), self.down.next()].into_iter().flatten() {
+                delay = delay.min(next.saturating_duration_since(Instant::now()));
+            }
             if let Err(e) = self.poll.poll(&mut events, Some(delay)) {
                 if e.kind() == ErrorKind::Interrupted {
                     continue;
@@ -280,7 +290,15 @@ impl Stack {
                     self.receive_udp(token);
                 }
             }
-            let frames = std::mem::take(&mut *self.inbox.lock().unwrap());
+            let conditions = LINK.get();
+            let mut frames = std::mem::take(&mut *self.inbox.lock().unwrap());
+            if !conditions.is_unlimited() || !self.up.is_empty() {
+                let now = Instant::now();
+                for frame in frames {
+                    self.up.push(frame, now, conditions.up_kbps, &conditions);
+                }
+                frames = self.up.due(now);
+            }
             for frame in &frames {
                 self.guest_frame(frame);
             }
@@ -294,8 +312,16 @@ impl Stack {
                 }
                 self.expire();
             }
-            if !self.out.is_empty() {
-                self.downlink.deliver(std::mem::take(&mut self.out));
+            let mut out = std::mem::take(&mut self.out);
+            if !conditions.is_unlimited() || !self.down.is_empty() {
+                let now = Instant::now();
+                for frame in out {
+                    self.down.push(frame, now, conditions.down_kbps, &conditions);
+                }
+                out = self.down.due(now);
+            }
+            if !out.is_empty() {
+                self.downlink.deliver(out);
             }
         }
     }

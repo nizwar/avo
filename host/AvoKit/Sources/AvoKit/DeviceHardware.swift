@@ -54,12 +54,12 @@ public struct DeviceHardware: Codable, Equatable, Sendable {
     }
 
     /// The CPU: each cluster's core model (an ARM MIDR) and count, and the
-    /// per-cluster frequencies. The intent is for the engine to present these
-    /// (vCPU `MIDR_EL1` and the guest's `virtual-cpufreq` table) so
-    /// `/proc/cpuinfo` and `/sys/devices/system/cpu` match the target and the
-    /// NDK's cpufeatures agrees. The engine side is not implemented yet
-    /// (docs/engine.md); this type carries the data and the Control Panel
-    /// shows it, so profiles can be authored now.
+    /// per-cluster frequencies. The engine presents these (avo-vmm
+    /// `--cpu-clusters`: each vCPU's `MIDR_EL1`, and the guest's
+    /// `virtual-cpufreq` with a policy per cluster), so `/proc/cpuinfo` and
+    /// `/sys/devices/system/cpu` match the phone for as many cores as Android
+    /// has (`fitted(to:)`). The frequencies are names only: every vCPU still
+    /// runs as fast as the Mac lets it.
     public struct CPU: Codable, Equatable, Sendable {
         public var clusters: [Cluster]
 
@@ -90,9 +90,73 @@ public struct DeviceHardware: Codable, Equatable, Sendable {
                 self.maxFreqKHz = maxFreqKHz
                 self.minFreqKHz = minFreqKHz
             }
+
+            /// `MIDR_EL1`: implementer, variant, architecture (0xF: see the ID
+            /// registers), part and revision.
+            public var midr: UInt32 {
+                UInt32(implementer & 0xff) << 24 | UInt32((variant ?? 0) & 0xf) << 20 | 0xf << 16
+                    | UInt32(part & 0xfff) << 4 | UInt32((revision ?? 0) & 0xf)
+            }
+
+            /// The MIDR avo-vmm presents: this one, but a Cortex-A53 before
+            /// r0p3 as r0p4, its last revision. For the early ones Linux works
+            /// around errata 826319, 827319, 824069 and 819472 by trapping
+            /// every app's cache maintenance, which no Mac core needs.
+            var presentedMIDR: UInt32 {
+                guard implementer == 0x41, part == 0xD03, (variant ?? 0) == 0, (revision ?? 0) < 3 else { return midr }
+                return midr & ~0xf | 4
+            }
+
+            /// A Cortex-A73: Linux's workaround for its erratum 858921 (every
+            /// revision) traps the counter and takes clock_gettime out of the
+            /// vDSO on every core, so avo-vmm presents no CPU for it.
+            /// Qualcomm's A73-based cores report their own part (Kryo 2xx Gold:
+            /// implementer 0x51, part 0x800).
+            var trapsTheTimer: Bool { implementer == 0x41 && part == 0xD09 }
         }
 
         public var totalCores: Int { clusters.reduce(0) { $0 + $1.cores } }
+
+        /// The lowest frequency a cluster without one gets, as most phones'
+        /// little cores have.
+        static let defaultMinFreqKHz = 300_000
+
+        /// The clusters as Android numbers its CPUs, from the slowest (by top
+        /// frequency, in the profile's order where equal), for `vcpus` vCPUs.
+        /// With fewer vCPUs than the phone has cores, its slowest give way
+        /// (every vCPU is as fast as the Mac's cores); with more, the slowest
+        /// cluster grows.
+        public func fitted(to vcpus: Int) -> CPU {
+            let ordered = clusters.enumerated()
+                .sorted { ($0.element.maxFreqKHz ?? 0, $0.offset) < ($1.element.maxFreqKHz ?? 0, $1.offset) }
+                .map(\.element)
+            guard vcpus > 0, !ordered.isEmpty else { return CPU(clusters: []) }
+            var left = vcpus
+            var kept: [Cluster] = []
+            for var cluster in ordered.reversed() where left > 0 && cluster.cores > 0 {
+                cluster.cores = min(cluster.cores, left)
+                left -= cluster.cores
+                kept.insert(cluster, at: 0)
+            }
+            if left > 0, !kept.isEmpty { kept[0].cores += left }
+            return CPU(clusters: kept)
+        }
+
+        /// avo-vmm's `--cpu-clusters` for `vcpus` vCPUs: `CORESxMIDR@MIN-MAX`
+        /// per cluster (`fitted(to:)`, frequencies in kHz). Nil when a
+        /// cluster has no top frequency, or the CPU has a Cortex-A73
+        /// (`trapsTheTimer`) among the cores Android gets.
+        public func engineClusters(vcpus: Int) -> String? {
+            let fit = fitted(to: vcpus)
+            guard !fit.clusters.isEmpty else { return nil }
+            var specs: [String] = []
+            for cluster in fit.clusters {
+                guard let top = cluster.maxFreqKHz, top > 1, !cluster.trapsTheTimer else { return nil }
+                let low = cluster.minFreqKHz.flatMap { $0 > 0 && $0 < top ? $0 : nil } ?? min(Self.defaultMinFreqKHz, top / 2)
+                specs.append("\(cluster.cores)x\(String(format: "%08x", cluster.presentedMIDR))@\(low)-\(top)")
+            }
+            return specs.joined(separator: ",")
+        }
     }
 
     /// The GPU an app's own renderer reads. GLES strings and the Vulkan
@@ -236,6 +300,12 @@ public struct DeviceHardware: Codable, Equatable, Sendable {
                 if cluster.cores < 1 { problems.append("cpu cluster \(index) has no cores") }
                 if !(0...0xff).contains(cluster.implementer) { problems.append("cpu cluster \(index) implementer out of range") }
                 if !(0...0xfff).contains(cluster.part) { problems.append("cpu cluster \(index) part out of range") }
+                if let variant = cluster.variant, !(0...0xf).contains(variant) {
+                    problems.append("cpu cluster \(index) variant out of range")
+                }
+                if let revision = cluster.revision, !(0...0xf).contains(revision) {
+                    problems.append("cpu cluster \(index) revision out of range")
+                }
                 if let max = cluster.maxFreqKHz, let min = cluster.minFreqKHz, min > max {
                     problems.append("cpu cluster \(index) min frequency above max")
                 }

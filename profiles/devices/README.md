@@ -1,8 +1,8 @@
 # Device profiles
 
 Templates for the "Identify as" menu in the Control Panel (Settings ›
-System › Device profile; spec §8). Each file is `<id>.json`; the file name
-must match `id`.
+Privacy & Security › Device profile; spec §8). Each file is `<id>.json`; the
+file name must match `id`.
 
 `avo-virtual-device.json` is the default and Avo's honest identity: a device
 made by Avo, model AVO-Droid. The other templates impersonate phones, so apps
@@ -48,7 +48,8 @@ chosen, Avo still identifies itself to apps that check for it (the
 ## `hardware` (optional): "Emulate this phone's hardware"
 
 The `hardware` block is what the profile reports when the developer ticks
-**Emulate this phone's hardware** (Control Panel › System). It is for testing
+**Emulate this phone's hardware** (Settings › Privacy & Security › Device
+profile). It is for testing
 a build's per-device code paths — a chipset or brand check — without the
 device. Like the identity, it does not pass hardware attestation, and Avo
 still identifies itself. Without the checkbox (and for Avo's honest identity,
@@ -69,10 +70,19 @@ It reaches apps three ways, covering how apps actually read the hardware:
   `implementer`/`part` are decimal here (`65` = `0x41` ARM); `vkVendorID`,
   `vkDeviceID`, `vkDriverVersion` are numbers too (`20803` = `0x5143`
   Qualcomm). `vkDriverID` is a `VkDriverId` (`8` Qualcomm, `9` ARM).
-- **CPU** — each cluster's core model (an ARM MIDR: `implementer` and `part`)
-  and count, and the per-cluster `maxFreqKHz` / `minFreqKHz`. The engine
-  presents these so `/proc/cpuinfo` and `/sys/devices/system/cpu` agree, and
-  the NDK's cpufeatures reads the target CPU.
+- **CPU** — each cluster's core model (an ARM MIDR: `implementer`, `part`,
+  and optionally `variant` and `revision`) and count, and the per-cluster
+  `maxFreqKHz` / `minFreqKHz` (300 MHz when left out). The engine presents
+  these so `/proc/cpuinfo` and `/sys/devices/system/cpu` agree (a cpufreq
+  policy per cluster, as on the phone), and the NDK's cpufeatures reads the
+  target CPU. Clusters may be listed in any order: Android numbers them from
+  the slowest. With fewer Android cores than the phone has (Settings ›
+  Performance), the phone's fastest clusters are kept; with more, its
+  slowest grows. Use the MIDR the phone reports: Qualcomm's Kryo 2xx–4xx
+  and Oryon cores have their own implementer (`81` = `0x51`) and parts.
+  A Cortex-A73 (`0xD09`) is never presented, because Linux's workaround
+  for its erratum 858921 slows every app's clock; an early Cortex-A53
+  (r0p0–r0p2) is presented as r0p4.
 
 What stays this Mac's, by design (changing it would break apps or drivers, and
 it is honest): `ro.hardware` and the HALs, the ABI list and API level, and the

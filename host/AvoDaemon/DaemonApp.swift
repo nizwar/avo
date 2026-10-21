@@ -89,6 +89,8 @@ final class DaemonAppDelegate: NSObject, NSApplicationDelegate {
             // Android's data on an external drive: an eject waits until Android stopped.
             volumes: DiskArbitrationWatcher(),
             imageOverride: cuttlefishOverride,
+            // Translate Screen's text engine, one for every app.
+            screenText: ScreenTextEngine(),
             loadImage: loadImage)
         let core = DaemonCore(deps)
         Task { await core.start() }

@@ -45,6 +45,24 @@
         }
       }
     },
+    "NSBluetoothAlwaysUsageDescription" : {
+      "comment" : "Bluetooth permission prompt (macOS asks when Android first turns its Bluetooth on).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With Bluetooth on in Android, its apps find and use the Bluetooth devices this Mac sees, like watches, sensors and beacons."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saat Bluetooth Android menyala, app-nya bisa menemukan dan memakai perangkat Bluetooth yang terlihat oleh Mac ini, seperti jam, sensor, dan beacon."
+          }
+        }
+      }
+    },
     "NSHumanReadableCopyright" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -58,6 +76,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kontributor Avo. Lisensi Apache 2.0."
+          }
+        }
+      }
+    },
+    "NSCameraUsageDescription" : {
+      "comment" : "Camera permission prompt (macOS asks when an Android app first uses one of the Mac's cameras).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android apps that use the camera, like video calls and scanners, see this Mac's camera while they use it."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Android yang memakai kamera, seperti panggilan video dan pemindai, melihat kamera Mac ini selama memakainya."
           }
         }
       }

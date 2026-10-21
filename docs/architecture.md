@@ -201,16 +201,40 @@ filter, performance HUD, Use Default Graphics Settings, full screen), then
 Keep on Top and Picture in Picture.
 `GraphicsMenu` is that menu's delegate; a menu edit saves a sparse
 per-app override through `setAppGraphics`. Translate Screen reads the frame
-on screen with Vision, translates it on the Mac with Apple's Translation
-framework and draws plates over the text in a view above `DisplayView`:
-clicks pass through, and nothing is drawn into frames, so screenshots and
-recordings stay clean. It follows the screen: ten times a second it compares
-the frame on screen with the one the plates were read from (`ScreenWatch`,
-a 16-pixel grid of gray cells), drops at once every plate over something
-that changed, and reads the screen again once it holds still; text and
-screens read before are not read or translated again. Vision builds its
-text models once per app bundle (most of a minute), so the shims share one
-model cache in `~/Library/Caches/dev.avo.WindowHost`.
+on screen and translates it on the Mac, and draws plates over the text in a
+view above `DisplayView`: clicks pass through, and nothing is drawn into
+frames, so screenshots and recordings stay clean. It follows the screen: ten
+times a second it compares the frame on screen with the one the plates were
+read from (`ScreenWatch`, a 16-pixel grid of gray cells), drops at once
+every plate over something that changed, and reads the screen again once it
+holds still; text and screens read before are not read or translated again.
+Through a scroll the plates move with their text instead (`ScreenFollow`):
+each look measures how far a strip of the frame (rows of about 4 pixels)
+slid since the last one, the way the mouse wheel's scroll watch does, and a
+plate shows at its new place only where the strip there shows what was
+under it.
+
+The reading and the translating are one engine's for every app, the
+daemon's (`ScreenTextEngine`). The shim sends the frame it shows
+(`readScreenText`, its pixels beside the request) and gets the text back in
+blocks with their colors and languages (Vision, `ScreenTextLayout`), then
+sends the text without a translation yet (`translateTexts`, Apple's
+Translation framework, which macOS 26 runs without a window for languages
+on the Mac). macOS translates about five texts a second however they are
+sent, so the engine keeps every app's translations while the daemon runs (in
+memory only: they are the screen's text), and a window asks for the known
+ones of a new screen at once (`knownTranslations`) before anything new is
+translated. Vision builds its text models for each program that reads text
+(about 25 s, again after a macOS update; an update of Avo keeps them) and
+loads them in a moment at that program's next start; a model another program
+built is built again over it, so App Shims, each a program of its own, could
+not share them. The daemon builds and loads them once: at its start (Settings
+› General › Translate Screen, `translationAtStartup`, on by default) or when
+Translate Screen first turns on in any app (`wakeScreenText`, which also
+loads the language pair translated last: macOS lets go of a pair's model a
+minute after its last use). A pair macOS must download first, and every pair
+on macOS 15, is translated in the window instead, by a SwiftUI translation
+session, which can show the system's download sheet.
 
 Keep on Top floats every window of the app over other apps' windows
 (`window.level = .floating`; not in full screen), remembered per app in the
@@ -370,8 +394,10 @@ read (true is follow, false fixed, `mode` wins when both are there) but no
 longer written, and a ratio stored in `aspectRatio` still applies to fixed
 mode only.
 
-Changing Android's size re-plugs its display (HostAgent unplugs it, plugs
-it back at the new size and brings the app back), so it happens only when
+Changing Android's size gives its display the new size in place when Avo's
+composer runs (`GuestComposer`, docs/engine.md): the app keeps its display
+and only lays out again. Otherwise it re-plugs the display (HostAgent unplugs
+it, plugs it back at the new size and brings the app back). Either way it happens only when
 needed: in follow mode at the end of a resize and on a backing-scale change;
 with Match window when the window's shape changed by more than 1 %; with a
 fixed ratio or the phone's screen only on rotation and setting changes. Never during a live resize
@@ -389,16 +415,20 @@ SurfaceFlinger (a null pointer in `HWComposer::executeCommands`) and every
 app with it. For the same reason a closed window's scanout goes to a new
 window only once Android has let go of it (`releasing`); a window opened
 meanwhile takes another scanout.
-While Android re-plugs, the renderer holds a copy of the last frame
+While Android changes size, the renderer holds a copy of the last frame
 (`holdCurrentFrame`) until the first frame of the new size after the
-daemon's reply, at most 4 s, so the window never flashes black. Shims hear
+daemon's reply (or at the reply, when that frame came first), at most 4 s,
+so the window never flashes black; the held frame then fades out over the
+new one in 0.2 s. Shims hear
 `configurationChanged`, and an app's own override changes only through
 `setAppGraphics`.
 
 The picture is placed by `presentationRect`: 1:1 when the window is at most
 a few pixels larger (the edge pixels repeat into the gap), filling the
-window when the shapes differ by 2 % or less, aspect-fitted with black bars
-otherwise. The renderer (`MetalRenderer`) then picks a path with
+window when the shapes differ by 2 % or less, aspect-fitted otherwise, over
+a backdrop instead of black bars: the frame shrunk to 48 pixels, blurred
+there, dimmed and stretched over the window (`avo_backdrop`; recordings keep
+black bars). The renderer (`MetalRenderer`) then picks a path with
 `scalingPath`:
 
 - **1:1:** a copy shader.
@@ -961,8 +991,21 @@ daemon's `LocationCenter` (AvoDaemonCore), which has one of three sources:
   resuming one wakes a paused Android.
 
 The center is the daemon's, so a route plays on with every window closed.
-It is not saved: a new daemon starts with this Mac again. avo-vmm keeps the
-last fix and sends it again after every start.
+avo-vmm keeps the last fix and sends it again after every start.
+
+**Every app's location and an app's own.** There is a location for every
+app, and an app may have one of its own: the panel's **All Apps / This App**
+(`LocationRequest.ownLocation`, `.followAllApps`; Settings › Devices ›
+Location lists the apps with their own and gives each back to every app's,
+`.removeApp`). An app's own starts where every app's is and changes on its
+own, a route included, each route moving on its own clock. Android has one
+GPS, so what it reports is the own location of the app whose window is in
+front (`focusDisplay` → `LocationCenter.appFocused`), else every app's; the
+app's last window closing gives Android every app's location again. Each
+panel hears its app's location (`location(watch:)` is answered per client),
+the Control Panel every app's with the list. Places, every app's and the
+apps' own, are kept across starts in `location.json` next to the
+configuration; a route is not (the place before it is kept).
 
 **The Location panel** (an app window's Controls › Location…, ⌥⌘L, or Quick
 Settings › Location; `LocationPanel.swift`) is one window per App Shim:
@@ -978,6 +1021,28 @@ client `DaemonEvent.location` at every change and once a second while a
 route plays (without the points; a new route id makes the panel ask again);
 `changeLocation(LocationRequest)` changes it. Both are for App Shims and
 Control Panels.
+
+## Android's cameras (Settings › Devices › Cameras)
+
+Each of Android's cameras (`VMConfig.backCamera`, `frontCamera`) is
+Emulated, None or one of this Mac's cameras (`CameraSource`; the picker
+lists built-in, plugged-in and Continuity cameras, `AVCaptureDevice`'s
+discovery, and keeps a chosen camera that is unplugged). While both are
+Emulated, Android has the image's emulated cameras. Otherwise avo-vmm gets
+`--cameras` and gives Android two virtio-media cameras read by the image's
+external camera HAL (engine.md, "Cameras"), and the daemon feeds them
+(`CameraFeed`, AvoDaemonCore): only while Android streams one, the source
+chosen for it runs, the Mac's camera (AVFoundation, cropped to Android's
+size, at most its rate) or a scene drawn on the Mac, as JPEG pictures on a
+control connection of their own. macOS asks for camera access in Avo's name
+the first time Android uses a Mac camera; without it Android sees a picture
+that says how to allow it. Every boot with these cameras the host agent
+patches the HAL so they face back and front (`GuestCamera`).
+
+Which cameras Android has (and so which HAL) is fixed for a start
+(`cameraFlags`): changing it needs a restart. Another source for a camera
+Android has (one Mac camera for another, or the drawn scene) applies at
+once (`DeviceSettingsEngine`).
 
 ## Boot configuration and images
 

@@ -3,6 +3,10 @@ import Foundation
 // What an app window's Location panel asks of the daemon and what it hears
 // back (XPC `location(watch:)`, `changeLocation`, `DaemonEvent.location`).
 // The daemon owns it all: a route keeps playing with every window closed.
+//
+// There is a location for every app, and an app may have one of its own.
+// Android has one GPS, so an app's own location is what every app hears
+// while that app's window is in front (the Mac's key window).
 
 /// Where Android's GPS says it is, and why.
 public struct LocationStatus: Codable, Equatable, Sendable {
@@ -27,15 +31,43 @@ public struct LocationStatus: Codable, Equatable, Sendable {
     /// The chosen place's name (a search result).
     public var pointName: String?
     public var route: RouteStatus?
+    /// For an App Shim: its app has a location of its own, which this is;
+    /// otherwise this is every app's.
+    public var ownLocation: Bool?
+    /// For the Control Panel: the apps with a location of their own.
+    public var apps: [AppLocation]?
+    /// The app in front, when Android's GPS reports its own location now
+    /// (nil: every app's).
+    public var activeApp: String?
 
     public init(source: Source = .mac, fix: RouteFix? = nil, mac: GeoPoint? = nil, macSharing: Bool = true,
-                pointName: String? = nil, route: RouteStatus? = nil) {
+                pointName: String? = nil, route: RouteStatus? = nil, ownLocation: Bool? = nil, apps: [AppLocation]? = nil,
+                activeApp: String? = nil) {
         self.source = source
         self.fix = fix
         self.mac = mac
         self.macSharing = macSharing
         self.pointName = pointName
         self.route = route
+        self.ownLocation = ownLocation
+        self.apps = apps
+        self.activeApp = activeApp
+    }
+}
+
+/// An app with a location of its own (Settings › Devices › Location).
+public struct AppLocation: Codable, Equatable, Sendable {
+    public var package: String
+    public var source: LocationStatus.Source
+    /// Where it is (nil: the Mac's location, while it has none yet).
+    public var point: GeoPoint?
+    public var pointName: String?
+
+    public init(package: String, source: LocationStatus.Source, point: GeoPoint? = nil, pointName: String? = nil) {
+        self.package = package
+        self.source = source
+        self.point = point
+        self.pointName = pointName
     }
 }
 
@@ -97,4 +129,11 @@ public enum LocationRequest: Codable, Equatable, Sendable {
     case resume
     /// Jump to this much (0...1) of the current route.
     case seek(Double)
+    /// The asking app gets a location of its own, every app's to begin with;
+    /// the requests above then change it, not every app's.
+    case ownLocation
+    /// The asking app uses every app's location again.
+    case followAllApps
+    /// The Control Panel: this app uses every app's location again.
+    case removeApp(String)
 }

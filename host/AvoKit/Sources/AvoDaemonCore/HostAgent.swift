@@ -62,6 +62,16 @@ actor HostAgent: DisplayResizing {
     /// (`release`): a new window takes another one meanwhile.
     private var releasing: Set<Int> = []
     private var displayRate = FrameRates.standardRate
+    private var hasBluetooth = false
+    /// Settings › Devices: Android's Wi-Fi, the Mac's Bluetooth devices for
+    /// it, and whether the modem has a SIM.
+    private var wifiWanted = true
+    private var shareMacBluetooth = true
+    private var cellularWanted = false
+    /// The Mac's Bluetooth LE devices in Android's air (MacBluetoothBridge),
+    /// and the watch that follows Android's Bluetooth switch for it.
+    private var bluetoothBridge: MacBluetoothBridge?
+    private var bluetoothWatch: Task<Void, Never>?
     private var touchTargets: [Int: String] = [:]
     private var control: FileDescriptorStream?
     private var sdk: UInt32 = 0
@@ -84,6 +94,9 @@ actor HostAgent: DisplayResizing {
     /// waiting for that to end (`DisplayResizing`).
     var resizing: Set<UInt32> = []
     var resizeWaiters: [UInt32: [CheckedContinuation<Void, Never>]] = [:]
+    /// Avo's composer runs (GuestComposer): a display takes a new size in
+    /// place, keeping its Android display id, instead of a re-plug.
+    private var resizesInPlace = false
     /// When each display's app was started, and how many checks in a row
     /// found nothing on it (see `watchTasks`).
     private var startedAt: [UInt32: ContinuousClock.Instant] = [:]
@@ -163,7 +176,8 @@ actor HostAgent: DisplayResizing {
             await self?.grantPlayServicesLocation()
             await self?.installGPUProfileLayers()
             await self?.noticeGPUDebugLayers()
-            await self?.joinWiFi()
+            await self?.applyWiFi()
+            await self?.showFourGForLTE()
         }
         Task { [weak self] in await self?.sharedFolder?.start() }
         // Each watch ends with the agent too: one an engine crash left behind
@@ -202,6 +216,32 @@ actor HostAgent: DisplayResizing {
 
     /// Android's display rate this boot (`--refresh-rate`, FrameRates.androidRate):
     /// every display is plugged in at it.
+    /// avo-vmm runs a Bluetooth controller this boot (netsimd): Android's
+    /// Bluetooth may be on.
+    func useBluetooth(_ on: Bool) {
+        hasBluetooth = on
+    }
+
+    /// netsimd's HCI port (avo-vmm's `bluetooth hci` event): the Mac's
+    /// devices join Android's air there while Android's Bluetooth is on.
+    func useBluetoothPort(_ port: UInt16) {
+        guard bluetoothBridge == nil else { return }
+        let bridge = MacBluetoothBridge(port: port, sharing: shareMacBluetooth)
+        bluetoothBridge = bridge
+        bluetoothWatch = Task { [weak self] in
+            var last: Bool?
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))
+                guard let self, await isReady, await !paused,
+                      let output = try? await shell("settings get global bluetooth_on") else { continue }
+                let on = output.trimmed == "1"
+                guard on != last else { continue }
+                last = on
+                await bridge.setAndroidBluetooth(on)
+            }
+        }
+    }
+
     func useDisplayRate(_ hz: Int) {
         displayRate = hz
     }
@@ -233,6 +273,8 @@ actor HostAgent: DisplayResizing {
         clipboardWatch?.cancel()
         linkWatch?.cancel()
         widgetsInstall?.cancel()
+        bluetoothWatch?.cancel()
+        await bluetoothBridge?.stop()
         await sharedFolder?.stop()
         _ = try? await root("reboot -p")
         await adb?.close()
@@ -321,6 +363,10 @@ actor HostAgent: DisplayResizing {
         await shareAudioFocus()
         // Before any app draws: Vulkan apps must not deadlock gfxstream (GuestGfxstreamSync).
         await enableGfxstreamSync()
+        // Before any window resizes: in place, or by re-plugs (GuestComposer).
+        await checkComposer()
+        // Before any app opens a camera: the Mac's face back and front (GuestCamera).
+        await setUpCameras()
     }
 
     /// GPU mode: installs Avo's gfxstream sync layer and names it for the
@@ -383,11 +429,17 @@ actor HostAgent: DisplayResizing {
         "[ -n \"$(getprop init.svc.vendor.threadnetwork_hal)\" ] && setprop ctl.stop vendor.threadnetwork_hal"
 
     /// Cuttlefish runs Android's Bluetooth and Thread radios against host
-    /// simulators the Mac does not have: left on, Bluetooth crashes and starts
-    /// again every minute. Off once per data disk, like a phone with them off.
+    /// simulators: left on without one, Bluetooth crashes and starts again
+    /// every minute. Thread never has one, Bluetooth has netsimd when the
+    /// Android Emulator is there and Settings › Devices gives Android
+    /// Bluetooth (`useBluetooth`). Thread goes off once per data disk, like a
+    /// phone with it off; Bluetooth without a controller at every start.
     private func turnOffMissingRadios() async {
+        // Bluetooth at every start: it may have been on with a controller
+        // before (Settings › Devices turns Bluetooth off, or the Android
+        // Emulator went), and left on without one it crashes over and over.
+        if !hasBluetooth { _ = try? await root("cmd bluetooth_manager disable") }
         guard (try? await shell("settings get global avo_radios_off"))?.trimmed != "1" else { return }
-        _ = try? await root("cmd bluetooth_manager disable")
         _ = try? await root("cmd thread_network disable")
         _ = try? await shell("settings put global avo_radios_off 1")
     }
@@ -501,6 +553,51 @@ actor HostAgent: DisplayResizing {
     /// (virt_wifi over eth2, engine/hvf/vmm/src/net.rs). Android joins it
     /// once per data disk; after that Wi-Fi is whatever the user makes it in
     /// Android's settings.
+    /// Settings › Devices: on (joined to VirtWifi once per data disk) or off
+    /// (Android is offline), at every start (Android keeps its own switch
+    /// too) and when the setting changes.
+    private func applyWiFi() async {
+        guard wifiWanted else {
+            _ = try? await shell("cmd wifi set-wifi-enabled disabled")
+            return
+        }
+        _ = try? await shell("cmd wifi set-wifi-enabled enabled")
+        await joinWiFi()
+    }
+
+    /// Settings › Devices changed (or a start begins): applied at once when Android is up.
+    func applyDeviceSettings(wifi: Bool, shareMacBluetooth: Bool, cellular: Bool = false) async {
+        let wifiChanged = wifi != wifiWanted
+        let simInserted = cellular && !cellularWanted
+        wifiWanted = wifi
+        cellularWanted = cellular
+        self.shareMacBluetooth = shareMacBluetooth
+        await bluetoothBridge?.setSharing(shareMacBluetooth)
+        if wifiChanged, isReady { await applyWiFi() }
+        if simInserted, isReady { Task { await showFourGForLTE() } }
+    }
+
+    /// Android's status bar says LTE for 4G unless the carrier's
+    /// configuration asks for "4G", as most carriers' do; the modem's test
+    /// SIM (PLMN 001/01, engine/hvf/vmm/src/modem.rs) does not. Once its
+    /// subscription is up, Avo asks for 4G, persistently (`-p`): Android keeps
+    /// it for that SIM across starts.
+    private func showFourGForLTE() async {
+        guard cellularWanted else { return }
+        for _ in 0..<60 {
+            if (try? await shell("getprop gsm.sim.state"))?.contains("LOADED") == true {
+                let result = try? await root("cmd phone cc set-value -p show_4g_for_lte_data_icon_bool true")
+                if result?.succeeded != true {
+                    logger.error("mobile network: LTE stays \"LTE\" in the status bar: \((result?.output ?? "") + (result?.errorOutput ?? ""), privacy: .public)")
+                }
+                return
+            }
+            try? await Task.sleep(for: .seconds(1))
+            guard cellularWanted else { return }
+        }
+        logger.notice("mobile network: the SIM was not loaded after a minute; LTE stays \"LTE\" in the status bar")
+    }
+
     private func joinWiFi() async {
         guard (try? await shell("settings get global avo_wifi_joined"))?.trimmed != "1" else { return }
         _ = try? await shell("cmd wifi set-wifi-enabled enabled")
@@ -743,11 +840,13 @@ actor HostAgent: DisplayResizing {
                 DisplayMode(width: display.appliedWidth, height: display.appliedHeight, dpi: display.appliedDPI))
     }
 
-    /// Android's composer ignores new modes of a connected display, so the
-    /// display is unplugged and plugged in again at the new size: Android
-    /// moves the display's tasks to display 0 and back when it returns, and
-    /// the app lays out for the new size.
+    /// Avo's composer (GuestComposer) gives the display its new size in
+    /// place. The image's composer ignores new modes of a connected display,
+    /// so the display is unplugged and plugged in again at the new size:
+    /// Android moves the display's tasks to display 0 and back when it
+    /// returns (under a new display id), and the app lays out for the new size.
     func replug(_ id: UInt32, to mode: DisplayMode) async throws {
+        if resizesInPlace, try await resize(id, inPlaceTo: mode) { return }
         guard let display = displays[id] else { return }
         try await engine.send("display \(display.scanout) off")
         // Plugged back before Android let go of it, the display would keep
@@ -766,6 +865,42 @@ actor HostAgent: DisplayResizing {
         displays[id] = current
         if current.dpi > 0 { _ = try? await shell("wm density \(current.dpi) -d \(androidID)") }
         try await bringBack(current, to: androidID)
+    }
+
+    /// The scanout takes the new mode while plugged: the composer reports it
+    /// and DisplayManager gives the same display its new size, with the app
+    /// on it. False when Android did not take it in time (then it re-plugs).
+    private func resize(_ id: UInt32, inPlaceTo mode: DisplayMode) async throws -> Bool {
+        guard let display = displays[id], let androidID = display.androidID else { return false }
+        try await engine.send("display \(display.scanout) \(mode.width) \(mode.height) \(displayRate)")
+        let deadline = ContinuousClock.now + .seconds(3)
+        while ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(30))
+            guard var current = displays[id] else { return true } // closed meanwhile
+            let size = Self.modeSize(androidID: androidID, in: try await shell("cmd display get-displays"))
+            guard let size, size.width == mode.width, size.height == mode.height else { continue }
+            current.appliedWidth = mode.width
+            current.appliedHeight = mode.height
+            // A density that changed meanwhile is the loop's next step.
+            displays[id] = current
+            return true
+        }
+        logger.error("display \(androidID) did not take \(mode.width)x\(mode.height) in place; re-plugging it")
+        return false
+    }
+
+    /// The size of display `androidID`'s mode in `cmd display get-displays`
+    /// (`… supportedModes [{id=38, …, width=432, height=892, …`), which does
+    /// not turn with the display as `real` does.
+    static func modeSize(androidID: Int, in output: String) -> (width: UInt32, height: UInt32)? {
+        guard let line = output.split(separator: "\n").first(where: { $0.hasPrefix("Display id \(androidID): ") }),
+              let modes = line.range(of: "supportedModes [{") else { return nil }
+        func value(_ name: String) -> UInt32? {
+            guard let start = line.range(of: name + "=", range: modes.upperBound..<line.endIndex) else { return nil }
+            return UInt32(line[start.upperBound...].prefix { $0.isNumber })
+        }
+        guard let width = value("width"), let height = value("height") else { return nil }
+        return (width, height)
     }
 
     func applyDensity(_ id: UInt32, _ dpi: UInt32) async {
@@ -2337,6 +2472,93 @@ extension HostAgent {
     /// AlarmManager sets the clock and tells apps (ACTION_TIME_CHANGED).
     static func setTimeCommand(milliseconds: Int64) -> String {
         "cmd alarm set-time \(milliseconds)"
+    }
+}
+
+// MARK: - Root (MagiskRoot: Magisk in init_boot)
+
+extension HostAgent {
+    /// Patches `stock` (the image's init_boot) with Magisk from `apk` inside
+    /// Android, as Magisk's app would, and returns the patched image.
+    /// Magisk's app is installed too, so apps' root requests have someone to ask.
+    func patchInitBoot(stock: URL, apk: URL) async throws -> Data {
+        guard let adb else { throw AvoError.guestUnavailable }
+        let staging = MagiskRoot.staging
+        _ = try await root("rm -rf \(staging) && mkdir -p \(staging) && chown shell:shell \(staging)")
+        defer { Task { _ = try? await self.root("rm -rf \(staging)") } }
+        for (file, name) in [(stock, "init_boot.img"), (apk, "magisk.apk")] {
+            let data = try Data(contentsOf: file)
+            try await adb.push(AsyncStream { $0.yield(data); $0.finish() }, to: "\(staging)/\(name)")
+        }
+        let result = try await root(MagiskRoot.patchScript)
+        guard result.succeeded else {
+            let detail = (result.output + "\n" + result.errorOutput).trimmingCharacters(in: .whitespacesAndNewlines)
+            throw AvoError.installFailed(String(localized: "Magisk could not patch Android’s boot ramdisk", bundle: .avoKit)
+                                         + (detail.isEmpty ? "" : ": " + String(detail.suffix(600))))
+        }
+        let patched = try await adb.exec("cat \(staging)/new-boot.img")
+        guard MagiskRoot.looksPatched(patched) else {
+            throw AvoError.installFailed(String(localized: "Magisk’s patched boot ramdisk is not a boot image", bundle: .avoKit))
+        }
+        let install = (try? await shell("pm install -r \(staging)/magisk.apk")) ?? ""
+        if !install.contains("Success") { logger.error("root: Magisk's app did not install: \(install.trimmed, privacy: .public)") }
+        return patched
+    }
+}
+
+// MARK: - Composer (GuestComposer: resizes keep the display)
+
+extension HostAgent {
+    /// Resizes go in place when Avo's composer runs. On the known build with
+    /// the overlays of a `remount`, it is put in place for the next boot;
+    /// until then, and everywhere else, resizes re-plug.
+    func checkComposer() async {
+        guard let sums = try? await shell("sha256sum " + GuestComposer.binary) else { return }
+        switch GuestComposer.state(sumOutput: sums) {
+        case .patched:
+            resizesInPlace = true
+            logger.notice("composer: Avo's; windows resize in place")
+        case .unknown:
+            logger.notice("composer: unknown build; windows re-plug to resize")
+        case .stock(let build):
+            if (try? await root(GuestComposer.pendingCheck(build)))?.succeeded == true {
+                logger.notice("composer: Avo's runs from the next Android start; windows re-plug to resize until then")
+            } else if (try? await root(GuestComposer.installScript(build)))?.succeeded == true {
+                logger.notice("composer: Avo's installed; it runs from the next Android start")
+            } else {
+                logger.notice("composer: not installed (no remount overlays?); windows re-plug to resize")
+            }
+        }
+    }
+}
+
+// MARK: - Cameras (GuestCamera: the cameras the Mac feeds face back and front)
+
+extension HostAgent {
+    /// With cameras from the Mac, the camera HAL that reads them gets their
+    /// facing and its configuration (GuestCamera) for this boot; on a VM
+    /// with overlays, Android lists camera features from its next start on
+    /// either way.
+    func setUpCameras() async {
+        if (try? await root(GuestCamera.featuresCheck))?.succeeded != true {
+            if (try? await root(GuestCamera.featuresScript))?.succeeded == true {
+                logger.notice("cameras: features listed from the next Android start")
+            }
+        }
+        guard (try? await shell("getprop " + GuestCamera.apexProperty))?.trimmed == GuestCamera.fedAPEX,
+              let sums = try? await shell("sha256sum " + GuestCamera.library) else { return }
+        switch GuestCamera.state(sumOutput: sums) {
+        case .patched:
+            logger.notice("cameras: Avo's camera HAL runs; back and front from the Mac")
+        case .unknown:
+            logger.notice("cameras: unknown camera HAL build; Android's cameras face \"external\"")
+        case .stock(let build):
+            guard let result = try? await root(GuestCamera.installScript(build)), result.succeeded else {
+                logger.error("cameras: the camera HAL keeps facing \"external\": patching it failed")
+                return
+            }
+            logger.notice("cameras: camera HAL patched and restarted; back and front from the Mac")
+        }
     }
 }
 

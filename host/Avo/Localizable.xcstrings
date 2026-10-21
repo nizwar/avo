@@ -615,6 +615,16 @@
         }
       }
     },
+    "%lld bars" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld bar"
+          }
+        }
+      }
+    },
     "%lld cores" : {
       "localizations" : {
         "id" : {
@@ -725,6 +735,76 @@
         }
       }
     },
+    "3G (HSPA)" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3G (HSPA)"
+          }
+        }
+      }
+    },
+    "3G (UMTS)" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3G (UMTS)"
+          }
+        }
+      }
+    },
+    "3G · 1.9 Mbit/s" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3G · 1,9 Mbit/s"
+          }
+        }
+      }
+    },
+    "4 bars (full)" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4 bar (penuh)"
+          }
+        }
+      }
+    },
+    "4G LTE" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4G LTE"
+          }
+        }
+      }
+    },
+    "4G LTE · 30 Mbit/s" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4G LTE · 30 Mbit/s"
+          }
+        }
+      }
+    },
+    "5G · 200 Mbit/s" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5G · 200 Mbit/s"
+          }
+        }
+      }
+    },
     "A GitHub release or package link, for a package Avo doesn’t list. It must be made for %@ (arm64); Avo checks it against the release’s SHA-256." : {
       "localizations" : {
         "id" : {
@@ -745,6 +825,16 @@
         }
       }
     },
+    "A chosen place" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tempat pilihan"
+          }
+        }
+      }
+    },
     "A folder with Android data from %@ or an older Android, for example from another Mac." : {
       "localizations" : {
         "id" : {
@@ -761,6 +851,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Profil ponsel adalah penyamaran: aplikasi membaca nama dan model ponsel itu. Profil ini tidak lolos atestasi hardware, jadi aplikasi bank dan DRM mungkin tetap menolak berjalan. Aplikasi yang memeriksa Avo tetap menemukannya."
+          }
+        }
+      }
+    },
+    "A route" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sebuah rute"
           }
         }
       }
@@ -938,6 +1038,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Semua Proses"
+          }
+        }
+      }
+    },
+    "All apps" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Semua app"
           }
         }
       }
@@ -1207,6 +1317,16 @@
         }
       }
     },
+    "Android apps find the back camera and the front one as on a phone. The Mac’s camera is not mirrored; apps mirror their own preview of the front one." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Android menemukan kamera belakang dan kamera depan seperti di ponsel. Kamera Mac tidak dicerminkan; app mencerminkan sendiri pratinjau kamera depan."
+          }
+        }
+      }
+    },
     "Android apps, at home on your Mac" : {
       "localizations" : {
         "id" : {
@@ -1321,6 +1441,16 @@
         }
       }
     },
+    "Android gets a SIM on a simulated mobile network: the status bar shows its type and signal, apps read them, and with Wi-Fi off mobile data reaches the internet through this Mac." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android mendapat SIM di jaringan seluler simulasi: status bar menampilkan jenis dan sinyalnya, app bisa membacanya, dan saat Wi-Fi mati data seluler terhubung ke internet lewat Mac ini."
+          }
+        }
+      }
+    },
     "Android gets the screen of the phone chosen as device profile, its resolution and density, so apps lay out exactly as on that phone. The window keeps the phone's shape, and Interface size doesn't apply." : {
       "localizations" : {
         "id" : {
@@ -1337,6 +1467,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Android tetap memakai tempat baru; salinan lama tetap seperti sekarang."
+          }
+        }
+      }
+    },
+    "Android has Bluetooth: its apps scan, connect and pair as on a phone. It needs the Android Emulator (Android Studio’s SDK Manager installs it)." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android punya Bluetooth: app-nya memindai, menyambung, dan memasangkan seperti di ponsel. Ini memerlukan Android Emulator (dipasang lewat SDK Manager di Android Studio)."
           }
         }
       }
@@ -1605,6 +1745,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Notifikasi Android hanya muncul di daftar ini. Nyalakan Izinkan Notifikasi untuk Avo agar tampil di Pusat Notifikasi."
+          }
+        }
+      }
+    },
+    "Android reaches the internet through this Mac, over Wi-Fi. Turned off, Android is offline, as a phone with Wi-Fi off and no mobile data." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android terhubung ke internet lewat Mac ini, melalui Wi-Fi. Kalau dimatikan, Android offline, seperti ponsel dengan Wi-Fi mati dan tanpa data seluler."
           }
         }
       }
@@ -1949,6 +2099,16 @@
         }
       }
     },
+    "Android’s Bluetooth needs the Android Emulator (Android Studio’s SDK Manager installs it); without it, Bluetooth stays off in Android." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bluetooth Android membutuhkan Android Emulator (dipasang lewat SDK Manager di Android Studio); tanpanya, Bluetooth di Android tetap mati."
+          }
+        }
+      }
+    },
     "Android’s Settings is adding a fingerprint: touch with the finger to add." : {
       "localizations" : {
         "id" : {
@@ -1965,6 +2125,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aplikasi dan data Android dari Mac lain, di folder “Avo Android Data” yang dibuat Avo di sana. Android berjalan dengan data itu, di tempatnya."
+          }
+        }
+      }
+    },
+    "Android’s apps hear this Mac’s microphone while they record, like voice notes and calls. macOS asks for permission the first time." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Android mendengar mikrofon Mac ini selama merekam, seperti pesan suara dan panggilan. macOS meminta izin pertama kali."
           }
         }
       }
@@ -2146,6 +2316,16 @@
         }
       }
     },
+    "Apps can ask for root, and Magisk asks you about each one. Avo downloads Magisk from its GitHub page, adds it to Android’s boot ramdisk and starts Android again with it. Android’s data stays as it is." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App bisa meminta root, dan Magisk menanyakannya ke kamu satu per satu. Avo mengunduh Magisk dari halaman GitHub-nya, menambahkannya ke ramdisk boot Android, lalu menyalakan ulang Android dengannya. Data Android tetap seperti semula."
+          }
+        }
+      }
+    },
     "Apps in the Dock" : {
       "localizations" : {
         "id" : {
@@ -2183,6 +2363,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aplikasi yang memeriksa integritas perangkat (bank, pembayaran, sebagian game) akan menolak berjalan selama Android di-root."
+          }
+        }
+      }
+    },
+    "Apps that check the device’s integrity (banking, payments, some games) may refuse to run while Android is rooted. Turned off, Android starts without Magisk the next time." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App yang memeriksa integritas perangkat (perbankan, pembayaran, sebagian game) bisa menolak berjalan selama Android di-root. Kalau dimatikan, Android berjalan tanpa Magisk pada start berikutnya."
           }
         }
       }
@@ -2414,6 +2604,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Avo mengunduh Android dari server build publik Google: sekitar 1 GB, 2 GB di disk. Anda bisa mengganti versi nanti di Pengaturan."
+          }
+        }
+      }
+    },
+    "Avo downloads Magisk from GitHub and starts Android again with it. Apps that check the device’s integrity (banking, payments, some games) may refuse to run while Android is rooted." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avo mengunduh Magisk dari GitHub dan menyalakan ulang Android dengannya. App yang memeriksa integritas perangkat (perbankan, pembayaran, sebagian game) bisa menolak berjalan selama Android di-root."
           }
         }
       }
@@ -2689,6 +2889,16 @@
         }
       }
     },
+    "Back camera" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kamera belakang"
+          }
+        }
+      }
+    },
     "Background" : {
       "localizations" : {
         "id" : {
@@ -2774,6 +2984,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bilah hitam mengisi sisa layar %@ kali %@."
+          }
+        }
+      }
+    },
+    "Bluetooth" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bluetooth"
           }
         }
       }
@@ -2889,6 +3109,16 @@
       }
     },
     "Camera" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kamera"
+          }
+        }
+      }
+    },
+    "Cameras" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -3429,6 +3659,16 @@
         }
       }
     },
+    "Clipboard" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Papan klip"
+          }
+        }
+      }
+    },
     "Close" : {
       "localizations" : {
         "id" : {
@@ -3790,6 +4030,16 @@
         }
       }
     },
+    "Devices" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perangkat"
+          }
+        }
+      }
+    },
     "Dismiss" : {
       "localizations" : {
         "id" : {
@@ -4031,6 +4281,26 @@
         }
       }
     },
+    "E (EDGE)" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "E (EDGE)"
+          }
+        }
+      }
+    },
+    "E (EDGE) · 237 kbit/s" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "E (EDGE) · 237 kbit/s"
+          }
+        }
+      }
+    },
     "Each Android app gets a tile in the Dock. Turning this off removes Avo’s tiles; turning it on adds one for every app, and for apps you install later." : {
       "localizations" : {
         "id" : {
@@ -4123,6 +4393,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tiru perangkat keras ponsel ini"
+          }
+        }
+      }
+    },
+    "Emulated" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emulasi"
+          }
+        }
+      }
+    },
+    "Emulated shows a picture drawn for the camera, with no camera needed. One of this Mac’s cameras shows what it sees while an Android app uses it (its light is on only then). macOS asks for permission the first time." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emulasi menampilkan gambar yang digambar untuk kamera itu, tanpa perlu kamera. Kamera Mac ini menampilkan apa yang dilihatnya selama app Android memakainya (lampunya menyala hanya saat itu). macOS meminta izin pertama kali."
           }
         }
       }
@@ -4450,6 +4740,16 @@
         }
       }
     },
+    "Front camera" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kamera depan"
+          }
+        }
+      }
+    },
     "Frozen" : {
       "localizations" : {
         "id" : {
@@ -4476,6 +4776,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Layar penuh · %@"
+          }
+        }
+      }
+    },
+    "Full speed" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kecepatan penuh"
+          }
+        }
+      }
+    },
+    "G (GPRS)" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "G (GPRS)"
+          }
+        }
+      }
+    },
+    "G (GPRS) · 80 kbit/s" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "G (GPRS) · 80 kbit/s"
           }
         }
       }
@@ -5029,6 +5359,26 @@
         }
       }
     },
+    "H+ · 7.2 Mbit/s" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "H+ · 7,2 Mbit/s"
+          }
+        }
+      }
+    },
+    "Headsets and other classic Bluetooth devices, and pairing, are not supported yet." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Headset dan perangkat Bluetooth klasik lainnya, juga pairing, belum didukung."
+          }
+        }
+      }
+    },
     "Height" : {
       "localizations" : {
         "id" : {
@@ -5475,6 +5825,16 @@
         }
       }
     },
+    "It applies at once, to every app; Android still says it is on Wi-Fi." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Langsung berlaku untuk semua app; Android tetap menyebut dirinya tersambung ke Wi-Fi."
+          }
+        }
+      }
+    },
     "Its apps keep their place and use no CPU. System Status does not wake Android to look." : {
       "localizations" : {
         "id" : {
@@ -5487,6 +5847,16 @@
     },
     "Its size on the Mac, in points" : {
 
+    },
+    "Its speed is Network speed’s: choose the same type there for a connection as slow as the badge says." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kecepatannya mengikuti Kecepatan jaringan: pilih jenis yang sama di sana agar koneksinya selambat yang ditunjukkan ikonnya."
+          }
+        }
+      }
     },
     "Keep Android’s Data on “%@”" : {
       "localizations" : {
@@ -5989,6 +6359,26 @@
         }
       }
     },
+    "Mobile data" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data seluler"
+          }
+        }
+      }
+    },
+    "Mobile network" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jaringan seluler"
+          }
+        }
+      }
+    },
     "Mode" : {
       "localizations" : {
         "id" : {
@@ -6139,6 +6529,36 @@
         }
       }
     },
+    "Network" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jaringan"
+          }
+        }
+      }
+    },
+    "Network speed" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kecepatan jaringan"
+          }
+        }
+      }
+    },
+    "Network type" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jenis jaringan"
+          }
+        }
+      }
+    },
     "Never" : {
       "localizations" : {
         "id" : {
@@ -6281,6 +6701,26 @@
     },
     "No widgets" : {
 
+    },
+    "No signal" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tanpa sinyal"
+          }
+        }
+      }
+    },
+    "None" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidak ada"
+          }
+        }
+      }
     },
     "None (F-Droid, Aurora Store)" : {
       "localizations" : {
@@ -6526,12 +6966,62 @@
         }
       }
     },
+    "Off, Android has no Bluetooth, and Avo never uses the Mac’s. Applies when Android restarts." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jika nonaktif, Android tidak punya Bluetooth, dan Avo tidak pernah memakai Bluetooth Mac. Berlaku setelah Android dimulai ulang."
+          }
+        }
+      }
+    },
+    "Off, Android has no camera, and Avo never uses the Mac’s." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jika nonaktif, Android tidak punya kamera, dan Avo tidak pernah memakai kamera Mac."
+          }
+        }
+      }
+    },
+    "Off, Avo never reads or writes the Mac’s clipboard. Applies at once." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jika nonaktif, Avo tidak pernah membaca atau menulis papan klip Mac. Langsung berlaku."
+          }
+        }
+      }
+    },
+    "Off, they record silence, and Avo never opens the microphone. Applies at once." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jika nonaktif, app merekam hening, dan Avo tidak pernah membuka mikrofon. Langsung berlaku."
+          }
+        }
+      }
+    },
     "Off. Turn on Allow Notifications for Avo in System Settings; macOS doesn’t ask again." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nonaktif. Nyalakan Izinkan Notifikasi untuk Avo di Pengaturan Sistem; macOS tidak bertanya lagi."
+          }
+        }
+      }
+    },
+    "Offline" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline"
           }
         }
       }
@@ -6595,6 +7085,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Di “%1$@” (%2$@)"
+          }
+        }
+      }
+    },
+    "On, the engine gets ready as Avo starts, so the first translation in any app shows at once. Off, it starts when an app first translates, and the apps after it use the same engine." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jika aktif, mesin bersiap saat Avo mulai, jadi terjemahan pertama di app mana pun langsung muncul. Jika mati, mesin baru menyala saat sebuah app pertama kali menerjemahkan, lalu app berikutnya memakai mesin yang sama."
           }
         }
       }
@@ -7050,7 +7550,6 @@
       }
     },
     "Privacy" : {
-      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -7597,6 +8096,16 @@
         }
       }
     },
+    "Root access (Magisk)" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Akses root (Magisk)"
+          }
+        }
+      }
+    },
     "Rounded to %@ px: Android needs an even number between %@ and %@." : {
       "localizations" : {
         "en" : {
@@ -7613,12 +8122,32 @@
         }
       }
     },
+    "Route: %@" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rute: %@"
+          }
+        }
+      }
+    },
     "Running" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Berjalan"
+          }
+        }
+      }
+    },
+    "SIM card" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kartu SIM"
           }
         }
       }
@@ -7875,6 +8404,26 @@
         }
       }
     },
+    "Share the clipboard" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bagikan papan klip"
+          }
+        }
+      }
+    },
+    "Share this Mac’s Bluetooth devices" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bagikan perangkat Bluetooth Mac ini"
+          }
+        }
+      }
+    },
     "Share this Mac’s location with Android" : {
       "localizations" : {
         "id" : {
@@ -8006,6 +8555,16 @@
         }
       }
     },
+    "Signal" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sinyal"
+          }
+        }
+      }
+    },
     "Size" : {
       "localizations" : {
         "id" : {
@@ -8022,6 +8581,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sedikit lembut, paling hemat daya."
+          }
+        }
+      }
+    },
+    "Slows Android’s connection down to what a mobile network of that kind usually gives, speed and delay both, to try an app on a slow connection. Full speed is this Mac’s own." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memperlambat koneksi Android ke kecepatan dan jeda yang biasa diberikan jaringan seluler jenis itu, untuk mencoba app di koneksi lambat. Kecepatan penuh adalah kecepatan Mac ini sendiri."
           }
         }
       }
@@ -8092,6 +8661,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mengurutkan daftar"
+          }
+        }
+      }
+    },
+    "Speed" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kecepatan"
           }
         }
       }
@@ -8205,6 +8784,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Jalankan VM Android di latar belakang."
+          }
+        }
+      }
+    },
+    "Start the translation engine with Avo" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nyalakan mesin terjemahan bersama Avo"
           }
         }
       }
@@ -8517,6 +9106,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mengeluarkan aplikasi Google dari partisi sistem…"
+          }
+        }
+      }
+    },
+    "Text copied on the Mac can be pasted in Android, and text copied in Android on the Mac." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teks yang disalin di Mac bisa ditempel di Android, dan teks yang disalin di Android bisa ditempel di Mac."
           }
         }
       }
@@ -8865,6 +9464,16 @@
         }
       }
     },
+    "This Mac’s location" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokasi Mac ini"
+          }
+        }
+      }
+    },
     "This app can ask for" : {
       "localizations" : {
         "id" : {
@@ -8995,12 +9604,12 @@
         }
       }
     },
-    "To put Android somewhere else, or move it along a route, choose Controls › Location… in an app window (⌥⌘L)." : {
+    "To give one app a location of its own, choose Controls › Location… in its window (⌥⌘L), then This App. Android reports it while that app’s window is in front." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Untuk menaruh Android di tempat lain, atau menggerakkannya di sepanjang rute, pilih Kontrol › Lokasi… di jendela aplikasi (⌥⌘L)."
+            "value" : "Agar satu app punya lokasi sendiri, pilih Kontrol › Lokasi… di jendelanya (⌥⌘L), lalu App Ini. Android melaporkannya selama jendela app itu di depan."
           }
         }
       }
@@ -9075,6 +9684,36 @@
         }
       }
     },
+    "Translate Screen" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terjemahkan Layar"
+          }
+        }
+      }
+    },
+    "Translate Screen (⌘⇧T in an app window) reads the text on screen and translates it on this Mac. One engine does it for every app." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terjemahkan Layar (⌘⇧T di jendela app) membaca teks di layar dan menerjemahkannya di Mac ini. Satu mesin melayani semua app."
+          }
+        }
+      }
+    },
+    "Translation" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terjemahan"
+          }
+        }
+      }
+    },
     "Try Again" : {
       "localizations" : {
         "id" : {
@@ -9106,7 +9745,6 @@
       }
     },
     "Turn On Root" : {
-      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -9127,7 +9765,6 @@
       }
     },
     "Turn on root access?" : {
-      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -9143,6 +9780,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dinonaktifkan agar partisi sistem bisa memuat aplikasi Google. Tetap nonaktif untuk VM Avo ini, juga setelah Reset Android."
+          }
+        }
+      }
+    },
+    "Turning cameras on or off, or giving Android a Mac camera or no camera, applies when Android restarts; switching between cameras after that applies at once." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menyalakan atau mematikan kamera, atau memberi Android kamera Mac atau tanpa kamera, berlaku setelah Android dimulai ulang; berganti kamera setelah itu langsung berlaku."
           }
         }
       }
@@ -9337,6 +9984,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pakai %@?"
+          }
+        }
+      }
+    },
+    "Use All Apps’ Location" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pakai Lokasi Semua App"
           }
         }
       }
@@ -9637,6 +10294,16 @@
         }
       }
     },
+    "Where Android is for every app: this Mac’s location, a place, or a route Android moves along. A place stays for the next start. Choose… shows it on a map." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokasi Android untuk semua app: lokasi Mac ini, sebuah tempat, atau rute yang dilalui Android. Tempat tetap tersimpan saat Android dimulai lagi. Pilih… menampilkannya di peta."
+          }
+        }
+      }
+    },
     "Where Android’s apps and data are kept. Choose a folder on an external drive to take Android’s data to another Mac: Avo keeps it in a folder named “Avo Android Data”, which Avo on the other Mac uses with Change Location… › Use the Android data already there." : {
       "localizations" : {
         "id" : {
@@ -9649,6 +10316,26 @@
     },
     "Widgets" : {
 
+    },
+    "While Bluetooth is on in Android, its apps find and use the Bluetooth LE devices this Mac sees: watches, sensors, beacons. macOS asks for permission the first time." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saat Bluetooth Android menyala, app-nya bisa menemukan dan memakai perangkat Bluetooth LE yang terlihat oleh Mac ini: jam, sensor, beacon. macOS meminta izin pada kali pertama."
+          }
+        }
+      }
+    },
+    "Wi-Fi" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wi-Fi"
+          }
+        }
+      }
     },
     "Width" : {
       "localizations" : {

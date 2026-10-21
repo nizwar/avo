@@ -20,6 +20,16 @@ final class ScreenTranslationOverlay: NSView {
         var room: Double
         var background: NSColor
         var foreground: NSColor
+        /// How far a scroll moved its text since it was read, in frame
+        /// pixels (positive: down). It moves without being laid out again.
+        var shift: Double = 0
+
+        /// The same plate wherever a scroll took it.
+        var unmoved: Plate {
+            var plate = self
+            plate.shift = 0
+            return plate
+        }
     }
 
     /// The plates drawn now.
@@ -79,8 +89,8 @@ final class ScreenTranslationOverlay: NSView {
         if frameSize != self.frameSize {
             laidOut = [:]
         } else {
-            let kept = Dictionary(plates.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-            for old in self.plates where kept[old.id] != old { laidOut[old.id] = nil }
+            let kept = Dictionary(plates.map { ($0.id, $0.unmoved) }, uniquingKeysWith: { first, _ in first })
+            for old in self.plates where kept[old.id] != old.unmoved { laidOut[old.id] = nil }
         }
         self.plates = plates
         self.frameSize = frameSize
@@ -112,11 +122,15 @@ final class ScreenTranslationOverlay: NSView {
             let id = plates[index].id
             let layout = laidOut[id] ?? layOut(plates[index], in: display)
             laidOut[id] = layout
-            guard layout.plate.intersects(dirtyRect) else { continue }
+            // Frame pixels to view points; this view counts from the top, like the frame.
+            let move = plates[index].shift * display.height / frameSize.height
+            let plate = layout.plate.offsetBy(dx: 0, dy: move)
+            guard plate.intersects(dirtyRect) else { continue }
             plates[index].background.setFill()
-            let radius = min(4, layout.plate.height * 0.2)
-            NSBezierPath(roundedRect: layout.plate, xRadius: radius, yRadius: radius).fill()
-            layout.text.draw(with: layout.textRect, options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+            let radius = min(4, plate.height * 0.2)
+            NSBezierPath(roundedRect: plate, xRadius: radius, yRadius: radius).fill()
+            layout.text.draw(with: layout.textRect.offsetBy(dx: 0, dy: move), options: [.usesLineFragmentOrigin, .usesFontLeading],
+                             context: nil)
         }
     }
 

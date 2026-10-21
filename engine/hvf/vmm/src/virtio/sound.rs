@@ -28,7 +28,8 @@
 //! The guest's last period in flight is handed back only once it has sent
 //! another (`hand_back`), and a watchdog replaces a queue that stops playing.
 //! The microphone is opened only while Android records (macOS asks for
-//! permission then); without one the guest records silence, and without an
+//! permission then), and never while the user keeps it from Android
+//! (`MICROPHONE`); without one the guest records silence, and without an
 //! output device its audio is consumed in real time and dropped. What was
 //! played also goes to screen recordings (`tap`).
 
@@ -39,7 +40,7 @@ use super::{Active, Interrupt, VirtioDevice};
 use crate::memory::GuestMemory;
 use std::collections::VecDeque;
 use std::ffi::c_void;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 
@@ -228,6 +229,55 @@ struct Tag {
 
 static NEXT_RUN: AtomicU64 = AtomicU64::new(1);
 
+/// Whether Android may use the Mac's microphone (Settings › Devices ›
+/// Microphone: `microphone on|off` on the control socket, `--no-microphone`
+/// from the start). Off, Android records silence and the microphone is never
+/// opened, so macOS never asks for it; turning it off closes one that is
+/// open. The process's: it lasts through guest reboots.
+pub static MICROPHONE: Microphone = Microphone { allowed: AtomicBool::new(true), devices: Mutex::new(Vec::new()) };
+
+pub struct Microphone {
+    allowed: AtomicBool,
+    /// Every machine's sound device, to close its microphone.
+    devices: Mutex<Vec<Weak<Mutex<State>>>>,
+}
+
+impl Microphone {
+    pub fn allowed(&self) -> bool {
+        self.allowed.load(Ordering::Acquire)
+    }
+
+    pub fn set(&self, allowed: bool) {
+        self.allowed.store(allowed, Ordering::Release);
+        if allowed {
+            return;
+        }
+        let queues: Vec<QueueRef> = {
+            let mut devices = self.devices.lock().unwrap();
+            devices.retain(|device| device.strong_count() > 0);
+            devices
+                .iter()
+                .filter_map(Weak::upgrade)
+                .filter_map(|state| state.lock().unwrap().streams[CAPTURE].audio.as_mut().and_then(|audio| audio.queue.take()))
+                .collect()
+        };
+        if !queues.is_empty() {
+            eprintln!("[vmm] sound: the Mac's microphone is closed; Android records silence");
+        }
+        for queue in queues {
+            // Never under a lock: callbacks in flight take the device's.
+            unsafe {
+                AudioQueueStop(queue.0, 1);
+                AudioQueueDispose(queue.0, 1);
+            }
+        }
+    }
+
+    fn register(&self, state: &Arc<Mutex<State>>) {
+        self.devices.lock().unwrap().push(Arc::downgrade(state));
+    }
+}
+
 pub struct Sound {
     state: Arc<Mutex<State>>,
     recording: Option<Box<dyn Fn() + Send>>,
@@ -265,6 +315,7 @@ impl Sound {
             }
             true
         }));
+        MICROPHONE.register(&state);
         Sound { state, recording: None, streams: None, reported: [false; 2] }
     }
 
@@ -398,7 +449,8 @@ impl Sound {
         let id = NEXT_RUN.fetch_add(1, Ordering::Relaxed);
         let tag = Arc::new(Tag { state: Arc::downgrade(&self.state), stream, id });
         if stream == CAPTURE {
-            if let Some(hook) = &self.recording {
+            // Only with the microphone allowed does the daemon ask macOS for it.
+            if let Some(hook) = self.recording.as_ref().filter(|_| MICROPHONE.allowed()) {
                 hook();
             }
             // Recording runs on a clock from the first moment; the microphone
@@ -406,7 +458,7 @@ impl Sound {
             // prompt, which must not hold up this vCPU.
             self.install(stream, Audio::new(id, Some(tag.clone())));
             spawn_clock(&self.state, stream, id, params);
-            if !muted() {
+            if !muted() && MICROPHONE.allowed() {
                 open_microphone(self.state.clone(), id, params, tag);
             }
         } else {
@@ -911,10 +963,12 @@ fn open_microphone(state: Arc<Mutex<State>>, id: u64, params: Params, tag: Arc<T
         }
         // macOS asks for permission here the first time.
         let status = unsafe { AudioQueueStart(queue.0, std::ptr::null()) };
+        // Kept from Android meanwhile: closed again (checked under the lock
+        // `MICROPHONE.set` takes too, so one of the two closes it).
         let current = status == 0 && {
             let mut state = state.lock().unwrap();
             let entry = &mut state.streams[CAPTURE];
-            match entry.audio.as_mut().filter(|audio| audio.id == id && entry.started) {
+            match entry.audio.as_mut().filter(|audio| audio.id == id && entry.started && MICROPHONE.allowed()) {
                 Some(audio) => {
                     audio.queue = Some(queue);
                     true

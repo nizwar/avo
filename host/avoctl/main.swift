@@ -35,6 +35,11 @@ commands:
                          Graphics: mode=followWindow|fixed|deviceProfile, shortSide=360…2160,
                          aspectRatio (fixed) and followAspectRatio (follow) = matchWindow|16:9|16:10|20:9|4:3,
                          orientation=portrait|landscape.
+                         Devices: wifiEnabled, networkSpeed=full|nr|lte|hspa|umts|edge|gprs, shareMacBluetooth,
+                         cellularEnabled, mobileNetworkType=gprs|edge|umts|hspa|lte|nr, cellularSignal=0…4,
+                         bluetoothEnabled, camerasEnabled, backCamera and frontCamera = emulated|none|mac:<id>,
+                         microphoneEnabled, shareLocation, shareClipboard.
+                         Translate Screen: translationAtStartup.
                          graphicsOverrides is ignored here: use app-graphics.
   app-graphics <package> [profile=apps|games|auto] [field=value ...]
                          Show or change one app's graphics (fields as in appGraphics;

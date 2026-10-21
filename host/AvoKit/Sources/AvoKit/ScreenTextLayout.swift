@@ -20,7 +20,7 @@ public enum ScreenTextLayout {
         }
     }
 
-    public enum Alignment: Equatable, Sendable {
+    public enum Alignment: Codable, Equatable, Sendable {
         case leading, center
     }
 
@@ -214,7 +214,7 @@ public enum ScreenTextLayout {
     // MARK: Colors
 
     /// An sRGB color, each component from 0 to 1.
-    public struct RGB: Equatable, Sendable {
+    public struct RGB: Codable, Equatable, Sendable {
         public var red: Double
         public var green: Double
         public var blue: Double

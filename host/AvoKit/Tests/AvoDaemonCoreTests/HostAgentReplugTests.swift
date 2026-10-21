@@ -19,14 +19,23 @@ private final class AndroidDisplays: Sendable {
         var width: UInt32 = 0
         var height: UInt32 = 0
         var at: ContinuousClock.Instant
+        /// Avo's composer: the size before an in-place resize, until Android has the new one.
+        var previous: (width: UInt32, height: UInt32, until: ContinuousClock.Instant)?
     }
 
     static let commit: Duration = .milliseconds(300)
     static let managerLag: Duration = .milliseconds(60)
     static let add: Duration = .milliseconds(80)
+    static let reconnect: Duration = .milliseconds(40)
+    /// Avo's composer runs (GuestComposer): a plugged scanout takes a new size in place.
+    let composerPatched: Bool
     let scanouts = Mutex<[Int: Scanout]>([:])
     let engineLog = Mutex<[String]>([])
     let violations = Mutex<[String]>([])
+
+    init(composerPatched: Bool = false) {
+        self.composerPatched = composerPatched
+    }
 
     static func physicalID(_ scanout: Int) -> String { String(4_619_827_124_781_842_688 + UInt64(scanout)) }
 
@@ -44,8 +53,15 @@ private final class AndroidDisplays: Sendable {
             if let old = scanouts[index], !old.plugged, now - old.at < Self.commit {
                 violations.withLock { $0.append("scanout \(index) plugged \(now - old.at) after its unplug") }
             }
-            let width = words.count > 3 ? UInt32(words[3]) ?? 0 : 0
-            let height = words.count > 4 ? UInt32(words[4]) ?? 0 : 0
+            let width = UInt32(words[2]) ?? 0
+            let height = words.count > 3 ? UInt32(words[3]) ?? 0 : 0
+            if composerPatched, var scanout = scanouts[index], scanout.plugged {
+                scanout.previous = (scanout.width, scanout.height, now + Self.reconnect)
+                scanout.width = width
+                scanout.height = height
+                scanouts[index] = scanout
+                return
+            }
             scanouts[index] = Scanout(plugged: true, width: width, height: height, at: now)
         }
     }
@@ -73,7 +89,9 @@ private final class AndroidDisplays: Sendable {
         var lines = [#"Display id 0: DisplayInfo{"Built-in Screen", displayId 0, uniqueId "local:4619827259835644672", app 720 x 1280}"#]
         for (index, scanout, age) in current() where scanout.plugged ? age >= Self.add : age < Self.commit + Self.managerLag {
             let id = 100 + index
-            lines.append(#"Display id \#(id): DisplayInfo{"Built-in Screen", displayId \#(id), uniqueId "local:\#(Self.physicalID(index))", app \#(scanout.width) x \#(scanout.height)}"#)
+            var (width, height) = (scanout.width, scanout.height)
+            if let previous = scanout.previous, ContinuousClock.now < previous.until { (width, height) = (previous.width, previous.height) }
+            lines.append(#"Display id \#(id): DisplayInfo{"Built-in Screen", displayId \#(id), app \#(width) x \#(height), supportedModes [{id=\#(id), width=\#(width), height=\#(height), fps=60.0}], uniqueId "local:\#(Self.physicalID(index))"}"#)
         }
         return lines.joined(separator: "\n") + "\n"
     }
@@ -102,6 +120,9 @@ private final class AndroidDisplays: Sendable {
         if command.hasPrefix("getprop sys.boot_completed") { return "1\n" }
         if command.hasPrefix("getprop ro.build.version.sdk") { return "37\n" }
         if command.hasPrefix("getprop init.svc.bugreport") { return "stopped\n" }
+        if command.hasPrefix("sha256sum \(GuestComposer.binary)"), composerPatched {
+            return "\(GuestComposer.builds[0].patchedSHA256)  \(GuestComposer.binary)\n"
+        }
         if command.hasPrefix("dumpsys SurfaceFlinger --display-id") { return surfaceFlinger() }
         if command.hasPrefix("cmd display get-displays") { return displayManager() }
         if command.hasPrefix("cmd activity stack list") || command.hasPrefix("am stack list") { return stacks() }
@@ -257,6 +278,24 @@ private final class ModelEngineSocket: @unchecked Sendable {
         // Unplug, plug, unplug, plug…: never two of either in a row.
         #expect(zip(log, log.dropFirst()).allSatisfy { $0.hasSuffix(" off") != $1.hasSuffix(" off") })
         #expect(log.filter { $0.hasSuffix(" off") }.count <= 3)
+        await session.agent.shutdown()
+    }
+
+    /// With Avo's composer a resize keeps the display: no unplug, the same
+    /// Android display, and the app stays on it.
+    @Test func avosComposerResizesInPlace() async throws {
+        let android = AndroidDisplays(composerPatched: true)
+        let session = try await start(android)
+        #expect(try await session.request(Self.launch(1, 1280, 720), id: 1)?.status == .ok)
+        #expect(try await session.request(Self.resize(1, 720, 1280), id: 2)?.status == .ok)
+        try await session.send(Self.resize(1, 1280, 720), id: 3)
+        try await session.send(Self.resize(1, 1600, 720), id: 4)
+        #expect(await eventually(timeout: .seconds(20)) { (3...4).allSatisfy { session.received.replied($0) != nil } })
+
+        let log = android.engineLog.withLock { $0 }
+        #expect(!log.contains { $0.hasSuffix(" off") })
+        #expect(log.first == "display 1 1280 720 60" && log.last == "display 1 1600 720 60")
+        #expect(android.displayManager().contains("Display id 101: DisplayInfo{\"Built-in Screen\", displayId 101, app 1600 x 720"))
         await session.agent.shutdown()
     }
 

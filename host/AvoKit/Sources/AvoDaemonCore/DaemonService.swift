@@ -427,6 +427,31 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
         }
     }
 
+    // MARK: Translate Screen
+
+    func wakeScreenText(reply: @escaping @Sendable (NSError?) -> Void) {
+        run(reply) { [self] in try await core.wakeScreenText(client: id) }
+    }
+
+    func readScreenText(_ request: Data, pixels: Data, reply: @escaping @Sendable (Data?, NSError?) -> Void) {
+        run(reply) { [self] in
+            let frame = try AvoXPC.decode(ScreenTextRequest.self, from: request)
+            return AvoXPC.encode(try await core.readScreenText(frame, pixels: pixels, client: id))
+        }
+    }
+
+    func translateTexts(_ request: Data, reply: @escaping @Sendable (Data?, NSError?) -> Void) {
+        run(reply) { [self] in
+            AvoXPC.encode(try await core.translateTexts(try AvoXPC.decode(TranslationRequest.self, from: request), client: id))
+        }
+    }
+
+    func knownTranslations(_ request: Data, reply: @escaping @Sendable (Data?, NSError?) -> Void) {
+        run(reply) { [self] in
+            AvoXPC.encode(try await core.knownTranslations(try AvoXPC.decode(TranslationRequest.self, from: request), client: id))
+        }
+    }
+
     // MARK: Displays
 
     func openDisplay(_ request: Data, reply: @escaping @Sendable (Data?, NSError?) -> Void) {

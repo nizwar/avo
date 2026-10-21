@@ -80,8 +80,9 @@ struct Harness {
     /// with LaunchServices, which tests should not do needlessly.
     /// `configure` changes the saved configuration the daemon starts with.
     /// `wrap` puts another engine around the fake one (one that can pause).
+    /// `screenText`: Translate Screen's engine (none by default).
     init(apps: [Avo_V1_AppInfo], desktopAliases: Bool = false, configure: (inout VMConfig) -> Void = { _ in },
-         wrap: (FakeEngine) -> any VMEngine = { $0 }) throws {
+         wrap: (FakeEngine) -> any VMEngine = { $0 }, screenText: ScreenTextEngine? = nil) throws {
         root = FileManager.default.temporaryDirectory.appending(path: "avo-daemon-\(UUID().uuidString.prefix(8))")
         paths = AvoPaths(home: root.appending(path: "home"), temporaryDirectory: root.appending(path: "tmp"))
         try FileManager.default.createDirectory(at: paths.desktop, withIntermediateDirectories: true)
@@ -113,7 +114,7 @@ struct Harness {
         let host = HostInfo(physicalMemoryBytes: 32 << 30, performanceCores: 8, efficiencyCores: 4, isAppleSilicon: true, macOSVersion: "27.0")
         core = DaemonCore(.init(paths: paths, engine: wrap(engine), adbKey: adbKey, profiles: profiles, host: host,
                                 shortcuts: ShortcutManager(builder: builder, paths: paths), notifications: notifications,
-                                softwareVersion: "avo-host test", bootTimeout: .seconds(5),
+                                softwareVersion: "avo-host test", bootTimeout: .seconds(5), screenText: screenText,
                                 loadImage: { image }))
     }
 

@@ -1,6 +1,9 @@
 //! Booting an AOSP Cuttlefish build: instance disks, the bootconfig its
 //! bootloader and launcher would pass, and the device set crosvm gives it.
 
+use crate::bluetooth::Bluetooth;
+use crate::camera;
+use crate::cpu;
 use crate::gnss::Gnss;
 use crate::android;
 use crate::control::{self, Controls, TOUCH_RANGE};
@@ -15,7 +18,9 @@ use crate::virtio::block::Block;
 use crate::virtio::console::{Console, ConsoleInput, Sink};
 use crate::virtio::gpu::render::{self, RenderHost};
 use crate::virtio::gpu::{Gpu, GpuMode, MAX_SCANOUTS};
+use crate::virtio::gpu::hostmem::Hvf;
 use crate::virtio::input::{Description, Input};
+use crate::virtio::media::Media;
 use crate::virtio::net::Net;
 use crate::virtio::rng::Rng;
 use crate::virtio::sound::Sound;
@@ -57,6 +62,21 @@ pub struct Options {
     /// A folder on the Mac for Android (virtio-fs, tag `avo_shared`); the
     /// daemon mounts it at /sdcard/Avo Shared.
     pub shared_dir: Option<PathBuf>,
+    /// netsimd, started as Android's Bluetooth controller (bluetooth.rs).
+    pub bluetooth: Option<PathBuf>,
+    /// An init_boot.img to boot instead of the image's (root: Magisk's).
+    pub init_boot: Option<PathBuf>,
+    /// The modem's SIM and network at the start (`--cellular`; none: no SIM),
+    /// until the control socket's `cellular` changes them (modem.rs).
+    pub cellular: Option<modem::Service>,
+    /// Cameras the daemon feeds (virtio/media.rs) instead of the image's
+    /// emulated ones; `None`: the emulated ones.
+    pub cameras: Option<camera::Present>,
+    /// A phone's CPU for the vCPUs (`--cpu-clusters`; cpu.rs); `None`: the Mac's.
+    pub cpu: Option<cpu::Clusters>,
+    /// Android may use the Mac's microphone (`--no-microphone`: not until
+    /// the control socket allows it; virtio/sound.rs).
+    pub microphone: bool,
     /// A guest reboot ends the process (EXIT_GUEST_REBOOT) instead of
     /// building a new machine: the daemon starts Android again its own way.
     pub exit_on_reboot: bool,
@@ -222,7 +242,13 @@ fn bootconfig(options: &Options, vendor: &str) -> Result<String, String> {
     set("androidboot.vendor.apex.com.android.hardware.strongbox", "none");
     set("androidboot.vendor.apex.com.android.hardware.weaver", "none");
     set("androidboot.vendor.apex.com.android.hardware.graphics.composer", "com.android.hardware.graphics.composer.ranchu");
-    set("androidboot.vendor.apex.com.google.emulated.camera.provider.hal", "com.google.emulated.camera.provider.hal");
+    // The emulated cameras, or the external camera HAL that opens the
+    // virtio-media cameras the daemon feeds (`--cameras`, camera.rs).
+    let cameras = match options.cameras {
+        None => "com.google.emulated.camera.provider.hal",
+        Some(_) => "com.google.emulated.camera.provider.hal.v4l2",
+    };
+    set("androidboot.vendor.apex.com.google.emulated.camera.provider.hal", cameras);
     Ok(android::bootconfig_text(&entries))
 }
 
@@ -384,8 +410,14 @@ fn clear_recovery_request(misc: &Path) -> Result<(), String> {
 /// a clean power-off, so the process then leaves without running them.
 static GPU_LOADED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// netsimd, when it runs: it ends with the process.
+static BLUETOOTH: Mutex<Option<Arc<Bluetooth>>> = Mutex::new(None);
+
 /// Ends the process (with `_exit` once gfxstream is loaded).
 pub fn exit(code: i32) -> ! {
+    if let Some(bluetooth) = BLUETOOTH.lock().unwrap().take() {
+        bluetooth.stop();
+    }
     if GPU_LOADED.load(std::sync::atomic::Ordering::SeqCst) {
         let _ = std::io::stdout().flush();
         unsafe { libc::_exit(code) }
@@ -397,6 +429,8 @@ pub fn run(options: Options) -> Result<(), String> {
     let _lock = lock_instance(&options.instance)?;
     let _disks_lock = if options.disks != options.instance { lock_directory(&options.disks, false)? } else { None };
     prepare_instance(&options)?;
+    modem::CELLULAR.set(options.cellular);
+    crate::virtio::sound::MICROPHONE.set(options.microphone);
     // MARK: GPU — the renderer starts once, before the first boot, and
     // lives through guest reboots.
     let renderer = match &options.gpu {
@@ -414,11 +448,25 @@ pub fn run(options: Options) -> Result<(), String> {
             }
         }
     };
+    // Bluetooth's controller, like the renderer, lives through guest reboots.
+    let bluetooth = match &options.bluetooth {
+        Some(netsimd) => match Bluetooth::start(netsimd, &options.runtime, &options.instance) {
+            Ok(bluetooth) => {
+                *BLUETOOTH.lock().unwrap() = Some(bluetooth.clone());
+                Some(bluetooth)
+            }
+            Err(e) => {
+                eprintln!("[vmm] bluetooth: {e}; Android's Bluetooth stays off");
+                None
+            }
+        },
+        None => None,
+    };
     // A guest reboot (PSCI SYSTEM_RESET) builds a fresh machine.
     let misc = options.disks.join("misc.img");
     loop {
         clear_recovery_request(&misc)?;
-        let stop = boot(&options, renderer.as_ref())?;
+        let stop = boot(&options, renderer.as_ref(), bluetooth.as_ref())?;
         if read_bcb(&misc).is_some_and(|bcb| bcb_wipes_data(&bcb)) {
             eprintln!("[vmm] Android asked for a factory reset");
             exit(EXIT_FACTORY_RESET);
@@ -434,12 +482,10 @@ pub fn run(options: Options) -> Result<(), String> {
     }
 }
 
-fn boot(options: &Options, renderer: Option<&RenderHost>) -> Result<machine::Stop, String> {
-    let images = android::load(
-        &options.images.join("boot.img"),
-        Some(&options.images.join("init_boot.img")).filter(|p| p.exists()).map(|p| p.as_path()),
-        &options.images.join("vendor_boot.img"),
-    )?;
+fn boot(options: &Options, renderer: Option<&RenderHost>, bluetooth: Option<&Arc<Bluetooth>>) -> Result<machine::Stop, String> {
+    let image_init_boot = options.images.join("init_boot.img");
+    let init_boot = options.init_boot.as_deref().or(Some(image_init_boot.as_path()).filter(|p| p.exists()));
+    let images = android::load(&options.images.join("boot.img"), init_boot, &options.images.join("vendor_boot.img"))?;
     let bootconfig = bootconfig(options, &images.vendor_bootconfig)?;
     std::fs::write(options.instance.join("bootconfig.txt"), &bootconfig).map_err(|e| e.to_string())?;
     let mut initrd = images.ramdisk;
@@ -465,6 +511,9 @@ fn boot(options: &Options, renderer: Option<&RenderHost>) -> Result<machine::Sto
         }))
     };
     let mut machine = Machine::new(options.cpus, options.memory_mib, kernel_log(&kernel_file)?)?;
+    if let Some(clusters) = &options.cpu {
+        machine.present_cpu(clusters.clone())?;
+    }
 
     let disk = composite_disk(options)?;
     if options.verbose {
@@ -486,6 +535,8 @@ fn boot(options: &Options, renderer: Option<&RenderHost>) -> Result<machine::Sto
             0 => Some(kernel_log(&kernel_file)?),
             1 => Some(Box::new(Tee { file: log("console.log")?, clients: console_clients.clone(), echo: false })),
             2 => Some(Box::new(log("logcat.log")?)),
+            // /dev/hvc5: the Bluetooth HAL's H4 (bluetooth.rs).
+            5 => bluetooth.map(|bluetooth| bluetooth.sink()),
             7 => Some(gnss.sink()),
             18 => Some(sensors.control_sink()),
             _ => None,
@@ -495,6 +546,9 @@ fn boot(options: &Options, renderer: Option<&RenderHost>) -> Result<machine::Sto
             1 => {
                 serve_console(&options.runtime.join("console.sock"), console.input(), console_clients.clone())?;
                 watch_parent(console.input());
+            }
+            5 => {
+                if let Some(bluetooth) = bluetooth { bluetooth.connect(console.input()) }
             }
             7 => gnss.connect(console.input()),
             18 | 19 => sensor_ports.push(console.input()),
@@ -520,8 +574,13 @@ fn boot(options: &Options, renderer: Option<&RenderHost>) -> Result<machine::Sto
     let frames =
         SharedFrames::new(&options.instance.join("frames"), renderer.is_none()).map_err(|e| format!("frames: {e}"))?;
     let frame_handle = frames.handle();
+    if let Some(bluetooth) = bluetooth {
+        // The daemon adds its own chips (the Mac's Bluetooth devices) on the same port.
+        frame_handle.emit_sticky(format!("bluetooth hci {}", bluetooth.port()));
+    }
     let microphone_events = frame_handle.clone();
     let sound_events = frame_handle.clone();
+    let camera_events = frame_handle.clone();
     let gpu = match renderer {
         None => Gpu::new(&[options.display], Box::new(frames)),
         Some(host) => {
@@ -555,14 +614,17 @@ fn boot(options: &Options, renderer: Option<&RenderHost>) -> Result<machine::Sto
     machine.add_virtio(Box::new(keyboard));
     control::serve(&options.runtime.join("control.sock"), controls)?;
 
-    // Cuttlefish's three NICs: eth0 (mobile data, renamed buried_eth0; it
-    // needs the host modem simulator), eth1 (Ethernet) and eth2, which
-    // setup_wifi wraps in virt_wifi as wlan0 (ro.vendor.virtwifi.port). Only
-    // the Wi-Fi one has a carrier, so Android shows a phone on Wi-Fi.
+    // Cuttlefish's three NICs: eth0 (mobile data, renamed buried_eth0),
+    // eth1 (Ethernet) and eth2, which setup_wifi wraps in virt_wifi as wlan0
+    // (ro.vendor.virtwifi.port). Wi-Fi and mobile data have a network each,
+    // with the same addresses (Android routes each network by its own
+    // table): the radio HAL brings buried_eth0 up with a data call's address
+    // (modem.rs) once the modem has a SIM, and leaves it down until then.
+    // Ethernet has no carrier, so Android shows a phone on Wi-Fi.
     let mut nics: Vec<Box<dyn VirtioDevice>> = Vec::new();
     for index in 0..3u8 {
         let mut nic = Net::new([0x02, 0x61, 0x76, 0x6f, 0x00, index]);
-        if index == 2 {
+        if index == 0 || index == 2 {
             let network = Network::start(nic.downlink())?;
             nic.connect(network.uplink());
         }
@@ -592,6 +654,17 @@ fn boot(options: &Options, renderer: Option<&RenderHost>) -> Result<machine::Sto
             Ok(server) => machine.add_virtio(Box::new(crate::virtio::fs::Fs::new(server))),
             Err(e) => eprintln!("[vmm] shared folder {}: {e}; starting without it", folder.display()),
         }
+    }
+    // The cameras the daemon feeds: back, then front, as the two functions
+    // of one device, so the guest's virtio-media driver (loaded after
+    // v4l2loopback's /dev/video0) makes them /dev/video1 and /dev/video2
+    // whichever of them Android has (camera.rs).
+    if let Some(present) = options.cameras {
+        camera::HUB.set_events(Arc::new(move |event| camera_events.emit_sticky(event)));
+        let cameras: Vec<Box<dyn VirtioDevice>> = (0..camera::CAMERAS)
+            .map(|index| Box::new(Media::new(index, present.0[index], &camera::HUB, Box::new(Hvf))) as Box<dyn VirtioDevice>)
+            .collect();
+        machine.add_virtio_functions(cameras);
     }
 
     let stop = machine.run(&images.kernel, &initrd, &cmdline, options.timeout)?;
