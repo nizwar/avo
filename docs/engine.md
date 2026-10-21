@@ -103,6 +103,13 @@ device comes last (see "Shared folder" below). Frames go to shared memory
   runs in 21 ms periods. Measured on the test VM: a two-burst AAudio stream
   went from 11 underruns a second to none, and a game's write to the Mac
   playing it from about 255 ms (AAudio's default buffer) to about 82 ms.
+  The same copy asks for input pipes twice as large: the HAL's input thread
+  writes each buffer it reads from ALSA into a blocking MonoPipe of one
+  buffer, whose pacing slept 1.15 buffers per write, so recording took
+  23 ms of the device's time for every 20 ms of sound and lost about 13% of
+  it as 20 ms holes (voice chat in Call of Duty: Mobile came across choppy
+  or not at all). A two-instruction stub in the HAL's alignment padding
+  doubles the size of pipes whose writer blocks (only input ones).
 - **Cameras** (`virtio/media.rs`, `camera.rs`; with `--cameras`):
   two V4L2 capture devices in ChromeOS's virtio-media protocol (device
   48), back then front as two functions of one PCI device, so the guest's

@@ -2610,9 +2610,9 @@ extension HostAgent {
         await restartAudioServer(for: replaced)
     }
 
-    /// The HAL's 85 ms mixer period becomes 20 ms (GuestAudioHal) on the build
-    /// that is known; the restart that follows loads it. True when it was put
-    /// in place now.
+    /// The HAL's 85 ms mixer period becomes 20 ms and its input pipes twice
+    /// as large (GuestAudioHal) on the build that is known; the restart that
+    /// follows loads it. True when it was put in place now.
     private func shortenAudioPeriods() async -> Bool {
         guard let sums = try? await shell("sha256sum " + GuestAudioHal.binary) else { return false }
         switch GuestAudioHal.installed(sumOutput: sums) {
