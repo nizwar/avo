@@ -158,12 +158,7 @@ final class ControlPanelModel {
         }
         // Left by a hand setup from before Avo installed its daemon itself: only the launch argument counts.
         UserDefaults.standard.removeObject(forKey: "AvoSkipDaemonRegistration")
-        if DaemonAgent.usesLoginItems {
-            registerDaemon()
-            connect()
-            return
-        }
-        // Any other signature: a LaunchAgent of Avo's own (DaemonAgent says why).
+        // A LaunchAgent of Avo's own, whatever the signature (DaemonAgent says why).
         Task { @MainActor [weak self] in
             await self?.unregisterLoginItem()
             let legacy = await DaemonAgent.legacyAgentHoldsAndroid()
@@ -174,7 +169,7 @@ final class ControlPanelModel {
         }
     }
 
-    /// A Login Item from an earlier Avo would hold the daemon's Mach service.
+    /// A Login Item from an earlier Developer ID build would hold the daemon's Mach service.
     private func unregisterLoginItem() async {
         let service = SMAppService.agent(plistName: "\(AvoIdentifiers.daemonLabel).plist")
         guard service.status != .notRegistered, service.status != .notFound else { return }
@@ -184,51 +179,6 @@ final class ControlPanelModel {
             logger.notice("former Login Item not removed: \(error.localizedDescription, privacy: .public)")
         }
     }
-
-    /// Registers the Login Item that hosts the Runtime Daemon (spec: "LaunchAgent"), for a Developer ID Avo.
-    private func registerDaemon() {
-        let service = SMAppService.agent(plistName: "\(AvoIdentifiers.daemonLabel).plist")
-        // launchd starts only the daemon whose code it saw at registration (its launch constraint
-        // names that cdhash): an updated Avo registers again, or its new daemon would never start.
-        let code = Self.daemonCodeHash()
-        if service.status == .enabled, let code, UserDefaults.standard.string(forKey: Self.registeredDaemonKey) != code {
-            logger.notice("the daemon changed since it was registered: registering it again")
-            Task { @MainActor [weak self] in
-                do {
-                    try await service.unregister()
-                } catch {
-                    self?.logger.error("LaunchAgent unregistration failed: \(error.localizedDescription, privacy: .public)")
-                }
-                // Gone for good before it comes back, so launchd takes the new code's constraint.
-                for _ in 0..<30 where service.status != .notRegistered {
-                    try? await Task.sleep(for: .milliseconds(100))
-                }
-                self?.register(service, code: code)
-                self?.connect()
-            }
-            return
-        }
-        register(service, code: code)
-    }
-
-    private func register(_ service: SMAppService, code: String?) {
-        switch service.status {
-        case .enabled:
-            break
-        case .requiresApproval:
-            daemonState = .needsApproval
-        default:
-            do {
-                try service.register()
-            } catch {
-                logger.error("LaunchAgent registration failed: \(error.localizedDescription, privacy: .public)")
-                if service.status == .requiresApproval { daemonState = .needsApproval }
-            }
-        }
-        if service.status == .enabled, let code { UserDefaults.standard.set(code, forKey: Self.registeredDaemonKey) }
-    }
-
-    private static let registeredDaemonKey = "AvoRegisteredDaemonCode"
 
     /// The cdhash of the daemon inside this Avo.app (what launchd's launch constraint checks).
     private static func daemonCodeHash() -> String? {
@@ -297,8 +247,8 @@ final class ControlPanelModel {
     /// update changed) restarts on this build at once while Android holds
     /// nothing; while Android runs it stays, and restarts once Android stops.
     private func checkDaemonBuild(_ hello: DaemonHello) {
-        // Development (a daemon run by hand) and Login Items keep their own ways.
-        guard !ProcessInfo.processInfo.arguments.contains("-AvoSkipDaemonRegistration"), !DaemonAgent.usesLoginItems else { return }
+        // Development: a daemon run by hand keeps its own way.
+        guard !ProcessInfo.processInfo.arguments.contains("-AvoSkipDaemonRegistration") else { return }
         let decision = AppUpdate.daemonDecision(running: hello.daemonVersion, expected: Self.expectedDaemonVersion,
                                                 androidRunning: hello.status.state.holdsAndroid)
         // This build's daemon, and launchd holds this build's plist: nothing to do.

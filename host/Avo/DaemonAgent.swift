@@ -6,11 +6,12 @@ import Security
 /// The Runtime Daemon as a LaunchAgent in ~/Library/LaunchAgents, which Avo
 /// installs and updates itself.
 ///
-/// Login Items (SMAppService) suit only a Developer ID–signed Avo: launchd
-/// pins a Login Item to the code it saw when it was registered (a launch
-/// constraint), and for any other signature it pins the daemon's cdhash. Once
-/// an ad hoc or development-signed Avo is replaced, its new daemon is killed at
-/// launch ("Launch Constraint Violation") and never starts again. A plain
+/// Every Avo uses it, Developer ID–signed or not. Login Items (SMAppService)
+/// pin the daemon to the code launchd saw when it was registered (a launch
+/// constraint): for an ad hoc or development-signed Avo that is the daemon's
+/// cdhash, so once Avo is replaced its new daemon is killed at launch
+/// ("Launch Constraint Violation"); and a Login Item that registers again
+/// after an update cannot wait for Android to stop, as `reload` does. A plain
 /// LaunchAgent has no such pin, and every Avo update points it at the new
 /// daemon. macOS lists it under Login Items › Allow in the Background, named
 /// after Avo.
@@ -37,17 +38,6 @@ enum DaemonAgent {
         FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/LaunchAgents", directoryHint: .isDirectory)
     }
     private static var domain: String { "gui/\(getuid())" }
-
-    /// A Developer ID–signed Avo keeps using Login Items, which survive its updates.
-    static var usesLoginItems: Bool {
-        var code: SecStaticCode?
-        guard SecStaticCodeCreateWithPath(Bundle.main.bundleURL as CFURL, [], &code) == errSecSuccess, let code else { return false }
-        var requirement: SecRequirement?
-        let developerID = "anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists"
-            + " and certificate leaf[field.1.2.840.113635.100.6.1.13] exists"
-        guard SecRequirementCreateWithString(developerID as CFString, [], &requirement) == errSecSuccess, let requirement else { return false }
-        return SecStaticCodeCheckValidity(code, [], requirement) == errSecSuccess
-    }
 
     static var daemonExecutable: URL {
         Bundle.main.bundleURL.appending(path: "Contents/Library/Helpers/AvoDaemon.app/Contents/MacOS/AvoDaemon")

@@ -80,10 +80,32 @@ gh release create v0.1.0-preview.1 build/Avo-0.1.0-b32.dmg --prerelease \
 ```
 
 `build-dmg.sh` signs ad hoc by default, re-signing each framework, the
-daemon, `avoctl` and the app with their own entitlements; avo-vmm keeps the
-signature its build phase gives it. For a Developer ID build, pass
-`--identity` and sign Sparkle's inner pieces as described in *Signing
-Sparkle* below, then notarize. Every build, preview or not, raises
+daemon, `avoctl`, avo-vmm, the Bluetooth controller and the app with their
+own entitlements and `com.avodroid` identifiers.
+
+### Developer ID and notarization
+
+A notarized build opens like any app: no Open Anyway in System Settings.
+
+```sh
+scripts/build-dmg.sh --version 0.3.0 --build 81 \
+    --identity "Developer ID Application: Mochamad Syafuan (2Y5JPG373S)" --notarize
+```
+
+- **Signing:** `--identity` signs every piece with the hardened runtime and a
+  secure timestamp, Sparkle's inner pieces inside-out first (*Signing
+  Sparkle* below). The identity must be in the login Keychain;
+  `codesign` may ask once for its key (Always Allow).
+- **Notarization:** `--notarize` sends the app to Apple's notary service as a
+  zip and staples the ticket to it, then makes the disk image, signs it,
+  notarizes and staples it too. Gatekeeper then calls the app "Notarized
+  Developer ID", even offline.
+- **Credentials:** the Apple ID comes from `APPLE_ID` and an app-specific
+  password (appleid.apple.com › Sign-In and Security) from
+  `APPLE_APP_SPECIFIC_PASSWORD`, both from the release Mac's environment;
+  the script never prints them. The team is the identity's.
+- **A rejection** leaves the notary service's log in `notary-<build>.json`
+  next to the disk image. Every build, preview or not, raises
 `CURRENT_PROJECT_VERSION`; the changelog ([CHANGELOG.md](../CHANGELOG.md))
 gets an entry per release.
 
@@ -164,9 +186,9 @@ Rules for the move to Developer ID and after:
 - **TCC needs a stable identity.** Each ad hoc build is a new app to TCC, so
   macOS asks again for the microphone and location after an update. A
   Developer ID signature gives Avo one identity, and the prompts stop.
-- **A Developer ID daemon uses Login Items.** It re-registers after an update
-  (ControlPanelModel.registerDaemon). That path does not yet wait for Android
-  to stop the way the LaunchAgent path does.
+- **The daemon stays a LaunchAgent of Avo's own** with a Developer ID too
+  (`DaemonAgent`): Login Items would pin it to the code they saw at
+  registration, and could not wait for Android to stop after an update.
 
 ## Signing Sparkle
 
