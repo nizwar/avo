@@ -14,11 +14,13 @@ public enum CallerPolicy: Sendable {
     /// inside this app bundle; shims are still pinned by hash.
     case development(appBundle: URL)
 
-    func requirement(shimHashes: [String]) -> String? {
+    /// What the rest of a connection is held to once its hello passed: the
+    /// shim's pinned code directory hash, else Avo's team. Nil for a
+    /// development build.
+    func requirement(shimHash: String?) -> String? {
         guard case .teamID(let team) = self else { return nil }
-        var clauses = ["(anchor apple generic and certificate leaf[subject.OU] = \"\(team)\")"]
-        clauses += shimHashes.map { "cdhash H\"\($0)\"" }
-        return clauses.joined(separator: " or ")
+        if let shimHash { return "cdhash H\"\(shimHash)\"" }
+        return "anchor apple generic and certificate leaf[subject.OU] = \"\(team)\""
     }
 
     /// Checks the process behind `pid` for `role`. `shimHash` is the pinned
@@ -89,10 +91,6 @@ public final class DaemonService: NSObject, NSXPCListenerDelegate, @unchecked Se
     let policy: CallerPolicy
     private let listener: NSXPCListener
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "XPC")
-    /// What each new connection's peer must satisfy (CallerPolicy.requirement);
-    /// nil for a development build.
-    private let requirementLock = NSLock()
-    private var requirement: String?
 
     public init(core: DaemonCore, policy: CallerPolicy, listener: NSXPCListener) {
         self.core = core
@@ -102,30 +100,14 @@ public final class DaemonService: NSObject, NSXPCListenerDelegate, @unchecked Se
         listener.delegate = self
     }
 
-    /// Takes connections once the shims are known, so that none is accepted
-    /// without its requirement.
+    /// The listener itself has no code requirement: libxpc lets a requirement
+    /// be set once, and a shim made after the daemon started must still get
+    /// in. Each connection is held to its own once its hello passed (`authorize`).
     public func resume() {
-        Task {
-            await refreshRequirement()
-            listener.resume()
-        }
-    }
-
-    /// Re-pins new connections to Avo's team plus every known shim. Each
-    /// connection takes the requirement when it is accepted: the listener's
-    /// own cannot change once it runs (setting it again is an XPC API misuse,
-    /// and libxpc traps: every APK install killed the first Developer ID
-    /// daemon, Android with it).
-    public func refreshRequirement() async {
-        let hashes = Array(await core.shimHashes().values)
-        let requirement = policy.requirement(shimHashes: hashes)
-        requirementLock.withLock { self.requirement = requirement }
+        listener.resume()
     }
 
     public func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
-        if let requirement = requirementLock.withLock({ self.requirement }) {
-            connection.setCodeSigningRequirement(requirement)
-        }
         let client = ClientConnection(connection: connection, service: self)
         connection.exportedInterface = AvoXPC.daemonInterface()
         connection.exportedObject = client
@@ -145,9 +127,11 @@ public final class DaemonService: NSObject, NSXPCListenerDelegate, @unchecked Se
             hash = nil
         }
         let allowed = policy.validate(pid: connection.processIdentifier, role: role, shimHash: hash)
-        if allowed, case .teamID = policy, let hash {
-            // Bind the rest of this connection to the shim that said hello.
-            connection.setCodeSigningRequirement("cdhash H\"\(hash)\"")
+        // Bind the rest of this connection to the process that said hello
+        // (not just its pid). Once per connection: a second requirement is an
+        // XPC API misuse, and libxpc traps (the daemon dies, Android with it).
+        if allowed, let requirement = policy.requirement(shimHash: hash) {
+            connection.setCodeSigningRequirement(requirement)
         }
         if !allowed { logger.error("rejected \(String(describing: role), privacy: .public) from pid \(connection.processIdentifier)") }
         return allowed
@@ -167,6 +151,9 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
     /// for the Mac clipboard, and its key release must not reach Android
     /// first (the key would stay down and repeat).
     private let input = AsyncStream<Data>.makeStream()
+    /// A connection says hello once: its code requirement is set then (`authorize`).
+    private let helloLock = NSLock()
+    private var saidHello = false
 
     init(connection: NSXPCConnection, service: DaemonService) {
         self.connection = connection
@@ -206,7 +193,11 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
     func hello(_ request: Data, reply: @escaping @Sendable (Data?, NSError?) -> Void) {
         run(reply) { [self] in
             let hello = try AvoXPC.decode(ClientHello.self, from: request)
-            guard let connection, await service.authorize(connection, role: hello.role) else { throw AvoError.unauthorizedCaller }
+            let first = helloLock.withLock {
+                defer { saidHello = true }
+                return !saidHello
+            }
+            guard first, let connection, await service.authorize(connection, role: hello.role) else { throw AvoError.unauthorizedCaller }
             guard let proxy = connection.remoteObjectProxy as? AvoClientXPC else { throw AvoError.internalError("no client proxy") }
             return AvoXPC.encode(await core.register(id, role: hello.role, proxy: ClientProxy(proxy)))
         }
@@ -321,7 +312,6 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
         let descriptor = OwnedDescriptor(dup(file.fileDescriptor))
         run(reply) { [self] in
             try await core.install(try AvoXPC.decode(InstallRequest.self, from: request), file: descriptor, client: id)
-            await service.refreshRequirement()
         }
     }
 
@@ -432,7 +422,6 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
     func recreateShortcuts(package: String?, reply: @escaping @Sendable (NSError?) -> Void) {
         run(reply) { [self] in
             try await core.recreateShortcuts(for: package, client: id)
-            await service.refreshRequirement()
         }
     }
 
