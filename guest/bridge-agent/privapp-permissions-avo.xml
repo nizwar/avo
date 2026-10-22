@@ -2,7 +2,7 @@
 <!-- Privileged permissions of the Avo Bridge Agent (signature permissions come
      from the platform certificate). Installed to /system_ext/etc/permissions. -->
 <permissions>
-    <privapp-permissions package="dev.avo.bridge">
+    <privapp-permissions package="com.avodroid.bridge">
         <permission name="android.permission.INSTALL_PACKAGES" />
         <permission name="android.permission.DELETE_PACKAGES" />
         <permission name="android.permission.FORCE_STOP_PACKAGES" />

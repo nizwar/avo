@@ -332,7 +332,7 @@ private func summary(_ events: [TouchEvent]) -> [String] {
         let directory = root.appending(path: "profiles/keymaps")
         // Plus the sample app's profile (guest/samples/hello), which uses every kind of control.
         let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-            .filter { $0.pathExtension == "json" } + [root.appending(path: "guest/samples/hello/keymap/dev.avo.hello.json")]
+            .filter { $0.pathExtension == "json" } + [root.appending(path: "guest/samples/hello/keymap/com.avodroid.hello.json")]
         #expect(files.count > 1)
         for file in files {
             let profile = try KeymapProfile.decode(Data(contentsOf: file))

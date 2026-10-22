@@ -215,7 +215,7 @@ private func fixture(_ name: String) throws -> URL {
         defer { task.cancel() }
         _ = try await client.connect(timeout: .seconds(5))
         let obb = Data((0..<300_000).map { UInt8(truncatingIfNeeded: $0 * 7) })
-        let path = "/sdcard/Android/obb/dev.avo.fixture/main.42.dev.avo.fixture.obb"
+        let path = "/sdcard/Android/obb/com.avodroid.fixture/main.42.com.avodroid.fixture.obb"
         try await client.push(ChunkPipe { send in
             var offset = 0
             while offset < obb.count {

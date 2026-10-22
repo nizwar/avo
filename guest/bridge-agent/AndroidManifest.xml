@@ -2,7 +2,7 @@
 <!-- Avo Bridge Agent: the only link between Android and macOS (spec: "Bridge
      Agent (privileged system app, ditandatangani platform key)"). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="dev.avo.bridge"
+    package="com.avodroid.bridge"
     coreApp="true">
 
     <!-- Displays and launching activities on them. -->

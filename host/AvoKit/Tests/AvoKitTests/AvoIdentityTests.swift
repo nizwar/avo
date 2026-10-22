@@ -20,7 +20,7 @@ import Testing
         software.renderer = .software
         #expect(software.properties["ro.boot.avo.renderer"] == "software")
         #expect(AvoIdentity.schema == 1)
-        #expect(AvoIdentity.feature == "dev.avo.feature.MAC")
+        #expect(AvoIdentity.feature == "com.avodroid.feature.MAC")
         // Every name is in the one namespace.
         #expect(Self.markers.properties.keys.allSatisfy { $0.hasPrefix(AvoIdentity.propertyPrefix) })
     }
@@ -78,7 +78,7 @@ import Testing
 
     @Test func permissionsFileDeclaresTheFeature() throws {
         let xml = AvoIdentity.permissionsFile
-        #expect(xml.contains(#"<feature name="dev.avo.feature.MAC" version="1" />"#))
+        #expect(xml.contains(#"<feature name="com.avodroid.feature.MAC" version="1" />"#))
         // Well formed, and nothing but the one feature.
         final class Collector: NSObject, XMLParserDelegate {
             var elements: [(String, [String: String])] = []
@@ -92,14 +92,14 @@ import Testing
         parser.delegate = collector
         #expect(parser.parse())
         #expect(collector.elements.map(\.0) == ["permissions", "feature"])
-        #expect(collector.elements.last?.1 == ["name": "dev.avo.feature.MAC", "version": "1"])
+        #expect(collector.elements.last?.1 == ["name": "com.avodroid.feature.MAC", "version": "1"])
         // No apostrophes: the guest writes it through two layers of sh quoting.
         #expect(!xml.contains("'"))
     }
 
     @Test func avoImageShipsTheSameFile() throws {
         let file = URL(filePath: #filePath).deletingLastPathComponent()
-            .appending(path: "../../../../guest/device/avo/avo_arm64/dev.avo.feature.mac.xml").standardizedFileURL
+            .appending(path: "../../../../guest/device/avo/avo_arm64/com.avodroid.feature.mac.xml").standardizedFileURL
         #expect(try String(contentsOf: file, encoding: .utf8) == AvoIdentity.permissionsFile)
     }
 }

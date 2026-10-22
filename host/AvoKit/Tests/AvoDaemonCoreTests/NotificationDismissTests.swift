@@ -8,7 +8,7 @@ import Testing
 /// Notifications go away as on a phone: dismissed in Avo's list or in
 /// Notification Center, they are dismissed in Android too.
 @Suite(.serialized, .timeLimit(.minutes(1))) struct NotificationDismissTests {
-    private static let hello = "dev.avo.hello"
+    private static let hello = "com.avodroid.hello"
 
     private static func key(_ n: Int) -> String { "0|\(hello)|\(n)|null|10124" }
 
@@ -75,7 +75,7 @@ import Testing
         #expect(await eventually { await harness.core.notificationCount(of: Self.hello) == 2 })
 
         let (_, shimEvents) = await harness.connect(.shim(package: Self.hello))
-        let (_, otherEvents) = await harness.connect(.shim(package: "dev.avo.other"))
+        let (_, otherEvents) = await harness.connect(.shim(package: "com.avodroid.other"))
         func count() -> Int? {
             for event in shimEvents.events.reversed() {
                 if case .notificationCount(Self.hello, let count) = event { return count }

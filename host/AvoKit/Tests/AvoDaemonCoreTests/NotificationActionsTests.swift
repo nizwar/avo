@@ -8,35 +8,35 @@ import Testing
 /// A notification's buttons on the Mac: Reply answers from the banner, and
 /// the others do what tapping them in Android's shade does.
 @Suite(.serialized, .timeLimit(.minutes(1))) struct NotificationActionsTests {
-    private static let chat = "dev.avo.chat"
-    private static let key = "0|dev.avo.chat|7|null|10124"
+    private static let chat = "com.avodroid.chat"
+    private static let key = "0|com.avodroid.chat|7|null|10124"
 
     /// `cmd notification get` on Android 17: a message with Reply and Mark as read.
     private static let dump = """
-        NotificationRecord(0x0ab76e68: pkg=dev.avo.chat user=UserHandle{0} id=7 tag=null importance=3 \
-        key=0|dev.avo.chat|7|null|10124: Notification(channel=chat shortcut=null contentView=null vibrate=null \
+        NotificationRecord(0x0ab76e68: pkg=com.avodroid.chat user=UserHandle{0} id=7 tag=null importance=3 \
+        key=0|com.avodroid.chat|7|null|10124: Notification(channel=chat shortcut=null contentView=null vibrate=null \
         sound=null defaults=0 flags=0 color=0x00000000 actions=2 vis=PRIVATE))
           flags=0
             when=1792264925339/1792264925339
                 android.title=String (Alice)
                 android.text=String (are you there?)
             actions={
-                [0] "Reply" -> PendingIntent{2de281: PendingIntentRecord{6458171 dev.avo.chat broadcastIntent}}
-                [1] "Mark as read" -> PendingIntent{f52ef26: PendingIntentRecord{c5f7318 dev.avo.chat broadcastIntent}}
+                [0] "Reply" -> PendingIntent{2de281: PendingIntentRecord{6458171 com.avodroid.chat broadcastIntent}}
+                [1] "Mark as read" -> PendingIntent{f52ef26: PendingIntentRecord{c5f7318 com.avodroid.chat broadcastIntent}}
               }
         """
 
     @Test func theDumpCountsTheButtons() throws {
         #expect(try #require(HostAgent.parseNotification(Self.dump)).actions == 2)
-        #expect(HostAgent.parseNotification("NotificationRecord(0x1: pkg=dev.avo.chat importance=3 flags=0 vis=PRIVATE)\n")?.actions == 0)
+        #expect(HostAgent.parseNotification("NotificationRecord(0x1: pkg=com.avodroid.chat importance=3 flags=0 vis=PRIVATE)\n")?.actions == 0)
     }
 
     /// The helper's `actions` (guest/clipboard Notifications.java), as Android 17 printed it.
     @Test func theHelperSaysWhatEachButtonTakes() {
         let output = """
-            {"key":"0|dev.avo.chat|7|null|10124","actions":[{"index":0,"title":"Reply","reply":true,"hint":"Message"},\
+            {"key":"0|com.avodroid.chat|7|null|10124","actions":[{"index":0,"title":"Reply","reply":true,"hint":"Message"},\
             {"index":1,"title":"Mark as read","reply":false}]}
-            {"key":"0|dev.avo.chat|8|null|10124","actions":[]}
+            {"key":"0|com.avodroid.chat|8|null|10124","actions":[]}
             not json
             """
         let buttons = HostAgent.parseNotificationActions(output)
@@ -45,7 +45,7 @@ import Testing
         #expect(first.map(\.index) == [0, 1])
         #expect(first.map(\.reply) == [true, false])
         #expect(first.map(\.replyHint) == ["Message", ""])
-        #expect(buttons["0|dev.avo.chat|8|null|10124"] == [])
+        #expect(buttons["0|com.avodroid.chat|8|null|10124"] == [])
         #expect(buttons.count == 2)
     }
 
@@ -88,12 +88,12 @@ import Testing
 
 /// What Android plays, in the Mac's Now Playing.
 @Suite(.serialized, .timeLimit(.minutes(1))) struct NowPlayingTests {
-    private static let music = "dev.avo.music"
+    private static let music = "com.avodroid.music"
 
     /// The helper's `media watch` lines (guest/clipboard Media.java), as Android 17 printed them.
     @Test func helperLinesBecomeNowPlaying() throws {
         let playing = try #require(HostAgent.nowPlaying(fromLine: """
-            media {"package":"dev.avo.music","title":"Fake Song","artist":"Avo Band","album":"Tests","durationMs":180000,\
+            media {"package":"com.avodroid.music","title":"Fake Song","artist":"Avo Band","album":"Tests","durationMs":180000,\
             "next":true,"previous":false,"seek":true,"state":"playing","speed":1,"positionMs":30006,"artworkJpeg":"\\/9j\\/4AAQ"}
             """))
         #expect(playing.package == Self.music)
@@ -110,7 +110,7 @@ import Testing
 
         // Without artwork: the last one holds.
         let paused = try #require(HostAgent.nowPlaying(fromLine: """
-            media {"package":"dev.avo.music","title":"Fake Song","artist":"","album":"","durationMs":0,\
+            media {"package":"com.avodroid.music","title":"Fake Song","artist":"","album":"","durationMs":0,\
             "next":false,"previous":false,"seek":false,"state":"paused","speed":0,"positionMs":33000}
             """))
         #expect(paused.state == .paused)

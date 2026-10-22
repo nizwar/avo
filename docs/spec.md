@@ -306,7 +306,7 @@ membaca hardware:
   `ro.hardware` dan HAL, daftar ABI, level API, dan kemampuan GPU sebenarnya.
   Aplikasi yang bercabang pada `.so`/HAL khusus-Qualcomm tetap jatuh ke jalur
   fallback — dan itu justru informasi yang berguna bagi developer. Avo juga
-  tetap menyatakan dirinya (`ro.boot.avo.*`, `dev.avo.feature.MAC`), apa pun
+  tetap menyatakan dirinya (`ro.boot.avo.*`, `com.avodroid.feature.MAC`), apa pun
   profilnya; ini bukan untuk mengelabui attestation.
 
 ### Fitur native tambahan (di luar brief, tapi menentukan kesan native)

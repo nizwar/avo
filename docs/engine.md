@@ -636,7 +636,7 @@ daemon plays it over ADB (vsock 6520, root through `su` on userdebug):
   by Android across boots), and a bug report the A+B key
   chord starts (init.cutf_cvm.rc) is stopped;
 - once Google apps are installed (their overlay makes /product keep
-  changes): Avo's system feature, `/product/etc/permissions/dev.avo.feature.mac.xml`
+  changes): Avo's system feature, `/product/etc/permissions/com.avodroid.feature.mac.xml`
   (`IdentityFeature`), written when it is missing or from another schema and
   read by Android from the next start. The stock image's /product is
   read-only under verified boot, so without Google apps only the

@@ -1,7 +1,7 @@
 import Foundation
 
 // Input channel (vsock 6001) records. Layout is documented in docs/protocol.md
-// and mirrored by dev.avo.bridge.input.InputDecoder in the Bridge Agent.
+// and mirrored by com.avodroid.bridge.input.InputDecoder in the Bridge Agent.
 
 public enum TouchAction: UInt8, Sendable, Equatable {
     case down = 0

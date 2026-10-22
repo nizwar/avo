@@ -96,7 +96,7 @@ private final class ScriptedAndroid: Sendable {
                     + #"Display id 4: DisplayInfo{"HDMI Screen", displayId 4, uniqueId "local:4619827551948147202", app 704 x 924}"# + "\n", 0)
         }
         // The Mac state helper (MacState.focusDisplayCommand).
-        if let range = command.range(of: "dev.avo.macstate.Main focus-display ") {
+        if let range = command.range(of: "com.avodroid.macstate.Main focus-display ") {
             return ("focused task 20 on display \(command[range.upperBound...])\n", 0)
         }
         if command.hasPrefix("cmd package resolve-activity") { return ("dev.example/dev.example.Main\n", 0) }
@@ -302,7 +302,7 @@ private final class FakeEngineSocket: @unchecked Sendable {
             try await control.write(ControlFraming.encode(Avo_V1_Envelope(.launch(launch), requestID: UInt64(id))))
             #expect(await eventually(timeout: .seconds(10)) { replied(UInt64(id)) })
         }
-        func focusCalls() -> [String] { android.commands().filter { $0.contains("dev.avo.macstate.Main focus-display") } }
+        func focusCalls() -> [String] { android.commands().filter { $0.contains("com.avodroid.macstate.Main focus-display") } }
         func focus(_ id: UInt32, request: UInt64) async throws {
             var focus = Avo_V1_FocusDisplay()
             focus.displayID = id

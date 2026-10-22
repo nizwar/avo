@@ -20,7 +20,7 @@ mkdir -p "$WORK/res/values" "$WORK/res/values-id" "$WORK/res/mipmap-xxxhdpi" "$W
 
 cat > "$WORK/AndroidManifest.xml" <<'XML'
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="dev.avo.fixture" android:versionCode="42" android:versionName="1.4.2">
+    package="com.avodroid.fixture" android:versionCode="42" android:versionName="1.4.2">
   <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="36"/>
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.CAMERA"/>
@@ -78,7 +78,7 @@ abi_split() { # name abi
   mkdir -p "$dir/lib/$2"
   cat > "$dir/AndroidManifest.xml" <<XML
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="dev.avo.fixture" split="config.$1" android:isFeatureSplit="false">
+    package="com.avodroid.fixture" split="config.$1" android:isFeatureSplit="false">
   <application android:hasCode="false"/>
 </manifest>
 XML
@@ -97,30 +97,30 @@ printf '\x7fELF-fixture' > "$WORK/lib32/lib/armeabi-v7a/libold.so"
 (cd "$WORK/lib32" && zip -q "$HERE/arm32-only.apk" lib/armeabi-v7a/libold.so)
 
 # XAPK (APKPure): manifest.json, splits and an OBB expansion.
-X="$WORK/xapk" && mkdir -p "$X/Android/obb/dev.avo.fixture"
-cp "$WORK/base.apk" "$X/dev.avo.fixture.apk"
+X="$WORK/xapk" && mkdir -p "$X/Android/obb/com.avodroid.fixture"
+cp "$WORK/base.apk" "$X/com.avodroid.fixture.apk"
 cp "$WORK/split_config.xxxhdpi.apk" "$WORK/split_config.arm64_v8a.apk" "$WORK/split_config.x86_64.apk" "$X/"
-head -c 70000 /dev/urandom > "$X/Android/obb/dev.avo.fixture/main.42.dev.avo.fixture.obb"
+head -c 70000 /dev/urandom > "$X/Android/obb/com.avodroid.fixture/main.42.com.avodroid.fixture.obb"
 cat > "$X/manifest.json" <<'JSON'
-{"xapk_version": 2, "package_name": "dev.avo.fixture", "name": "Avo Fixture",
+{"xapk_version": 2, "package_name": "com.avodroid.fixture", "name": "Avo Fixture",
  "version_code": "42", "version_name": "1.4.2",
- "split_apks": [{"file": "dev.avo.fixture.apk", "id": "base"},
+ "split_apks": [{"file": "com.avodroid.fixture.apk", "id": "base"},
                 {"file": "split_config.xxxhdpi.apk", "id": "config.xxxhdpi"},
                 {"file": "split_config.arm64_v8a.apk", "id": "config.arm64_v8a"},
                 {"file": "split_config.x86_64.apk", "id": "config.x86_64"}],
- "expansions": [{"file": "Android/obb/dev.avo.fixture/main.42.dev.avo.fixture.obb",
+ "expansions": [{"file": "Android/obb/com.avodroid.fixture/main.42.com.avodroid.fixture.obb",
                  "install_location": "EXTERNAL_STORAGE",
-                 "install_path": "Android/obb/dev.avo.fixture/main.42.dev.avo.fixture.obb"}]}
+                 "install_path": "Android/obb/com.avodroid.fixture/main.42.com.avodroid.fixture.obb"}]}
 JSON
 rm -f "$HERE/fixture.xapk"
 # APKs stored (so nested reads are in place), OBB deflated.
-(cd "$X" && zip -q -0 "$HERE/fixture.xapk" *.apk && zip -q "$HERE/fixture.xapk" manifest.json Android/obb/dev.avo.fixture/*.obb)
+(cd "$X" && zip -q -0 "$HERE/fixture.xapk" *.apk && zip -q "$HERE/fixture.xapk" manifest.json Android/obb/com.avodroid.fixture/*.obb)
 
 # APKM (APKMirror): info.json + deflated splits (exercises nested extraction).
 M="$WORK/apkm" && mkdir -p "$M"
 cp "$WORK/base.apk" "$M/base.apk"
 cp "$WORK/split_config.xxxhdpi.apk" "$WORK/split_config.armeabi_v7a.apk" "$M/"
-echo '{"apkm_version": 5, "pname": "dev.avo.fixture", "versioncode": "42", "release_version": "1.4.2", "app_name": "Avo Fixture"}' > "$M/info.json"
+echo '{"apkm_version": 5, "pname": "com.avodroid.fixture", "versioncode": "42", "release_version": "1.4.2", "app_name": "Avo Fixture"}' > "$M/info.json"
 rm -f "$HERE/fixture.apkm"
 (cd "$M" && zip -q -9 "$HERE/fixture.apkm" info.json *.apk)
 

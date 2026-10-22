@@ -63,7 +63,7 @@ import Testing
 
     @Test func timeOnScreenNowCounts() {
         // On screen since 23:30, accounted until 23:40; it is 00:15 now.
-        let usage = AppUsage(package: "dev.avo.hello", days: [AppUsage.Day(date: "2026-10-14", foregroundSeconds: 600, sessions: 1)],
+        let usage = AppUsage(package: "com.avodroid.hello", days: [AppUsage.Day(date: "2026-10-14", foregroundSeconds: 600, sessions: 1)],
                              lastOpened: Self.date(14, 23, 30), lastActive: Self.date(14, 23, 30),
                              foregroundSince: Self.date(14, 23, 30), accountedUntil: Self.date(14, 23, 40))
         let now = Self.date(15, 0, 15)

@@ -44,7 +44,7 @@ PRODUCT_COPY_FILES += \
     device/avo/avo_arm64/init.avo.rc:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/init/init.avo.rc
 
 # Avo's system feature (docs/for-game-developers.md): apps call
-# PackageManager.hasSystemFeature("dev.avo.feature.MAC"). The same file as
+# PackageManager.hasSystemFeature("com.avodroid.feature.MAC"). The same file as
 # AvoIdentity.permissionsFile in AvoKit.
 PRODUCT_COPY_FILES += \
-    device/avo/avo_arm64/dev.avo.feature.mac.xml:$(TARGET_COPY_OUT_PRODUCT)/etc/permissions/dev.avo.feature.mac.xml
+    device/avo/avo_arm64/com.avodroid.feature.mac.xml:$(TARGET_COPY_OUT_PRODUCT)/etc/permissions/com.avodroid.feature.mac.xml

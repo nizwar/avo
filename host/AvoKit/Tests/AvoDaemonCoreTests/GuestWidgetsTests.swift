@@ -42,19 +42,19 @@ import Testing
         let data = AndroidWidgets.launchURI(slot: "5f0c", provider: "com.android.deskclock/com.android.alarmclock.DigitalAppWidgetProvider")
         #expect(data == "avo-widget://5f0c?provider=com.android.deskclock/com.android.alarmclock.DigitalAppWidgetProvider")
         #expect(GuestWidgets.startCommand(data: data, display: 9)
-            == "am start --display 9 -f 0x18000000 -n dev.avo.widgets/.WidgetActivity -d '\(data)'")
-        #expect(GuestWidgets.deleteCommand(slot: "5f0c") == "content call --uri content://dev.avo.widgets --method delete --arg '5f0c'")
+            == "am start --display 9 -f 0x18000000 -n com.avodroid.widgets/.WidgetActivity -d '\(data)'")
+        #expect(GuestWidgets.deleteCommand(slot: "5f0c") == "content call --uri content://com.avodroid.widgets --method delete --arg '5f0c'")
     }
 
     /// A panel is larger while Android shows its widget's settings.
     @Test func findsWhatAWidgetDisplayShows() {
         let stacks = """
             RootTask id=66 bounds=[0,0][592,148] displayId=3 userId=0
-              taskId=66: dev.avo.widgets/dev.avo.widgets.WidgetActivity bounds=[0,0][592,148] userId=0 visible=true \
+              taskId=66: com.avodroid.widgets/com.avodroid.widgets.WidgetActivity bounds=[0,0][592,148] userId=0 visible=true \
             topActivity=ComponentInfo{com.google.android.googlequicksearchbox/com.example.SetupActivity}
             RootTask id=64 bounds=[0,0][416,258] displayId=2 userId=0
-              taskId=64: dev.avo.widgets/dev.avo.widgets.WidgetActivity bounds=[0,0][416,258] userId=0 visible=true \
-            topActivity=ComponentInfo{dev.avo.widgets/dev.avo.widgets.WidgetActivity}
+              taskId=64: com.avodroid.widgets/com.avodroid.widgets.WidgetActivity bounds=[0,0][416,258] userId=0 visible=true \
+            topActivity=ComponentInfo{com.avodroid.widgets/com.avodroid.widgets.WidgetActivity}
             """
         let setup = HostAgent.topActivity(of: AndroidWidgets.package, onDisplay: 3, in: stacks)
         #expect(setup == "com.google.android.googlequicksearchbox/com.example.SetupActivity")

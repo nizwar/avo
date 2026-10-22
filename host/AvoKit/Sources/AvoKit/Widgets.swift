@@ -9,9 +9,12 @@ import Foundation
 
 public enum AndroidWidgets {
     /// Avo Widgets' package: its displays are the widget panels'.
-    public static let package = "dev.avo.widgets"
+    public static let package = "\(AvoIdentifiers.prefix).widgets"
+    /// The package of the builds before 0.3.0 Preview 2, uninstalled once
+    /// this one is in (its widgets come back in this one's panels by themselves).
+    public static let formerPackage = "\(AvoIdentifiers.formerPrefix).widgets"
     /// The activity that shows one widget on its display.
-    public static let activity = "dev.avo.widgets/.WidgetActivity"
+    public static let activity = "\(package)/.WidgetActivity"
 
     /// The data the activity starts with: the panel's slot and the widget's provider.
     public static func launchURI(slot: String, provider: String) -> String {

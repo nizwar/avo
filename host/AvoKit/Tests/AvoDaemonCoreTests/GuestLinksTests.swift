@@ -186,15 +186,15 @@ import Testing
 
 @Suite struct HostAgentLinksTests {
     @Test func findsTheAppsUID() {
-        let output = "package:dev.avo.links.extra uid:10200\npackage:dev.avo.links uid:10123\n"
-        #expect(HostAgent.uid(of: "dev.avo.links", in: output) == 10123)
-        #expect(HostAgent.uid(of: "dev.avo.links", in: "") == nil)
-        #expect(HostAgent.uid(of: "dev.avo.links", in: "package:dev.avo.links.extra uid:10200") == nil)
+        let output = "package:com.avodroid.links.extra uid:10200\npackage:com.avodroid.links uid:10123\n"
+        #expect(HostAgent.uid(of: "com.avodroid.links", in: output) == 10123)
+        #expect(HostAgent.uid(of: "com.avodroid.links", in: "") == nil)
+        #expect(HostAgent.uid(of: "com.avodroid.links", in: "package:com.avodroid.links.extra uid:10200") == nil)
     }
 
     @Test func findsTheInstalledAPK() {
-        let output = "package:/data/app/~~Ab==/dev.avo.links-Cd==/base.apk\npackage:/data/app/~~Ab==/dev.avo.links-Cd==/split_x.apk\n"
-        #expect(HostAgent.baseAPKPath(in: output) == "/data/app/~~Ab==/dev.avo.links-Cd==/base.apk")
+        let output = "package:/data/app/~~Ab==/com.avodroid.links-Cd==/base.apk\npackage:/data/app/~~Ab==/com.avodroid.links-Cd==/split_x.apk\n"
+        #expect(HostAgent.baseAPKPath(in: output) == "/data/app/~~Ab==/com.avodroid.links-Cd==/base.apk")
         #expect(HostAgent.baseAPKPath(in: "") == nil)
     }
 
@@ -211,7 +211,7 @@ import Testing
     }
 
     @Test func readsRoleHolders() {
-        #expect(HostAgent.roleHolders(in: "dev.avo.links\n") == ["dev.avo.links"])
+        #expect(HostAgent.roleHolders(in: "com.avodroid.links\n") == ["com.avodroid.links"])
         #expect(HostAgent.roleHolders(in: "a;b\n") == ["a", "b"])
         #expect(HostAgent.roleHolders(in: "\n").isEmpty)
     }

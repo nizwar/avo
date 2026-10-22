@@ -288,7 +288,7 @@ extension HostAgent {
         output.split { $0 == ";" || $0.isWhitespace }.map(String.init)
     }
 
-    /// `pm list packages -U dev.avo.links`: `package:dev.avo.links uid:10123`.
+    /// `pm list packages -U com.avodroid.links`: `package:com.avodroid.links uid:10123`.
     static func uid(of package: String, in output: String) -> Int? {
         for line in output.split(separator: "\n") {
             let words = line.split(separator: " ")
@@ -299,7 +299,7 @@ extension HostAgent {
         return nil
     }
 
-    /// `pm path`: `package:/data/app/~~…/dev.avo.links-…/base.apk` (then splits, if any).
+    /// `pm path`: `package:/data/app/~~…/com.avodroid.links-…/base.apk` (then splits, if any).
     static func baseAPKPath(in output: String) -> String? {
         output.split(separator: "\n").map(\.trimmed).first { $0.hasPrefix("package:/") && $0.hasSuffix("/base.apk") }
             .map { String($0.dropFirst("package:".count)) }

@@ -4,7 +4,7 @@
      default browser, mail app and Maps. The Runtime Daemon installs it and
      makes it the browser once per data disk (HostAgent, "Links"). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="dev.avo.links"
+    package="com.avodroid.links"
     android:versionCode="1"
     android:versionName="1.0">
     <uses-sdk android:minSdkVersion="34" android:targetSdkVersion="36" />

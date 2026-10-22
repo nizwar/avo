@@ -24,7 +24,7 @@ identity scheme is described here.
 | Property `ro.boot.avo.host.chip` | the Mac's chip, e.g. `Apple M4 Pro` | every boot |
 | Property `ro.boot.avo.renderer` | `gpu` or `software` (what renders Android this boot) | every boot |
 | Property `ro.boot.avo.input` | `keyboard,mouse,touch,gamepad` (see [Input](#input)) | every boot |
-| System feature `dev.avo.feature.MAC`, version `1` | `PackageManager.hasSystemFeature` | where Avo can add it to Android, see below |
+| System feature `com.avodroid.feature.MAC`, version `1` | `PackageManager.hasSystemFeature` | where Avo can add it to Android, see below; before 0.3.0 Preview 2 it was `dev.avo.feature.MAC` |
 | `Build.MANUFACTURER`, `Build.BRAND` | `Avo` | with the default identity |
 | `Build.MODEL` | `AVO-Droid` | with the default identity |
 | `Build.DEVICE`, `Build.PRODUCT` | `avo_droid` | with the default identity |
@@ -53,7 +53,7 @@ boot, and a device profile cannot change or remove them. Check
 **Stability.** Names under `ro.boot.avo.` and the feature name do not change.
 A later schema only adds properties or `ro.boot.avo.input` words, and raises
 the schema and the feature's version together, so
-`hasSystemFeature("dev.avo.feature.MAC", 1)` stays true. Values are one line
+`hasSystemFeature("com.avodroid.feature.MAC", 1)` stays true. Values are one line
 of printable ASCII of at most 91 bytes, so `__system_property_get` returns
 them whole; a fact Avo cannot read is `unknown`. The fingerprint's build
 fields (`17/<build id>/<incremental>`) are the Android image's own and change
@@ -74,7 +74,7 @@ import android.os.Build
 /** True on Avo, whichever device profile the user picked. */
 fun isAvo(context: Context): Boolean =
     avoProperty("ro.boot.avo.schema").isNotEmpty() ||
-        context.packageManager.hasSystemFeature("dev.avo.feature.MAC")
+        context.packageManager.hasSystemFeature("com.avodroid.feature.MAC")
 
 /** An Avo property, or "" when it is not set (not Avo). */
 fun avoProperty(name: String): String = try {
@@ -91,7 +91,7 @@ val looksLikeAvo = Build.MANUFACTURER == "Avo" && Build.MODEL == "AVO-Droid"
 ### Java
 
 ```java
-boolean avoFeature = context.getPackageManager().hasSystemFeature("dev.avo.feature.MAC");
+boolean avoFeature = context.getPackageManager().hasSystemFeature("com.avodroid.feature.MAC");
 
 // android.os.SystemProperties is not in the public SDK; get(String) works
 // through reflection today (Android lists it as an unsupported, greylisted
@@ -145,7 +145,7 @@ static bool IsAvo() {
     using var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
     using var activity = player.GetStatic<AndroidJavaObject>("currentActivity");
     using var pm = activity.Call<AndroidJavaObject>("getPackageManager");
-    return pm.Call<bool>("hasSystemFeature", "dev.avo.feature.MAC");
+    return pm.Call<bool>("hasSystemFeature", "com.avodroid.feature.MAC");
 }
 ```
 
@@ -153,7 +153,7 @@ From a terminal:
 
 ```sh
 adb shell getprop | grep ro.boot.avo
-adb shell pm list features | grep avo     # feature:dev.avo.feature.MAC=1
+adb shell pm list features | grep avo     # feature:com.avodroid.feature.MAC=1
 ```
 
 ## What your app runs on
@@ -342,7 +342,7 @@ honest:
   GPU's real abilities (extensions, limits, Vulkan version) are unchanged. An
   app that loads a Qualcomm-only `.so` or calls a vendor HAL still takes its
   fallback path — which is the useful signal that the path is not portable.
-- Avo keeps identifying itself (`ro.boot.avo.*`, `dev.avo.feature.MAC`)
+- Avo keeps identifying itself (`ro.boot.avo.*`, `com.avodroid.feature.MAC`)
   whatever the profile, and none of this passes hardware attestation. It is a
   development aid, not a disguise.
 

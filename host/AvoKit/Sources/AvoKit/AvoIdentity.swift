@@ -14,7 +14,7 @@ public enum AvoIdentity {
 
     /// `PackageManager.hasSystemFeature(feature)`, like Google Play Games on
     /// PC's `com.google.android.play.feature.HPE_EXPERIENCE`.
-    public static let feature = "dev.avo.feature.MAC"
+    public static let feature = "\(AvoIdentifiers.prefix).feature.MAC"
 
     /// `ro.boot.*` is what the boot loader, here Avo's VM engine, tells
     /// Android about the platform. The same names work whether the engine
@@ -27,7 +27,10 @@ public enum AvoIdentity {
 
     /// Where the feature is declared (`permissionsFile`): a file Android's
     /// SystemConfig reads when the framework starts.
-    public static let permissionsPath = "/product/etc/permissions/dev.avo.feature.mac.xml"
+    public static let permissionsPath = "/product/etc/permissions/\(AvoIdentifiers.prefix).feature.mac.xml"
+    /// The file of the builds before 0.3.0 Preview 2 (`dev.avo.feature.MAC`),
+    /// taken out where the new one goes in (IdentityFeature).
+    public static let formerPermissionsPath = "/product/etc/permissions/\(AvoIdentifiers.formerPrefix).feature.mac.xml"
 
     /// What renders Android this boot (Graphics › Renderer, after any fallback).
     public enum Renderer: String, Sendable, Equatable, CaseIterable {

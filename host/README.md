@@ -113,7 +113,7 @@ scratch folder).
 
 `guest/samples/hello` builds *Avo Hello*, a small app
 for trying windows, input, resizing, key mapping (its Arena game and
-`keymap/dev.avo.hello.json`), GPS and notifications.
+`keymap/com.avodroid.hello.json`), GPS and notifications.
 
 GPU rendering (Graphics › Renderer) needs the Android Emulator 37 or later:
 install it with Android Studio's SDK Manager (SDK Tools › Android Emulator)

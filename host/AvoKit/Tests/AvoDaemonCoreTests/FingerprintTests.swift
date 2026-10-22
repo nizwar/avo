@@ -36,7 +36,7 @@ enum RecordedFingerprintOutput {
         """
     }
 
-    static let appAuthentication = "{[14] com.android.server.biometrics.sensors.fingerprint.aidl.FingerprintAuthenticationClient, proto=3, owner=dev.avo.fptest, cookie=1060455472, requestId=1, userId=0}, State: 2"
+    static let appAuthentication = "{[14] com.android.server.biometrics.sensors.fingerprint.aidl.FingerprintAuthenticationClient, proto=3, owner=com.avodroid.fptest, cookie=1060455472, requestId=1, userId=0}, State: 2"
     static let lockScreen = "{[18] com.android.server.biometrics.sensors.fingerprint.aidl.FingerprintAuthenticationClient, proto=3, owner=com.android.systemui, cookie=0, requestId=1, userId=0}, State: 2"
     static let settingsEnrollment = "{[24] com.android.server.biometrics.sensors.fingerprint.aidl.FingerprintEnrollClient, proto=2, owner=com.android.settings, cookie=0, requestId=3, userId=0}, State: 2"
     static let removal = "{[20] com.android.server.biometrics.sensors.fingerprint.aidl.FingerprintRemovalClient, proto=4, owner=com.android.shell, cookie=0, requestId=-1, userId=0}, State: 2"
@@ -118,7 +118,7 @@ enum RecordedFingerprintOutput {
 
     @Test func findsWhatAsksForAFinger() {
         let app = GuestFingerprints.sensorDump(RecordedFingerprintOutput.dump(operation: RecordedFingerprintOutput.appAuthentication))
-        #expect(app.request == FingerprintRequest(purpose: .authenticate, package: "dev.avo.fptest"))
+        #expect(app.request == FingerprintRequest(purpose: .authenticate, package: "com.avodroid.fptest"))
         #expect(app.stats == GuestFingerprints.Stats(count: 2, accept: 1, reject: 1, lockout: 0, permanentLockout: 0))
         let enroll = GuestFingerprints.sensorDump(RecordedFingerprintOutput.dump(operation: RecordedFingerprintOutput.settingsEnrollment))
         #expect(enroll.request == FingerprintRequest(purpose: .enroll, package: "com.android.settings"))
@@ -213,7 +213,7 @@ enum RecordedFingerprintOutput {
         #expect(helper.hasPrefix("/data/local/tmp/avo-fingerprint-") && helper.hasSuffix(".jar"))
         #expect(GuestFingerprints.checksum("abc") == "1a47e90b")
         #expect(GuestFingerprints.helperJar != nil)
-        let run = "CLASSPATH=\(helper) app_process / dev.avo.fingerprint.Main"
+        let run = "CLASSPATH=\(helper) app_process / com.avodroid.fingerprint.Main"
         let check = "[ -s \(helper) ] || { echo avo-fingerprint-helper-missing; exit 97; }"
         #expect(GuestFingerprints.renameScript(id: 7, name: "Kelingking kiri") == "\(check); \(run) rename 7 S2VsaW5na2luZyBraXJp 0")
         #expect(GuestFingerprints.removeScript(id: 7) == "\(check); \(run) remove 7 0")
@@ -412,7 +412,7 @@ final class FingerprintTestEngine: VMEngine, FingerprintEngine, @unchecked Senda
     }
 
     static let settingsEnrollment = FingerprintRequest(purpose: .enroll, package: "com.android.settings")
-    static let appAuthentication = FingerprintRequest(purpose: .authenticate, package: "dev.avo.fptest")
+    static let appAuthentication = FingerprintRequest(purpose: .authenticate, package: "com.avodroid.fptest")
     static let lockScreen = FingerprintRequest(purpose: .authenticate, package: "com.android.systemui")
 
     @Test func fingersLiveInAvoAndSettingsAddsTheOneThatTouches() async throws {
@@ -590,7 +590,7 @@ final class FingerprintTestEngine: VMEngine, FingerprintEngine, @unchecked Senda
         await android.set(request: FingerprintRequest(purpose: .authenticate, package: "com.android.systemui"))
         try await center.cancelRequest()
         #expect(await !android.commands.contains(GuestFingerprints.cancelCommand))
-        await android.set(request: FingerprintRequest(purpose: .authenticate, package: "dev.avo.fptest"))
+        await android.set(request: FingerprintRequest(purpose: .authenticate, package: "com.avodroid.fptest"))
         try await center.cancelRequest()
         #expect(await android.commands.contains(GuestFingerprints.cancelCommand))
         #expect(await android.request == nil)
@@ -603,7 +603,7 @@ final class FingerprintTestEngine: VMEngine, FingerprintEngine, @unchecked Senda
         defer { harness.cleanUp() }
         await harness.core.start()
         let (panel, _) = await harness.connect(.controlPanel)
-        let (shim, _) = await harness.connect(.shim(package: "dev.avo.hello"))
+        let (shim, _) = await harness.connect(.shim(package: "com.avodroid.hello"))
         let (engine, _) = await harness.connect(.engine)
 
         // Windows list and touch; only the Control Panel enrolls, renames and removes.
@@ -625,7 +625,7 @@ final class FingerprintTestEngine: VMEngine, FingerprintEngine, @unchecked Senda
         defer { harness.cleanUp() }
         await harness.core.start()
         let (_, panelEvents) = await harness.connect(.controlPanel)
-        let (_, shimEvents) = await harness.connect(.shim(package: "dev.avo.hello"))
+        let (_, shimEvents) = await harness.connect(.shim(package: "com.avodroid.hello"))
         try await harness.core.startVM(client: harness.connect(.controlPanel).0)
         // The fake engine has no fingerprint sensor.
         for events in [panelEvents, shimEvents] {

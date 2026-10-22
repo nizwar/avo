@@ -133,7 +133,7 @@ bool registerMethods(JNIEnv* env, const char* className, const JNINativeMethod* 
 extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
     JNIEnv* env = nullptr;
     if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) return JNI_ERR;
-    if (!registerMethods(env, "dev/avo/bridge/io/Vsock", kVsockMethods, 3)) return JNI_ERR;
-    if (!registerMethods(env, "dev/avo/bridge/display/GfxstreamFrameSink", kFrameMethods, 5)) return JNI_ERR;
+    if (!registerMethods(env, "com/avodroid/bridge/io/Vsock", kVsockMethods, 3)) return JNI_ERR;
+    if (!registerMethods(env, "com/avodroid/bridge/display/GfxstreamFrameSink", kFrameMethods, 5)) return JNI_ERR;
     return JNI_VERSION_1_6;
 }

@@ -1190,7 +1190,7 @@ actor HostAgent: DisplayResizing {
         }
     }
 
-    /// `taskId=66: dev.avo.widgets/… visible=true topActivity=ComponentInfo{com.example/com.example.Setup}`:
+    /// `taskId=66: com.avodroid.widgets/… visible=true topActivity=ComponentInfo{com.example/com.example.Setup}`:
     /// the top activity of `package`'s task on a display.
     static func topActivity(of package: String, onDisplay androidID: Int, in output: String) -> String? {
         var onDisplay = false
@@ -1336,7 +1336,7 @@ actor HostAgent: DisplayResizing {
     // MARK: Clipboard and notifications (the agent's NotificationListener and clipboard)
 
     static func clipboardCommand(_ arguments: String) -> String {
-        "CLASSPATH=\(clipboardJar) app_process / dev.avo.clipboard.Main " + arguments
+        "CLASSPATH=\(clipboardJar) app_process / com.avodroid.clipboard.Main " + arguments
     }
 
     private func installClipboardHelper() async throws {
@@ -2181,7 +2181,7 @@ actor HostAgent: DisplayResizing {
 
     static func appInfoCommand(_ packages: [String], seconds: Int = appInfoRunSeconds) -> String {
         // `timeout` (toybox): a hung runtime must not hold the app list up.
-        "CLASSPATH=\(clipboardJar) timeout \(seconds) app_process / dev.avo.clipboard.Main appinfo "
+        "CLASSPATH=\(clipboardJar) timeout \(seconds) app_process / com.avodroid.clipboard.Main appinfo "
             + packages.map(quote).joined(separator: " ")
     }
 
@@ -3041,7 +3041,10 @@ extension HostAgent {
 // MARK: - Links (Avo Links, guest/links: the links Android apps open, on the Mac)
 
 extension HostAgent {
-    static let linksPackage = "dev.avo.links"
+    static let linksPackage = "\(AvoIdentifiers.prefix).links"
+    /// Avo Links of the builds before 0.3.0 Preview 2, uninstalled once this
+    /// one is in; the browser role it held goes to this one.
+    static let formerLinksPackage = "\(AvoIdentifiers.formerPrefix).links"
     static let browserRole = "android.app.role.BROWSER"
     /// Set once Avo Links became Android's browser on this data disk: a
     /// browser the user picks in Android's settings later on stays.
@@ -3099,7 +3102,19 @@ extension HostAgent {
             }
             logger.notice("installed Avo Links")
         }
+        await retireFormerLinks()
         return Self.uid(of: Self.linksPackage, in: (try? await shell("pm list packages -U " + Self.linksPackage)) ?? "")
+    }
+
+    /// Uninstalls `formerLinksPackage` when it is there, passing its browser
+    /// role on (a browser the user picked instead stays theirs).
+    private func retireFormerLinks() async {
+        guard Self.baseAPKPath(in: (try? await shell("pm path " + Self.formerLinksPackage)) ?? "") != nil else { return }
+        let holders = (try? await root("cmd role get-role-holders \(Self.browserRole)").output) ?? ""
+        let wasBrowser = Self.roleHolders(in: holders).contains(Self.formerLinksPackage)
+        _ = try? await shell("pm uninstall " + Self.formerLinksPackage)
+        if wasBrowser { _ = try? await root("cmd role add-role-holder \(Self.browserRole) \(Self.linksPackage)") }
+        logger.notice("Avo Links moved to \(Self.linksPackage, privacy: .public)\(wasBrowser ? ", Android's browser still" : "", privacy: .public)")
     }
 
     /// Installs Avo Widgets when Android's copy is not this build's, and
@@ -3125,6 +3140,12 @@ extension HostAgent {
                 return false
             }
             logger.notice("installed Avo Widgets")
+        }
+        // The builds before 0.3.0 Preview 2 hosted widgets under another name:
+        // each panel gets its widget again from this one when it opens.
+        if Self.baseAPKPath(in: (try? await shell("pm path " + AndroidWidgets.formerPackage)) ?? "") != nil {
+            _ = try? await shell("pm uninstall " + AndroidWidgets.formerPackage)
+            logger.notice("Avo Widgets moved to \(AndroidWidgets.package, privacy: .public)")
         }
         if let result = try? await root(GuestWidgets.grantCommand), !result.succeeded {
             logger.error("Avo Widgets may not bind widgets: \(result.output.trimmed, privacy: .public)")

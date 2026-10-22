@@ -1,4 +1,4 @@
-import dev.avo.bridge.input.InputRecords;
+import com.avodroid.bridge.input.InputRecords;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;

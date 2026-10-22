@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Avo runs Android apps on a Mac. See docs/for-game-developers.md in the Avo repository. -->
-<permissions>
-    <feature name="dev.avo.feature.MAC" version="1" />
-</permissions>

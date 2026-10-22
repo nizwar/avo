@@ -19,7 +19,7 @@ syntax = "proto3";
 
 package avo.v1;
 
-option java_package = "dev.avo.bridge.proto";
+option java_package = "com.avodroid.bridge.proto";
 option java_multiple_files = true;
 option java_outer_classname = "ControlProto";
 

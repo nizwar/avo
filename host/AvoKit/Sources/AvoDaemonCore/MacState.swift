@@ -249,7 +249,7 @@ extension MacState {
 
     /// The helper prints Android's languages, after making them `tags` if given.
     static func languagesCommand(_ tags: String?) -> String {
-        "CLASSPATH=\(helperJar) app_process / dev.avo.macstate.Main locales" + (tags.map { " " + $0 } ?? "")
+        "CLASSPATH=\(helperJar) app_process / com.avodroid.macstate.Main locales" + (tags.map { " " + $0 } ?? "")
     }
 
     /// Every app keeps audio focus, as every window plays at once on a Mac
@@ -260,12 +260,12 @@ extension MacState {
     /// As Android's system user: AudioService stores the setting with its
     /// caller's identity, which the settings provider refuses for any other.
     static let audioFocusCommand =
-        "su 1000 sh -c 'CLASSPATH=\(helperJar) app_process / dev.avo.macstate.Main audiofocus'"
+        "su 1000 sh -c 'CLASSPATH=\(helperJar) app_process / com.avodroid.macstate.Main audiofocus'"
 
     /// The helper gives Android display `androidID`'s top task the input
     /// focus, as a touch there would; it prints "focused task …" when it did.
     /// The shell user may (MANAGE_ACTIVITY_TASKS, which `am` needs too).
     static func focusDisplayCommand(_ androidID: Int) -> String {
-        "CLASSPATH=\(helperJar) app_process / dev.avo.macstate.Main focus-display \(androidID)"
+        "CLASSPATH=\(helperJar) app_process / com.avodroid.macstate.Main focus-display \(androidID)"
     }
 }

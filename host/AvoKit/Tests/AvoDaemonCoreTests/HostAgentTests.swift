@@ -7,15 +7,15 @@ import Testing
         RootTask id=1 bounds=[0,0][720,1280] displayId=0 userId=0
           taskId=7: com.android.launcher3/com.android.launcher3.uioverrides.QuickstepLauncher bounds=[0,0][720,1280] userId=0 visible=true topActivity=ComponentInfo{com.android.launcher3/com.android.launcher3.uioverrides.QuickstepLauncher}
         RootTask id=20 bounds=[0,0][704,924] displayId=3 userId=0
-          taskId=20: dev.avo.hello/dev.avo.hello.MainActivity bounds=[0,0][704,924] userId=0 visible=true topActivity=ComponentInfo{dev.avo.hello/dev.avo.hello.MainActivity}
+          taskId=20: com.avodroid.hello/com.avodroid.hello.MainActivity bounds=[0,0][704,924] userId=0 visible=true topActivity=ComponentInfo{com.avodroid.hello/com.avodroid.hello.MainActivity}
         RootTask id=21 bounds=[0,0][408,892] displayId=4 userId=0
           taskId=21: com.example.game/com.example.game.Main bounds=[0,0][408,892] userId=0 visible=false topActivity=ComponentInfo{com.example.game/com.example.game.Main}
         """
 
     @Test func findsAPackagesTaskOnADisplay() {
-        #expect(HostAgent.hasTask(of: "dev.avo.hello", onDisplay: 3, in: Self.stacks))
-        #expect(!HostAgent.hasTask(of: "dev.avo.hello", onDisplay: 0, in: Self.stacks))
-        #expect(!HostAgent.hasTask(of: "dev.avo", onDisplay: 3, in: Self.stacks))
+        #expect(HostAgent.hasTask(of: "com.avodroid.hello", onDisplay: 3, in: Self.stacks))
+        #expect(!HostAgent.hasTask(of: "com.avodroid.hello", onDisplay: 0, in: Self.stacks))
+        #expect(!HostAgent.hasTask(of: "com.avodroid", onDisplay: 3, in: Self.stacks))
     }
 
     @Test func aDisplayWithOnlyHiddenTasksIsEmpty() {
@@ -45,13 +45,13 @@ import Testing
             RootTask id=1 bounds=[0,0][720,1280] displayId=0 userId=0
               taskId=7: com.android.launcher3/com.android.launcher3.uioverrides.QuickstepLauncher bounds=[0,0][720,1280] userId=0 visible=false topActivity=ComponentInfo{com.android.launcher3/com.android.launcher3.uioverrides.QuickstepLauncher}
             RootTask id=37 bounds=[0,0][720,1280] displayId=0 userId=0
-              taskId=37: dev.avo.hello/dev.avo.hello.MainActivity bounds=[0,0][720,1280] userId=0 visible=true topActivity=ComponentInfo{dev.avo.hello/dev.avo.hello.MainActivity}
+              taskId=37: com.avodroid.hello/com.avodroid.hello.MainActivity bounds=[0,0][720,1280] userId=0 visible=true topActivity=ComponentInfo{com.avodroid.hello/com.avodroid.hello.MainActivity}
             RootTask id=20 bounds=[0,0][704,924] displayId=3 userId=0
               taskId=20: com.example.game/com.example.game.Main bounds=[0,0][704,924] userId=0 visible=true topActivity=ComponentInfo{com.example.game/com.example.game.Main}
             """
         let front = HostAgent.visibleTasks(onDisplay: 0, in: stacks)
         #expect(front.map(\.id) == [37])
-        #expect(front.map(\.package) == ["dev.avo.hello"])
+        #expect(front.map(\.package) == ["com.avodroid.hello"])
     }
 
     @Test func theHomeScreenIsNeverAnAppToOpen() {
@@ -74,14 +74,14 @@ import Testing
             RootTask id=1 bounds=[0,0][720,1280] displayId=0 userId=0
               taskId=7: com.android.launcher3/com.android.launcher3.uioverrides.QuickstepLauncher bounds=[0,0][720,1280] userId=0 visible=false topActivity=ComponentInfo{com.android.launcher3/com.android.launcher3.uioverrides.QuickstepLauncher}
             RootTask id=43 bounds=[0,0][720,1280] displayId=0 userId=0
-              taskId=43: dev.avo.hello/dev.avo.hello.MainActivity bounds=[0,0][720,1280] userId=0 visible=true topActivity=ComponentInfo{dev.avo.hello/dev.avo.hello.MainActivity}
+              taskId=43: com.avodroid.hello/com.avodroid.hello.MainActivity bounds=[0,0][720,1280] userId=0 visible=true topActivity=ComponentInfo{com.avodroid.hello/com.avodroid.hello.MainActivity}
             RootTask id=20 bounds=[0,0][704,924] displayId=3 userId=0
               taskId=20: com.example.game/com.example.game.Main bounds=[0,0][704,924] userId=0 visible=true topActivity=ComponentInfo{com.example.game/com.example.game.Main}
             """
-        #expect(HostAgent.rootTask(of: "dev.avo.hello", onDisplay: 0, in: stacks) == 43)
+        #expect(HostAgent.rootTask(of: "com.avodroid.hello", onDisplay: 0, in: stacks) == 43)
         // Only tasks on Android's own screen are taken; a window's task stays.
         #expect(HostAgent.rootTask(of: "com.example.game", onDisplay: 0, in: stacks) == nil)
-        #expect(HostAgent.rootTask(of: "dev.avo", onDisplay: 0, in: stacks) == nil)
+        #expect(HostAgent.rootTask(of: "com.avodroid", onDisplay: 0, in: stacks) == nil)
     }
 
     @Test func findsAppsThatLandedInAnotherAppsWindow() {
@@ -89,7 +89,7 @@ import Testing
             RootTask id=50 bounds=[0,0][1160,800] displayId=3 userId=0
               taskId=50: id.suruhkami/com.suru.passenger.MainActivity bounds=[0,0][1160,800] userId=0 visible=true topActivity=ComponentInfo{id.suruhkami/com.suru.passenger.MainActivity}
             RootTask id=46 bounds=[0,0][1160,800] displayId=3 userId=0
-              taskId=46: dev.avo.hello/dev.avo.hello.MainActivity bounds=[0,0][1160,800] userId=0 visible=false topActivity=ComponentInfo{dev.avo.hello/dev.avo.hello.MainActivity}
+              taskId=46: com.avodroid.hello/com.avodroid.hello.MainActivity bounds=[0,0][1160,800] userId=0 visible=false topActivity=ComponentInfo{com.avodroid.hello/com.avodroid.hello.MainActivity}
             """
         let tasks = HostAgent.visibleRootTasks(onDisplay: 3, in: stacks)
         #expect(tasks.map(\.root) == [50])
@@ -111,8 +111,8 @@ import Testing
 
     @Test func startsAppsLikeALauncher() {
         // NEW_TASK | RESET_TASK_IF_NEEDED with the launcher intent: a running task moves, it does not restart.
-        #expect(HostAgent.startCommand("dev.avo.hello/.MainActivity", display: 4)
-                == "am start --display 4 -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f 0x10200000 -n 'dev.avo.hello/.MainActivity'")
+        #expect(HostAgent.startCommand("com.avodroid.hello/.MainActivity", display: 4)
+                == "am start --display 4 -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f 0x10200000 -n 'com.avodroid.hello/.MainActivity'")
     }
 
     @Test func findsRunningAppsInTheProcessList() {
@@ -120,29 +120,29 @@ import Testing
             NAME
             init
             system_server
-            dev.avo.hello
+            com.avodroid.hello
             com.example.game:remote
             com.example.gameplus
             """
-        let running = DaemonCore.packages(inProcessList: ps, among: ["dev.avo.hello", "com.example.game", "id.other"])
-        #expect(running == ["dev.avo.hello", "com.example.game"])
+        let running = DaemonCore.packages(inProcessList: ps, among: ["com.avodroid.hello", "com.example.game", "id.other"])
+        #expect(running == ["com.avodroid.hello", "com.example.game"])
     }
 
     @Test func readsNotificationsFromTheShell() {
-        let list = "0|dev.avo.hello|7|null|10123\n-1|android|55|null|1000\n0|com.android.shell|1|null|2000\n"
-        #expect(HostAgent.notificationKeys(in: list) == ["0|dev.avo.hello|7|null|10123", "0|com.android.shell|1|null|2000"])
-        #expect(HostAgent.package(ofNotification: "0|dev.avo.hello|7|null|10123") == "dev.avo.hello")
+        let list = "0|com.avodroid.hello|7|null|10123\n-1|android|55|null|1000\n0|com.android.shell|1|null|2000\n"
+        #expect(HostAgent.notificationKeys(in: list) == ["0|com.avodroid.hello|7|null|10123", "0|com.android.shell|1|null|2000"])
+        #expect(HostAgent.package(ofNotification: "0|com.avodroid.hello|7|null|10123") == "com.avodroid.hello")
         let dump = """
-            NotificationRecord(0x0d276d3a: pkg=dev.avo.hello user=UserHandle{0} id=7 tag=null importance=4 key=0|dev.avo.hello|7|null|10123: Notification(channel=orders flags=0x10))
-              icon=Icon(typ=RESOURCE pkg=dev.avo.hello id=0x7f010000)
+            NotificationRecord(0x0d276d3a: pkg=com.avodroid.hello user=UserHandle{0} id=7 tag=null importance=4 key=0|com.avodroid.hello|7|null|10123: Notification(channel=orders flags=0x10))
+              icon=Icon(typ=RESOURCE pkg=com.avodroid.hello id=0x7f010000)
               flags=16
-                contentIntent=PendingIntent{1234: PendingIntentRecord{5678 dev.avo.hello startActivity}}
+                contentIntent=PendingIntent{1234: PendingIntentRecord{5678 com.avodroid.hello startActivity}}
                 when=1792179565406/1792179565406
                     android.title=String (Pesanan baru (2))
                     android.text=String (Driver menuju lokasi Anda)
             """
         let info = HostAgent.parseNotification(dump)
-        #expect(info == HostAgent.NotificationInfo(package: "dev.avo.hello", title: "Pesanan baru (2)", text: "Driver menuju lokasi Anda",
+        #expect(info == HostAgent.NotificationInfo(package: "com.avodroid.hello", title: "Pesanan baru (2)", text: "Driver menuju lokasi Anda",
                                                    postedAt: 1_792_179_565_406, ongoing: false, importance: 4, autoCancel: true))
         let ongoing = dump.replacingOccurrences(of: "  flags=16", with: "  flags=98")
         #expect(HostAgent.parseNotification(ongoing)?.ongoing == true)

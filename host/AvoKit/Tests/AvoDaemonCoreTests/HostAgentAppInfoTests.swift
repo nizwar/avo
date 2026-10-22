@@ -119,10 +119,10 @@ import Testing
     @Test func aLegacyIconIsKeptAsAndroidDrewIt() throws {
         let bitmap = try Self.png(size: 256, argb: 0xFFD8_E8A7)
         let reports = HostAgent.parseAppInfo("""
-            {"package":"dev.avo.hello","label":"Avo Hello","versionName":"1.5","sizeBytes":33272,"iconPng":"\(Self.json(bitmap))"}
+            {"package":"com.avodroid.hello","label":"Avo Hello","versionName":"1.5","sizeBytes":33272,"iconPng":"\(Self.json(bitmap))"}
             """)
-        var info = HostAgent.packageOnlyInfo(Self.installed("dev.avo.hello"), launchable: true)
-        HostAgent.fill(&info, from: try #require(reports["dev.avo.hello"]))
+        var info = HostAgent.packageOnlyInfo(Self.installed("com.avodroid.hello"), launchable: true)
+        HostAgent.fill(&info, from: try #require(reports["com.avodroid.hello"]))
         #expect(info.iconPng == bitmap)
         #expect(info.sizeBytes == 33272)
         #expect(HostAgent.isComplete(info))
@@ -156,10 +156,10 @@ import Testing
     }
 
     @Test func theCommandRunsTheHelperForEveryPackageQuoted() {
-        let command = HostAgent.appInfoCommand(["com.garena.game.df", "dev.avo.hello"])
-        #expect(command == "CLASSPATH=/data/local/tmp/avo-clipboard.jar timeout 20 app_process / dev.avo.clipboard.Main appinfo "
-            + "'com.garena.game.df' 'dev.avo.hello'")
-        #expect(HostAgent.appInfoCommand(["it's"], seconds: 7).hasSuffix("timeout 7 app_process / dev.avo.clipboard.Main appinfo 'it'\\''s'"))
+        let command = HostAgent.appInfoCommand(["com.garena.game.df", "com.avodroid.hello"])
+        #expect(command == "CLASSPATH=/data/local/tmp/avo-clipboard.jar timeout 20 app_process / com.avodroid.clipboard.Main appinfo "
+            + "'com.garena.game.df' 'com.avodroid.hello'")
+        #expect(HostAgent.appInfoCommand(["it's"], seconds: 7).hasSuffix("timeout 7 app_process / com.avodroid.clipboard.Main appinfo 'it'\\''s'"))
         // A hung run and the rest of ListApps fit in the Mac's 60 seconds.
         #expect(HostAgent.appInfoRunSeconds <= HostAgent.appInfoSeconds && HostAgent.appInfoSeconds <= 30)
     }
@@ -167,11 +167,11 @@ import Testing
     @Test func aLabelWithUnicodeLineBreaksStaysOneReport() throws {
         // Android's org.json leaves U+0085 and U+2028 as they are; Swift counts both as newlines.
         let output = "{\"package\":\"com.example.nel\",\"label\":\"One\u{85}Two\u{2028}Three\",\"versionName\":\"1\u{2029}0\"}\n"
-            + "{\"package\":\"dev.avo.hello\",\"label\":\"Avo Hello\"}\r\n"
+            + "{\"package\":\"com.avodroid.hello\",\"label\":\"Avo Hello\"}\r\n"
         let reports = HostAgent.parseAppInfo(output)
         #expect(reports["com.example.nel"]?.label == "One\u{85}Two\u{2028}Three")
         #expect(reports["com.example.nel"]?.versionName == "1\u{2029}0")
-        #expect(reports["dev.avo.hello"]?.label == "Avo Hello")
+        #expect(reports["com.avodroid.hello"]?.label == "Avo Hello")
     }
 
     @Test func adaptiveLayersAreKeptForTheAppShim() throws {
@@ -182,7 +182,7 @@ import Testing
             "foregroundPng":"\(Self.json(foreground))"}
             {"package":"com.garena.game.df","label":"Garena Delta Force","backgroundPng":"\(Self.json(background))",\
             "foregroundPng":"bm90IGEgcG5n"}
-            {"package":"dev.avo.hello","label":"Avo Hello","iconPng":"\(Self.json(background))"}
+            {"package":"com.avodroid.hello","label":"Avo Hello","iconPng":"\(Self.json(background))"}
             """)
         var google = HostAgent.packageOnlyInfo(Self.installed("com.google.android.googlequicksearchbox", system: true), launchable: true)
         HostAgent.fill(&google, from: try #require(reports["com.google.android.googlequicksearchbox"]))
@@ -204,8 +204,8 @@ import Testing
         #expect(game.adaptiveIcon.backgroundPng == background)
         #expect(game.adaptiveIcon.foregroundPng.isEmpty) // "not a png"
 
-        var hello = HostAgent.packageOnlyInfo(Self.installed("dev.avo.hello"), launchable: true)
-        HostAgent.fill(&hello, from: try #require(reports["dev.avo.hello"]))
+        var hello = HostAgent.packageOnlyInfo(Self.installed("com.avodroid.hello"), launchable: true)
+        HostAgent.fill(&hello, from: try #require(reports["com.avodroid.hello"]))
         #expect(!hello.hasAdaptiveIcon)
     }
 
@@ -228,7 +228,7 @@ import Testing
     }
 
     @Test func packagesLeftWhenTimeRanOutAreNotReadFromTheirAPKs() {
-        let left = HostAgent.HelperAppInfo(package: "dev.avo.hello", error: HostAgent.appInfoOutOfTime)
+        let left = HostAgent.HelperAppInfo(package: "com.avodroid.hello", error: HostAgent.appInfoOutOfTime)
         #expect(HostAgent.appInfoSource(left, baseAPKBytes: 33272) == .packageOnly)
     }
 

@@ -63,7 +63,7 @@ CXX="$NDK/toolchains/llvm/prebuilt/$(ls "$NDK/toolchains/llvm/prebuilt" | head -
 # 8. Cross-language check: decode the host encoder's golden records with the
 #    same accessors the injector uses (plain JVM).
 mkdir -p "$OUT/test-classes"
-javac --release 17 -d "$OUT/test-classes" "$HERE/src/dev/avo/bridge/input/InputRecords.java" "$HERE/test/InputRecordsTest.java"
+javac --release 17 -d "$OUT/test-classes" "$HERE/src/com/avodroid/bridge/input/InputRecords.java" "$HERE/test/InputRecordsTest.java"
 java -cp "$OUT/test-classes" InputRecordsTest "$ROOT/proto/testdata/input-v1.bin"
 
 # 9. Package, align and sign.

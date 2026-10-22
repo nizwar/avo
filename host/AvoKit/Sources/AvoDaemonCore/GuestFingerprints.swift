@@ -43,7 +43,7 @@ enum GuestFingerprints {
     static let helperPath = "/data/local/tmp/avo-fingerprint-\(checksum(FingerprintHelper.jar)).jar"
 
     static func helper(_ arguments: String) -> String {
-        "CLASSPATH=\(helperPath) app_process / dev.avo.fingerprint.Main " + arguments
+        "CLASSPATH=\(helperPath) app_process / com.avodroid.fingerprint.Main " + arguments
     }
 
     /// The script's exit status when the jar still has to be copied in.

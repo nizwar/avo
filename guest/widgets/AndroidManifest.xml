@@ -6,7 +6,7 @@
      reads the widgets Android has through WidgetsProvider (HostAgent,
      "Widgets"). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="dev.avo.widgets"
+    package="com.avodroid.widgets"
     android:versionCode="1"
     android:versionName="1.0">
     <uses-sdk android:minSdkVersion="34" android:targetSdkVersion="36" />
@@ -24,7 +24,7 @@
         <!-- The widgets Android has, as JSON, and letting go of a removed
              panel's widget, for Android's shell only (`content read` and
              `content call`, see WidgetsProvider). -->
-        <provider android:name=".WidgetsProvider" android:authorities="dev.avo.widgets"
+        <provider android:name=".WidgetsProvider" android:authorities="com.avodroid.widgets"
             android:exported="true" />
     </application>
 </manifest>

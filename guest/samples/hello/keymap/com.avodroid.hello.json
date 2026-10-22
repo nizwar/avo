@@ -1,0 +1,112 @@
+{
+  "schema": 1,
+  "package": "com.avodroid.hello",
+  "name": "Avo Hello - Arena",
+  "author": "Avo",
+  "notes": "Controls for the Arena game in the Avo Hello sample (Main game Arena). WASD moves, Space jumps, J fires, hold K for the shield, E dashes up, hold B and move the mouse to pick an emoji. F8 locks the mouse to aim with the eye (fn+F8 on keyboards whose top row controls media).",
+  "controls": [
+    {
+      "id": "move",
+      "type": "dpad",
+      "center": [
+        0.18,
+        0.78
+      ],
+      "radius": 0.11,
+      "up": "key:W",
+      "down": "key:S",
+      "left": "key:A",
+      "right": "key:D",
+      "stick": "left"
+    },
+    {
+      "id": "aim",
+      "type": "aim",
+      "area": [
+        0.55,
+        0.08,
+        1.0,
+        0.5
+      ],
+      "sensitivity": {
+        "x": 1.0,
+        "y": 1.0
+      },
+      "ads_sensitivity": {
+        "x": 0.6,
+        "y": 0.6
+      },
+      "exponent": 1.0,
+      "deadzone": 0,
+      "invert_y": false,
+      "stick": "right"
+    },
+    {
+      "id": "jump",
+      "type": "tap",
+      "position": [
+        0.88,
+        0.8
+      ],
+      "triggers": [
+        "key:Space",
+        "pad:a"
+      ]
+    },
+    {
+      "id": "fire",
+      "type": "tap",
+      "position": [
+        0.74,
+        0.88
+      ],
+      "triggers": [
+        "key:J",
+        "pad:rightTrigger"
+      ]
+    },
+    {
+      "id": "shield",
+      "type": "hold",
+      "position": [
+        0.88,
+        0.62
+      ],
+      "triggers": [
+        "key:K",
+        "pad:leftShoulder"
+      ]
+    },
+    {
+      "id": "dash",
+      "type": "swipe",
+      "from": [
+        0.4,
+        0.5
+      ],
+      "to": [
+        0.4,
+        0.3
+      ],
+      "ms": 150,
+      "triggers": [
+        "key:E"
+      ]
+    },
+    {
+      "id": "emote",
+      "type": "anchor",
+      "position": [
+        0.5,
+        0.9
+      ],
+      "triggers": [
+        "key:B"
+      ]
+    }
+  ],
+  "fps": {
+    "cursor_toggle": "key:F8",
+    "aim_control": "aim"
+  }
+}

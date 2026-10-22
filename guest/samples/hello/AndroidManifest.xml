@@ -3,7 +3,7 @@
      touch and keyboard input, resizing, location, notifications, speaker and
      microphone, and key mapping (the Arena game). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="dev.avo.hello"
+    package="com.avodroid.hello"
     android:versionCode="6"
     android:versionName="1.5">
     <uses-sdk android:minSdkVersion="34" android:targetSdkVersion="36" />

@@ -36,7 +36,7 @@ public struct DeviceProfile: Codable, Identifiable, Equatable, Sendable {
             "ro.product.name": "avo_droid",
             "ro.product.device": "avo_droid",
         ],
-        notes: "Default, and Avo's honest identity: apps see a device made by Avo, model AVO-Droid. Brand, name and device say Avo too, and Android derives the build fingerprint from them with the image's own release, build ID, incremental, type and tags, so it is valid and true for every image. Board, hardware and SoC stay the image's (AOSP Cuttlefish), because they describe the virtual hardware Android runs on. Avo also states what it is on every boot whichever profile is chosen (ro.boot.avo.* and the dev.avo.feature.MAC system feature): see docs/for-game-developers.md.")
+        notes: "Default, and Avo's honest identity: apps see a device made by Avo, model AVO-Droid. Brand, name and device say Avo too, and Android derives the build fingerprint from them with the image's own release, build ID, incremental, type and tags, so it is valid and true for every image. Board, hardware and SoC stay the image's (AOSP Cuttlefish), because they describe the virtual hardware Android runs on. Avo also states what it is on every boot whichever profile is chosen (ro.boot.avo.* and the com.avodroid.feature.MAC system feature): see docs/for-game-developers.md.")
 
     /// Properties every impersonation template must define.
     public static let requiredProperties = [

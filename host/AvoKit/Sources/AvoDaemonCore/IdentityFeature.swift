@@ -15,24 +15,33 @@ enum IdentityFeature {
     static let path = AvoIdentity.permissionsPath
     /// Beside `path` under a name SystemConfig skips (it reads `*.xml`).
     static let temporary = (AvoIdentity.permissionsPath as NSString).deletingLastPathComponent
-        + "/.dev.avo.feature.mac.xml.new"
+        + "/.\(AvoIdentifiers.prefix).feature.mac.xml.new"
     static let separator = "--avo-feature--"
+    /// After it: whether the former file (`AvoIdentity.formerPermissionsPath`) is there.
+    static let formerSeparator = "--avo-former-feature--"
 
     /// The install's file list (`GoogleAppsCommit.stateCommand`), then the
     /// file. `root` prefixes the paths (a scratch folder in tests).
     static func checkCommand(root: String = "") -> String {
         GoogleAppsCommit.stateCommand(layout: GoogleAppsCommit.Layout(root: root))
-            + "; echo \(separator); cat \(quote(root + path)) 2>/dev/null; true"
+            + "; echo \(separator); cat \(quote(root + path)) 2>/dev/null"
+            + "; echo \(formerSeparator); [ -e \(quote(root + AvoIdentity.formerPermissionsPath)) ] && echo former; true"
     }
 
     /// True when Google apps are installed in full, so /product keeps what is
-    /// written, and the file is missing or not this schema's.
+    /// written, and the file is missing or not this schema's, or the former
+    /// one is still there.
     static func needsWrite(checkOutput output: String) -> Bool {
         guard let mark = output.range(of: separator) else { return false }
         guard GoogleAppsCommit.state(fromOutput: String(output[..<mark.lowerBound])) == .complete else { return false }
         var current = output[mark.upperBound...]
+        var former = false
+        if let formerMark = current.range(of: formerSeparator) {
+            former = current[formerMark.upperBound...].contains("former")
+            current = current[..<formerMark.lowerBound]
+        }
         if current.first == "\n" { current = current.dropFirst() }
-        return current != AvoIdentity.permissionsFile
+        return former || current != AvoIdentity.permissionsFile
     }
 
     /// Makes /product writable (`remount`, as the Google apps install does),
@@ -51,6 +60,7 @@ enum IdentityFeature {
             "chown root:root \(staged)",
             "mv -f \(staged) \(file)",
             "restorecon \(file)",
+            "rm -f \(quote(root + AvoIdentity.formerPermissionsPath))",
             "sync )",
             "s=$?",
             "rm -f \(staged)",

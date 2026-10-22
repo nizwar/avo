@@ -5,7 +5,7 @@ import Foundation
 /// takes a code path for a chipset or a brand. It is for development — testing
 /// a build's per-device behaviour without the device — and like the identity
 /// it does not pass hardware attestation; Avo still states what it is
-/// (`ro.boot.avo.*`, `dev.avo.feature.MAC`), whichever profile is chosen.
+/// (`ro.boot.avo.*`, `com.avodroid.feature.MAC`), whichever profile is chosen.
 ///
 /// The parts reach Android three ways: SoC facts as read-only properties
 /// (`ro.soc.*`, `ro.board.platform`, `Build.BOARD`, vendor keys), the GPU

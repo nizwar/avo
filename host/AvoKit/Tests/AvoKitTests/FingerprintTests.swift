@@ -65,7 +65,7 @@ import Testing
         #expect(status.finger(2)?.name == "Left index finger")
         #expect(status.finger(3) == nil)
         #expect(FingerprintRequest(purpose: .authenticate, package: "com.android.systemui").isLockScreen)
-        #expect(!FingerprintRequest(purpose: .authenticate, package: "dev.avo.hello").isLockScreen)
+        #expect(!FingerprintRequest(purpose: .authenticate, package: "com.avodroid.hello").isLockScreen)
     }
 
     @Test func statusAndErrorsCrossXPC() throws {

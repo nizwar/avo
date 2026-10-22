@@ -1,2 +1,2 @@
-# Platform-signed dev.avo.bridge runs in its own domain.
-user=_app seinfo=platform name=dev.avo.bridge domain=avo_bridge type=app_data_file levelFrom=all
+# Platform-signed com.avodroid.bridge runs in its own domain.
+user=_app seinfo=platform name=com.avodroid.bridge domain=avo_bridge type=app_data_file levelFrom=all

@@ -1050,6 +1050,13 @@ that without the player's say:
   a `dev.avo.shim.` identifier are made again. macOS may ask once more for
   what the helpers had been allowed (camera, microphone, Bluetooth,
   location, notifications), which it keeps by identifier.
+  In Android, Avo's helpers moved too (`com.avodroid.links`, `.widgets`, the
+  `app_process` helpers' classes, `com.avodroid.feature.MAC`). HostAgent
+  uninstalls `dev.avo.links` once this build's is in, passing on the browser
+  role if it held it, and `dev.avo.widgets` (each widget panel gets its
+  widget again from the new host when it opens; one that asks for settings
+  asks once more). `IdentityFeature` removes `dev.avo.feature.mac.xml` where
+  it writes the new file.
 
 Every release must raise `CFBundleVersion` (`CURRENT_PROJECT_VERSION`).
 Sparkle needs it, and so do the daemon's and the shims' build checks.
@@ -1179,11 +1186,11 @@ through HostAgent (`GuestFingerprints` has the commands and their parsing):
 Android apps' home screen widgets show on the Mac in floating panels, live:
 they update and take clicks as on a phone.
 
-- **In Android:** Avo Widgets (`guest/widgets`, `dev.avo.widgets`), built
+- **In Android:** Avo Widgets (`guest/widgets`, `com.avodroid.widgets`), built
   like Avo Links and installed by HostAgent at each start when Android's copy
   differs. `appwidget grantbind` (as root) lets it bind any app's widget
   without asking; QUERY_ALL_PACKAGES lets it see every app's.
-  - `WidgetsProvider`: `content read --uri content://dev.avo.widgets/providers`
+  - `WidgetsProvider`: `content read --uri content://com.avodroid.widgets/providers`
     lists the widgets as JSON (provider, labels, size in dp, a preview PNG);
     `content call … --method delete --arg SLOT` lets go of a removed panel's
     widget. Only the shell and root may ask.
@@ -1196,7 +1203,7 @@ they update and take clicks as on a phone.
   provider, size) and sends `DaemonEvent.widgets` to Control Panels.
 - **The panels** (`WidgetPanels`, in AvoWindowHost) run in the daemon's own
   process, which is there whenever Android is. They are an in-process client
-  (`DaemonCore.registerInProcess`, role `shim(dev.avo.widgets)`), so they need
+  (`DaemonCore.registerInProcess`, role `shim(com.avodroid.widgets)`), so they need
   no XPC connection or shim hash. Each opens a display with
   `OpenDisplayRequest.widget`; `openDisplay` turns it into the activity's
   launch. The renderer draws them with `avo_keyed`: Android's empty, pure

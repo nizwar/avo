@@ -46,16 +46,16 @@ import Testing
 
 @Suite struct NotificationGroupTests {
     private func notification(_ package: String, _ n: Int) -> AndroidNotification {
-        AndroidNotification(key: "0|\(package)|\(n)|null|10124", package: package, appName: package == "dev.avo.hello" ? "Avo Hello" : "F-Droid",
+        AndroidNotification(key: "0|\(package)|\(n)|null|10124", package: package, appName: package == "com.avodroid.hello" ? "Avo Hello" : "F-Droid",
                             title: "Title \(n)", body: "Body \(n)", postedAt: Date(timeIntervalSince1970: Double(n)))
     }
 
     /// One chatty app is one group: groups follow their newest notification.
     @Test func groupsPerAppNewestFirst() {
-        let list = [notification("dev.avo.hello", 9), notification("org.fdroid.fdroid", 8), notification("dev.avo.hello", 7),
-                    notification("dev.avo.hello", 6), notification("org.fdroid.fdroid", 5)]
+        let list = [notification("com.avodroid.hello", 9), notification("org.fdroid.fdroid", 8), notification("com.avodroid.hello", 7),
+                    notification("com.avodroid.hello", 6), notification("org.fdroid.fdroid", 5)]
         let groups = NotificationGroup.grouping(list)
-        #expect(groups.map(\.package) == ["dev.avo.hello", "org.fdroid.fdroid"])
+        #expect(groups.map(\.package) == ["com.avodroid.hello", "org.fdroid.fdroid"])
         #expect(groups[0].appName == "Avo Hello")
         #expect(groups[0].notifications.map(\.title) == ["Title 9", "Title 7", "Title 6"])
         #expect(groups[0].newest.title == "Title 9")

@@ -100,7 +100,7 @@ import Testing
         #expect(source.imageArtifact(build: "16373615") == "aosp_cf_arm64_only_phone-img-16373615.zip")
         #expect(source.webPage(build: "1")?.absoluteString == "https://ci.android.com/builds/submitted/1/aosp_cf_arm64_only_phone-userdebug/latest")
 
-        let suite = "dev.avo.tests.\(UUID().uuidString)"
+        let suite = "com.avodroid.tests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         #expect(AndroidBuildSource.current(defaults: defaults) == source)

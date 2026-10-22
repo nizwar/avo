@@ -43,7 +43,7 @@ import Testing
     }
 
     @Test func eachAppRemembersItsModes() throws {
-        let suite = "dev.avo.tests.windowmodes.\(UUID().uuidString)"
+        let suite = "com.avodroid.tests.windowmodes.\(UUID().uuidString)"
         let store = try #require(UserDefaults(suiteName: suite))
         defer { store.removePersistentDomain(forName: suite) }
         let settings = WindowModeSettings(store: store)
@@ -62,7 +62,7 @@ import Testing
 
     /// An app follows the Control Panel's app bar style until it has its own.
     @Test func anAppMayHaveItsOwnAppBarStyle() throws {
-        let suite = "dev.avo.tests.appbar.\(UUID().uuidString)"
+        let suite = "com.avodroid.tests.appbar.\(UUID().uuidString)"
         let store = try #require(UserDefaults(suiteName: suite))
         defer { store.removePersistentDomain(forName: suite) }
         let settings = WindowModeSettings(store: store)
@@ -78,7 +78,7 @@ import Testing
 
     /// Closing a game's window asks first until Don't Ask Again (or Settings) turns it off.
     @Test func quittingAGameAsksUntilToldNotTo() throws {
-        let suite = "dev.avo.tests.quit.\(UUID().uuidString)"
+        let suite = "com.avodroid.tests.quit.\(UUID().uuidString)"
         let store = try #require(UserDefaults(suiteName: suite))
         defer { store.removePersistentDomain(forName: suite) }
         let settings = QuitSettings(store: store)

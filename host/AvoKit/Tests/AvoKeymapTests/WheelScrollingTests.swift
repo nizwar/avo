@@ -32,7 +32,7 @@ import Testing
     // MARK: The setting
 
     @Test func theModeIsKeptPerAppOverTheDefault() throws {
-        let names = (0..<3).map { "dev.avo.tests.scroll.\($0).\(UUID().uuidString)" }
+        let names = (0..<3).map { "com.avodroid.tests.scroll.\($0).\(UUID().uuidString)" }
         let app = try #require(UserDefaults(suiteName: names[0]))
         let shared = try #require(UserDefaults(suiteName: names[1]))
         let otherApp = try #require(UserDefaults(suiteName: names[2]))

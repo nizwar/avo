@@ -166,7 +166,7 @@ import Testing
     }
 
     @Test func recordingsTakeAndroidsSoundUnlessTurnedOff() throws {
-        let suite = "dev.avo.tests.capture.\(UUID().uuidString)"
+        let suite = "com.avodroid.tests.capture.\(UUID().uuidString)"
         let store = try #require(UserDefaults(suiteName: suite))
         defer { store.removePersistentDomain(forName: suite) }
         let settings = CaptureSettings(store: store)

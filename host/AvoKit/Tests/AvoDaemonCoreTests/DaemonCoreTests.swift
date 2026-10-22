@@ -462,7 +462,7 @@ struct Harness {
         harness.engine.adbShellHandler = { command in
             if command.hasPrefix("pm install-create") { return ("Success: created install session [42]\n", "", 0) }
             if command == "pm install-commit 42" {
-                Task { await agent.install(FakeBridgeAgent.app("dev.avo.fixture", label: "Avo Fixture")) }
+                Task { await agent.install(FakeBridgeAgent.app("com.avodroid.fixture", label: "Avo Fixture")) }
                 return ("Success\n", "", 0)
             }
             return ("", "unexpected", 1)
@@ -474,12 +474,12 @@ struct Harness {
         let writes = await adbd.execWrites.map(\.command)
         #expect(writes.count == 3) // base + arm64 + xxxhdpi; x86_64 skipped
         #expect(writes.allSatisfy { $0.hasPrefix("cmd package install-write") })
-        #expect(await adbd.pushed.keys.sorted() == ["/sdcard/Android/obb/dev.avo.fixture/main.42.dev.avo.fixture.obb"])
+        #expect(await adbd.pushed.keys.sorted() == ["/sdcard/Android/obb/com.avodroid.fixture/main.42.com.avodroid.fixture.obb"])
         let phases = events.events.compactMap { if case .installProgress(let p) = $0 { p.phase } else { nil } }
         #expect(phases.first == .inspecting)
         #expect(phases.contains(.startingVM) && phases.contains(.transferring) && phases.contains(.copyingOBB))
         #expect(phases.last == .finished)
-        #expect(await eventually { await harness.core.apps().contains { $0.package == "dev.avo.fixture" } })
+        #expect(await eventually { await harness.core.apps().contains { $0.package == "com.avodroid.fixture" } })
     }
 
     @Test func rejectsPackagesAppleSiliconCannotRun() async throws {

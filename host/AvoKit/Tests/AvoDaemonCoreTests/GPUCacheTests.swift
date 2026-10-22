@@ -35,7 +35,7 @@ import Testing
         defer { harness.cleanUp() }
         try Self.fill(harness.paths.home)
         let (panel, _) = await harness.connect(.controlPanel)
-        let (shim, _) = await harness.connect(.shim(package: "dev.avo.hello"))
+        let (shim, _) = await harness.connect(.shim(package: "com.avodroid.hello"))
         await #expect(throws: AvoError.self) { try await harness.core.clearGPUCache(client: shim) }
         await #expect(throws: AvoError.self) { try await harness.core.gpuCacheStatus(client: shim) }
         #expect(try await harness.core.gpuCacheStatus(client: panel).bytes == 3100)

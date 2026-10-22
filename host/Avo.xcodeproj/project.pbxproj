@@ -186,6 +186,17 @@
 		1D53782E6B5857E8BE21FBDA /* Embed Dependencies */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
+			dstPath = Contents/Library/Helpers;
+			dstSubfolderSpec = 1;
+			files = (
+				47016DFED92044DBDCC83456 /* AvoDaemon.app in Embed Dependencies */,
+			);
+			name = "Embed Dependencies";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9B5483BA2FEF5F7A9BECF5F2 /* Embed Dependencies */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
 			dstPath = Contents/Library/Shim;
 			dstSubfolderSpec = 1;
 			files = (
@@ -194,24 +205,13 @@
 			name = "Embed Dependencies";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		9B5483BA2FEF5F7A9BECF5F2 /* Embed Dependencies */ = {
+		C7672177C149A74FB486AFCE /* Embed Dependencies */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 6;
 			files = (
 				3B17A894C265E7F52B64E424 /* avoctl in Embed Dependencies */,
-			);
-			name = "Embed Dependencies";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		C7672177C149A74FB486AFCE /* Embed Dependencies */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = Contents/Library/Helpers;
-			dstSubfolderSpec = 1;
-			files = (
-				47016DFED92044DBDCC83456 /* AvoDaemon.app in Embed Dependencies */,
 			);
 			name = "Embed Dependencies";
 			runOnlyForDeploymentPostprocessing = 0;

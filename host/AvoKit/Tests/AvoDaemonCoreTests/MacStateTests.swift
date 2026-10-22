@@ -128,20 +128,20 @@ import Testing
 
     @Test func audioFocusRunsTheHelperAsAndroidsSystemUser() {
         #expect(MacState.audioFocusCommand
-                == "su 1000 sh -c 'CLASSPATH=/data/local/tmp/avo-macstate.jar app_process / dev.avo.macstate.Main audiofocus'")
+                == "su 1000 sh -c 'CLASSPATH=/data/local/tmp/avo-macstate.jar app_process / com.avodroid.macstate.Main audiofocus'")
         #expect(MacState.audioFocusQuery == "settings get system multi_audio_focus_enabled")
     }
 
     @Test func focusDisplayRunsTheHelperAsTheShellUser() {
         #expect(MacState.focusDisplayCommand(3)
-                == "CLASSPATH=/data/local/tmp/avo-macstate.jar app_process / dev.avo.macstate.Main focus-display 3")
+                == "CLASSPATH=/data/local/tmp/avo-macstate.jar app_process / com.avodroid.macstate.Main focus-display 3")
     }
 
     @Test func languagesCommandRunsTheHelper() {
         #expect(MacState.languagesCommand(nil)
-                == "CLASSPATH=/data/local/tmp/avo-macstate.jar app_process / dev.avo.macstate.Main locales")
+                == "CLASSPATH=/data/local/tmp/avo-macstate.jar app_process / com.avodroid.macstate.Main locales")
         #expect(MacState.languagesCommand("en-ID,id-ID")
-                == "CLASSPATH=/data/local/tmp/avo-macstate.jar app_process / dev.avo.macstate.Main locales en-ID,id-ID")
+                == "CLASSPATH=/data/local/tmp/avo-macstate.jar app_process / com.avodroid.macstate.Main locales en-ID,id-ID")
         #expect(MacState.parseLanguages("locales en-ID,id-ID\n") == "en-ID,id-ID")
         #expect(MacState.parseLanguages("WARNING: linker: something\nlocales en-US\n") == "en-US")
         #expect(MacState.parseLanguages("Exception in thread main\n") == nil)

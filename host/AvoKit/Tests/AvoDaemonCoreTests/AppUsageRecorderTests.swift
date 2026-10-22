@@ -51,17 +51,17 @@ import Testing
         recorder.closed(display: 1, at: start + 1800)
         recorder.closed(display: 2, at: start + 2400)
         // Another app at the same time has its own time.
-        recorder.opened(display: 3, package: "dev.avo.hello", at: start + 300)
+        recorder.opened(display: 3, package: "com.avodroid.hello", at: start + 300)
         recorder.visibility(display: 3, visible: false, at: start + 360)
         let game = try #require(recorder.usage[Self.game])
         #expect(game.days.first?.foregroundSeconds == 2400)
         #expect(game.days.first?.sessions == 1)
-        #expect(recorder.usage["dev.avo.hello"]?.days.first?.foregroundSeconds == 60)
+        #expect(recorder.usage["com.avodroid.hello"]?.days.first?.foregroundSeconds == 60)
         // Unknown displays and repeated states change nothing.
         recorder.visibility(display: 9, visible: true, at: start + 2500)
         recorder.closed(display: 9, at: start + 2500)
         recorder.visibility(display: 3, visible: false, at: start + 2500)
-        #expect(recorder.usage["dev.avo.hello"]?.days.first?.foregroundSeconds == 60)
+        #expect(recorder.usage["com.avodroid.hello"]?.days.first?.foregroundSeconds == 60)
     }
 
     @Test func framesCountWhileOnScreen() throws {
@@ -104,7 +104,7 @@ import Testing
         var recorder = AppUsageRecorder(url: nil, calendar: Self.calendar)
         let start = Self.date(18, 9)
         recorder.opened(display: 1, package: Self.game, at: start)
-        recorder.opened(display: 2, package: "dev.avo.hello", at: start)
+        recorder.opened(display: 2, package: "com.avodroid.hello", at: start)
         recorder.closedAll(at: start + 90)
         #expect(!recorder.anyOnScreen)
         #expect(recorder.usage.values.allSatisfy { !$0.isOnScreen && $0.days.first?.foregroundSeconds == 90 })
@@ -149,10 +149,10 @@ import Testing
         #expect(game.days.first?.date == AppUsage.dayKey(later, calendar: Self.calendar))
 
         recorder.closed(display: 2, at: later + 60)
-        recorder.opened(display: 3, package: "dev.avo.hello", at: later + 60)
+        recorder.opened(display: 3, package: "com.avodroid.hello", at: later + 60)
         recorder.forget(Self.game)
         #expect(recorder.usage[Self.game] == nil)
-        #expect(recorder.usage["dev.avo.hello"] != nil)
+        #expect(recorder.usage["com.avodroid.hello"] != nil)
         recorder.forgetAll()
         #expect(recorder.usage.isEmpty)
     }

@@ -9,7 +9,7 @@ made by Avo, model AVO-Droid. The other templates impersonate phones, so apps
 read that phone's `Build.*` fields instead. Impersonation does not pass
 hardware attestation, and the Control Panel says so. Whichever template is
 chosen, Avo still identifies itself to apps that check for it (the
-`ro.boot.avo.*` properties and the `dev.avo.feature.MAC` system feature; see
+`ro.boot.avo.*` properties and the `com.avodroid.feature.MAC` system feature; see
 [docs/for-game-developers.md](../../docs/for-game-developers.md)).
 
 ```json

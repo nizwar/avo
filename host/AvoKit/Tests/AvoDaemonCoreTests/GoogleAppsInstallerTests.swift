@@ -731,7 +731,7 @@ final class Flag: @unchecked Sendable {
         #expect(status == GoogleAppsStatus(supported: false))
         let request = GoogleAppsInstallRequest(source: .github(url: GoogleAppsDownloaderTests.link))
         await #expect(throws: AvoError.self) { try await harness.core.installGoogleApps(request, client: panel) }
-        let (shim, _) = await harness.connect(.shim(package: "dev.avo.hello"))
+        let (shim, _) = await harness.connect(.shim(package: "com.avodroid.hello"))
         await #expect(throws: AvoError.unauthorizedCaller) { try await harness.core.googleAppsStatus(client: shim) }
     }
 }
