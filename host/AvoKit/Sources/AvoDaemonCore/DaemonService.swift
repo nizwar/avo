@@ -89,6 +89,10 @@ public final class DaemonService: NSObject, NSXPCListenerDelegate, @unchecked Se
     let policy: CallerPolicy
     private let listener: NSXPCListener
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "XPC")
+    /// What each new connection's peer must satisfy (CallerPolicy.requirement);
+    /// nil for a development build.
+    private let requirementLock = NSLock()
+    private var requirement: String?
 
     public init(core: DaemonCore, policy: CallerPolicy, listener: NSXPCListener) {
         self.core = core
@@ -98,20 +102,30 @@ public final class DaemonService: NSObject, NSXPCListenerDelegate, @unchecked Se
         listener.delegate = self
     }
 
+    /// Takes connections once the shims are known, so that none is accepted
+    /// without its requirement.
     public func resume() {
-        Task { await refreshRequirement() }
-        listener.resume()
-    }
-
-    /// Re-pins the listener to Avo's team plus every known shim.
-    public func refreshRequirement() async {
-        let hashes = Array(await core.shimHashes().values)
-        if let requirement = policy.requirement(shimHashes: hashes) {
-            listener.setConnectionCodeSigningRequirement(requirement)
+        Task {
+            await refreshRequirement()
+            listener.resume()
         }
     }
 
+    /// Re-pins new connections to Avo's team plus every known shim. Each
+    /// connection takes the requirement when it is accepted: the listener's
+    /// own cannot change once it runs (setting it again is an XPC API misuse,
+    /// and libxpc traps: every APK install killed the first Developer ID
+    /// daemon, Android with it).
+    public func refreshRequirement() async {
+        let hashes = Array(await core.shimHashes().values)
+        let requirement = policy.requirement(shimHashes: hashes)
+        requirementLock.withLock { self.requirement = requirement }
+    }
+
     public func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
+        if let requirement = requirementLock.withLock({ self.requirement }) {
+            connection.setCodeSigningRequirement(requirement)
+        }
         let client = ClientConnection(connection: connection, service: self)
         connection.exportedInterface = AvoXPC.daemonInterface()
         connection.exportedObject = client
