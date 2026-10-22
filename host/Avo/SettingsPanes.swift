@@ -273,6 +273,15 @@ struct GraphicsPane: View {
     @Environment(ControlPanelModel.self) private var model
     /// Which profile the editor shows; not a setting.
     @State private var profile: GraphicsProfile = .apps
+
+    /// The preset's key in the configuration (issues name their fields with it).
+    private static func field(of profile: GraphicsProfile) -> String {
+        switch profile {
+        case .apps: "appGraphics"
+        case .games: "gameGraphics"
+        case .phone: "phoneGraphics"
+        }
+    }
     @State private var confirmResetAll = false
 
     var body: some View {
@@ -308,12 +317,13 @@ struct GraphicsPane: View {
             }
             Section {
                 LabeledContent {
-                    HazeSegmented.inset([(GraphicsProfile.apps, Text("Apps")), (GraphicsProfile.games, Text("Games"))], selection: $profile)
+                    HazeSegmented.inset([(GraphicsProfile.apps, Text("Apps")), (GraphicsProfile.games, Text("Games")),
+                                         (GraphicsProfile.phone, Text("Phone"))], selection: $profile)
                         .fixedSize()
                         .accessibilityElement(children: .contain)
                         .accessibilityLabel(Text("Edit preset"))
                 } label: {
-                    HelpTitle("Edit preset", help: "The settings below are the Apps preset’s or the Games preset’s. Games are apps with a key mapping, or apps you set to the Games preset on their page.")
+                    HelpTitle("Edit preset", help: "The settings below are the Apps, Games or Phone preset’s. Games are apps with a key mapping, or apps you set to the Games preset on their page. Phone is for apps you set to it on their page: the phone’s own screen, at its density.")
                 }
                 GraphicsSettingsEditor(settings: Binding(get: { config.settings(for: profile) }, set: { value in
                     let profile = profile
@@ -321,9 +331,10 @@ struct GraphicsPane: View {
                         switch profile {
                         case .apps: config.appGraphics = value
                         case .games: config.gameGraphics = value
+                        case .phone: config.phoneGraphics = value
                         }
                     }
-                }), fieldPrefix: profile == .apps ? "appGraphics" : "gameGraphics")
+                }), fieldPrefix: Self.field(of: profile))
                 .id(profile)
                 if !config.graphicsOverrides.isEmpty {
                     LabeledContent("Apps with their own settings: \(config.graphicsOverrides.count)") {

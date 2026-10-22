@@ -441,9 +441,12 @@ Android; Swipe mode turns its pages when a burst's drag passes the middle.
 
 ## Resolution and scaling
 
-Each app resolves its graphics settings from two profiles in `VMConfig`,
-Apps (`appGraphics`) and Games (`gameGraphics`), plus a sparse per-app
-override (`graphicsOverrides`) that holds only the fields the user changed.
+Each app resolves its graphics settings from one of three profiles in
+`VMConfig`, Apps (`appGraphics`), Games (`gameGraphics`) and Phone
+(`phoneGraphics`: the device profile's screen at its density, only when the
+user chooses it for an app, which then opens in its own orientation), plus a
+sparse per-app override (`graphicsOverrides`) that holds only the fields the
+user changed.
 An app is a game when the user chose so, it has a usable key mapping
 (`KeymapProfile.usable`), or it says it is one: its manifest's
 `android:appCategory="game"` or the older `android:isGame`, which the helper's

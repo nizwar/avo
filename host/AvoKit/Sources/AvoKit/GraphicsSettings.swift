@@ -13,6 +13,8 @@ import Foundation
 public enum GraphicsProfile: String, Codable, CaseIterable, Sendable {
     case apps
     case games
+    /// As on the phone of the device profile: its screen, at its density.
+    case phone
 }
 
 public struct GraphicsSettings: Codable, Equatable, Hashable, Sendable {
@@ -137,6 +139,12 @@ public struct GraphicsSettings: Codable, Equatable, Hashable, Sendable {
     /// fixed shape never makes the game lay out again when the window changes.
     public static let gamesDefault = GraphicsSettings(mode: .fixed, renderScale: 67, shortSide: 720, aspectRatio: .ratio16x9,
                                                       orientation: .landscape, interfaceScale: 100, filter: .metalFXSpatial, sharpness: 0)
+    /// Phone: the device profile's screen at its own density, so an app
+    /// lays out and renders as on that phone (Android's own screen is the
+    /// same with "Emulate this phone's hardware": VMConfig.androidScreen).
+    /// The app's own orientation (`VMConfig.graphics(for:)`).
+    public static let phoneDefault = GraphicsSettings(mode: .deviceProfile, renderScale: 100, shortSide: 1080, aspectRatio: .matchWindow,
+                                                      orientation: .portrait, interfaceScale: 100, filter: .metalFXSpatial, sharpness: 0)
 
     public static let renderScaleRange = 50...100
     /// Up to 4K (2160p).
@@ -432,6 +440,7 @@ extension VMConfig {
         switch profile {
         case .apps: appGraphics
         case .games: gameGraphics
+        case .phone: phoneGraphics
         }
     }
 
@@ -443,7 +452,8 @@ extension VMConfig {
     /// keeps the Games profile's performance settings but opens in
     /// `orientation`, the one it asks for (AppRecord.orientation), so a
     /// portrait game is not turned; one that lets the screen turn takes the
-    /// profile's.
+    /// profile's. Phone, chosen, opens every app in its own orientation, as
+    /// a phone does.
     public func graphics(for package: String, hasKeyMapping: Bool, isGame: Bool = false,
                          orientation: VMConfig.Orientation? = nil) -> ResolvedGraphics {
         let override = graphicsOverrides[package]
@@ -463,7 +473,7 @@ extension VMConfig {
             reason = ResolvedGraphics.Reason.none
         }
         var base = settings(for: profile)
-        if reason == .androidGame, let orientation { base.orientation = orientation }
+        if reason == .androidGame || profile == .phone, let orientation { base.orientation = orientation }
         let changes = override?.changes ?? GraphicsSettingsPatch()
         return ResolvedGraphics(settings: changes.applied(to: base), profile: profile, reason: reason, changes: changes, base: base)
     }

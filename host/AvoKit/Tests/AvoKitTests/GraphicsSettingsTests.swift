@@ -270,6 +270,30 @@ private func decode(_ json: String) throws -> VMConfig {
         #expect(chosen.changes.isEmpty)
     }
 
+    /// Phone, chosen: the phone's screen at its density, in the app's own
+    /// orientation; kept in the file, and there for files from before it.
+    @Test func thePhonePresetIsThePhonesScreen() throws {
+        var config = VMConfig()
+        #expect(config.settings(for: .phone) == .phoneDefault)
+        #expect(GraphicsSettings.phoneDefault.mode == .deviceProfile)
+        config.graphicsOverrides["com.x"] = AppGraphicsOverride(profile: .phone)
+        let landscape = config.graphics(for: "com.x", hasKeyMapping: true, isGame: true, orientation: .landscape)
+        #expect((landscape.profile, landscape.reason, landscape.settings.orientation) == (.phone, .chosen, .landscape))
+        #expect(landscape.changes.isEmpty)
+        let phone = DeviceProfile.Display(width: 1080, height: 2400, dpi: 420)
+        let screen = DisplaySizing.request(contentWidth: 1200, contentHeight: 540, backingScale: 2, settings: landscape.settings,
+                                           device: phone, landscape: true)
+        #expect((screen.width, screen.height, screen.dpi) == (2400, 1080, 420))
+        config.phoneGraphics.renderScale = 75
+        let decoded = try JSONDecoder().decode(VMConfig.self, from: JSONEncoder().encode(config))
+        #expect(decoded.phoneGraphics.renderScale == 75)
+        #expect(decoded.graphicsOverrides["com.x"]?.profile == .phone)
+        // A file from before the preset: its defaults.
+        var old = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(VMConfig())) as? [String: Any])
+        old.removeValue(forKey: "phoneGraphics")
+        #expect(try JSONDecoder().decode(VMConfig.self, from: JSONSerialization.data(withJSONObject: old)).phoneGraphics == .phoneDefault)
+    }
+
     /// An app Android lists as a game gets the Games profile, after the
     /// user's choice and a key mapping.
     @Test func androidsGamesUseTheGamesProfile() {

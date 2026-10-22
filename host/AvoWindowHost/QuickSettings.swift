@@ -442,8 +442,8 @@ private struct QuickGraphicsCard: View {
         let state = model.state
         let settings = state.graphics.settings
         QuickCard(title: L("Graphics"), scope: L("This app")) {
-            QuickRow(label: L("Preset"), help: L("Apps: Android takes the window’s size, sharp for reading. Games: a fixed 720p landscape screen that runs faster. What you change below is kept on top.")) {
-                QuickSegmented(label: L("Preset"), options: [(GraphicsProfile.apps, L("Apps")), (.games, L("Games"))],
+            QuickRow(label: L("Preset"), help: L("Apps: Android takes the window’s size, sharp for reading. Games: a fixed 720p landscape screen that runs faster. Phone: the phone’s own screen, at its density. What you change below is kept on top.")) {
+                QuickSegmented(label: L("Preset"), options: [(GraphicsProfile.apps, L("Apps")), (.games, L("Games")), (.phone, L("Phone"))],
                                selection: state.graphics.profile, fill: true) { choice in
                     model.change { $0.quickSettingsChooseProfile(choice) }
                 }

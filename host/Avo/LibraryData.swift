@@ -8,9 +8,15 @@ import SwiftUI
 
 extension ControlPanelModel {
     /// A game is an app with a key mapping or with game graphics chosen for
-    /// it: the rule Settings › Graphics and app windows use.
+    /// it: the rule Settings › Graphics and app windows use. The Phone
+    /// preset is a screen, not a kind of app: such an app is a game when
+    /// Avo would pick Games for it.
     func isGame(_ app: AppRecord) -> Bool {
-        graphics(for: app.package)?.profile == .games
+        switch graphics(for: app.package)?.profile {
+        case .games?: true
+        case .phone?: hasKeyMapping(app.package) || listedAsGame(app.package)
+        default: false
+        }
     }
 
     /// Games, the most recently played first.

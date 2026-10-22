@@ -32,7 +32,7 @@ commands:
   shortcuts [package]    Recreate app shortcuts and icons (all apps, or one)
   config [key=value ...] Show or change settings (memoryMiB, cpuCount, fpsLimit=30 or 60…120, rendererMode=auto|gpu|software, …).
                          Dotted keys reach into objects (appGraphics.renderScale=67,
-                         gameGraphics.aspectRatio=16:10); a value starting with { or [ is JSON.
+                         gameGraphics.aspectRatio=16:10, phoneGraphics.renderScale=75); a value starting with { or [ is JSON.
                          Graphics: mode=followWindow|fixed|deviceProfile, shortSide=360…2160,
                          aspectRatio (fixed) and followAspectRatio (follow) = matchWindow|16:9|16:10|20:9|4:3,
                          orientation=portrait|landscape.

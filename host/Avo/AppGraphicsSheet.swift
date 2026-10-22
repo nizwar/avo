@@ -97,6 +97,7 @@ struct AppGraphicsForm: View {
         let name = switch profile {
         case .apps: String(localized: "Apps")
         case .games: String(localized: "Games")
+        case .phone: String(localized: "Phone")
         }
         return profile == automatic ? String(localized: "\(name) (automatic)") : name
     }
@@ -134,6 +135,7 @@ extension ResolvedGraphics {
         let same = switch profile {
         case .apps: String(localized: "Same as apps")
         case .games: String(localized: "Same as games")
+        case .phone: String(localized: "Same as the phone")
         }
         let base = reason == .chosen ? same : String(localized: "\(same) (automatic)")
         return changes.isEmpty ? base : String(localized: "\(base), with changes for this app")

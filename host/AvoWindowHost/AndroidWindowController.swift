@@ -1407,7 +1407,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// A game Android is running: the red light and Picture in Picture's ✕
     /// end it there, and one wrong click must not end a match.
     private var asksBeforeQuitting: Bool {
-        Self.quitSettings.asksBeforeQuittingGames && displayID != nil && (graphics.profile == .games || hasKeyMapping)
+        Self.quitSettings.asksBeforeQuittingGames && displayID != nil
+            && (graphics.profile == .games || hasKeyMapping || (graphics.profile == .phone && app?.isGame == true))
     }
 
     /// Run in Background (the blue light's, and Return), Quit or Cancel (Esc),
@@ -1644,8 +1645,11 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// The View menu's first line and which of its items apply (GraphicsMenu).
     var graphicsMenuMode: GraphicsMenuMode {
         let resolved = graphics
-        let base = resolved.profile == .games ? String(localized: "Preset: Games", bundle: .windowHost)
-                                              : String(localized: "Preset: Apps", bundle: .windowHost)
+        let base = switch resolved.profile {
+        case .apps: String(localized: "Preset: Apps", bundle: .windowHost)
+        case .games: String(localized: "Preset: Games", bundle: .windowHost)
+        case .phone: String(localized: "Preset: Phone", bundle: .windowHost)
+        }
         let line = if !resolved.changes.isEmpty {
             String(localized: "\(base), changed for this app", bundle: .windowHost)
         } else if resolved.reason == .keyMapping {

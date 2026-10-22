@@ -78,10 +78,11 @@ public struct VMConfig: Codable, Equatable, Sendable {
     /// Graphics › Renderer for avo-vmm: GPU (gfxstream) or software.
     public var rendererMode: RendererMode
     public var fpsLimit: Int
-    /// Resolution, interface size and scaling of app windows: the Apps and
-    /// Games profiles (GraphicsSettings.swift).
+    /// Resolution, interface size and scaling of app windows: the Apps,
+    /// Games and Phone profiles (GraphicsSettings.swift).
     public var appGraphics: GraphicsSettings
     public var gameGraphics: GraphicsSettings
+    public var phoneGraphics: GraphicsSettings
     /// What single apps change, by package. The daemon changes these only
     /// through `setAppGraphics`; `updateConfiguration` keeps its own copy.
     public var graphicsOverrides: [String: AppGraphicsOverride]
@@ -151,6 +152,7 @@ public struct VMConfig: Codable, Equatable, Sendable {
                 dataDiskGiB: Int = 32, imageLocation: String? = nil, shareFolder: Bool = false, sharedFolderPath: String? = nil,
                 renderer: Renderer = .vulkan, rendererMode: RendererMode = .auto, fpsLimit: Int = 60,
                 appGraphics: GraphicsSettings = .appsDefault, gameGraphics: GraphicsSettings = .gamesDefault,
+                phoneGraphics: GraphicsSettings = .phoneDefault,
                 graphicsOverrides: [String: AppGraphicsOverride] = [:], performanceHUD: PerformanceHUDLevel = .off,
                 defaultWindowSize: WindowSize = WindowSize(width: 412, height: 892), appBarStyle: AppBarStyle = .standard,
                 rooted: Bool = false, deviceProfileID: String = DeviceProfile.defaultID, emulateHardware: Bool = false,
@@ -175,6 +177,7 @@ public struct VMConfig: Codable, Equatable, Sendable {
         self.fpsLimit = fpsLimit
         self.appGraphics = appGraphics
         self.gameGraphics = gameGraphics
+        self.phoneGraphics = phoneGraphics
         self.graphicsOverrides = graphicsOverrides
         self.performanceHUD = performanceHUD
         self.defaultWindowSize = defaultWindowSize
@@ -281,7 +284,7 @@ public struct VMConfig: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case memoryMiB, cpuCount, balloonWhenIdle, autoPauseMinutes, dataDiskGiB, imageLocation, shareFolder, sharedFolderPath
         case renderer, rendererMode, fpsLimit
-        case appGraphics, gameGraphics, graphicsOverrides, performanceHUD
+        case appGraphics, gameGraphics, phoneGraphics, graphicsOverrides, performanceHUD
         case defaultWindowSize, appBarStyle, rooted, deviceProfileID, emulateHardware, gms, adbEnabled, adbPort, shareLocation, dockBadges
         case wifiEnabled, networkSpeed, shareMacBluetooth, cellularEnabled, mobileNetworkType, cellularSignal
         case backCamera, frontCamera, camerasEnabled, microphoneEnabled, bluetoothEnabled, shareClipboard
@@ -336,6 +339,7 @@ public struct VMConfig: Codable, Equatable, Sendable {
             appGraphics.orientation = orientation
         }
         gameGraphics = patch(.gameGraphics).applied(to: .gamesDefault)
+        phoneGraphics = patch(.phoneGraphics).applied(to: .phoneDefault)
         let overrides = (try? container.decodeIfPresent([String: Failable<AppGraphicsOverride>].self, forKey: .graphicsOverrides)) ?? [:]
         graphicsOverrides = overrides.compactMapValues { $0.value.flatMap { $0.isEmpty ? nil : $0 } }
         performanceHUD = (try? container.decodeIfPresent(String.self, forKey: .performanceHUD)).flatMap(PerformanceHUDLevel.init(rawValue:))
@@ -456,6 +460,7 @@ extension VMConfig {
         }
         issues += appGraphics.validate(field: "appGraphics")
         issues += gameGraphics.validate(field: "gameGraphics")
+        issues += phoneGraphics.validate(field: "phoneGraphics")
         for (package, override) in graphicsOverrides.sorted(by: { $0.key < $1.key }) {
             issues += override.changes.validate(field: "graphicsOverrides.\(package)")
         }
@@ -524,6 +529,7 @@ extension VMConfig {
         check(\.fpsLimit, "fpsLimit", .immediate)
         check(\.appGraphics, "appGraphics", .immediate)
         check(\.gameGraphics, "gameGraphics", .immediate)
+        check(\.phoneGraphics, "phoneGraphics", .immediate)
         check(\.graphicsOverrides, "graphicsOverrides", .immediate)
         check(\.performanceHUD, "performanceHUD", .immediate)
         // App windows: never needs a restart.

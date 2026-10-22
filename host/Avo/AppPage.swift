@@ -321,9 +321,10 @@ private struct AppGraphicsCard: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 4) {
                             Text("Preset").font(.mona(12)).foregroundStyle(Haze.textTertiary)
-                            HelpButton("Preset", "Apps and Games are the two presets in Settings › Graphics. Avo picks one by itself (an app with key mapping, or one Android lists as a game, is a game); the changes made on this page stay on top of either.")
+                            HelpButton("Preset", "Apps, Games and Phone are the presets in Settings › Graphics. Avo picks Apps or Games by itself (an app with key mapping, or one Android lists as a game, is a game). Phone gives the app the screen of the phone in Settings › Privacy, at its density, as on that phone. The changes made on this page stay on top of any of them.")
                         }
-                        HazeSegmented(options: [(GraphicsProfile.apps, Text("Apps")), (GraphicsProfile.games, Text("Games"))],
+                        HazeSegmented(options: [(GraphicsProfile.apps, Text("Apps")), (GraphicsProfile.games, Text("Games")),
+                                                (GraphicsProfile.phone, Text("Phone"))],
                                       selection: Binding(get: { resolved.profile }, set: { choice in
                                           // As in All Graphics Settings: the app keeps what it changed,
                                           // minus what the new profile already has.
