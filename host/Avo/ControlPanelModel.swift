@@ -166,7 +166,7 @@ final class ControlPanelModel {
         // Any other signature: a LaunchAgent of Avo's own (DaemonAgent says why).
         Task { @MainActor [weak self] in
             await self?.unregisterLoginItem()
-            let legacy = await DaemonAgent.legacyAgentLoaded()
+            let legacy = await DaemonAgent.legacyAgentHoldsAndroid()
             let outdated = await DaemonAgent.install()
             self?.daemonMachService = legacy ? AvoIdentifiers.formerDaemonMachService : AvoIdentifiers.daemonMachService
             self?.daemonAgentOutdated = outdated

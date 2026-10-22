@@ -2,6 +2,18 @@ import Foundation
 import Testing
 @testable import AvoKit
 
+/// A preference suite of the test's own, kept in the temporary folder (a
+/// path as the suite's name) rather than ~/Library/Preferences, where every
+/// run would leave a file behind (removePersistentDomain keeps it).
+private func temporarySuite(_ name: String) -> String {
+    NSTemporaryDirectory() + "avo-tests-\(name)-\(UUID().uuidString)"
+}
+
+private func removeSuite(_ suite: String) {
+    UserDefaults.standard.removePersistentDomain(forName: suite)
+    try? FileManager.default.removeItem(atPath: suite + ".plist")
+}
+
 /// Android's sound in screen recordings: the engine's ring (as tap.rs
 /// writes it), where its blocks go in the movie, and their format.
 @Suite struct CaptureAudioTests {
@@ -166,9 +178,9 @@ import Testing
     }
 
     @Test func recordingsTakeAndroidsSoundUnlessTurnedOff() throws {
-        let suite = "com.avodroid.tests.capture.\(UUID().uuidString)"
+        let suite = temporarySuite("capture")
         let store = try #require(UserDefaults(suiteName: suite))
-        defer { store.removePersistentDomain(forName: suite) }
+        defer { removeSuite(suite) }
         let settings = CaptureSettings(store: store)
         #expect(settings.recordsAndroidSound)
         settings.recordsAndroidSound = false

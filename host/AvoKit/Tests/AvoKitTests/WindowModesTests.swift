@@ -3,6 +3,18 @@ import Foundation
 import Testing
 @testable import AvoKit
 
+/// A preference suite of the test's own, kept in the temporary folder (a
+/// path as the suite's name) rather than ~/Library/Preferences, where every
+/// run would leave a file behind (removePersistentDomain keeps it).
+private func temporarySuite(_ name: String) -> String {
+    NSTemporaryDirectory() + "avo-tests-\(name)-\(UUID().uuidString)"
+}
+
+private func removeSuite(_ suite: String) {
+    UserDefaults.standard.removePersistentDomain(forName: suite)
+    try? FileManager.default.removeItem(atPath: suite + ".plist")
+}
+
 /// Picture in Picture's size and place, and the per-app window modes.
 @Suite struct WindowModesTests {
     /// A 14-inch MacBook Pro's visible area below the menu bar (and above a hidden Dock).
@@ -43,9 +55,9 @@ import Testing
     }
 
     @Test func eachAppRemembersItsModes() throws {
-        let suite = "com.avodroid.tests.windowmodes.\(UUID().uuidString)"
+        let suite = temporarySuite("windowmodes")
         let store = try #require(UserDefaults(suiteName: suite))
-        defer { store.removePersistentDomain(forName: suite) }
+        defer { removeSuite(suite) }
         let settings = WindowModeSettings(store: store)
         #expect(!settings.keepOnTop)
         #expect(settings.corner == .bottomRight)
@@ -62,9 +74,9 @@ import Testing
 
     /// An app follows the Control Panel's app bar style until it has its own.
     @Test func anAppMayHaveItsOwnAppBarStyle() throws {
-        let suite = "com.avodroid.tests.appbar.\(UUID().uuidString)"
+        let suite = temporarySuite("appbar")
         let store = try #require(UserDefaults(suiteName: suite))
-        defer { store.removePersistentDomain(forName: suite) }
+        defer { removeSuite(suite) }
         let settings = WindowModeSettings(store: store)
         #expect(settings.appBarStyle == nil)
         settings.appBarStyle = .phone
@@ -78,9 +90,9 @@ import Testing
 
     /// Closing a game's window asks first until Don't Ask Again (or Settings) turns it off.
     @Test func quittingAGameAsksUntilToldNotTo() throws {
-        let suite = "com.avodroid.tests.quit.\(UUID().uuidString)"
+        let suite = temporarySuite("quit")
         let store = try #require(UserDefaults(suiteName: suite))
-        defer { store.removePersistentDomain(forName: suite) }
+        defer { removeSuite(suite) }
         let settings = QuitSettings(store: store)
         #expect(settings.asksBeforeQuittingGames)
         settings.asksBeforeQuittingGames = false

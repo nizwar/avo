@@ -4,6 +4,18 @@ import Foundation
 import Testing
 @testable import AvoKeymap
 
+/// A preference suite of the test's own, kept in the temporary folder (a
+/// path as the suite's name) rather than ~/Library/Preferences, where every
+/// run would leave a file behind (removePersistentDomain keeps it).
+private func temporarySuite(_ name: String) -> String {
+    NSTemporaryDirectory() + "avo-tests-\(name)-\(UUID().uuidString)"
+}
+
+private func removeSuite(_ suite: String) {
+    UserDefaults.standard.removePersistentDomain(forName: suite)
+    try? FileManager.default.removeItem(atPath: suite + ".plist")
+}
+
 /// The mouse wheel's scroll mode: where it is kept, how notches read, what
 /// Automatic mode learns, and how a burst goes out.
 @Suite struct WheelScrollingTests {
@@ -32,11 +44,11 @@ import Testing
     // MARK: The setting
 
     @Test func theModeIsKeptPerAppOverTheDefault() throws {
-        let names = (0..<3).map { "com.avodroid.tests.scroll.\($0).\(UUID().uuidString)" }
+        let names = (0..<3).map { temporarySuite("scroll.\($0)") }
         let app = try #require(UserDefaults(suiteName: names[0]))
         let shared = try #require(UserDefaults(suiteName: names[1]))
         let otherApp = try #require(UserDefaults(suiteName: names[2]))
-        defer { for name in names { UserDefaults.standard.removePersistentDomain(forName: name) } }
+        defer { names.forEach(removeSuite) }
         let settings = ScrollModeSettings(app: app, shared: shared)
         #expect(settings.mode == .automatic && settings.appChoice == nil && settings.defaultMode == .automatic)
 

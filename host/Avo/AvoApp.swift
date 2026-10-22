@@ -161,20 +161,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 /// What the helpers and App Shims kept under the identifiers of the builds
-/// before 0.3.0 Preview 2 (dev.avo) comes along once: each new domain takes
-/// the keys it does not have yet (AvoIdentifiers.formerPreferenceDomains).
-/// The old domains stay, for an older Avo opened again.
+/// before 0.3.0 Preview 2 (dev.avo) moves to Avo's domain: each new domain
+/// takes the keys it does not have yet (AvoIdentifiers.formerPreferenceDomains),
+/// once at launch, and the former ones go once no daemon of those builds runs.
 enum IdentifierMigration {
     static let migratedKey = "AvoMovedFromDevAvo"
 
+    /// At the first launch, before this build's daemon reads its preferences.
     @discardableResult
     static func migrate(_ defaults: UserDefaults = .standard) -> Int {
         guard Bundle.main.bundleIdentifier == AvoIdentifiers.app, !defaults.bool(forKey: migratedKey) else { return 0 }
         defaults.set(true, forKey: migratedKey)
-        let preferences = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Preferences", directoryHint: .isDirectory)
-        let files = (try? FileManager.default.contentsOfDirectory(atPath: preferences.path)) ?? []
+        return copy(defaults)
+    }
+
+    /// When the former daemon's agent is gone (DaemonAgent): what it wrote
+    /// since `migrate` comes along too, then the former domains go, with
+    /// what macOS and that daemon kept under the former names (its HTTP
+    /// storage and its runtime folder). Nothing of Avo's stays a dev.avo.
+    static func finish(_ defaults: UserDefaults = .standard) {
+        guard Bundle.main.bundleIdentifier == AvoIdentifiers.app else { return }
+        copy(defaults)
+        let files = FileManager.default
+        for (from, _) in pairs() {
+            defaults.removePersistentDomain(forName: from)
+            try? files.removeItem(at: preferences.appending(path: "\(from).plist"))
+        }
+        try? files.removeItem(at: library.appending(path: "HTTPStorages/\(AvoIdentifiers.formerPrefix).daemon", directoryHint: .isDirectory))
+        try? files.removeItem(at: URL(filePath: NSTemporaryDirectory()).appending(path: AvoIdentifiers.formerPrefix, directoryHint: .isDirectory))
+    }
+
+    private static var library: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library", directoryHint: .isDirectory)
+    }
+    private static var preferences: URL { library.appending(path: "Preferences", directoryHint: .isDirectory) }
+
+    private static func pairs() -> [(from: String, to: String)] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: preferences.path)) ?? []
+        return AvoIdentifiers.formerPreferenceDomains(preferenceFiles: names)
+    }
+
+    @discardableResult
+    private static func copy(_ defaults: UserDefaults) -> Int {
         var moved = 0
-        for (from, to) in AvoIdentifiers.formerPreferenceDomains(preferenceFiles: files) {
+        for (from, to) in pairs() {
             guard let former = defaults.persistentDomain(forName: from), !former.isEmpty else { continue }
             var current = defaults.persistentDomain(forName: to) ?? [:]
             for (key, value) in former where current[key] == nil { current[key] = value }

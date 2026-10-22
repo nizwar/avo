@@ -3,6 +3,18 @@ import Foundation
 import Testing
 @testable import AvoPackages
 
+/// A preference suite of the test's own, kept in the temporary folder (a
+/// path as the suite's name) rather than ~/Library/Preferences, where every
+/// run would leave a file behind (removePersistentDomain keeps it).
+private func temporarySuite(_ name: String) -> String {
+    NSTemporaryDirectory() + "avo-tests-\(name)-\(UUID().uuidString)"
+}
+
+private func removeSuite(_ suite: String) {
+    UserDefaults.standard.removePersistentDomain(forName: suite)
+    try? FileManager.default.removeItem(atPath: suite + ".plist")
+}
+
 /// Answers of the Android Build API recorded on 2026-10-18
 /// (aosp-android-latest-release, aosp_cf_arm64_only_phone-userdebug).
 @Suite struct AndroidBuildAPIParsingTests {
@@ -100,9 +112,9 @@ import Testing
         #expect(source.imageArtifact(build: "16373615") == "aosp_cf_arm64_only_phone-img-16373615.zip")
         #expect(source.webPage(build: "1")?.absoluteString == "https://ci.android.com/builds/submitted/1/aosp_cf_arm64_only_phone-userdebug/latest")
 
-        let suite = "com.avodroid.tests.\(UUID().uuidString)"
+        let suite = temporarySuite("android-build")
         let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        defer { removeSuite(suite) }
         #expect(AndroidBuildSource.current(defaults: defaults) == source)
         defaults.set("https://example.test/v4", forKey: AndroidBuildSource.DefaultsKey.endpoint)
         defaults.set("aosp-android-latest-release, aosp-android17-release", forKey: AndroidBuildSource.DefaultsKey.branches)

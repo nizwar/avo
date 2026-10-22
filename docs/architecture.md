@@ -1040,13 +1040,19 @@ that without the player's say:
   service moved to Avo's domain (`AvoIdentifiers.prefix`; `formerPrefix` is
   the old one). The first Control Panel of the new build copies the
   helpers' and App Shims' preferences to their new domains
-  (`IdentifierMigration`; Avo Hub's `dev.avo.hub…` are not Avo's). While the
-  old agent is loaded it may hold Android: the Control Panel talks to its
-  daemon under the former Mach service and installs nothing beside it, and
-  once Android stops `DaemonAgent.reload` boots the old agent out, removes
-  its plist and loads the new one. A new daemon that launchd started under
-  the old job (a restart after the update, before the Control Panel ran)
-  serves the job's former Mach service (`XPC_SERVICE_NAME`). App Shims with
+  (`IdentifierMigration`; Avo Hub's `dev.avo.hub…` are not Avo's). Only an
+  old agent whose daemon runs Android's engine (`avo-vmm`) is kept: the
+  Control Panel talks to it under the former Mach service and installs
+  nothing beside it, and once Android stops `DaemonAgent.reload` boots it
+  out, removes its plist and loads the new one. Any other old agent goes at
+  once: launchd holds a background item to the signature it first saw, so
+  an ad hoc build's job cannot even start a Developer ID daemon ("Unable to
+  get updated LWCR", the daemon killed for a launch constraint violation).
+  When the old agent is gone, `IdentifierMigration.finish` copies what the
+  old daemon wrote since, then removes the old preference domains, its
+  HTTP storage and its runtime folder: nothing of Avo's stays `dev.avo`. A
+  new daemon that launchd started under the old job serves the job's
+  former Mach service (`XPC_SERVICE_NAME`). App Shims with
   a `dev.avo.shim.` identifier are made again. macOS may ask once more for
   what the helpers had been allowed (camera, microphone, Bluetooth,
   location, notifications), which it keeps by identifier.
