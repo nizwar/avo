@@ -209,9 +209,14 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         titleLabel.isHidden = true
         let least = leadingButtons.fittingSize.width + 10
         titleLabel.isHidden = false
-        // The leading side starts where AppKit put it, after the green light.
-        let start = leadingTitlebarButtons.view.superview.map { $0.convert($0.bounds, to: bar).minX }
-            ?? (window.standardWindowButton(.zoomButton) ?? close).frame.maxX + 9
+        // The leading side starts where AppKit put it, after the green light:
+        // the side's own place, not its container's. In full screen the
+        // container starts at the bar's edge and the side 78 points in, so
+        // the side reached that far over the trailing one and took the
+        // clicks of its first button (Game Controls).
+        let leading = leadingTitlebarButtons.view
+        let start = leading.window === bar.window ? leading.convert(leading.bounds, to: bar).minX
+            : (window.standardWindowButton(.zoomButton) ?? close).frame.maxX + 9
         titlebarButtons.view.setFrameSize(NSSize(width: trailing, height: height))
         leadingTitlebarButtons.view.setFrameSize(NSSize(width: max(least, bar.bounds.width - start - trailing - 8), height: height))
     }
