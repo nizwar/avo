@@ -136,8 +136,8 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
                 "--userdata", paths.dataDisk.path] + disks + [
                 "--cpus", "\(config.cpuCount)",
                 "--mem", "\(config.memoryMiB)",
-                "--display", "720x1280",
-                "--density", "\(config.bootDensity ?? 320)",
+                "--display", "\(launch.androidScreen.width)x\(launch.androidScreen.height)",
+                "--density", "\(launch.androidScreen.dpi)",
                 "--properties", identityFile(paths).path,
                 "--exit-on-reboot"] + gpuFlags + sharedFolderFlags(config) + refreshRateFlags(launch.displayRate)
                 + (bluetooth.map { ["--bluetooth", $0.path] } ?? [])

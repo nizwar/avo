@@ -4,6 +4,7 @@ import AvoKit
 import AvoPackages
 import AvoProtocol
 import AvoShimKit
+import CoreGraphics
 import Foundation
 import IOSurface
 import os
@@ -343,8 +344,15 @@ public actor DaemonCore {
     }
 
     private var settings: VMManager.Settings {
-        VMManager.Settings(config: config, profile: deps.profiles.profile(id: config.deviceProfileID),
-                           displayRate: FrameRates.androidRate(cap: config.fpsLimit))
+        let profile = deps.profiles.profile(id: config.deviceProfileID)
+        return VMManager.Settings(config: config, profile: profile, displayRate: FrameRates.androidRate(cap: config.fpsLimit),
+                                  androidScreen: config.androidScreen(device: profile?.display, backingScale: Self.mainBackingScale))
+    }
+
+    /// A new window's backing scale: the Mac's main display's pixels per point.
+    static var mainBackingScale: Double {
+        guard let mode = CGDisplayCopyDisplayMode(CGMainDisplayID()), mode.width > 0 else { return 2 }
+        return Double(mode.pixelWidth) / Double(mode.width)
     }
 
     /// The frame rate cap needs Android at another display rate than it

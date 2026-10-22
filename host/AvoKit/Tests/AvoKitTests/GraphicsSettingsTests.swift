@@ -225,11 +225,37 @@ private func decode(_ json: String) throws -> VMConfig {
         #expect(issue?.message.contains("2160") == true)
     }
 
-    @Test func bootDensity() {
+    @Test func androidsOwnScreenIsWhatANewAppWindowGets() {
         var config = VMConfig()
-        #expect(config.bootDensity == nil)
+        // The default window (412 × 892 points) on a Retina display, upright.
+        #expect(config.androidScreen(device: nil, backingScale: 2) == DisplayRequest(width: 824, height: 1784, dpi: 320,
+                                                                                     effectiveRenderScale: 100))
         config.appGraphics.interfaceScale = 115
-        #expect(config.bootDensity == 368)
+        #expect(config.androidScreen(device: nil, backingScale: 2).dpi == 368)
+        config.appGraphics.interfaceScale = 100
+        // Upright even when the default window is wide; supersampling is for what is seen.
+        config.defaultWindowSize = VMConfig.WindowSize(width: 892, height: 412)
+        config.appGraphics.antiAliasing = .ssaa4x
+        let screen = config.androidScreen(device: nil, backingScale: 2)
+        #expect((screen.width, screen.height, screen.dpi) == (824, 1784, 320))
+        // A fixed resolution: its short side.
+        config.appGraphics.mode = .fixed
+        config.appGraphics.shortSide = 1080
+        #expect(config.androidScreen(device: nil, backingScale: 2).width == 1080)
+    }
+
+    @Test func androidsOwnScreenIsThePhonesWithItsHardware() {
+        var config = VMConfig()
+        let phone = DeviceProfile.Display(width: 2400, height: 1080, dpi: 395)
+        // Without the hardware, the apps' resolution decides.
+        #expect(config.androidScreen(device: phone, backingScale: 2).width == 824)
+        config.emulateHardware = true
+        #expect(config.androidScreen(device: phone, backingScale: 2) == DisplayRequest(width: 1080, height: 2400, dpi: 395))
+        // The apps' "Phone's screen" resolution gives it too.
+        config.emulateHardware = false
+        config.appGraphics.mode = .deviceProfile
+        let screen = config.androidScreen(device: phone, backingScale: 2)
+        #expect((screen.width, screen.height, screen.dpi) == (1080, 2400, 395))
     }
 
     @Test func resolvesTheProfile() {

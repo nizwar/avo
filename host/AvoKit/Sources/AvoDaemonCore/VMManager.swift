@@ -16,11 +16,15 @@ public actor VMManager {
         public var profile: DeviceProfile?
         /// Every Android display's refresh rate for this boot (FrameRates.androidRate).
         public var displayRate: Int
+        /// Android's own screen, display 0 (VMConfig.androidScreen).
+        public var androidScreen: DisplayRequest
 
-        public init(config: VMConfig, profile: DeviceProfile?, displayRate: Int = FrameRates.standardRate) {
+        public init(config: VMConfig, profile: DeviceProfile?, displayRate: Int = FrameRates.standardRate,
+                    androidScreen: DisplayRequest = DisplayRequest(width: 720, height: 1280, dpi: 320)) {
             self.config = config
             self.profile = profile
             self.displayRate = displayRate
+            self.androidScreen = androidScreen
         }
     }
 
@@ -130,11 +134,13 @@ public actor VMManager {
            let key = try? String(contentsOf: paths.home.appending(path: ".android/adbkey.pub"), encoding: .utf8) {
             adbKeys.append(key.trimmingCharacters(in: .whitespacesAndNewlines))
         }
-        let bootConfig = BootConfig(adbKeys: adbKeys, profile: settings.profile, config: settings.config)
+        let bootConfig = BootConfig(adbKeys: adbKeys, profile: settings.profile, config: settings.config,
+                                    density: Int(settings.androidScreen.dpi))
         let configDisk = paths.vm.appending(path: "avo_config.img")
         try bootConfig.write(to: configDisk)
         try await engine.start(EngineLaunch(config: settings.config, paths: paths, image: image, bootConfigDisk: configDisk,
-                                            profile: settings.profile, displayRate: settings.displayRate))
+                                            profile: settings.profile, displayRate: settings.displayRate,
+                                            androidScreen: settings.androidScreen))
 
         update(VMStatus(state: .starting, detail: String(localized: "Waiting for Android to boot", bundle: .avoKit)))
         let session = try await connectControl(timeout: firstBoot ? max(bootTimeout, firstBootTimeout) : bootTimeout)

@@ -468,14 +468,21 @@ extension VMConfig {
         return ResolvedGraphics(settings: changes.applied(to: base), profile: profile, reason: reason, changes: changes, base: base)
     }
 
-    /// Display 0's density at boot. Nobody sees display 0, but Android sizes
-    /// some resources from it: nil keeps what Android used before interface
-    /// sizes existed (320, or the device profile's dpi), any other interface
-    /// size scales 320 with it.
-    public var bootDensity: Int? {
-        let scale = min(max(appGraphics.interfaceScale, GraphicsSettings.interfaceScaleRange.lowerBound),
-                        GraphicsSettings.interfaceScaleRange.upperBound)
-        guard scale != 100 else { return nil }
-        return Int((320 * Double(scale) / 100).rounded())
+    /// Android's own screen (display 0) for a boot. Nobody sees it, but
+    /// Android sizes resources from it and apps can read it
+    /// (Resources.getSystem()), so it is what a new app window gets from the
+    /// apps' settings: their resolution, render scale and interface size,
+    /// on the default window size at `backingScale`, upright and without
+    /// supersampling. With "Emulate this phone's hardware" it is the phone's
+    /// screen (`device`), part of that hardware. It changes when Android
+    /// starts again.
+    public func androidScreen(device: DeviceProfile.Display?, backingScale: Double) -> DisplayRequest {
+        var settings = appGraphics
+        settings.antiAliasing = .off
+        if emulateHardware, device != nil { settings.mode = .deviceProfile }
+        let size = defaultWindowSize
+        return DisplaySizing.request(contentWidth: Double(min(size.width, size.height)),
+                                     contentHeight: Double(max(size.width, size.height)),
+                                     backingScale: backingScale, settings: settings, device: device, landscape: false)
     }
 }

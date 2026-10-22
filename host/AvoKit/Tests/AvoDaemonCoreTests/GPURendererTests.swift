@@ -283,7 +283,7 @@ import Testing
                         "--cpus", "6",
                         "--mem", "6144",
                         "--display", "720x1280",
-                        "--density", "\(launch.config.bootDensity ?? 320)",
+                        "--density", "320",
                         "--properties", paths.vm.appending(path: "identity.prop").path,
                         "--exit-on-reboot"]
         #expect(VMMEngine.arguments(images: images, launch: launch) == software)
@@ -295,6 +295,11 @@ import Testing
         let rootcanal = URL(filePath: "/Applications/Avo.app/Contents/Resources/bluetooth/rootcanal")
         #expect(VMMEngine.arguments(images: images, launch: launch, bluetooth: rootcanal)
             == software + ["--bluetooth", "/Applications/Avo.app/Contents/Resources/bluetooth/rootcanal"])
+        // Android's own screen is the launch's (VMConfig.androidScreen).
+        var phone = launch
+        phone.androidScreen = DisplayRequest(width: 1080, height: 2400, dpi: 395)
+        let screen = VMMEngine.arguments(images: images, launch: phone)
+        #expect(screen.contains(["--display", "1080x2400"]) && screen.contains(["--density", "395"]))
     }
 
     @Test func findsTheEmulatorsNetsimd() throws {

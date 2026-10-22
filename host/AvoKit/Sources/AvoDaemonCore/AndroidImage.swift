@@ -112,7 +112,7 @@ public struct BootConfig: Codable, Sendable, Equatable {
         case rooted, gms, locale, timeZone = "time_zone", defaultDensity = "default_density"
     }
 
-    public init(adbKeys: [String], profile: DeviceProfile?, config: VMConfig,
+    public init(adbKeys: [String], profile: DeviceProfile?, config: VMConfig, density: Int? = nil,
                 locale: Locale = .current, timeZone: TimeZone = .current) {
         self.adbKeys = adbKeys
         // With hardware emulation on, the profile's SoC and GPU properties go
@@ -123,8 +123,8 @@ public struct BootConfig: Codable, Sendable, Equatable {
         self.gms = config.gms
         self.locale = locale.identifier(.bcp47)
         self.timeZone = timeZone.identifier
-        // The profile's screen density is part of its hardware (the checkbox).
-        self.defaultDensity = config.bootDensity ?? (config.emulateHardware ? profile?.display?.dpi : nil)
+        // Android's own screen's (VMConfig.androidScreen).
+        self.defaultDensity = density
     }
 
     public func diskImage() throws -> Data {

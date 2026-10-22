@@ -16,9 +16,12 @@ public struct EngineLaunch: Sendable {
     public var profile: DeviceProfile?
     /// The refresh rate of every Android display this boot (FrameRates.androidRate).
     public var displayRate: Int
+    /// Android's own screen, display 0 (VMConfig.androidScreen).
+    public var androidScreen: DisplayRequest
 
     public init(config: VMConfig, paths: AvoPaths, image: AndroidImage, bootConfigDisk: URL, restoreSnapshot: URL? = nil,
-                profile: DeviceProfile? = nil, displayRate: Int = FrameRates.standardRate) {
+                profile: DeviceProfile? = nil, displayRate: Int = FrameRates.standardRate,
+                androidScreen: DisplayRequest = DisplayRequest(width: 720, height: 1280, dpi: 320)) {
         self.config = config
         self.paths = paths
         self.image = image
@@ -26,6 +29,7 @@ public struct EngineLaunch: Sendable {
         self.restoreSnapshot = restoreSnapshot
         self.profile = profile
         self.displayRate = displayRate
+        self.androidScreen = androidScreen
     }
 }
 
