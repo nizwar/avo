@@ -581,6 +581,9 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         return NSSize(width: size.width + insets.left + insets.right, height: size.height + insets.top + insets.bottom)
     }
 
+    /// The screen's size as the drag began (`windowWillResize`).
+    private var resizeStart: NSSize?
+
     /// Locks the screen to a shape: AppKit's lock for a Mac window; a
     /// phone's frame is not the screen's shape, so `windowWillResize` keeps
     /// the screen's there.
@@ -597,10 +600,13 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
         guard chrome?.phone == true, let ratio = lockedRatio, !sender.styleMask.contains(.fullScreen) else { return frameSize }
         var screen = screenSize(inFrame: frameSize)
-        let current = screenSize
+        let start = resizeStart ?? screenSize
         let wide = fixedLandscape ? ratio : 1 / ratio
-        // The side the drag moves more leads.
-        if abs(screen.width - current.width) >= abs(screen.height - current.height) {
+        // The side the whole drag has moved more, for its length, leads.
+        // Measured from the last step instead (already bent to the shape),
+        // a diagonal drag switched sides from step to step, and the window
+        // jumped back and forth.
+        if abs(screen.width / max(start.width, 1) - 1) >= abs(screen.height / max(start.height, 1) - 1) {
             screen.height = screen.width / wide
         } else {
             screen.width = screen.height * wide
@@ -777,10 +783,12 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     }
 
     func windowWillStartLiveResize(_ notification: Notification) {
+        resizeStart = screenSize
         displayView.renderer.setInteractiveResize(true)
     }
 
     func windowDidEndLiveResize(_ notification: Notification) {
+        resizeStart = nil
         displayView.renderer.setInteractiveResize(false)
         scheduleResize(delay: .zero)
     }
