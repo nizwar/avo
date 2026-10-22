@@ -21,6 +21,9 @@ final class KeymapController {
     private var displayLink: CADisplayLink?
     /// The controllers' changes, from GamepadHub.
     private var gamepadListener: UUID?
+    /// The mice whose raw movement handlers are installed while locked.
+    private var lockedMice: [GCMouse] = []
+    private var mouseObservers: [NSObjectProtocol] = []
     private var overlay: KeymapOverlay?
     private(set) var isPointerLocked = false
     /// The profile has MOBA controls, which need to know where the cursor is.
@@ -71,6 +74,21 @@ final class KeymapController {
         bundledDirectory = Self.bundledDirectory(hostApplication: hostApplication)
         load()
         gamepadListener = GamepadHub.shared.addListener { [weak self] inputs, _ in self?.gamepad(inputs) }
+        let center = NotificationCenter.default
+        mouseObservers = [
+            center.addObserver(forName: .GCMouseDidConnect, object: nil, queue: .main) { [weak self] note in
+                nonisolated(unsafe) let mouse = note.object as? GCMouse
+                MainActor.assumeIsolated { self?.bindPointerLock(to: mouse) }
+            },
+            center.addObserver(forName: .GCMouseDidBecomeCurrent, object: nil, queue: .main) { [weak self] note in
+                nonisolated(unsafe) let mouse = note.object as? GCMouse
+                MainActor.assumeIsolated { self?.bindPointerLock(to: mouse) }
+            },
+            center.addObserver(forName: .GCMouseDidDisconnect, object: nil, queue: .main) { [weak self] note in
+                nonisolated(unsafe) let mouse = note.object as? GCMouse
+                MainActor.assumeIsolated { self?.unbindPointerLock(from: mouse) }
+            },
+        ]
     }
 
     /// Where Avo.app keeps the community profiles.
@@ -165,6 +183,8 @@ final class KeymapController {
         stopTicking()
         if let gamepadListener { GamepadHub.shared.removeListener(gamepadListener) }
         gamepadListener = nil
+        for observer in mouseObservers { NotificationCenter.default.removeObserver(observer) }
+        mouseObservers.removeAll()
         overlay?.close()
     }
 
@@ -267,13 +287,26 @@ final class KeymapController {
             CGWarpMouseCursorPosition(CGPoint(x: center.x, y: screen.frame.maxY - center.y))
         }
         // Raw, unaccelerated deltas (spec §5a: "gerakan mouse mentah").
-        GCMouse.current?.mouseInput?.mouseMovedHandler = { [weak self] _, dx, dy in
-            MainActor.assumeIsolated { _ = self?.handle(.mouseMoved(dx: Double(dx), dy: Double(-dy))) }
-        }
+        for mouse in GCMouse.mice() { bindPointerLock(to: mouse) }
         if var engine {
             emit(engine.setPointerLocked(true))
             self.engine = engine
         }
+    }
+
+    private func bindPointerLock(to mouse: GCMouse?) {
+        guard isPointerLocked, let mouse, let input = mouse.mouseInput else { return }
+        guard !lockedMice.contains(where: { $0 === mouse }) else { return }
+        lockedMice.append(mouse)
+        input.mouseMovedHandler = { [weak self] _, dx, dy in
+            MainActor.assumeIsolated { _ = self?.handle(.mouseMoved(dx: Double(dx), dy: Double(-dy))) }
+        }
+    }
+
+    private func unbindPointerLock(from mouse: GCMouse?) {
+        guard let mouse else { return }
+        mouse.mouseInput?.mouseMovedHandler = nil
+        lockedMice.removeAll { $0 === mouse }
     }
 
     private func unlockPointer() {
@@ -282,7 +315,8 @@ final class KeymapController {
         if let toggle = engine?.profile.fps?.cursorToggle.shortLabel {
             onNotice?(String(localized: "Mouse free. Press \(toggle) to aim with it.", bundle: .windowHost))
         }
-        GCMouse.current?.mouseInput?.mouseMovedHandler = nil
+        for mouse in lockedMice { mouse.mouseInput?.mouseMovedHandler = nil }
+        lockedMice.removeAll()
         CGAssociateMouseAndMouseCursorPosition(1)
         NSCursor.unhide()
         if var engine {
