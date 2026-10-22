@@ -24,6 +24,10 @@ public protocol NotificationPresenter: Sendable {
     /// `onDismiss` gets the key of each notification the user closes in
     /// Notification Center (not the ones Avo removes).
     func observeDismissals(_ onDismiss: @escaping @Sendable (String) -> Void)
+    /// `onAction` gets each button the user presses on a notification: its
+    /// key, the button's index (NotificationAction.index) and, for a Reply
+    /// button, the text typed.
+    func observeActions(_ onAction: @escaping @Sendable (_ key: String, _ index: UInt32, _ reply: String?) -> Void)
 }
 
 public extension NotificationPresenter {
@@ -31,6 +35,17 @@ public extension NotificationPresenter {
     func requestPermission() async -> MacNotificationPermission { await permission() }
     func observePermission(_ onChange: @escaping @Sendable (MacNotificationPermission) -> Void) {}
     func observeDismissals(_ onDismiss: @escaping @Sendable (String) -> Void) {}
+    func observeActions(_ onAction: @escaping @Sendable (_ key: String, _ index: UInt32, _ reply: String?) -> Void) {}
+}
+
+/// What Android plays in the Mac's Now Playing (Control Center, the media
+/// keys, AirPods), and the commands from there for it.
+public protocol NowPlayingPresenter: Sendable {
+    /// `onCommand` gets play, pause, next… from the Mac.
+    func start(onCommand: @escaping @Sendable (Avo_V1_MediaCommand) -> Void)
+    /// What plays now, nil when nothing does (also when Android stopped).
+    /// `artwork`: the last artwork Android sent, nil for none.
+    func show(_ playing: Avo_V1_NowPlaying?, appName: String, artwork: Data?)
 }
 
 /// Two-way clipboard sync.
@@ -62,6 +77,12 @@ public struct NoNotifications: NotificationPresenter {
     public func start(onOpen: @escaping @Sendable (String, String) -> Void) {}
     public func post(_ notification: Avo_V1_Notification, appName: String, icon: Data?) {}
     public func remove(key: String) {}
+}
+
+public struct NoNowPlaying: NowPlayingPresenter {
+    public init() {}
+    public func start(onCommand: @escaping @Sendable (Avo_V1_MediaCommand) -> Void) {}
+    public func show(_ playing: Avo_V1_NowPlaying?, appName: String, artwork: Data?) {}
 }
 
 public struct NoClipboard: ClipboardBridge {

@@ -192,8 +192,8 @@
     "macText": "M1 or newer. Intel Macs aren't supported.",
     "osTitle": "macOS 15 Sequoia or newer",
     "osText": "Avo needs features that arrived in macOS 15.",
-    "gpuTitle": "For the smoothest games",
-    "gpuText": "Install Google's free Android Emulator from Android Studio. Avo uses it to draw games on your graphics chip."
+    "gpuTitle": "About 10 GB of free space",
+    "gpuText": "For Android, your apps and their data. Games draw on your graphics chip out of the box: no Android Studio needed."
   },
   "dev": {
     "kicker": "For developers",

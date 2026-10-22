@@ -1,19 +1,22 @@
-//! Native ASTC on the Mac: a Vulkan layer between gfxstream and MoltenVK
-//! (layer/native_astc.c, built by build.rs) that keeps gfxstream from
-//! decompressing every guest ASTC texture into RGBA8 itself.
+//! Avo's Vulkan layer between gfxstream and MoltenVK on the Mac
+//! (layer/native_astc.c, built by build.rs).
 //!
-//! gfxstream emulates ASTC unless the driver samples linear-tiled ASTC, which
-//! Metal never does, so on the Mac it always emulated it: an ASTC texture then
-//! took 5x (4x4) to 17x (8x8) its memory, and games sized their texture
-//! streaming by that and dropped mip levels. The layer reports linear ASTC
-//! sampling wherever optimal tiling has it; Avo's guest layer
-//! (guest/gfxsync) hides it from apps again.
+//! Native ASTC: gfxstream emulates ASTC unless the driver samples linear-tiled
+//! ASTC, which Metal never does, so on the Mac it always emulated it: an ASTC
+//! texture then took 5x (4x4) to 17x (8x8) its memory, and games sized their
+//! texture streaming by that and dropped mip levels. The layer reports linear
+//! ASTC sampling wherever optimal tiling has it; Avo's guest layer
+//! (guest/gfxsync) hides it from apps again. `AVO_NATIVE_ASTC=0` leaves
+//! gfxstream's emulation on, to compare.
+//!
+//! Memoryless memory: the layer hides MoltenVK's lazily allocated memory type,
+//! which ANGLE's multisampled render-to-texture images asked for and MoltenVK
+//! refuses them (the images got no memory and drew garbage).
 //!
 //! The engine writes the layer and its manifest into a folder of its own in
 //! the temporary folder, named after the layer's bytes so builds never share
 //! one, and names it to the Vulkan loader (`VK_ADD_LAYER_PATH`,
-//! `VK_INSTANCE_LAYERS`) before gfxstream starts. `AVO_NATIVE_ASTC=0` leaves
-//! gfxstream's emulation on, to compare.
+//! `VK_INSTANCE_LAYERS`) before gfxstream starts.
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -25,7 +28,7 @@ static DYLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/libVkLayer_avo_n
 
 fn manifest() -> String {
     format!(
-        r#"{{"file_format_version": "1.1.2", "layer": {{"name": "{LAYER}", "type": "GLOBAL", "library_path": "./{LIBRARY}", "api_version": "1.4.0", "implementation_version": "1", "description": "Avo: ASTC goes to MoltenVK natively"}}}}"#
+        r#"{{"file_format_version": "1.1.2", "layer": {{"name": "{LAYER}", "type": "GLOBAL", "library_path": "./{LIBRARY}", "api_version": "1.4.0", "implementation_version": "1", "description": "Avo: native ASTC and no memoryless memory for gfxstream"}}}}"#
     )
 }
 
@@ -72,13 +75,10 @@ fn with_item(list: Option<&OsStr>, item: &str) -> String {
 /// # Safety
 /// Changes the process environment: call it before any thread starts.
 pub unsafe fn enable() {
-    if std::env::var_os("AVO_NATIVE_ASTC").is_some_and(|value| value == "0") {
-        return;
-    }
     let dir = match install(&std::env::temp_dir()) {
         Ok(dir) => dir,
         Err(e) => {
-            eprintln!("[gpu] native ASTC layer not written ({e}): gfxstream decompresses ASTC");
+            eprintln!("[gpu] Avo's Vulkan layer not written ({e}): gfxstream decompresses ASTC, and multisampled render to texture fails");
             return;
         }
     };

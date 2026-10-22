@@ -406,8 +406,11 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
         gameMenu.addItem(.separator())
         gameMenu.addItem(ScrollModeMenu.shared.makeItem())
         gameMenu.addItem(withTitle: String(localized: "Back", bundle: .windowHost), action: #selector(AndroidWindowController.sendBack), keyEquivalent: "[")
-        // Where Android's GPS says it is (LocationPanel.swift).
+        // The phone itself, as in the title bar's Device menu: a shake of
+        // its accelerometer, and where Android's GPS says it is (LocationPanel.swift).
         gameMenu.addItem(.separator())
+        gameMenu.addItem(withTitle: String(localized: "Shake", bundle: .windowHost), action: #selector(AndroidWindowController.shakeDevice),
+                         keyEquivalent: "z").keyEquivalentModifierMask = [.control, .command]
         gameMenu.addItem(withTitle: String(localized: "Location…", bundle: .windowHost), action: #selector(showLocation),
                          keyEquivalent: "l").keyEquivalentModifierMask = [.command, .option]
         gameMenu.items.last?.target = self
@@ -433,7 +436,7 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
         return true
     }
 
-    @objc private func showLocation() {
+    @objc func showLocation() {
         LocationPanel.shared.show()
     }
 

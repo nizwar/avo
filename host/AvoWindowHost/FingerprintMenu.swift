@@ -63,12 +63,12 @@ final class ShimFingerprints {
     }
 }
 
-/// The title bar's fingerprint button: its menu touches Android's
-/// fingerprint sensor with a finger from Settings › Fingerprints, so an
-/// app's BiometricPrompt (which shows on Android's own screen, never in a
-/// window) or the lock screen takes it, and Android's Settings adds the
-/// finger it is touched with. The button turns blue while this app, the lock
-/// screen or Settings asks for a finger.
+/// The fingerprint menu touches Android's fingerprint sensor with a finger
+/// from Settings › Fingerprints, so an app's BiometricPrompt (which shows on
+/// Android's own screen, never in a window) or the lock screen takes it, and
+/// Android's Settings adds the finger it is touched with. It is the title
+/// bar's Device › Fingerprint, and a blue button of its own in the title bar
+/// while this app, the lock screen or Settings asks for a finger.
 @MainActor
 final class FingerprintMenu: NSObject {
     let button = TitlebarButton(symbol: "touchid", label: FingerprintMenu.title, action: nil)
@@ -93,13 +93,15 @@ final class FingerprintMenu: NSObject {
     // MARK: The button
 
     /// Whether a finger now would reach something this window shows: this
-    /// app, Android's lock screen, or Settings adding a fingerprint.
+    /// app, Android's lock screen, or Settings adding a fingerprint. Only
+    /// then does the button show.
     private func concernsThisWindow(_ request: FingerprintRequest) -> Bool {
         request.package == package || request.isLockScreen || request.purpose == .enroll
     }
 
     private func statusChanged(_ status: FingerprintStatus) {
         let request = status.request.flatMap { concernsThisWindow($0) && status.canTouch ? $0 : nil }
+        button.isHidden = request == nil
         button.contentTintColor = request == nil ? nil : .controlAccentColor
         let tip = request.map(headline) ?? Self.title
         button.toolTip = tip
@@ -124,7 +126,7 @@ final class FingerprintMenu: NSObject {
 
     // MARK: The menu
 
-    private func makeMenu() -> NSMenu {
+    func makeMenu() -> NSMenu {
         let shared = ShimFingerprints.shared
         // Shown as known; the daemon asks Android again when its answer is
         // a few seconds old, ready for the next time.

@@ -356,6 +356,18 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
         run(reply) { [self] in try await core.lockAndroidForFingerprints(client: id) }
     }
 
+    func shakeDevice(reply: @escaping @Sendable (NSError?) -> Void) {
+        run(reply) { [self] in try await core.shakeDevice(client: id) }
+    }
+
+    func androidVolume(reply: @escaping @Sendable (Data?, NSError?) -> Void) {
+        run(reply) { [self] in AvoXPC.encode(try await core.androidVolume(client: id)) }
+    }
+
+    func setAndroidVolume(level: Int, reply: @escaping @Sendable (Data?, NSError?) -> Void) {
+        run(reply) { [self] in AvoXPC.encode(try await core.setAndroidVolume(level, client: id)) }
+    }
+
     func widgetProviders(reply: @escaping @Sendable (Data?, NSError?) -> Void) {
         run(reply) { [self] in AvoXPC.encode(try await core.widgetProviders(client: id)) }
     }

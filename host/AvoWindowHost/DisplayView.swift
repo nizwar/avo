@@ -126,9 +126,21 @@ final class DisplayView: NSView, @preconcurrency NSTextInputClient {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        if keymap?.isPointerLocked == true { return }
+        if keymap?.isPointerLocked == true {
+            keymap?.lockedMotion(dx: event.deltaX, dy: event.deltaY)
+            return
+        }
         let p = displayPoint(event.locationInWindow)
         sendTouches(pointer.mouseDragged(x: p.x, y: p.y))
+    }
+
+    // Aiming with a button held: the locked mouse's motion (KeymapController).
+    override func rightMouseDragged(with event: NSEvent) {
+        if keymap?.isPointerLocked == true { keymap?.lockedMotion(dx: event.deltaX, dy: event.deltaY) } else { super.rightMouseDragged(with: event) }
+    }
+
+    override func otherMouseDragged(with event: NSEvent) {
+        if keymap?.isPointerLocked == true { keymap?.lockedMotion(dx: event.deltaX, dy: event.deltaY) } else { super.otherMouseDragged(with: event) }
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -156,7 +168,12 @@ final class DisplayView: NSView, @preconcurrency NSTextInputClient {
 
     override func mouseMoved(with event: NSEvent) {
         // Hover is not a touch. A held anchor tap follows it (KeymapController);
-        // pointer-locked aiming uses raw GCMouse deltas instead.
+        // pointer-locked aiming uses raw GCMouse deltas instead, and these
+        // only for a mouse GameController does not see.
+        if keymap?.isPointerLocked == true {
+            keymap?.lockedMotion(dx: event.deltaX, dy: event.deltaY)
+            return
+        }
         let rect = displayRect
         guard let keymap, rect.width > 0, rect.height > 0 else { return }
         // Per axis: a stretched picture (up to 2%) scales each axis its own way.

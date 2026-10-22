@@ -1,6 +1,7 @@
 import AppKit
 import AvoKit
 import AvoPackages
+import AvoWindowHost
 import SwiftUI
 
 // Choosing Android: the version cards shared by the Setup Assistant and
@@ -181,11 +182,10 @@ struct AndroidVersionList: View {
                               selected: row.id == selection) {
             selection = row.id
         }
-        .contextMenu {
-            if let image = row.image, image.isManaged {
-                Button("Remove from This Mac") { images.remove(image) }
-                    .disabled(!canRemove(image))
-            }
+        .hazeContextMenu {
+            guard let image = row.image, image.isManaged else { return [] }
+            return [.item(HazeMenuItem(title: String(localized: "Remove from This Mac"), symbol: "trash", role: .destructive,
+                                       isEnabled: canRemove(image)) { images.remove(image) })]
         }
     }
 

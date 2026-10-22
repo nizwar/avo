@@ -5,20 +5,25 @@ import UniformTypeIdentifiers
 
 /// The key mapping editor drawn over the game (KeymapOverlayWindow).
 ///
-/// Every control is an object on the game: drag its body to move it, drag
-/// its ↘ handle to resize it, click × to remove it. With an object selected
-/// the next key is its trigger, any key at all (Delete, Esc and the
-/// modifiers included, a modifier once it is let go on its own); right-click
+/// Every control is an object on the game. The quickest way to add one:
+/// click the game's own button, then press its key (a tap, made there; a
+/// click on it again cancels). The panel beside the game
+/// (KeymapEditorPanel.swift) adds the other kinds, by a click or by a drag
+/// onto the game where one goes, and has the layout's modes and the
+/// selected control's keys, modes and settings. On the game: drag an
+/// object's body to move it, its ↘ handle to set how far it reaches, × to
+/// remove it. With an object selected the next key is its trigger, any key
+/// at all (Delete, Esc and the modifiers included, a modifier once it is
+/// let go on its own); right-click
 /// for mouse buttons and the wheel. ⌥ + arrow keys move the selected object
-/// and ⌥⇧ + arrow keys resize it. The eye is a swipe area with a point (where
-/// its finger touches down), and an anchor tap may have an area too: drag
-/// the area to move it, its edges and corners (shown while selected) to
-/// resize it, the point to move it within. Positions and sizes are fractions
-/// of the display, so the layout follows the window at any size. With MOBA
-/// controls in the layout, a hero marker shows (and is dragged to) where
-/// they aim from.
+/// and ⌥⇧ + arrow keys resize it. The eye is a swipe area with a point
+/// (where its finger touches down): while it is selected, drag the area to
+/// move it, its edges and corners to resize it, the point to move it within.
+/// Positions and sizes are fractions of the display, so the layout follows
+/// the window at any size. With MOBA controls in the layout, a hero marker
+/// shows (and is dragged to) where they aim from.
 ///
-/// The controller panel (ControllerPanel.swift, the toolbar's Controller
+/// The controller panel (ControllerPanel.swift, the bar's Controller
 /// button) draws the controller: drag a button or stick from it onto the
 /// game to place a control for it there (a menu offers the kinds that fit),
 /// or onto a control to bind it. With a control selected, pressing a button
@@ -61,10 +66,34 @@ final class KeymapEditorView: NSView {
         }
     }
 
-    private var profile: KeymapProfile { didSet { refreshPanel() } }
-    private var selected: String? { didSet { refreshPanel() } }
+    private var profile: KeymapProfile {
+        didSet {
+            refreshPanel()
+            refreshBar()
+        }
+    }
+    private var selected: String? {
+        didSet {
+            refreshPanel()
+            refreshBar()
+        }
+    }
+    /// The mode being edited (KeymapProfile.modes): its controls show, and
+    /// new ones go in it. nil while the layout has no modes.
+    private var editingMode: String? {
+        didSet {
+            refreshPanel()
+            refreshBar()
+        }
+    }
     /// The D-pad direction the next key sets: 0 up, 1 left, 2 down, 3 right.
-    private var dpadSlot = 0
+    private var dpadSlot = 0 { didSet { refreshBar() } }
+    /// Where a click on the game put a tap that waits for its key.
+    private var pendingTap: NormalizedPoint? { didSet { needsDisplay = true } }
+    /// What the waiting tap measures like on the game.
+    private var pendingControl: Control { Control(id: "", kind: .tap(pendingTap ?? NormalizedPoint(0.5, 0.5))) }
+    /// A control dragged from the bar, and where the pointer is (in this view).
+    private var paletteDrag: (item: KeymapPaletteItem, at: CGPoint)?
     private var drag: Drag?
     /// Where the pointer is during an area drag (its size shows beside it).
     private var dragPoint: CGPoint?
@@ -75,25 +104,14 @@ final class KeymapEditorView: NSView {
     private let displayRect: () -> CGRect
     private let onSave: (KeymapProfile) -> String?
     var onClose: (() -> Void)?
-    private let toolbar = NSStackView()
-    private let status = NSTextField(labelWithString: "")
-    /// The status line's own dark plate: the game shows through the editor.
-    private let statusPlate = StatusPlate()
-    private let showOnGame = NSButton()
-    private let opacity = NSSlider()
-    private let opacityValue = NSTextField(labelWithString: "")
+    /// What the panel beside the game shows and asks (KeymapEditorPanel.swift).
+    private let barModel: KeymapEditorModel
+    private let panel: NSHostingView<KeymapEditorPanel>
     /// Editor Opacity: how solid the objects and the dimming are.
-    private let editorOpacity = NSSlider()
-    private let editorOpacityValue = NSTextField(labelWithString: "")
     private var seeThrough = KeymapEditorView.savedOpacity
     private var hintsObserver: (any NSObjectProtocol)?
-    private let controllerToggle = NSButton()
-    private let controllerPanel = ControllerPanelModel()
-    private var panelHost: NSHostingView<ControllerPanelView>?
-    private var panelLeading: NSLayoutConstraint?
-    private var panelTop: NSLayoutConstraint?
-    /// Where the panel sat when its header began to move.
-    private var panelMoveStart: (x: CGFloat, y: CGFloat)?
+    /// The panel's Controller tab (ControllerPanel.swift).
+    private let controllerPanel: ControllerPanelModel
     /// A part of the controller being dragged from the panel, and where the pointer is (in this view).
     private var padDrag: (element: GamepadElement, at: CGPoint)?
     /// The part under the pointer in the panel: the controls it drives light up.
@@ -124,20 +142,23 @@ final class KeymapEditorView: NSView {
         self.displayRect = displayRect
         self.profile = profile
         self.onSave = onSave
+        editingMode = profile.firstMode
+        let model = KeymapEditorModel(), controller = ControllerPanelModel()
+        barModel = model
+        controllerPanel = controller
+        panel = NSHostingView(rootView: KeymapEditorPanel(model: model, controller: controller))
         super.init(frame: .zero)
         // Composited over the game's Metal layer.
         wantsLayer = true
-        buildToolbar()
+        buildPanel()
         connectPanel()
-        // Out by default while a controller is connected or the layout uses one; then as the player left it.
-        let shown = UserDefaults.standard.object(forKey: Self.panelShownKey) as? Bool
-            ?? (GamepadHub.shared.info != nil || profile.usesGamepad)
-        if shown { showPanel(true) }
+        // The tab the player left the panel on.
+        model.tab = UserDefaults.standard.string(forKey: Self.panelTabKey).flatMap(KeymapEditorModel.Tab.init) ?? .controls
         if let warning = Self.newerControlsWarning(profile) { setStatus(warning, problem: true) }
     }
 
     /// While open, Show Key Mapping on Game and its visibility can also
-    /// change from the menus: the toolbar follows them.
+    /// change from the menus: the panel follows them.
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if window == nil {
@@ -177,219 +198,170 @@ final class KeymapEditorView: NSView {
                                        owner: self, userInfo: nil))
     }
 
-    // MARK: Toolbar
+    // MARK: The panel beside the game (KeymapEditorPanel.swift)
 
-    private func buildToolbar() {
-        func button(_ title: String, _ action: Selector) -> NSButton {
-            let button = NSButton(title: title, target: self, action: action)
-            button.bezelStyle = .rounded
-            button.controlSize = .small
-            return button
-        }
-        func menu(_ title: String, symbol: String, items: [(String, String?, Selector)]) -> NSPopUpButton {
-            let popup = NSPopUpButton(frame: .zero, pullsDown: true)
-            popup.controlSize = .small
-            popup.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-            let label = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-            label.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
-            popup.menu?.addItem(label)
-            for (name, symbol, action) in items {
-                let item = NSMenuItem(title: name, action: action, keyEquivalent: "")
-                item.target = self
-                if let symbol { item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil) }
-                popup.menu?.addItem(item)
-            }
-            return popup
-        }
-        let add = menu(String(localized: "Add Control", bundle: .windowHost), symbol: "plus", items: [
-            (String(localized: "Tap", bundle: .windowHost), "hand.tap", #selector(addTap)),
-            (String(localized: "Repeat Tap", bundle: .windowHost), "repeat", #selector(addRepeatTap)),
-            (String(localized: "Anchor Tap", bundle: .windowHost), "arrow.up.and.down.and.arrow.left.and.right", #selector(addAnchor)),
-            (String(localized: "D-pad", bundle: .windowHost), "dpad", #selector(addDPad)),
-            (String(localized: "Swipe", bundle: .windowHost), "hand.draw", #selector(addSwipe)),
-            (String(localized: "Eye (Mouse Look)", bundle: .windowHost), "eye", #selector(addEye)),
-            (String(localized: "Aim Down Sights", bundle: .windowHost), "scope", #selector(addADS)),
-            (String(localized: "Move by Mouse (MOBA)", bundle: .windowHost), "cursorarrow.motionlines", #selector(addMobaMove)),
-            (String(localized: "Smart Cast (MOBA)", bundle: .windowHost), "sparkles", #selector(addSmartCast)),
-        ])
-        let templates = menu(String(localized: "Templates", bundle: .windowHost), symbol: "square.grid.2x2", items: [])
-        let note = NSMenuItem(title: String(localized: "Starting layouts: move each control onto the game's button afterwards", bundle: .windowHost),
-                              action: nil, keyEquivalent: "")
-        note.isEnabled = false
-        templates.menu?.addItem(note)
-        for template in KeymapTemplate.allCases {
-            let item = NSMenuItem(title: Self.title(of: template), action: #selector(insertTemplate(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = template.rawValue
-            item.image = NSImage(systemSymbolName: Self.symbol(of: template), accessibilityDescription: nil)
-            templates.menu?.addItem(item)
-        }
-        templates.autoenablesItems = false
-        let more = menu("", symbol: "ellipsis.circle", items: [
-            (String(localized: "Import…", bundle: .windowHost), nil, #selector(importProfile)),
-            (String(localized: "Export…", bundle: .windowHost), nil, #selector(exportProfile)),
-            (String(localized: "Remove All Controls", bundle: .windowHost), nil, #selector(removeAll)),
-        ])
-        more.setAccessibilityLabel(String(localized: "More", bundle: .windowHost))
-        controllerToggle.title = String(localized: "Controller", bundle: .windowHost)
-        controllerToggle.image = NSImage(systemSymbolName: "gamecontroller", accessibilityDescription: nil)
-        controllerToggle.imagePosition = .imageLeading
-        controllerToggle.setButtonType(.pushOnPushOff)
-        controllerToggle.bezelStyle = .rounded
-        controllerToggle.controlSize = .small
-        controllerToggle.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        controllerToggle.target = self
-        controllerToggle.action = #selector(toggleControllerPanel)
-        controllerToggle.toolTip = String(localized: "Show the controller, to map its buttons and sticks", bundle: .windowHost)
-        let actions = NSStackView(views: [add, templates, controllerToggle, more,
-                                          button(String(localized: "Cancel", bundle: .windowHost), #selector(close)),
-                                          button(String(localized: "Done", bundle: .windowHost), #selector(saveAndClose))])
-        actions.orientation = .horizontal
-        actions.spacing = 6
-        // Second row: the key mapping drawn over the game while playing.
-        showOnGame.title = String(localized: "Show on game", bundle: .windowHost)
-        showOnGame.setButtonType(.switch)
-        showOnGame.controlSize = .small
-        showOnGame.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        showOnGame.target = self
-        showOnGame.action = #selector(toggleShowOnGame)
-        func slider(_ slider: NSSlider, range: ClosedRange<Double>, action: Selector, label: String) {
-            slider.minValue = range.lowerBound
-            slider.maxValue = range.upperBound
-            slider.controlSize = .small
-            slider.isContinuous = true
-            slider.target = self
-            slider.action = action
-            slider.setAccessibilityLabel(label)
-            // Shorter rather than off the toolbar in a narrow window.
-            let width = slider.widthAnchor.constraint(equalToConstant: 80)
-            width.priority = NSLayoutConstraint.Priority(700)
-            width.isActive = true
-            slider.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
-        }
-        slider(opacity, range: KeymapHints.opacityRange, action: #selector(opacityChanged),
-               label: String(localized: "Opacity", bundle: .windowHost))
-        opacity.toolTip = String(localized: "How clearly the key mapping shows on the game while you play", bundle: .windowHost)
-        let editorLabel = NSTextField(labelWithString: String(localized: "Editor opacity", bundle: .windowHost))
-        editorLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        slider(editorOpacity, range: Self.opacityRange, action: #selector(editorOpacityChanged),
-               label: editorLabel.stringValue)
-        editorOpacity.toolTip = String(localized: "Lower it to see the game through the editor while you place controls on its buttons", bundle: .windowHost)
-        editorLabel.toolTip = editorOpacity.toolTip
-        for value in [opacityValue, editorOpacityValue] {
-            value.font = .monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
-            value.textColor = .secondaryLabelColor
-            // "100%" fits: the row does not jump while dragging.
-            value.widthAnchor.constraint(greaterThanOrEqualToConstant: 32).isActive = true
-        }
-        let hints = NSStackView(views: [showOnGame, opacity, opacityValue, editorLabel, editorOpacity, editorOpacityValue])
-        hints.orientation = .horizontal
-        hints.spacing = 6
-        hints.setCustomSpacing(14, after: opacityValue)
-        showHintSettings()
-        for row in [actions, hints] { toolbar.addArrangedSubview(row) }
-        toolbar.orientation = .vertical
-        toolbar.alignment = .centerX
-        toolbar.spacing = 4
-        toolbar.edgeInsets = NSEdgeInsets(top: 6, left: 8, bottom: 6, right: 8)
-        // Dark like the other overlays on the game: it stays readable while
-        // the game shows through it.
-        toolbar.appearance = NSAppearance(named: .darkAqua)
-        toolbar.wantsLayer = true
-        toolbar.layer?.cornerRadius = 10
-        toolbar.translatesAutoresizingMaskIntoConstraints = false
-        status.textColor = .white
-        status.font = .systemFont(ofSize: 12, weight: .medium)
-        status.alignment = .center
-        status.lineBreakMode = .byWordWrapping
-        status.maximumNumberOfLines = 3
-        // A label does not wrap by itself (see layout()), and a long message
-        // must never make the window wider.
-        status.cell?.wraps = true
-        status.cell?.isScrollable = false
-        status.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        status.translatesAutoresizingMaskIntoConstraints = false
-        statusPlate.wantsLayer = true
-        statusPlate.layer?.cornerRadius = 8
-        statusPlate.translatesAutoresizingMaskIntoConstraints = false
-        statusPlate.addSubview(status)
-        addSubview(toolbar)
-        addSubview(statusPlate)
-        let centered = toolbar.centerXAnchor.constraint(equalTo: centerXAnchor)
-        centered.priority = .defaultHigh
+    /// The panel's width: the game's picture moves over for it while the
+    /// editor is open (AndroidWindowController).
+    static let panelWidth: CGFloat = 348
+
+    private func buildPanel() {
+        connectBar()
+        panel.sizingOptions = []
+        panel.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(panel)
         NSLayoutConstraint.activate([
-            centered,
-            toolbar.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 8),
-            toolbar.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -8),
-            toolbar.topAnchor.constraint(equalTo: topAnchor, constant: 10),
-            status.leadingAnchor.constraint(equalTo: statusPlate.leadingAnchor, constant: 10),
-            status.trailingAnchor.constraint(equalTo: statusPlate.trailingAnchor, constant: -10),
-            status.topAnchor.constraint(equalTo: statusPlate.topAnchor, constant: 5),
-            status.bottomAnchor.constraint(equalTo: statusPlate.bottomAnchor, constant: -5),
-            statusPlate.centerXAnchor.constraint(equalTo: centerXAnchor),
-            statusPlate.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 12),
-            statusPlate.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12),
-            statusPlate.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
+            panel.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
+            panel.bottomAnchor.constraint(equalTo: bottomAnchor),
+            panel.trailingAnchor.constraint(equalTo: trailingAnchor),
+            panel.widthAnchor.constraint(equalToConstant: Self.panelWidth),
         ])
+        showHintSettings()
         showEditorOpacity()
         showHelp()
+        refreshBar()
     }
 
-    override func layout() {
-        // Long messages wrap within the window instead of running off it
-        // (set first, so this pass already uses it).
-        status.preferredMaxLayoutWidth = max(bounds.width - 44, 120)
-        let room = max(bounds.width - 2 * Self.panelMargin, ControllerPanelModel.minWidth)
-        if abs(controllerPanel.maxWidth - room) > 0.5 { controllerPanel.maxWidth = room }
-        super.layout()
-        // The panel's place needs its size, known only now. A place set after
-        // the layout waits for the next pass, so lay out again: else a panel
-        // just opened stays in the top left corner until it is dragged.
-        if placePanel() { super.layout() }
+    /// What the panel asks. After a click there, keys come here again: the
+    /// next one is still the selected control's.
+    private func connectBar() {
+        let model = barModel
+        model.setTab = { [weak self] tab in
+            self?.setTab(tab)
+            self?.refocus()
+        }
+        model.add = { [weak self] item in
+            self?.place(item, at: nil)
+            self?.refocus()
+        }
+        model.drag = { [weak self] item, phase, location in self?.paletteDragged(item, phase, location) }
+        model.chooseMode = { [weak self] id in
+            self?.chooseMode(id)
+            self?.refocus()
+        }
+        model.addMode = { [weak self] in self?.addMode() }
+        model.rename = { [weak self] id, name in self?.finishRenaming(id, name) }
+        model.modeMenu = { [weak self] id in self?.modeMenu(id) ?? [] }
+        model.templates = { [weak self] in self?.templateEntries() ?? [] }
+        model.importLayout = { [weak self] in
+            self?.importProfile()
+            self?.refocus()
+        }
+        model.exportLayout = { [weak self] in
+            self?.exportProfile()
+            self?.refocus()
+        }
+        model.removeAll = { [weak self] in
+            self?.removeAll()
+            self?.refocus()
+        }
+        model.setShowOnGame = { [weak self] on in
+            KeymapHints.visible = on
+            self?.showHintSettings()
+            self?.refocus()
+        }
+        model.setHintOpacity = { [weak self] value in
+            // 5% steps, which include the menus' Key Mapping Visibility steps.
+            KeymapHints.opacity = (value * 20).rounded() / 20
+            self?.showHintSettings()
+        }
+        model.setEditorOpacity = { [weak self] value in
+            guard let self else { return }
+            seeThrough = min(max((value * 20).rounded() / 20, Self.opacityRange.lowerBound), Self.opacityRange.upperBound)
+            Self.savedOpacity = seeThrough
+            showEditorOpacity()
+        }
+        model.cancel = { [weak self] in self?.close() }
+        model.done = { [weak self] in
+            self?.saveAndClose()
+            self?.refocus()
+        }
+        model.update = { [weak self] change in
+            guard let self, let id = selected, let i = index(of: id) else { return }
+            change(&profile.controls[i])
+            needsDisplay = true
+            refocus()
+        }
+        model.setActsIn = { [weak self] modes in
+            self?.setActsIn(modes)
+            self?.refocus()
+        }
+        model.setDPadSlot = { [weak self] slot in
+            guard let self, let id = selected, let control = profile.controls.first(where: { $0.id == id }) else { return }
+            dpadSlot = slot
+            prompt(for: control)
+            needsDisplay = true
+            refocus()
+        }
+        model.mouseButtons = { [weak self] in self?.mouseEntries() ?? [] }
+        model.remove = { [weak self] in
+            self?.removeSelected()
+            self?.refocus()
+        }
+        model.deselect = { [weak self] in
+            guard let self else { return }
+            selected = nil
+            showHelp()
+            needsDisplay = true
+            refocus()
+        }
+    }
+
+    /// Keys come to the editor again after a click in the panel (not while
+    /// a mode's name is typed there).
+    private func refocus() {
+        guard let window, window.firstResponder !== self, !typingInPanel else { return }
+        window.makeFirstResponder(self)
+    }
+
+    /// A mode's name has the keyboard in the panel.
+    private var typingInPanel: Bool {
+        (window?.firstResponder as? NSView)?.isDescendant(of: panel) == true
+    }
+
+    /// A mode's tab that waits for a name it never got the keyboard for
+    /// keeps its name (one being typed is kept as it loses the keyboard).
+    private func endStaleRenaming() {
+        if let id = barModel.renaming, !typingInPanel { finishRenaming(id, nil) }
     }
 
     private func showHintSettings() {
-        showOnGame.state = KeymapHints.visible ? .on : .off
-        opacity.doubleValue = KeymapHints.opacity
-        opacity.isEnabled = KeymapHints.visible
-        opacityValue.stringValue = KeymapHints.opacity.formatted(.percent.precision(.fractionLength(0)))
+        if barModel.showOnGame != KeymapHints.visible { barModel.showOnGame = KeymapHints.visible }
+        if barModel.hintOpacity != KeymapHints.opacity { barModel.hintOpacity = KeymapHints.opacity }
     }
 
-    @objc private func toggleShowOnGame() {
-        KeymapHints.visible = showOnGame.state == .on
-        showHintSettings()
-    }
-
-    @objc private func opacityChanged() {
-        // 5% steps, which include the menus' Key Mapping Visibility steps.
-        KeymapHints.opacity = (opacity.doubleValue * 20).rounded() / 20
-        showHintSettings()
-    }
-
-    /// The slider, the toolbar's and status line's plates (never so faint
-    /// that their text gets hard to read) and the objects.
+    /// The slider, and how solid the objects are.
     private func showEditorOpacity() {
-        editorOpacity.doubleValue = seeThrough
-        editorOpacityValue.stringValue = seeThrough.formatted(.percent.precision(.fractionLength(0)))
-        toolbar.layer?.backgroundColor = NSColor(calibratedWhite: 0.1, alpha: 0.62 + 0.3 * seeThrough).cgColor
-        statusPlate.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.5 + 0.2 * seeThrough).cgColor
+        if barModel.editorOpacity != seeThrough { barModel.editorOpacity = seeThrough }
         needsDisplay = true
     }
 
-    @objc private func editorOpacityChanged() {
-        seeThrough = min(max((editorOpacity.doubleValue * 20).rounded() / 20, Self.opacityRange.lowerBound), Self.opacityRange.upperBound)
-        Self.savedOpacity = seeThrough
-        showEditorOpacity()
-    }
-
     private func setStatus(_ text: String, problem: Bool = false) {
-        status.stringValue = text
-        status.textColor = problem ? .systemYellow : .white
+        if barModel.status != text { barModel.status = text }
+        if barModel.problem != problem { barModel.problem = problem }
     }
 
     private func showHelp() {
-        setStatus(String(localized: "Select an object, then press the key for it. Drag to move (or ⌥ + arrow keys), ↘ to resize, × to remove. Right-click for mouse buttons.",
-                         bundle: .windowHost))
+        setStatus(String(localized: "Click a button of the game, then press its key.", bundle: .windowHost))
+    }
+
+    /// What the panel shows of the layout: its modes, the selected control,
+    /// whether it has the eye.
+    private func refreshBar() {
+        let model = barModel
+        let modes = profile.modes.map { mode in
+            KeymapEditorModel.Mode(id: mode.id, name: mode.name, count: profile.controls.filter { $0.modes?.contains(mode.id) == true }.count)
+        }
+        if model.modes != modes { model.modes = modes }
+        if model.editingMode != editingMode { model.editingMode = editingMode }
+        let hasEye = profile.controls.contains(where: isEye)
+        if model.hasEye != hasEye { model.hasEye = hasEye }
+        let selection = selected.flatMap { id in profile.controls.first { $0.id == id } }.map { control in
+            KeymapEditorModel.Selection(control: control, title: name(of: control), symbol: Self.symbol(of: control),
+                                        key: control.triggers.first { !$0.isGamepad }?.shortLabel,
+                                        pad: control.triggers.first(where: \.isGamepad)?.shortLabel,
+                                        eyeKey: isEye(control) ? profile.fps?.cursorToggle.shortLabel : nil, dpadSlot: dpadSlot)
+        }
+        if model.selection != selection { model.selection = selection }
     }
 
     // MARK: Geometry
@@ -406,9 +378,12 @@ final class KeymapEditorView: NSView {
     private func resizeCorner(_ control: Control) -> CGPoint? { painter.resizeCorner(control) }
     private func dpadSlots(center: CGPoint, radius: CGFloat) -> [CGPoint] { painter.dpadSlots(center: center, radius: radius) }
 
+    /// The controls of the mode being edited (every control without modes).
+    private var shownControls: [Control] { profile.controls.filter { $0.belongs(to: editingMode) } }
+
     private func hit(at p: CGPoint) -> Hit? {
         func near(_ a: CGPoint, _ r: CGFloat) -> Bool { hypot(a.x - p.x, a.y - p.y) <= r }
-        let newestFirst = Array(profile.controls.reversed())
+        let newestFirst = Array(shownControls.reversed())
         // Handles sit on top of everything.
         for control in newestFirst {
             if near(removeHandle(control), Self.handleRadius + 3) { return .remove(control.id) }
@@ -444,13 +419,11 @@ final class KeymapEditorView: NSView {
             }
         }
         // Under the controls: the rest of the selected area's edges, then
-        // inside an area, which drags it (the selected one first).
+        // inside it, which drags it. Another eye's area is the game's: a
+        // click there puts a tap on the button under it.
         if let selectedArea {
             if let edges = edges(of: selectedArea.rect, near: p) { return .areaEdge(selectedArea.id, edges) }
             if selectedArea.movable, selectedArea.rect.contains(p) { return .area(selectedArea.id) }
-        }
-        for control in newestFirst where hasOwnArea(control) {
-            if let rect = painter.areaRect(of: control), rect.contains(p) { return .area(control.id) }
         }
         return nil
     }
@@ -466,14 +439,10 @@ final class KeymapEditorView: NSView {
         return edges.isEmpty ? nil : edges
     }
 
-    /// An eye's swipe area, or an anchor tap's own: shown, and dragged by
-    /// its inside, all the time (an anchor tap without one uses the whole
-    /// screen, framed only while it is selected).
+    /// The eye's swipe area: shown all the time, dragged by its inside while
+    /// the eye is selected (an anchor tap's reach is a circle, sized by its ↘ handle).
     private func hasOwnArea(_ control: Control) -> Bool {
-        switch control.kind {
-        case .aim, .anchor(_, _?): true
-        default: false
-        }
+        isEye(control)
     }
 
     /// The smallest area the editor makes: a square of Control.minimumAreaSide on screen.
@@ -505,9 +474,9 @@ final class KeymapEditorView: NSView {
         switch control.kind {
         case .tap: control.kind = .tap(p)
         case .hold: control.kind = .hold(p)
-        case .anchor:
-            // Within its area, when it has one.
-            control.setTouchPoint(p)
+        case .anchor(_, let radius): control.kind = .anchor(p, radius: radius)
+        case .switchMode(let mode, _): control.kind = .switchMode(mode, position: p)
+        case .mouseLook(let lock, _): control.kind = .mouseLook(lock: lock, position: p)
         case .ads(_, let toggle): control.kind = .ads(p, toggle: toggle)
         case .repeatTap(_, let interval): control.kind = .repeatTap(p, intervalMilliseconds: interval)
         case let .dpad(_, radius, up, down, left, right, stick):
@@ -529,8 +498,8 @@ final class KeymapEditorView: NSView {
         }
     }
 
-    /// Follows the ↘ handle: a bubble's size, a D-pad's or MOBA joystick's
-    /// radius, a smart cast's drag radius.
+    /// Follows the ↘ handle: a D-pad's or MOBA joystick's radius, a smart
+    /// cast's drag radius, an anchor tap's reach (buttons have no size to set).
     private func resize(_ control: inout Control, to p: CGPoint) {
         let height = max(displayRect().height, 1)
         // The handle sits on the corner of the control's box, radius·√2 out.
@@ -543,10 +512,10 @@ final class KeymapEditorView: NSView {
             control.kind = .mobaMove(center: center, radius: min(max(radius, 0.04), 0.45))
         case let .smartCast(button, _, reach):
             control.kind = .smartCast(button, radius: min(max(radius, 0.03), 0.45), reach: reach)
-        case .aim, .swipe, .macro:
-            break
+        case .anchor(let point, _):
+            control.kind = .anchor(point, radius: min(max(radius, Control.anchorRadiusRange.lowerBound), Control.anchorRadiusRange.upperBound))
         default:
-            control.size = min(max(radius, Control.sizeRange.lowerBound), Control.sizeRange.upperBound)
+            break
         }
     }
 
@@ -611,7 +580,7 @@ final class KeymapEditorView: NSView {
         return true
     }
 
-    /// A size step from the keyboard: a bubble's size, a joystick's or smart cast's radius.
+    /// A size step from the keyboard: a joystick's or smart cast's radius, an anchor tap's reach.
     private func step(_ control: inout Control, bigger: Bool) {
         let factor = bigger ? 1.1 : 1 / 1.1
         switch control.kind {
@@ -622,11 +591,11 @@ final class KeymapEditorView: NSView {
             control.kind = .mobaMove(center: center, radius: min(max(radius * factor, 0.04), 0.45))
         case let .smartCast(button, radius, reach):
             control.kind = .smartCast(button, radius: min(max(radius * factor, 0.03), 0.45), reach: reach)
-        case .aim, .anchor, .swipe, .macro:
-            break
+        case let .anchor(point, radius):
+            let range = Control.anchorRadiusRange
+            control.kind = .anchor(point, radius: min(max((radius ?? Control.defaultAnchorRadius) * factor, range.lowerBound), range.upperBound))
         default:
-            control.size = min(max((control.size ?? Control.defaultSize) * factor, Control.sizeRange.lowerBound),
-                               Control.sizeRange.upperBound)
+            break
         }
     }
 
@@ -639,22 +608,30 @@ final class KeymapEditorView: NSView {
         needsDisplay = true
     }
 
-    /// Binds `trigger` to the selected object. A trigger does one thing, so
-    /// it moves off any other button; D-pad keys and the eye's key are kept
-    /// (they cannot be left empty) and the press is refused instead.
+    /// Binds `trigger` to the selected object. A key may do several things
+    /// (F: the game's Enter vehicle button and the switch to the vehicle
+    /// mode), so other controls keep theirs; the status line names them.
     func assign(_ trigger: Trigger) {
+        if let at = pendingTap {
+            placeTap(at: at, trigger)
+            return
+        }
         guard let id = selected, let index = index(of: id) else { return }
-        if let owner = profile.controls.first(where: { $0.id != id && keepsTrigger($0, trigger) }) {
-            setStatus(String(localized: "\(short(trigger)) is already used by “\(name(of: owner))”.", bundle: .windowHost), problem: true)
-            return
-        }
-        if profile.fps?.cursorToggle == trigger, !isEye(profile.controls[index]) {
-            setStatus(String(localized: "\(short(trigger)) locks the mouse for the eye; choose another key.", bundle: .windowHost), problem: true)
-            return
-        }
-        for i in profile.controls.indices where i != index { profile.controls[i].triggers.removeAll { $0 == trigger } }
         let control = profile.controls[index]
         switch control.kind {
+        case let .dpad(_, _, up, down, left, right, _) where dpadSlot == Self.runSlot:
+            // The key held to run.
+            if trigger.isMomentary {
+                setStatus(String(localized: "The wheel cannot be held to run: press a key or a button.", bundle: .windowHost), problem: true)
+            } else if [up, down, left, right].contains(trigger) {
+                setStatus(String(localized: "\(short(trigger)) is a direction of this joystick: press another key to run.", bundle: .windowHost),
+                          problem: true)
+            } else {
+                profile.controls[index].run = JoystickRun(trigger: trigger, scale: control.run?.scale ?? JoystickRun.defaultScale)
+                dpadSlot = 0
+                setStatus(String(localized: "Holding \(short(trigger)) runs: the joystick goes further meanwhile. Set how far in the panel.",
+                                 bundle: .windowHost))
+            }
         case let .dpad(center, radius, up, down, left, right, stick):
             var keys = [up, left, down, right]
             if let other = keys.firstIndex(of: trigger), other != dpadSlot {
@@ -677,60 +654,60 @@ final class KeymapEditorView: NSView {
         default:
             if trigger.isMomentary {
                 switch control.kind {
-                case .tap, .swipe, .macro: break
+                case .tap, .swipe, .macro, .switchMode, .mouseLook: break
                 default:
-                    setStatus(String(localized: "The wheel works with Tap and Swipe only.", bundle: .windowHost), problem: true)
+                    setStatus(String(localized: "The wheel works with Tap, Swipe, Switch Mode, and Free or Lock the Mouse only.", bundle: .windowHost),
+                              problem: true)
                     return
                 }
             }
             // A key replaces its key, and the controller button stays.
             profile.controls[index].setTrigger(trigger)
-            setStatus(String(localized: "“\(name(of: control))” responds to \(short(trigger)).", bundle: .windowHost))
+            // The others it presses in this mode, so a shared key is no surprise.
+            let others = shownControls.filter { $0.id != id && $0.allTriggers.contains(trigger) }.map { "“\(name(of: $0))”" }
+            if others.isEmpty, profile.fps?.cursorToggle != trigger {
+                setStatus(String(localized: "“\(name(of: control))” responds to \(short(trigger)).", bundle: .windowHost))
+            } else {
+                let more = others + (profile.fps?.cursorToggle == trigger ? [String(localized: "the mouse lock", bundle: .windowHost)] : [])
+                setStatus(String(localized: "“\(name(of: control))” responds to \(short(trigger)), together with \(more.formatted(.list(type: .and))).",
+                                 bundle: .windowHost))
+            }
         }
         needsDisplay = true
     }
 
-    /// Triggers that cannot simply be taken away from a control.
-    private func keepsTrigger(_ control: Control, _ trigger: Trigger) -> Bool {
-        if case .dpad = control.kind { return control.allTriggers.contains(trigger) }
-        return false
-    }
+    /// The D-pad's "slot" past its four directions: the key held to run.
+    private static let runSlot = 4
 
     private func direction(_ slot: Int) -> String {
         [String(localized: "up", bundle: .windowHost), String(localized: "left", bundle: .windowHost),
          String(localized: "down", bundle: .windowHost), String(localized: "right", bundle: .windowHost)][slot]
     }
 
+    /// What to do with the selected control now; what it is is behind its (?) in the panel.
     private func prompt(for control: Control) {
         switch control.kind {
+        case .dpad where dpadSlot == Self.runSlot:
+            setStatus(String(localized: "Press the key to hold for running (Shift, for example).", bundle: .windowHost))
         case .dpad:
-            setStatus(String(localized: "D-pad: press four keys in turn (\(direction(dpadSlot)) first), or click a direction to change one.",
-                             bundle: .windowHost))
+            setStatus(String(localized: "Press four keys in turn, \(direction(dpadSlot)) first.", bundle: .windowHost))
         case .aim:
-            setStatus(String(localized: "Eye: with the mouse locked, a finger swipes from the eye across its area and starts over at the edge (a taller area looks further up and down). Drag the area, its edges or the eye (⌥ + arrow keys move it, ⌥⇧ + arrow keys resize it). Press the key that locks and frees the mouse (for example F8).",
-                             bundle: .windowHost))
-        case .anchor:
-            setStatus(String(localized: "Anchor tap: while its key is held, the mouse moves the finger from here (emote wheels), never out of its area. Drag the dashed frame’s edges in to make the area smaller; ⌥⇧ + arrow keys resize it. Press its key.",
-                             bundle: .windowHost))
+            setStatus(String(localized: "Press the key that locks and frees the mouse (F8, for example).", bundle: .windowHost))
+        case .anchor, .smartCast:
+            setStatus(String(localized: "Press its key. Drag ↘ to set how far it reaches.", bundle: .windowHost))
+        case .switchMode:
+            setStatus(String(localized: "Press the key that switches in the game too.", bundle: .windowHost))
         case .mobaMove:
-            setStatus(String(localized: "Move by mouse: while its button is held, the joystick is pushed towards the cursor, as seen from the hero marker. Right-click to pick a mouse button, or press a key.",
-                             bundle: .windowHost))
-        case .smartCast:
-            setStatus(String(localized: "Smart cast: its key drags the skill towards the cursor, as seen from the hero marker, and letting go casts. ↘ sets how far it drags. Press its key.",
-                             bundle: .windowHost))
+            setStatus(String(localized: "Press a key, or right-click for a mouse button.", bundle: .windowHost))
         default:
-            if showsController || GamepadHub.shared.info != nil {
-                setStatus(String(localized: "Press the key or controller button for “\(name(of: control))”, or right-click for a mouse button.",
-                                 bundle: .windowHost))
-            } else {
-                setStatus(String(localized: "Press the key for “\(name(of: control))”, or right-click for a mouse button.", bundle: .windowHost))
-            }
+            setStatus(String(localized: "Press its key or controller button. Right-click for a mouse button.", bundle: .windowHost))
         }
     }
 
     // MARK: Mouse
 
     override func mouseDown(with event: NSEvent) {
+        endStaleRenaming()
         window?.makeFirstResponder(self)
         // A modifier held through a click is not a key for the object.
         pendingModifier = nil
@@ -764,6 +741,7 @@ final class KeymapEditorView: NSView {
             drag = moveDrag(id, from: p)
         case .hero?:
             selected = nil
+            pendingTap = nil
             let h = point(hero)
             drag = .hero(offset: CGVector(dx: h.x - p.x, dy: h.y - p.y))
             setStatus(String(localized: "Hero: where your character stands on the screen. Move by mouse and smart cast aim from here towards the cursor.",
@@ -771,12 +749,24 @@ final class KeymapEditorView: NSView {
         case nil:
             selected = nil
             drag = nil
-            showHelp()
+            if let pendingTap, hypot(point(pendingTap).x - p.x, point(pendingTap).y - p.y) <= max(painter.bubbleRadius(pendingControl), 12) {
+                // Clicked again: no tap there after all.
+                self.pendingTap = nil
+                showHelp()
+            } else if displayRect().contains(p) {
+                // On the game: a tap there, once its key is pressed.
+                pendingTap = normalized(p)
+                setStatus(String(localized: "Press a key for this button (right-click: a mouse button). Click it again to cancel.", bundle: .windowHost))
+            } else {
+                pendingTap = nil
+                showHelp()
+            }
         }
         needsDisplay = true
     }
 
     private func select(_ id: String) {
+        pendingTap = nil
         if selected != id {
             selected = id
             dpadSlot = 0
@@ -843,14 +833,22 @@ final class KeymapEditorView: NSView {
     }
 
     private func updateCursor(at p: CGPoint) {
-        // Over the controller panel: the panel's own.
-        let target = panelHost?.frame.contains(p) == true ? nil : hit(at: p)
+        // Over the panel: its own.
+        if panel.frame.contains(p) {
+            if hovered != nil {
+                hovered = nil
+                needsDisplay = true
+            }
+            return
+        }
+        let target = hit(at: p)
         switch target {
         case .remove?, .dpadSlot?: NSCursor.pointingHand.set()
         case .resize?, .swipeEnd?: NSCursor.crosshair.set()
         case .body?, .hero?, .area?: NSCursor.openHand.set()
         case .areaEdge(_, let edges)?: NSCursor.frameResize(position: Self.resizePosition(edges), directions: .all).set()
-        case nil: NSCursor.arrow.set()
+        // On the game: a click puts a tap there.
+        case nil: (displayRect().contains(p) ? NSCursor.crosshair : NSCursor.arrow).set()
         }
         if target?.controlID != hovered?.controlID || !sameKind(target, hovered) {
             hovered = target
@@ -880,10 +878,18 @@ final class KeymapEditorView: NSView {
         }
     }
 
-    /// Right-click: mouse buttons and the wheel as triggers, and removal.
+    /// Right-click: mouse buttons and the wheel as triggers, and removal; on
+    /// the game, a tap there for a mouse button.
     override func rightMouseDown(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
-        guard let id = hit(at: p)?.controlID else { return }
+        guard let id = hit(at: p)?.controlID else {
+            guard displayRect().contains(p), let window else { return }
+            selected = nil
+            pendingTap = normalized(p)
+            setStatus(String(localized: "Choose the mouse button for this button of the game, or press a key.", bundle: .windowHost))
+            HazeMenuPresenter.shared.show(mouseEntries(), at: window.convertPoint(toScreen: event.locationInWindow), for: event)
+            return
+        }
         select(id)
         needsDisplay = true
         let menu = NSMenu()
@@ -910,12 +916,299 @@ final class KeymapEditorView: NSView {
                 item.target = self
                 menu.addItem(item)
             }
+            for item in modeItems(for: control) { menu.addItem(item) }
         }
         menu.addItem(.separator())
         let remove = NSMenuItem(title: String(localized: "Remove", bundle: .windowHost), action: #selector(removeSelected), keyEquivalent: "")
         remove.target = self
         menu.addItem(remove)
-        NSMenu.popUpContextMenu(menu, with: event, for: self)
+        HazeMenuPresenter.shared.popUpContextMenu(menu, with: event, for: self)
+    }
+
+    /// A control's menu items for modes: the modes it acts in, a switch's
+    /// target, which way a mouse control goes.
+    private func modeItems(for control: Control) -> [NSMenuItem] {
+        var items: [NSMenuItem] = []
+        func submenu(_ title: String, _ entries: [(title: String, value: String, on: Bool)], _ action: Selector) -> NSMenuItem {
+            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            let menu = NSMenu()
+            menu.autoenablesItems = false
+            for entry in entries {
+                if entry.value.isEmpty {
+                    menu.addItem(.separator())
+                    continue
+                }
+                let choice = NSMenuItem(title: entry.title, action: action, keyEquivalent: "")
+                choice.target = self
+                choice.representedObject = entry.value
+                choice.state = entry.on ? .on : .off
+                menu.addItem(choice)
+            }
+            item.submenu = menu
+            return item
+        }
+        if !profile.modes.isEmpty {
+            let modes = [(String(localized: "Every Mode", bundle: .windowHost), "*", control.modes == nil), ("", "", false)]
+                + profile.modes.map { ($0.name, $0.id, control.modes?.contains($0.id) == true) }
+            items.append(submenu(String(localized: "Acts In", bundle: .windowHost), modes, #selector(setControlModes(_:))))
+        }
+        if case .switchMode(let target, _) = control.kind, profile.modes.count > 1 {
+            let targets = profile.modes.map { ($0.name, $0.id, $0.id == target) }
+            items.append(submenu(String(localized: "Switches To", bundle: .windowHost), targets, #selector(setSwitchTarget(_:))))
+        }
+        if case .mouseLook(let lock, _) = control.kind {
+            let flip = NSMenuItem(title: lock ? String(localized: "Free the Mouse Instead", bundle: .windowHost)
+                                              : String(localized: "Lock the Mouse Instead", bundle: .windowHost),
+                                  action: #selector(flipMouseLook), keyEquivalent: "")
+            flip.target = self
+            items.append(flip)
+        }
+        return items.isEmpty ? [] : [.separator()] + items
+    }
+
+    @objc private func setControlModes(_ item: NSMenuItem) {
+        guard let id = selected, let control = profile.controls.first(where: { $0.id == id }),
+              let value = item.representedObject as? String else { return }
+        if value == "*" {
+            setActsIn(nil)
+        } else {
+            var modes = control.modes ?? []
+            if let at = modes.firstIndex(of: value) { modes.remove(at: at) } else { modes.append(value) }
+            // In the layout's order; none left is every mode.
+            modes = profile.modes.map(\.id).filter(modes.contains)
+            setActsIn(modes.isEmpty ? nil : modes)
+        }
+    }
+
+    /// The modes the selected control acts in (nil: every mode).
+    private func setActsIn(_ modes: [String]?) {
+        guard let id = selected, let i = index(of: id) else { return }
+        profile.controls[i].modes = modes
+        let control = profile.controls[i]
+        let names = (modes ?? []).compactMap { mode in profile.modes.first { $0.id == mode }?.name }
+        setStatus(names.isEmpty ? String(localized: "“\(name(of: control))” acts in every mode.", bundle: .windowHost)
+                                : String(localized: "“\(name(of: control))” acts in \(names.formatted(.list(type: .and))).", bundle: .windowHost))
+        // Out of the mode being edited: it goes from view.
+        if !control.belongs(to: editingMode) { selected = nil }
+        needsDisplay = true
+    }
+
+    @objc private func setSwitchTarget(_ item: NSMenuItem) {
+        guard let id = selected, let i = index(of: id), let target = item.representedObject as? String,
+              case .switchMode(_, let position) = profile.controls[i].kind else { return }
+        profile.controls[i].kind = .switchMode(target, position: position)
+        prompt(for: profile.controls[i])
+        needsDisplay = true
+    }
+
+    @objc private func flipMouseLook() {
+        guard let id = selected, let i = index(of: id), case let .mouseLook(lock, position) = profile.controls[i].kind else { return }
+        profile.controls[i].kind = .mouseLook(lock: !lock, position: position)
+        prompt(for: profile.controls[i])
+        needsDisplay = true
+    }
+
+    // MARK: Modes
+
+    /// A mode's tab: its controls show, and new ones go in it.
+    private func chooseMode(_ id: String) {
+        guard let mode = profile.modes.first(where: { $0.id == id }) else { return }
+        if let id = selected, profile.controls.first(where: { $0.id == id })?.belongs(to: mode.id) != true { selected = nil }
+        hovered = nil
+        pendingTap = nil
+        editingMode = mode.id
+        setStatus(String(localized: "Editing “\(mode.name)”.", bundle: .windowHost))
+        needsDisplay = true
+    }
+
+    /// + Mode: a new, empty mode, its name typed in its tab.
+    private func addMode() {
+        barModel.renaming = createMode()
+    }
+
+    /// A new, empty mode, edited from now on. The layout's first also makes
+    /// "Default", where the game starts, with the controls the layout had;
+    /// the eye stays in every mode, as a game turns its camera in all of
+    /// them. Returns its id.
+    @discardableResult
+    private func createMode() -> String {
+        let first = profile.modes.isEmpty
+        if first {
+            profile.modes = [KeymapMode(id: "default", name: String(localized: "Default", bundle: .windowHost))]
+            for i in profile.controls.indices where profile.controls[i].modes == nil && !isEye(profile.controls[i]) {
+                profile.controls[i].modes = ["default"]
+            }
+        }
+        let id = newModeID()
+        profile.modes.append(KeymapMode(id: id, name: String(localized: "Mode \(profile.modes.count + 1)", bundle: .windowHost)))
+        selected = nil
+        pendingTap = nil
+        editingMode = id
+        setStatus(first ? String(localized: "Your controls are in “Default” now. This new mode starts empty.", bundle: .windowHost)
+                        : String(localized: "A new mode, empty: add its controls.", bundle: .windowHost))
+        needsDisplay = true
+        return id
+    }
+
+    private func newModeID() -> String {
+        var n = profile.modes.count + 1
+        while profile.modes.contains(where: { $0.id == "mode-\(n)" }) { n += 1 }
+        return "mode-\(n)"
+    }
+
+    /// The name typed in a mode's tab (nil: Esc, its name stays).
+    private func finishRenaming(_ id: String, _ name: String?) {
+        guard barModel.renaming == id else { return }
+        barModel.renaming = nil
+        if let name = name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty,
+           let i = profile.modes.firstIndex(where: { $0.id == id }) {
+            profile.modes[i].name = name
+        }
+        window?.makeFirstResponder(self)
+        needsDisplay = true
+    }
+
+    /// A mode's menu (its tab clicked again, or right-clicked): rename,
+    /// duplicate, start the game in it, the mouse on entering it (with the
+    /// eye), delete.
+    private func modeMenu(_ id: String) -> [HazeMenuEntry] {
+        guard let index = profile.modes.firstIndex(where: { $0.id == id }) else { return [] }
+        var entries: [HazeMenuEntry] = [
+            .section(profile.modes[index].name),
+            .item(HazeMenuItem(title: String(localized: "Rename", bundle: .windowHost), symbol: "pencil") { [weak self] in
+                self?.barModel.renaming = id
+            }),
+            .item(HazeMenuItem(title: String(localized: "Duplicate", bundle: .windowHost), symbol: "plus.square.on.square") { [weak self] in
+                self?.duplicateMode(id)
+            }),
+        ]
+        if index > 0 {
+            entries.append(.item(HazeMenuItem(title: String(localized: "Start the Game in This Mode", bundle: .windowHost), symbol: "flag") {
+                [weak self] in
+                self?.startIn(id)
+                self?.refocus()
+            }))
+        }
+        if profile.fps != nil {
+            entries.append(.item(HazeMenuItem(title: String(localized: "Mouse on Entering", bundle: .windowHost), symbol: "computermouse",
+                                              submenu: { [weak self] in self?.mouseChoices(for: id) ?? [] })))
+        }
+        entries.append(.separator())
+        entries.append(.item(HazeMenuItem(title: String(localized: "Delete Mode…", bundle: .windowHost), symbol: "trash", role: .destructive) {
+            [weak self] in self?.deleteMode(id)
+        }))
+        return entries
+    }
+
+    private func mouseChoices(for id: String) -> [HazeMenuEntry] {
+        let current = profile.modes.first { $0.id == id }?.mouseLook
+        let choices: [(String, Bool?)] = [(String(localized: "Locked to the Eye", bundle: .windowHost), true),
+                                          (String(localized: "Free", bundle: .windowHost), false),
+                                          (String(localized: "As It Was", bundle: .windowHost), nil)]
+        return choices.map { title, value in
+            .item(HazeMenuItem(title: title, state: current == value ? .on : .off) { [weak self] in
+                guard let self, let i = self.profile.modes.firstIndex(where: { $0.id == id }) else { return }
+                self.profile.modes[i].mouseLook = value
+                self.refocus()
+            })
+        }
+    }
+
+    /// The game starts in the layout's first mode.
+    private func startIn(_ id: String) {
+        guard let i = profile.modes.firstIndex(where: { $0.id == id }), i > 0 else { return }
+        let mode = profile.modes.remove(at: i)
+        profile.modes.insert(mode, at: 0)
+        setStatus(String(localized: "The game starts in “\(mode.name)” now.", bundle: .windowHost))
+    }
+
+    /// A copy of a mode, after it: its own controls copied, the others (the
+    /// eye among them) acting in the copy too; its name typed in its tab.
+    private func duplicateMode(_ id: String) {
+        guard let index = profile.modes.firstIndex(where: { $0.id == id }) else { return }
+        let source = profile.modes[index]
+        let copy = newModeID()
+        profile.modes.insert(KeymapMode(id: copy, name: String(localized: "\(source.name) Copy", bundle: .windowHost), mouseLook: source.mouseLook),
+                             at: index + 1)
+        var controls = profile.controls
+        for i in controls.indices {
+            guard var modes = controls[i].modes, modes.contains(id) else { continue }
+            if modes == [id], !isEye(controls[i]) {
+                var twin = controls[i]
+                twin.id = uniqueID(like: twin.id, in: controls)
+                twin.modes = [copy]
+                controls.append(twin)
+            } else {
+                modes.append(copy)
+                controls[i].modes = profile.modes.map(\.id).filter(modes.contains)
+            }
+        }
+        profile.controls = controls
+        selected = nil
+        pendingTap = nil
+        editingMode = copy
+        barModel.renaming = copy
+        setStatus(String(localized: "A copy of “\(source.name)”, with its controls: type its name in its tab.", bundle: .windowHost))
+        needsDisplay = true
+    }
+
+    /// A free id like `id`: "tap-3" gives the first free "tap-n".
+    private func uniqueID(like id: String, in controls: [Control]) -> String {
+        var prefix = id
+        if let dash = id.lastIndex(of: "-"), Int(id[id.index(after: dash)...]) != nil { prefix = String(id[..<dash]) }
+        var n = 1
+        while controls.contains(where: { $0.id == "\(prefix)-\(n)" }) { n += 1 }
+        return "\(prefix)-\(n)"
+    }
+
+    /// Deletes a mode, with the controls that act only there and the
+    /// switches to it, once the player says so. The only mode: the layout
+    /// is one set of controls again, and they all stay.
+    private func deleteMode(_ id: String) {
+        guard let mode = profile.modes.first(where: { $0.id == id }), let window else { return }
+        let only = profile.modes.count == 1
+        let going = profile.controls.filter { control in
+            if case .switchMode(id, _) = control.kind { return true }
+            return control.modes == [id]
+        }
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Delete the mode “\(mode.name)”?", bundle: .windowHost)
+        alert.informativeText = only
+            ? String(localized: "It is the layout’s only mode: the layout is one set of controls again, and they all stay. Cancel in the editor still undoes it.",
+                     bundle: .windowHost)
+            : going.isEmpty
+                ? String(localized: "Its controls stay in the other modes. Cancel in the editor still undoes it.", bundle: .windowHost)
+                : String(localized: "\(going.count) controls that act only there or switch to it go too. Cancel in the editor still undoes it.",
+                         bundle: .windowHost)
+        alert.addButton(withTitle: String(localized: "Delete Mode", bundle: .windowHost))
+        alert.addButton(withTitle: String(localized: "Cancel", bundle: .windowHost))
+        alert.beginSheetModal(for: window) { [weak self] response in
+            MainActor.assumeIsolated {
+                if response == .alertFirstButtonReturn { self?.removeMode(id) }
+                self?.refocus()
+            }
+        }
+    }
+
+    private func removeMode(_ id: String) {
+        if profile.modes.count == 1 {
+            profile.modes = []
+            for i in profile.controls.indices { profile.controls[i].modes = nil }
+            profile.controls.removeAll { if case .switchMode = $0.kind { true } else { false } }
+        } else {
+            profile.controls.removeAll { control in
+                if case .switchMode(id, _) = control.kind { return true }
+                return control.modes == [id]
+            }
+            for i in profile.controls.indices { profile.controls[i].modes?.removeAll { $0 == id } }
+            profile.modes.removeAll { $0.id == id }
+        }
+        if let fps = profile.fps, !profile.controls.contains(where: { $0.id == fps.aimControl }) { profile.fps = nil }
+        selected = nil
+        pendingTap = nil
+        if editingMode == id || profile.modes.isEmpty { editingMode = profile.firstMode }
+        showHelp()
+        needsDisplay = true
     }
 
     @objc private func assignFromMenu(_ item: NSMenuItem) {
@@ -938,7 +1231,9 @@ final class KeymapEditorView: NSView {
                 choices.append((String(localized: "Touch Down at the Area’s Centre", bundle: .windowHost), #selector(touchDownAtCentre)))
             }
             return choices
-        case .anchor(_, _?):
+        case .anchor(_, nil):
+            return [(String(localized: "Reach a Circle Around It", bundle: .windowHost), #selector(useCircleReach))]
+        case .anchor:
             return [(String(localized: "Let the Finger Use the Whole Screen", bundle: .windowHost), #selector(useWholeScreen))]
         default:
             return []
@@ -969,36 +1264,43 @@ final class KeymapEditorView: NSView {
     }
 
     @objc private func useWholeScreen() {
-        changeSelectedArea { $0.setFingerArea(.screen) }
+        changeSelectedArea { control in
+            if case .anchor(let point, _) = control.kind { control.kind = .anchor(point) }
+        }
+        setStatus(String(localized: "The finger may now go anywhere on the screen.", bundle: .windowHost))
+    }
+
+    @objc private func useCircleReach() {
+        changeSelectedArea { control in
+            if case .anchor(let point, _) = control.kind { control.kind = .anchor(point, radius: Control.defaultAnchorRadius) }
+        }
+        setStatus(String(localized: "The finger stays in the circle. Drag ↘ to set how far it reaches.", bundle: .windowHost))
     }
 
     override func otherMouseDown(with event: NSEvent) {
-        if selected != nil, let button = MouseButton(buttonNumber: event.buttonNumber) { assign(.mouse(button)) }
+        if selected != nil || pendingTap != nil, let button = MouseButton(buttonNumber: event.buttonNumber) { assign(.mouse(button)) }
     }
 
     override func scrollWheel(with event: NSEvent) {
         // Wheel notches only: trackpad scrolling is not a wheel.
-        guard selected != nil, !event.hasPreciseScrollingDeltas, event.scrollingDeltaY != 0 else { return }
+        guard selected != nil || pendingTap != nil, !event.hasPreciseScrollingDeltas, event.scrollingDeltaY != 0 else { return }
         assign(event.scrollingDeltaY > 0 ? .scrollUp : .scrollDown)
     }
 
     // MARK: Keys
 
     override func keyDown(with event: NSEvent) {
+        endStaleRenaming()
         guard let key = KeyboardMapping.key(forMacKeyCode: event.keyCode) else { return }
         // A modifier held for this key is part of it, not a key of its own.
         pendingModifier = nil
-        guard selected != nil else {
-            // Nothing selected: Esc leaves, like Cancel.
-            if key == .escape { close() }
-            return
-        }
-        if nudge(key, flags: event.modifierFlags) { return }
+        guard selected != nil || pendingTap != nil else { return }
+        if selected != nil, nudge(key, flags: event.modifierFlags) { return }
         if !event.isARepeat { assign(.key(key)) }
     }
 
     override func flagsChanged(with event: NSEvent) {
-        guard selected != nil, let key = KeyboardMapping.key(forMacKeyCode: event.keyCode) else {
+        guard selected != nil || pendingTap != nil, let key = KeyboardMapping.key(forMacKeyCode: event.keyCode) else {
             pendingModifier = nil
             return
         }
@@ -1028,75 +1330,202 @@ final class KeymapEditorView: NSView {
 
     // MARK: Adding
 
-    private func add(_ kind: Control.Kind, prefix: String, trigger: Trigger? = nil) {
-        var n = 1
-        while profile.controls.contains(where: { $0.id == "\(prefix)-\(n)" }) { n += 1 }
-        var control = Control(id: "\(prefix)-\(n)", kind: kind)
+    /// The waiting tap, with the key pressed for it: a Tap where the game
+    /// was clicked, in the mode being edited.
+    private func placeTap(at point: NormalizedPoint, _ trigger: Trigger) {
+        pendingTap = nil
+        var control = Control(id: uniqueID(like: "tap", in: profile.controls), kind: .tap(point), triggers: [trigger])
+        if let editingMode { control.modes = [editingMode] }
+        profile.controls.append(control)
+        selected = nil
+        select(control.id)
+        // What else it presses here, so a shared key is no surprise.
+        let others = shownControls.filter { $0.id != control.id && $0.allTriggers.contains(trigger) }.map { "“\(name(of: $0))”" }
+        if others.isEmpty {
+            setStatus(String(localized: "A tap on \(short(trigger)). Click the next button of the game and press its key.", bundle: .windowHost))
+        } else {
+            setStatus(String(localized: "A tap on \(short(trigger)), together with \(others.formatted(.list(type: .and))). Click the next button of the game and press its key.",
+                             bundle: .windowHost))
+        }
+        needsDisplay = true
+    }
+
+    /// A control from the bar: where it was let go on the game, or (clicked)
+    /// where that kind usually is, off any control already there.
+    private func place(_ item: KeymapPaletteItem, at p: NormalizedPoint?) {
+        pendingTap = nil
+        let exactly = p != nil
+        switch item {
+        case .tap:
+            add(.tap(p ?? NormalizedPoint(0.5, 0.5)), prefix: "tap", exactly: exactly)
+        case .repeatTap:
+            add(.repeatTap(p ?? NormalizedPoint(0.4, 0.5), intervalMilliseconds: 150), prefix: "repeat", exactly: exactly)
+        case .anchor:
+            add(.anchor(p ?? NormalizedPoint(0.5, 0.65), radius: Control.defaultAnchorRadius), prefix: "anchor", exactly: exactly)
+        case .joystick:
+            addJoystick(at: p)
+        case .swipe:
+            let from = p ?? NormalizedPoint(0.5, 0.6)
+            add(.swipe(from: from, to: NormalizedPoint(from.x, max(from.y - 0.2, 0)), milliseconds: 150), prefix: "swipe", exactly: exactly)
+        case .eye:
+            addEye(at: p)
+        case .ads:
+            add(.ads(p ?? NormalizedPoint(0.9, 0.45), toggle: false), prefix: "ads", exactly: exactly)
+        case .freeMouse:
+            add(.mouseLook(lock: false, position: p ?? NormalizedPoint(0.08, 0.2)), prefix: "free-mouse", exactly: exactly)
+        case .lockMouse:
+            add(.mouseLook(lock: true, position: p ?? NormalizedPoint(0.08, 0.3)), prefix: "lock-mouse", exactly: exactly)
+        case .moveByMouse:
+            // Right-click to walk, as in desktop MOBAs.
+            add(.mobaMove(center: p ?? NormalizedPoint(0.14, 0.72), radius: Control.defaultJoystickRadius), prefix: "move",
+                trigger: .mouse(.right), exactly: exactly)
+        case .smartCast:
+            add(.smartCast(p ?? NormalizedPoint(0.8, 0.75), radius: Control.defaultCastRadius, reach: Control.defaultCastReach),
+                prefix: "skill", exactly: exactly)
+        case .switchMode:
+            addSwitch(at: p)
+        }
+    }
+
+    /// A control dragged from the bar: drawn under the pointer as it moves,
+    /// placed where it is let go on the game.
+    private func paletteDragged(_ item: KeymapPaletteItem, _ phase: KeymapEditorModel.DragPhase, _ location: CGPoint) {
+        let p = convert(location, from: panel)
+        switch phase {
+        case .moved:
+            paletteDrag = (item, p)
+        case .ended:
+            paletteDrag = nil
+            if takesDrop(at: p) { place(item, at: normalized(p)) }
+            refocus()
+        }
+        needsDisplay = true
+    }
+
+    /// On the game, not on the panel.
+    private func takesDrop(at p: CGPoint) -> Bool {
+        displayRect().contains(p) && !panel.frame.contains(p)
+    }
+
+    /// Adds a control in the mode being edited, selected; `exactly`: where
+    /// its kind says, else moved off a control already there.
+    private func add(_ kind: Control.Kind, prefix: String, trigger: Trigger? = nil, exactly: Bool = false) {
+        var control = Control(id: uniqueID(like: prefix, in: profile.controls), kind: kind)
+        if let editingMode { control.modes = [editingMode] }
         // A suggested trigger only while nothing else uses it.
         if let trigger, profile.fps?.cursorToggle != trigger, !profile.controls.contains(where: { $0.allTriggers.contains(trigger) }) {
             control.triggers = [trigger]
         }
-        // Do not hide a new control exactly under an older one, or under the
-        // hero marker, which is drawn over the controls and takes their clicks.
-        var taken = profile.controls.map(anchor(of:))
-        if showsHero || control.followsCursor { taken.append(hero) }
-        let start = anchor(of: control)
-        var spot = start, step = 0
-        while step < 12, taken.contains(where: { abs($0.x - spot.x) < 0.02 && abs($0.y - spot.y) < 0.02 }) {
-            step += 1
-            spot = NormalizedPoint(min(start.x + 0.05 * Double(step), 0.95), min(start.y + 0.05 * Double(step), 0.95))
+        // Not exactly under an older control, or under the hero marker,
+        // which is drawn over the controls and takes their clicks.
+        if !exactly {
+            var taken = shownControls.map(anchor(of:))
+            if showsHero || control.followsCursor { taken.append(hero) }
+            let start = anchor(of: control)
+            var spot = start, step = 0
+            while step < 12, taken.contains(where: { abs($0.x - spot.x) < 0.02 && abs($0.y - spot.y) < 0.02 }) {
+                step += 1
+                spot = NormalizedPoint(min(start.x + 0.05 * Double(step), 0.95), min(start.y + 0.05 * Double(step), 0.95))
+            }
+            if spot != start { move(&control, to: spot) }
         }
-        if spot != start { move(&control, to: spot) }
         profile.controls.append(control)
         selected = nil
         select(control.id)
         needsDisplay = true
     }
 
-    @objc private func addTap() { add(.tap(NormalizedPoint(0.5, 0.5)), prefix: "tap") }
-    @objc private func addRepeatTap() { add(.repeatTap(NormalizedPoint(0.4, 0.5), intervalMilliseconds: 150), prefix: "repeat") }
-    @objc private func addAnchor() { add(.anchor(NormalizedPoint(0.5, 0.65)), prefix: "anchor") }
-    @objc private func addSwipe() {
-        add(.swipe(from: NormalizedPoint(0.5, 0.6), to: NormalizedPoint(0.5, 0.4), milliseconds: 150), prefix: "swipe")
+    /// W A S D, or the arrow keys while another joystick here has them.
+    private func addJoystick(at p: NormalizedPoint?) {
+        let second = shownControls.contains { control in
+            if case let .dpad(_, _, up, _, _, _, _) = control.kind { return up == .key(.w) }
+            return false
+        }
+        let keys: [Trigger] = second ? [.key(.up), .key(.down), .key(.left), .key(.right)] : [.key(.w), .key(.s), .key(.a), .key(.d)]
+        add(.dpad(center: p ?? NormalizedPoint(0.15, 0.7), radius: 0.12, up: keys[0], down: keys[1], left: keys[2], right: keys[3],
+                  stick: second ? nil : .left), prefix: "move", exactly: p != nil)
     }
 
-    @objc private func addDPad() {
-        add(.dpad(center: NormalizedPoint(0.15, 0.7), radius: 0.12, up: .key(.w), down: .key(.s), left: .key(.a), right: .key(.d),
-                  stick: .left), prefix: "move")
-    }
-
-    @objc private func addADS() { add(.ads(NormalizedPoint(0.9, 0.45), toggle: false), prefix: "ads") }
-
-    /// Right-click to walk, as in desktop MOBAs.
-    @objc private func addMobaMove() {
-        add(.mobaMove(center: NormalizedPoint(0.14, 0.72), radius: Control.defaultJoystickRadius), prefix: "move", trigger: .mouse(.right))
-    }
-
-    @objc private func addSmartCast() {
-        add(.smartCast(NormalizedPoint(0.8, 0.75), radius: Control.defaultCastRadius, reach: Control.defaultCastReach), prefix: "skill")
-    }
-
-    @objc private func addEye() {
+    /// The layout's one eye: the one there (selected, and brought to this
+    /// mode), or a new one around where it was let go, in every mode.
+    private func addEye(at p: NormalizedPoint?) {
         if let eye = profile.controls.first(where: isEye) {
+            if !eye.belongs(to: editingMode), let i = index(of: eye.id) { profile.controls[i].modes = nil }
+            selected = nil
             select(eye.id)
             setStatus(String(localized: "There is one eye per layout; this is it.", bundle: .windowHost))
             needsDisplay = true
             return
         }
         // Most of the right side at full height: the finger swipes far before it starts over.
-        add(.aim(area: Control.defaultEyeArea, sensitivity: AxisPair(x: 1, y: 1),
-                 adsSensitivity: AxisPair(x: 0.6, y: 0.6), exponent: 1, deadzone: 0, invertY: false, stick: .right), prefix: "eye")
-        guard let eye = profile.controls.last else { return }
+        var area = Control.defaultEyeArea
+        if let p { area = area.offsetBy(dx: p.x - area.center.x, dy: p.y - area.center.y) }
+        add(.aim(area: area, sensitivity: AxisPair(x: 1, y: 1), adsSensitivity: AxisPair(x: 0.6, y: 0.6), exponent: 1, deadzone: 0,
+                 invertY: false, stick: .right), prefix: "eye", exactly: true)
+        guard let eye = profile.controls.last, let i = index(of: eye.id) else { return }
+        // A game turns its camera in all of its modes.
+        profile.controls[i].modes = nil
         let toggle = FPSSettings.defaultCursorToggle
         let taken = profile.controls.contains { $0.id != eye.id && $0.allTriggers.contains(toggle) }
         profile.fps = FPSSettings(cursorToggle: taken ? .key(.grave) : toggle, aimControl: eye.id)
         prompt(for: eye)
     }
 
+    /// A switch to another mode: the one other, or one chosen in a menu; with
+    /// no other yet, a new mode (its name typed in its tab) and the switch to
+    /// it here.
+    private func addSwitch(at p: NormalizedPoint?) {
+        let spot = p ?? NormalizedPoint(0.85, 0.5)
+        let others = profile.modes.filter { $0.id != editingMode }
+        if others.isEmpty {
+            let from = editingMode
+            let mode = createMode()
+            // The switch belongs where the player gets to the new mode from.
+            editingMode = from ?? profile.firstMode
+            add(.switchMode(mode, position: spot), prefix: "switch", exactly: p != nil)
+            barModel.renaming = mode
+            setStatus(String(localized: "A new mode and its Switch: name the mode, then press the Switch’s key.", bundle: .windowHost))
+        } else if others.count == 1 {
+            add(.switchMode(others[0].id, position: spot), prefix: "switch", exactly: p != nil)
+        } else {
+            let entries: [HazeMenuEntry] = [.section(String(localized: "Switch To", bundle: .windowHost))] + others.map { mode in
+                .item(HazeMenuItem(title: mode.name, symbol: KeymapPaletteItem.switchMode.symbol) { [weak self] in
+                    self?.add(.switchMode(mode.id, position: spot), prefix: "switch", exactly: p != nil)
+                    self?.refocus()
+                })
+            }
+            let at = p.flatMap { p in window.map { $0.convertPoint(toScreen: convert(point(p), to: nil)) } } ?? NSEvent.mouseLocation
+            HazeMenuPresenter.shared.show(entries, at: at)
+        }
+    }
+
+    /// Mouse buttons and the wheel, as the trigger of the selected control
+    /// or of the waiting tap.
+    private func mouseEntries() -> [HazeMenuEntry] {
+        let choices: [(String, Trigger)] = [
+            (String(localized: "Left Click", bundle: .windowHost), .mouse(.left)),
+            (String(localized: "Right Click", bundle: .windowHost), .mouse(.right)),
+            (String(localized: "Middle Click", bundle: .windowHost), .mouse(.middle)),
+            (String(localized: "Mouse Button 4", bundle: .windowHost), .mouse(.button4)),
+            (String(localized: "Mouse Button 5", bundle: .windowHost), .mouse(.button5)),
+            (String(localized: "Wheel Up", bundle: .windowHost), .scrollUp),
+            (String(localized: "Wheel Down", bundle: .windowHost), .scrollDown),
+        ]
+        return choices.map { title, trigger in
+            .item(HazeMenuItem(title: title) { [weak self] in
+                self?.assign(trigger)
+                self?.refocus()
+            })
+        }
+    }
+
     @objc private func removeAll() {
         profile.controls.removeAll()
         profile.fps = nil
+        profile.modes = []
         selected = nil
+        pendingTap = nil
+        editingMode = nil
         showHelp()
         needsDisplay = true
     }
@@ -1110,30 +1539,36 @@ final class KeymapEditorView: NSView {
         bounds.fill()
         var painter = self.painter
         painter.opacity = CGFloat(seeThrough)
-        painter.obstacles = [toolbar.frame, statusPlate.frame]
+        painter.obstacles = [panel.frame]
+        painter.modeNames = Dictionary(profile.modes.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
         let eyeKey = profile.fps?.cursorToggle.shortLabel
+        // Only the mode being edited (all of the layout without modes).
+        let shown = shownControls
         // Lit as if selected: where a dragged part of the controller would
         // bind, and what the part under the pointer in the panel drives.
         let dropTarget = padDrag.flatMap { dropTarget(for: $0.element, at: $0.at) }
         let lit = Set(padHover.map { profile.controls(boundTo: $0).map(\.id) } ?? []).union(dropTarget.map { [$0] } ?? [])
-        // Areas under everything: the eye's swipe area and anchor taps' own
-        // areas (an anchor tap's whole screen only while it is selected).
-        for control in profile.controls where hasOwnArea(control) || control.id == selected {
+        // Areas under everything: the eye's swipe area.
+        for control in shown where hasOwnArea(control) {
             painter.drawArea(control, selected: control.id == selected || lit.contains(control.id), hovered: control.id == hovered?.controlID)
         }
         // Eyes first: buttons are drawn over their area.
-        for control in profile.controls where isEye(control) {
+        for control in shown where isEye(control) {
             painter.draw(control, selected: control.id == selected || lit.contains(control.id), eyeKey: eyeKey)
         }
-        for control in profile.controls where !isEye(control) {
+        for control in shown where !isEye(control) {
             painter.draw(control, selected: control.id == selected || lit.contains(control.id),
                          activeSlot: control.id == selected ? dpadSlot : nil)
+        }
+        // In a layout with modes, what acts in all of them is marked so.
+        if !profile.modes.isEmpty {
+            for control in shown where control.modes == nil { painter.drawEveryModeBadge(control) }
         }
         if showsHero {
             let active = { if case .hero? = drag { true } else if case .hero? = hovered { true } else { false } }()
             painter.drawHero(at: hero, selected: active)
         }
-        for control in profile.controls {
+        for control in shown {
             let hotRemove = { if case .remove(control.id)? = hovered { true } else { false } }()
             let hotResize = { if case .resize(control.id)? = hovered { true } else { false } }()
             painter.drawHandles(control, emphasized: control.id == selected || control.id == hovered?.controlID,
@@ -1150,40 +1585,54 @@ final class KeymapEditorView: NSView {
             if case .area(id, _, _, _)? = drag, let dragPoint { painter.drawAreaSize(control, near: dragPoint) }
         }
         // The part of the controller being dragged from the panel, over the game.
-        if let padDrag, displayRect().contains(padDrag.at), panelHost?.frame.contains(padDrag.at) != true {
+        if let padDrag, takesDrop(at: padDrag.at) {
             let caption = dropTarget.flatMap { id in profile.controls.first { $0.id == id } }
                 .map { String(localized: "Bind to “\(name(of: $0))”", bundle: .windowHost) }
                 ?? String(localized: "Let go to choose a control", bundle: .windowHost)
             painter.drawGhost(symbol: padSymbol(padDrag.element), caption: caption, at: padDrag.at, binding: dropTarget != nil)
         }
+        // The tap a click on the game put there, waiting for its key.
+        if let pendingTap { painter.drawPendingTap(at: point(pendingTap)) }
+        // A control dragged from the bar, over the game.
+        if let paletteDrag, takesDrop(at: paletteDrag.at) {
+            painter.drawGhost(symbol: paletteDrag.item.symbol, caption: String(localized: "Let go to place it here", bundle: .windowHost),
+                              at: paletteDrag.at, binding: false)
+        }
     }
 
     // MARK: Controller (ControllerPanel.swift)
 
-    private static let panelShownKey = "AvoControllerPanelShown"
-    private static let panelPlaceKey = "AvoControllerPanelPlace"
-    /// How far the panel keeps from the editor's edges.
-    private static let panelMargin: CGFloat = 8
+    private static let panelTabKey = "AvoKeymapPanelTab"
     /// Every part of a controller, in GamepadButton's order, then the sticks and the d-pad.
     private static let gamepadElements: [GamepadElement] = GamepadButton.allCases.map(GamepadElement.button)
         + GamepadStick.allCases.map(GamepadElement.stick) + [.dpad]
 
-    var showsController: Bool { panelHost != nil }
+    /// The panel's Controller tab is open.
+    var showsController: Bool { barModel.tab == .controller }
 
-    /// The Controller button and the panel's ×: remembered per app.
-    func setShowsController(_ on: Bool) {
-        UserDefaults.standard.set(on, forKey: Self.panelShownKey)
-        showPanel(on)
-    }
-
-    @objc private func toggleControllerPanel() {
-        setShowsController(!showsController)
+    /// The panel's tab, remembered per app; the Controller tab follows the controller live.
+    private func setTab(_ tab: KeymapEditorModel.Tab) {
+        guard barModel.tab != tab else { return }
+        barModel.tab = tab
+        UserDefaults.standard.set(tab.rawValue, forKey: Self.panelTabKey)
+        if tab == .controller {
+            if window != nil { controllerPanel.start() }
+            refreshPanel()
+        } else {
+            controllerPanel.stop()
+            padDrag = nil
+            padHover = nil
+            needsDisplay = true
+        }
     }
 
     private func connectPanel() {
         let panel = controllerPanel
         panel.drag = { [weak self] element, phase, location in self?.panelDragged(element, phase, location) }
-        panel.click = { [weak self] element in self?.controllerPressed(element, inPanel: true) }
+        panel.click = { [weak self] element in
+            self?.controllerPressed(element, inPanel: true)
+            self?.refocus()
+        }
         panel.hover = { [weak self] element in
             guard let self, self.padHover != element else { return }
             self.padHover = element
@@ -1195,108 +1644,6 @@ final class KeymapEditorView: NSView {
         panel.deletePreset = { [weak self] name in self?.deletePreset(named: name) }
         panel.savePreset = { [weak self] in self?.askToSavePreset() }
         panel.reset = { [weak self] in self?.confirmControllerReset() }
-        panel.close = { [weak self] in self?.setShowsController(false) }
-        panel.move = { [weak self] translation, ended in self?.movePanel(by: translation, ended: ended) }
-        panel.resize = { [weak self] ended in self?.panelResized(ended: ended) }
-    }
-
-    private func showPanel(_ on: Bool) {
-        controllerToggle.state = on ? .on : .off
-        guard on != showsController else { return }
-        // A move or resize the panel never heard the end of starts over.
-        panelMoveStart = nil
-        guard on else {
-            panelHost?.removeFromSuperview()
-            panelHost = nil
-            panelLeading = nil
-            panelTop = nil
-            padDrag = nil
-            padHover = nil
-            controllerPanel.stop()
-            needsDisplay = true
-            return
-        }
-        let host = NSHostingView(rootView: ControllerPanelView(model: controllerPanel))
-        host.translatesAutoresizingMaskIntoConstraints = false
-        // Under the toolbar and the status line, over the game's objects.
-        addSubview(host, positioned: .below, relativeTo: toolbar)
-        let leading = host.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.panelMargin)
-        let top = host.topAnchor.constraint(equalTo: topAnchor, constant: Self.panelMargin)
-        NSLayoutConstraint.activate([leading, top])
-        panelHost = host
-        panelLeading = leading
-        panelTop = top
-        refreshPanel()
-        if window != nil { controllerPanel.start() }
-        needsLayout = true
-    }
-
-    /// Where the panel sits, as fractions of the room it has to move in
-    /// (remembered per app): above the middle at first, where games put
-    /// fewer buttons than along the edges.
-    private var panelPlace: CGPoint {
-        get {
-            let saved = UserDefaults.standard.array(forKey: Self.panelPlaceKey) as? [Double]
-            guard let saved, saved.count == 2 else { return CGPoint(x: 0.5, y: 0.42) }
-            return CGPoint(x: min(max(saved[0], 0), 1), y: min(max(saved[1], 0), 1))
-        }
-        set { UserDefaults.standard.set([Double(newValue.x), Double(newValue.y)], forKey: Self.panelPlaceKey) }
-    }
-
-    /// The room the panel has to move in, from the margin.
-    private func panelRoom(_ host: NSView) -> CGSize {
-        let size = host.frame.size == .zero ? host.fittingSize : host.frame.size
-        return CGSize(width: max(bounds.width - size.width - 2 * Self.panelMargin, 0),
-                      height: max(bounds.height - size.height - 2 * Self.panelMargin, 0))
-    }
-
-    /// Keeps the panel in its place as the window and the panel change size.
-    /// Whether it moved it.
-    private func placePanel() -> Bool {
-        guard panelMoveStart == nil, let host = panelHost, let leading = panelLeading, let top = panelTop else { return false }
-        let room = panelRoom(host), place = panelPlace
-        let x = (Self.panelMargin + room.width * place.x).rounded(), y = (Self.panelMargin + room.height * place.y).rounded()
-        var moved = false
-        if abs(leading.constant - x) > 0.5 { leading.constant = x; moved = true }
-        if abs(top.constant - y) > 0.5 { top.constant = y; moved = true }
-        return moved
-    }
-
-    /// The header dragged: the panel follows the pointer, never off the editor.
-    private func movePanel(by translation: CGSize, ended: Bool) {
-        guard let host = panelHost, let leading = panelLeading, let top = panelTop else { return }
-        let start = panelMoveStart ?? (leading.constant, top.constant)
-        let room = panelRoom(host)
-        let x = min(max(start.x + translation.width, Self.panelMargin), Self.panelMargin + room.width)
-        let y = min(max(start.y + translation.height, Self.panelMargin), Self.panelMargin + room.height)
-        leading.constant = x.rounded()
-        top.constant = y.rounded()
-        panelMoveStart = ended ? nil : start
-        if ended {
-            panelPlace = CGPoint(x: room.width > 0 ? (x - Self.panelMargin) / room.width : 0.5,
-                                 y: room.height > 0 ? (y - Self.panelMargin) / room.height : 0)
-        }
-    }
-
-    /// The panel's corner dragged: it grows from where it is (kept there
-    /// meanwhile, as during a move), then stays inside the editor, and its
-    /// width is remembered.
-    private func panelResized(ended: Bool) {
-        guard let host = panelHost, let leading = panelLeading, let top = panelTop else { return }
-        guard ended else {
-            if panelMoveStart == nil { panelMoveStart = (leading.constant, top.constant) }
-            return
-        }
-        panelMoveStart = nil
-        UserDefaults.standard.set(Double(controllerPanel.width), forKey: ControllerPanelModel.widthKey)
-        layoutSubtreeIfNeeded()
-        let room = panelRoom(host)
-        let x = min(max(leading.constant, Self.panelMargin), Self.panelMargin + room.width)
-        let y = min(max(top.constant, Self.panelMargin), Self.panelMargin + room.height)
-        leading.constant = x.rounded()
-        top.constant = y.rounded()
-        panelPlace = CGPoint(x: room.width > 0 ? (x - Self.panelMargin) / room.width : 0.5,
-                             y: room.height > 0 ? (y - Self.panelMargin) / room.height : 0)
     }
 
     /// What the panel shows of the layout: what each part drives, what drives the selected control, the settings.
@@ -1304,7 +1651,7 @@ final class KeymapEditorView: NSView {
         guard showsController else { return }
         var bindings: [GamepadElement: [String]] = [:]
         for element in Self.gamepadElements {
-            let names = profile.controls(boundTo: element).map(displayName)
+            let names = profile.controls(boundTo: element).filter { $0.belongs(to: editingMode) }.map(displayName)
             if !names.isEmpty { bindings[element] = names }
         }
         if case .gamepad(let button)? = profile.fps?.cursorToggle {
@@ -1347,8 +1694,7 @@ final class KeymapEditorView: NSView {
     // A part dragged from the panel and let go over the game.
 
     private func panelDragged(_ element: GamepadElement, _ phase: ControllerPanelModel.DragPhase, _ location: CGPoint) {
-        guard let host = panelHost else { return }
-        let p = convert(location, from: host)
+        let p = convert(location, from: panel)
         switch phase {
         case .moved:
             padDrag = (element, p)
@@ -1363,7 +1709,7 @@ final class KeymapEditorView: NSView {
     /// the game a menu offers the controls to place for it there. Let go
     /// over the panel or beside the game, it does nothing.
     private func dropped(_ element: GamepadElement, at p: CGPoint) {
-        guard displayRect().contains(p), panelHost?.frame.contains(p) != true else { return }
+        guard takesDrop(at: p) else { return }
         if let id = dropTarget(for: element, at: p), let control = profile.controls.first(where: { $0.id == id }),
            let part = drivingPart(element, for: control, press: true) {
             selected = nil
@@ -1456,14 +1802,14 @@ final class KeymapEditorView: NSView {
             header(String(localized: "For pressing the stick down (\(padLabel(press))):", bundle: .windowHost))
             for placement in GamepadPlacement.choices(for: press) { add(placement, for: press) }
         }
-        menu.popUp(positioning: nil, at: p, in: self)
+        HazeMenuPresenter.shared.popUp(menu, at: p, in: self)
     }
 
     @objc private func placeFromMenu(_ item: NSMenuItem) {
         guard let pending = item.representedObject as? PendingPlacement else { return }
         let element = pending.element
         let hadEye = profile.controls.contains(where: isEye)
-        guard let id = profile.place(element, as: pending.placement, at: pending.point),
+        guard let id = profile.place(element, as: pending.placement, at: pending.point, modes: editingMode.map { [$0] }),
               let control = profile.controls.first(where: { $0.id == id }) else {
             setStatus(whyNot(element), problem: true)
             return
@@ -1483,9 +1829,6 @@ final class KeymapEditorView: NSView {
     /// Why `element` could not be placed or bound: what holds it.
     private func whyNot(_ element: GamepadElement) -> String {
         let label = padLabel(element)
-        if case .button(let button) = element, profile.fps?.cursorToggle == .gamepad(button) {
-            return String(localized: "\(label) locks the mouse for the eye; choose another button.", bundle: .windowHost)
-        }
         let buttons: [GamepadButton] = switch element {
         case .button(let button): [button]
         case .dpad: GamepadElement.dpadButtons
@@ -1522,10 +1865,34 @@ final class KeymapEditorView: NSView {
     /// control that takes a button, a stick clicked in the panel binds its
     /// press; one pushed on the controller says so instead).
     private func controllerPressed(_ element: GamepadElement, inPanel: Bool) {
+        // A tap waits for its key: a button is it; a stick pushed is a joystick there.
+        if let at = pendingTap, !inPanel {
+            switch element {
+            case .button(let button):
+                placeTap(at: at, .gamepad(button))
+            case .stick, .dpad:
+                pendingTap = nil
+                if let id = profile.place(element, as: .joystick, at: at, modes: editingMode.map { [$0] }) {
+                    selected = nil
+                    select(id)
+                    needsDisplay = true
+                } else {
+                    setStatus(whyNot(element), problem: true)
+                }
+            }
+            return
+        }
+        // A controller button held to run, for the selected joystick.
+        if case .button(let button) = element, dpadSlot == Self.runSlot, let id = selected,
+           let control = profile.controls.first(where: { $0.id == id }), case .dpad = control.kind {
+            assign(.gamepad(button))
+            return
+        }
         guard let id = selected, let control = profile.controls.first(where: { $0.id == id }) else {
-            // Clicked in the panel: its controls to place, where games usually have them.
+            // Clicked in the panel: its controls to place, at the waiting tap
+            // or where games usually have them.
             if inPanel {
-                showPlacements(for: element, at: painter.point(Self.usualSpot(for: element)))
+                showPlacements(for: element, at: painter.point(pendingTap ?? Self.usualSpot(for: element)))
             } else if case .button = element {
                 setStatus(String(localized: "\(padLabel(element)): select a control on the game first, or drag \(padLabel(element)) onto the game.",
                                  bundle: .windowHost))
@@ -1706,6 +2073,28 @@ final class KeymapEditorView: NSView {
         case .macro: String(localized: "Macro", bundle: .windowHost)
         case .mobaMove: String(localized: "Move by Mouse", bundle: .windowHost)
         case .smartCast: String(localized: "Smart Cast", bundle: .windowHost)
+        case .switchMode(let mode, _):
+            String(localized: "Switch to “\(profile.modes.first { $0.id == mode }?.name ?? mode)”", bundle: .windowHost)
+        case .mouseLook(let lock, _):
+            lock ? String(localized: "Lock the Mouse", bundle: .windowHost) : String(localized: "Free the Mouse", bundle: .windowHost)
+        }
+    }
+
+    /// Its symbol, as on the bar.
+    private static func symbol(of control: Control) -> String {
+        switch control.kind {
+        case .tap, .hold: KeymapPaletteItem.tap.symbol
+        case .repeatTap: KeymapPaletteItem.repeatTap.symbol
+        case .anchor: KeymapPaletteItem.anchor.symbol
+        case .dpad: KeymapPaletteItem.joystick.symbol
+        case .swipe: KeymapPaletteItem.swipe.symbol
+        case .aim: KeymapPaletteItem.eye.symbol
+        case .ads: KeymapPaletteItem.ads.symbol
+        case .macro: "list.bullet"
+        case .mobaMove: KeymapPaletteItem.moveByMouse.symbol
+        case .smartCast: KeymapPaletteItem.smartCast.symbol
+        case .switchMode: KeymapPaletteItem.switchMode.symbol
+        case .mouseLook(let lock, _): lock ? KeymapPaletteItem.lockMouse.symbol : KeymapPaletteItem.freeMouse.symbol
         }
     }
 
@@ -1729,8 +2118,36 @@ final class KeymapEditorView: NSView {
 
     // MARK: Templates
 
-    @objc private func insertTemplate(_ item: NSMenuItem) {
-        guard let raw = item.representedObject as? String, let template = KeymapTemplate(rawValue: raw) else { return }
+    /// The bar's Templates menu.
+    private func templateEntries() -> [HazeMenuEntry] {
+        [.note(String(localized: "Starting layouts: move each control onto the game's button afterwards", bundle: .windowHost))]
+            + KeymapTemplate.allCases.map { template in
+                .item(HazeMenuItem(title: Self.title(of: template), symbol: Self.symbol(of: template)) { [weak self] in
+                    self?.chooseTemplate(template)
+                    self?.refocus()
+                })
+            }
+    }
+
+    /// The bar's ⋯ menu.
+    private func moreEntries() -> [HazeMenuEntry] {
+        [
+            .item(HazeMenuItem(title: String(localized: "Import…", bundle: .windowHost), symbol: "square.and.arrow.down") { [weak self] in
+                self?.importProfile()
+            }),
+            .item(HazeMenuItem(title: String(localized: "Export…", bundle: .windowHost), symbol: "square.and.arrow.up") { [weak self] in
+                self?.exportProfile()
+            }),
+            .separator(),
+            .item(HazeMenuItem(title: String(localized: "Remove All Controls", bundle: .windowHost), symbol: "trash", role: .destructive) {
+                [weak self] in
+                self?.removeAll()
+                self?.refocus()
+            }),
+        ]
+    }
+
+    private func chooseTemplate(_ template: KeymapTemplate) {
         guard !profile.controls.isEmpty, let window else {
             insert(template, replacing: true)
             return
@@ -1756,9 +2173,14 @@ final class KeymapEditorView: NSView {
 
     private func insert(_ template: KeymapTemplate, replacing: Bool) {
         let rect = displayRect()
+        let before = Set(profile.controls.map(\.id))
         let insertion = template.insert(into: profile, replacing: replacing, aspect: rect.height > 0 ? rect.width / rect.height : 16.0 / 9.0)
         profile = insertion.profile
+        if let editingMode {
+            for i in profile.controls.indices where !before.contains(profile.controls[i].id) { profile.controls[i].modes = [editingMode] }
+        }
         selected = nil
+        pendingTap = nil
         hovered = nil
         drag = nil
         var text = String(localized: "Inserted the \(Self.title(of: template)) template. Its positions are a starting point: drag each control onto the game's own button.",
@@ -1783,6 +2205,12 @@ final class KeymapEditorView: NSView {
     @objc private func saveAndClose() {
         let problems = profile.validate()
         guard problems.isEmpty else {
+            // The control it is about, shown in a mode it acts in.
+            if let first = problems.first, let control = profile.controls.first(where: { first.hasPrefix("\($0.id):") }) {
+                if !control.belongs(to: editingMode), let mode = control.modes?.first { editingMode = mode }
+                select(control.id)
+                needsDisplay = true
+            }
             setStatus(problems.first ?? String(localized: "This profile has problems.", bundle: .windowHost), problem: true)
             return
         }
@@ -1815,6 +2243,7 @@ final class KeymapEditorView: NSView {
             }
             profile = imported
             selected = nil
+            editingMode = imported.firstMode
             needsDisplay = true
             let text = String(localized: "Imported “\(imported.name)”. Press Done to use it.", bundle: .windowHost)
             if let warning = Self.newerControlsWarning(imported) {
@@ -1828,12 +2257,6 @@ final class KeymapEditorView: NSView {
     }
 
     @objc private func close() { onClose?() }
-}
-
-/// The status line's plate only shows text: clicks go through it to the
-/// editor, so an area's edge under it can still be dragged.
-private final class StatusPlate: NSView {
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 /// A control the placement menu would place: for which part of the

@@ -206,9 +206,10 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         case macro([MacroStep])
         /// Anchor tap: a touch held at the point while the trigger is held,
         /// moved from there by the mouse (radial menus such as emote wheels:
-        /// hold the key, move the mouse towards an item, let go), never out
-        /// of `area` (the whole screen when nil).
-        case anchor(NormalizedPoint, area: NormalizedRect? = nil)
+        /// hold the key, move the mouse towards an item, let go), never
+        /// further than `radius` from it, a fraction of the display height
+        /// (anywhere on the screen when nil).
+        case anchor(NormalizedPoint, radius: Double? = nil)
         /// MOBA movement (move by mouse): while the trigger is held, a
         /// joystick touch at `center` is pushed the way the cursor lies from
         /// the hero (`KeymapProfile.hero`), all the way out to `radius` once
@@ -220,22 +221,38 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         /// cursor's distance from the hero and is a full `radius` at `reach`
         /// (the skill's range on screen), never longer.
         case smartCast(NormalizedPoint, radius: Double, reach: Double)
+        /// Turns the layout to another of its modes (`KeymapProfile.modes`):
+        /// its id. Another control on the same key presses the game's own
+        /// button for it (Enter vehicle). It touches nothing: `position` is
+        /// where the editor shows it, beside that button.
+        case switchMode(String, position: NormalizedPoint)
+        /// Locks the mouse to the eye for mouse look (`lock`), or frees it
+        /// for the cursor: the FPS cursor toggle one way, for keys that also
+        /// open an inventory or a map. It touches nothing: `position` is
+        /// where the editor shows it.
+        case mouseLook(lock: Bool, position: NormalizedPoint)
     }
 
     public var id: String
     public var kind: Kind
     /// What activates the control (not used by `dpad`, which has four, or
-    /// by `aim`, which follows the mouse).
+    /// by `aim`, which follows the mouse). A trigger may activate several
+    /// controls: they act together.
     public var triggers: [Trigger]
     public var layer: ControlLayer?
-    /// How big the editor draws a button (tap, hold, ads, repeat_tap,
-    /// macro), as a radius in fractions of the display height; nil is the
-    /// default size. Only for lining it up with the game's own button.
+    /// The modes it acts in (`KeymapProfile.modes`); nil: all of them.
+    public var modes: [String]?
+    /// How big a button (tap, hold, ads, repeat_tap, macro) was drawn by
+    /// Avo before b64; read and kept, no longer used: a button's size never
+    /// changed what it touches.
     public var size: Double?
     /// A D-pad control (keys or a stick) that the controller's d-pad also
     /// pushes, its four buttons as the directions. Older versions of Avo
     /// leave it out and the keys still work.
     public var dpadButtons: Bool
+    /// A D-pad control pushed further while a key is held (running).
+    /// Older versions of Avo leave it out and the joystick still walks.
+    public var run: JoystickRun?
 
     public static let defaultSize = 0.035
     public static let sizeRange = 0.012...0.3
@@ -247,6 +264,10 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
     public static let defaultCastRadius = 0.1
     public static let defaultCastReach = 0.35
     public static let castReachRange = 0.05...2.0
+
+    /// A new anchor tap's reach (a fraction of the display height), and its limits.
+    public static let defaultAnchorRadius = 0.18
+    public static let anchorRadiusRange = 0.03...1.0
 
     /// A new eye's swipe area: most of the right part of the screen, at
     /// full height but for a margin. The finger goes all the way to its
@@ -261,26 +282,29 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
     /// always has some way to go before it starts over.
     public static let eyeOriginInset = 0.1
 
-    public init(id: String, kind: Kind, triggers: [Trigger] = [], layer: ControlLayer? = nil, size: Double? = nil,
-                dpadButtons: Bool = false) {
+    public init(id: String, kind: Kind, triggers: [Trigger] = [], layer: ControlLayer? = nil, modes: [String]? = nil,
+                size: Double? = nil, dpadButtons: Bool = false, run: JoystickRun? = nil) {
         self.id = id
         self.kind = kind
         self.triggers = triggers
         self.layer = layer
+        self.modes = modes
         self.size = size
         self.dpadButtons = dpadButtons
+        self.run = run
     }
 
     // Flat JSON: {"type": "tap", "id": "jump", "triggers": ["key:Space"], "position": [0.9, 0.7]}
     private enum CodingKeys: String, CodingKey {
-        case type, id, triggers, layer, size, position, center, radius, up, down, left, right, stick, dpadButtons = "dpad_buttons"
+        case type, id, triggers, layer, modes, size, position, center, radius, up, down, left, right, stick, dpadButtons = "dpad_buttons"
         case area, sensitivity, adsSensitivity = "ads_sensitivity", exponent, deadzone, invertY = "invert_y", origin
-        case toggle, from, to, ms, interval, steps, reach
+        case toggle, from, to, ms, interval, steps, reach, mode, lock, run
     }
 
     /// The `type` values this version reads; KeymapProfile skips the others.
     static let knownTypes: Set<String> = [
         "tap", "hold", "dpad", "aim", "ads", "swipe", "repeat_tap", "macro", "anchor", "moba_move", "smart_cast",
+        "switch_mode", "mouse_look",
     ]
 
     public init(from decoder: any Decoder) throws {
@@ -288,8 +312,10 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         id = try c.decode(String.self, forKey: .id)
         triggers = try c.decodeIfPresent([Trigger].self, forKey: .triggers) ?? []
         layer = try c.decodeIfPresent(ControlLayer.self, forKey: .layer)
+        modes = try c.decodeIfPresent([String].self, forKey: .modes)
         size = try c.decodeIfPresent(Double.self, forKey: .size)
         dpadButtons = false
+        run = nil
         let type = try c.decode(String.self, forKey: .type)
         switch type {
         case "tap": kind = .tap(try c.decode(NormalizedPoint.self, forKey: .position))
@@ -303,6 +329,8 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
                          right: try c.decodeIfPresent(Trigger.self, forKey: .right) ?? .key(.d),
                          stick: try c.decodeIfPresent(GamepadStick.self, forKey: .stick))
             dpadButtons = try c.decodeIfPresent(Bool.self, forKey: .dpadButtons) ?? false
+            // Newer than the joystick: one this version cannot read walks.
+            run = (try? c.decodeIfPresent(JoystickRun.self, forKey: .run)) ?? nil
         case "aim":
             let sensitivity = try c.decodeIfPresent(AxisPair.self, forKey: .sensitivity) ?? AxisPair(x: 1, y: 1)
             kind = .aim(area: try c.decode(NormalizedRect.self, forKey: .area),
@@ -328,10 +356,14 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         case "macro":
             kind = .macro(try c.decode([MacroStep].self, forKey: .steps))
         case "anchor":
-            // Newer than the position: without an area (or with one this
+            // Newer than the position: without a reach (or with one this
             // version cannot read) the finger may go anywhere on the screen.
-            kind = .anchor(try c.decode(NormalizedPoint.self, forKey: .position),
-                           area: try? c.decodeIfPresent(NormalizedRect.self, forKey: .area))
+            // Avo before b64 kept it in a rectangle: the circle as tall.
+            var radius = (try? c.decodeIfPresent(Double.self, forKey: .radius)) ?? nil
+            if radius == nil, let area = (try? c.decodeIfPresent(NormalizedRect.self, forKey: .area)) ?? nil, area.isValid {
+                radius = min(max(area.height / 2, Self.anchorRadiusRange.lowerBound), Self.anchorRadiusRange.upperBound)
+            }
+            kind = .anchor(try c.decode(NormalizedPoint.self, forKey: .position), radius: radius)
         case "moba_move":
             kind = .mobaMove(center: try c.decode(NormalizedPoint.self, forKey: .center),
                              radius: try c.decodeIfPresent(Double.self, forKey: .radius) ?? Self.defaultJoystickRadius)
@@ -339,6 +371,12 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
             kind = .smartCast(try c.decode(NormalizedPoint.self, forKey: .position),
                               radius: try c.decodeIfPresent(Double.self, forKey: .radius) ?? Self.defaultCastRadius,
                               reach: try c.decodeIfPresent(Double.self, forKey: .reach) ?? Self.defaultCastReach)
+        case "switch_mode":
+            kind = .switchMode(try c.decode(String.self, forKey: .mode),
+                               position: try c.decodeIfPresent(NormalizedPoint.self, forKey: .position) ?? NormalizedPoint(0.5, 0.5))
+        case "mouse_look":
+            kind = .mouseLook(lock: try c.decodeIfPresent(Bool.self, forKey: .lock) ?? false,
+                              position: try c.decodeIfPresent(NormalizedPoint.self, forKey: .position) ?? NormalizedPoint(0.5, 0.5))
         default:
             throw DecodingError.dataCorruptedError(forKey: .type, in: c, debugDescription: "unknown control type \(type)")
         }
@@ -349,6 +387,7 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         try c.encode(id, forKey: .id)
         if !triggers.isEmpty { try c.encode(triggers, forKey: .triggers) }
         try c.encodeIfPresent(layer, forKey: .layer)
+        try c.encodeIfPresent(modes, forKey: .modes)
         try c.encodeIfPresent(size, forKey: .size)
         switch kind {
         case .tap(let point):
@@ -367,6 +406,7 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
             try c.encode(right, forKey: .right)
             try c.encodeIfPresent(stick, forKey: .stick)
             if dpadButtons { try c.encode(true, forKey: .dpadButtons) }
+            try c.encodeIfPresent(run, forKey: .run)
         case let .aim(area, sensitivity, ads, exponent, deadzone, invertY, stick, origin):
             try c.encode("aim", forKey: .type)
             try c.encode(area, forKey: .area)
@@ -393,10 +433,10 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         case .macro(let steps):
             try c.encode("macro", forKey: .type)
             try c.encode(steps, forKey: .steps)
-        case let .anchor(point, area):
+        case let .anchor(point, radius):
             try c.encode("anchor", forKey: .type)
             try c.encode(point, forKey: .position)
-            try c.encodeIfPresent(area, forKey: .area)
+            try c.encodeIfPresent(radius, forKey: .radius)
         case let .mobaMove(center, radius):
             try c.encode("moba_move", forKey: .type)
             try c.encode(center, forKey: .center)
@@ -406,6 +446,14 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
             try c.encode(point, forKey: .position)
             try c.encode(radius, forKey: .radius)
             try c.encode(reach, forKey: .reach)
+        case let .switchMode(mode, position):
+            try c.encode("switch_mode", forKey: .type)
+            try c.encode(mode, forKey: .mode)
+            try c.encode(position, forKey: .position)
+        case let .mouseLook(lock, position):
+            try c.encode("mouse_look", forKey: .type)
+            try c.encode(lock, forKey: .lock)
+            try c.encode(position, forKey: .position)
         }
     }
 
@@ -414,8 +462,8 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
     public var allTriggers: [Trigger] {
         if case let .dpad(_, _, up, down, left, right, _) = kind {
             let directions = [up, down, left, right]
-            guard dpadButtons else { return directions }
-            return directions + GamepadElement.dpadButtons.map(Trigger.gamepad).filter { !directions.contains($0) }
+            let buttons = dpadButtons ? GamepadElement.dpadButtons.map(Trigger.gamepad).filter { !directions.contains($0) } : []
+            return directions + buttons + (run.map { [$0.trigger] } ?? [])
         }
         return triggers
     }
@@ -427,83 +475,60 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         default: false
         }
     }
+
+    /// Acts in `mode` (nil: a layout without modes, where every control does).
+    public func belongs(to mode: String?) -> Bool {
+        guard let mode, let modes else { return true }
+        return modes.contains(mode)
+    }
+
+    /// Something the player may put on the game's buttons (the others
+    /// switch the layout or the mouse and touch nothing).
+    public var touchesTheScreen: Bool {
+        switch kind {
+        case .switchMode, .mouseLook: false
+        default: true
+        }
+    }
 }
 
-// MARK: - Finger areas (eye and anchor tap)
+// MARK: - The eye's swipe area
 
 extension Control {
-    /// Where an eye's or anchor tap's finger may go: the eye's swipe area,
-    /// the anchor tap's own area (the whole screen when it has none); nil
-    /// for the other kinds.
+    /// Where an eye's finger may go: its swipe area; nil for the other kinds
+    /// (an anchor tap's reach is a circle around its point).
     public var fingerArea: NormalizedRect? {
-        switch kind {
-        case let .aim(area, _, _, _, _, _, _, _): area
-        case let .anchor(_, area): area ?? .screen
-        default: nil
-        }
+        if case let .aim(area, _, _, _, _, _, _, _) = kind { area } else { nil }
     }
 
-    /// Where an eye's or anchor tap's finger touches down: the eye's origin
-    /// (the centre of its area unless the player moved it), the anchor
-    /// tap's position; nil for the other kinds.
+    /// Where an eye's finger touches down: its origin (the centre of its
+    /// area unless the player moved it); nil for the other kinds.
     public var touchPoint: NormalizedPoint? {
-        switch kind {
-        case let .aim(area, _, _, _, _, _, _, origin): origin ?? area.center
-        case let .anchor(point, _): point
-        default: nil
-        }
+        if case let .aim(area, _, _, _, _, _, _, origin) = kind { origin ?? area.center } else { nil }
     }
 
-    /// Gives an eye or anchor tap `area`, its touch-down point kept inside
-    /// (an eye's at the centre stays at the centre). An anchor tap's area
-    /// that is the whole screen is stored as none, as before areas existed.
+    /// Gives an eye `area`, its touch-down point kept inside (one at the
+    /// centre stays at the centre).
     public mutating func setFingerArea(_ area: NormalizedRect) {
-        switch kind {
-        case let .aim(_, sensitivity, ads, exponent, deadzone, invertY, stick, origin):
-            kind = .aim(area: area, sensitivity: sensitivity, adsSensitivity: ads, exponent: exponent, deadzone: deadzone,
-                        invertY: invertY, stick: stick, origin: origin.map { area.clamp($0, inset: Self.eyeOriginInset) })
-        case let .anchor(point, _):
-            kind = area == .screen ? .anchor(point) : .anchor(area.clamp(point), area: area)
-        default:
-            break
-        }
+        guard case let .aim(_, sensitivity, ads, exponent, deadzone, invertY, stick, origin) = kind else { return }
+        kind = .aim(area: area, sensitivity: sensitivity, adsSensitivity: ads, exponent: exponent, deadzone: deadzone,
+                    invertY: invertY, stick: stick, origin: origin.map { area.clamp($0, inset: Self.eyeOriginInset) })
     }
 
-    /// Moves an eye's touch-down point (nil: the centre of its area) or an
-    /// anchor tap's position, kept inside the area.
+    /// Moves an eye's touch-down point (nil: the centre of its area), kept inside the area.
     public mutating func setTouchPoint(_ point: NormalizedPoint?) {
-        switch kind {
-        case let .aim(area, sensitivity, ads, exponent, deadzone, invertY, stick, _):
-            kind = .aim(area: area, sensitivity: sensitivity, adsSensitivity: ads, exponent: exponent, deadzone: deadzone,
-                        invertY: invertY, stick: stick, origin: point.map { area.clamp($0, inset: Self.eyeOriginInset) })
-        case .anchor(_, let area):
-            guard let point else { return }
-            kind = .anchor((area ?? .screen).clamp(point), area: area)
-        default:
-            break
-        }
+        guard case let .aim(area, sensitivity, ads, exponent, deadzone, invertY, stick, _) = kind else { return }
+        kind = .aim(area: area, sensitivity: sensitivity, adsSensitivity: ads, exponent: exponent, deadzone: deadzone,
+                    invertY: invertY, stick: stick, origin: point.map { area.clamp($0, inset: Self.eyeOriginInset) })
     }
 
-    /// Moves an eye's or anchor tap's area together with its touch-down
-    /// point, as far as the screen allows (an anchor tap without an area
-    /// moves its point).
+    /// Moves an eye's area together with its touch-down point, as far as the screen allows.
     public mutating func moveFinger(dx: Double, dy: Double) {
-        guard let area = fingerArea, let point = touchPoint else { return }
-        if case .anchor(_, nil) = kind {
-            setTouchPoint(NormalizedPoint(point.x + dx, point.y + dy))
-            return
-        }
+        guard case let .aim(area, sensitivity, ads, exponent, deadzone, invertY, stick, origin) = kind else { return }
         let moved = area.offsetBy(dx: dx, dy: dy)
         let ox = moved.minX - area.minX, oy = moved.minY - area.minY
-        switch kind {
-        case let .aim(_, sensitivity, ads, exponent, deadzone, invertY, stick, origin):
-            kind = .aim(area: moved, sensitivity: sensitivity, adsSensitivity: ads, exponent: exponent, deadzone: deadzone,
-                        invertY: invertY, stick: stick, origin: origin.map { moved.clamp(NormalizedPoint($0.x + ox, $0.y + oy)) })
-        case .anchor:
-            kind = .anchor(moved.clamp(NormalizedPoint(point.x + ox, point.y + oy)), area: moved)
-        default:
-            break
-        }
+        kind = .aim(area: moved, sensitivity: sensitivity, adsSensitivity: ads, exponent: exponent, deadzone: deadzone,
+                    invertY: invertY, stick: stick, origin: origin.map { moved.clamp(NormalizedPoint($0.x + ox, $0.y + oy)) })
     }
 }
 
@@ -552,6 +577,46 @@ public struct FPSSettings: Hashable, Sendable, Codable {
     }
 }
 
+/// A joystick (D-pad control) pushed further while a key is held: running,
+/// in games that walk with the joystick partway and run with it all the way,
+/// or lock a sprint past its edge.
+public struct JoystickRun: Hashable, Sendable, Codable {
+    /// Held to run: a key, a mouse button or a controller button.
+    public var trigger: Trigger
+    /// How far the finger goes meanwhile, in the joystick's radii.
+    public var scale: Double
+
+    public static let defaultScale = 1.6
+    public static let scaleRange = 1.0...4.0
+
+    public init(trigger: Trigger, scale: Double = JoystickRun.defaultScale) {
+        self.trigger = trigger
+        self.scale = scale
+    }
+}
+
+/// One of a layout's modes, such as on foot and in a vehicle: controls act
+/// in some modes or all of them (`Control.modes`), keys and controller
+/// alike, and a Switch Mode control turns the layout to another. A game
+/// starts in the first.
+public struct KeymapMode: Hashable, Sendable, Codable, Identifiable {
+    public var id: String
+    public var name: String
+    /// The mouse on entering the mode, with an eye: locked to it for mouse
+    /// look (true), free for the cursor (false), or as it was (nil).
+    public var mouseLook: Bool?
+
+    public init(id: String, name: String, mouseLook: Bool? = nil) {
+        self.id = id
+        self.name = name
+        self.mouseLook = mouseLook
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, mouseLook = "mouse_look"
+    }
+}
+
 /// A keymapping profile for one Android package, stored as JSON so the
 /// community can share them (spec §5).
 public struct KeymapProfile: Hashable, Sendable, Codable {
@@ -571,6 +636,9 @@ public struct KeymapProfile: Hashable, Sendable, Codable {
     /// The controller's sticks, vibration and saved controller presets
     /// (GamepadMapping.swift); nil uses the standard sticks.
     public var gamepad: GamepadSettings?
+    /// Its modes (on foot, in a vehicle), the first where a game starts;
+    /// none: one, with every control.
+    public var modes: [KeymapMode] = []
     /// Types of controls in the file that this version of Avo does not know
     /// (a newer one wrote them). They are left out so the rest of the profile
     /// still loads; saving the profile again drops them.
@@ -580,7 +648,7 @@ public struct KeymapProfile: Hashable, Sendable, Codable {
 
     public init(schema: Int = KeymapProfile.currentSchema, package: String, name: String, author: String? = nil,
                 notes: String? = nil, controls: [Control], fps: FPSSettings? = nil, hero: NormalizedPoint? = nil,
-                gamepad: GamepadSettings? = nil) {
+                gamepad: GamepadSettings? = nil, modes: [KeymapMode] = []) {
         self.schema = schema
         self.package = package
         self.name = name
@@ -590,11 +658,15 @@ public struct KeymapProfile: Hashable, Sendable, Codable {
         self.fps = fps
         self.hero = hero
         self.gamepad = gamepad
+        self.modes = modes
     }
 
     private enum CodingKeys: String, CodingKey {
-        case schema, package, name, author, notes, controls, fps, hero, gamepad
+        case schema, package, name, author, notes, controls, fps, hero, gamepad, modes
     }
+
+    /// The mode a game starts in; nil without modes.
+    public var firstMode: String? { modes.first?.id }
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -613,6 +685,7 @@ public struct KeymapProfile: Hashable, Sendable, Codable {
         // Newer than the rest: a block this version cannot read leaves the
         // standard sticks, and the controls still load.
         gamepad = try? c.decodeIfPresent(GamepadSettings.self, forKey: .gamepad)
+        modes = try c.decodeIfPresent([KeymapMode].self, forKey: .modes) ?? []
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -626,6 +699,7 @@ public struct KeymapProfile: Hashable, Sendable, Codable {
         try c.encodeIfPresent(fps, forKey: .fps)
         try c.encodeIfPresent(hero, forKey: .hero)
         try c.encodeIfPresent(gamepad, forKey: .gamepad)
+        if !modes.isEmpty { try c.encode(modes, forKey: .modes) }
     }
 
     public static func decode(_ data: Data) throws -> KeymapProfile {
@@ -660,19 +734,29 @@ extension KeymapProfile {
         }
         if let gamepad { problems += gamepad.validate() }
 
+        var modeIDs = Set<String>()
+        for mode in modes {
+            if mode.id.isEmpty || !modeIDs.insert(mode.id).inserted {
+                problems.append(String(localized: "duplicate or empty mode id \(mode.id)", bundle: .avoKit))
+            }
+            if mode.name.trimmingCharacters(in: .whitespaces).isEmpty {
+                problems.append(String(localized: "mode \(mode.id) has no name", bundle: .avoKit))
+            }
+        }
+        // A trigger may activate several controls (they act together, such as
+        // the game's Enter vehicle button and a switch to the vehicle mode).
         var ids = Set<String>()
-        var bindings: [ControlLayer?: Set<Trigger>] = [:]
         for control in controls {
             if !ids.insert(control.id).inserted { problems.append(String(localized: "duplicate control id \(control.id)", bundle: .avoKit)) }
             problems += validate(control)
-
-            for trigger in control.allTriggers {
-                // A trigger may be bound once per layer; unlayered controls share both layers.
-                let layers: [ControlLayer?] = control.layer == nil ? [nil, .locked, .cursor] : [control.layer, nil]
-                for layer in layers where bindings[layer]?.contains(trigger) == true {
-                    problems.append(String(localized: "\(trigger.description) is bound more than once (\(control.id))", bundle: .avoKit))
-                }
-                bindings[control.layer, default: []].insert(trigger)
+            for mode in control.modes ?? [] where !modeIDs.contains(mode) {
+                problems.append(String(localized: "\(control.id): no mode \(mode)", bundle: .avoKit))
+            }
+            if case .switchMode(let mode, _) = control.kind, !modeIDs.contains(mode) {
+                problems.append(String(localized: "\(control.id): no mode \(mode) to switch to", bundle: .avoKit))
+            }
+            if case .mouseLook = control.kind, fps == nil {
+                problems.append(String(localized: "\(control.id): locking or freeing the mouse needs the eye (mouse look)", bundle: .avoKit))
             }
         }
         if let fps {
@@ -682,9 +766,6 @@ extension KeymapProfile {
                 return problems
             }
             if aims.count > 1 { problems.append(String(localized: "FPS mode supports one aim control", bundle: .avoKit)) }
-            if bindings.values.contains(where: { $0.contains(fps.cursorToggle) }) {
-                problems.append(String(localized: "the cursor toggle \(fps.cursorToggle.description) is also bound to a control", bundle: .avoKit))
-            }
             for control in controls {
                 switch control.kind {
                 case .repeatTap:
@@ -714,20 +795,28 @@ extension KeymapProfile {
         case .tap(let p), .hold(let p), .ads(let p, _), .anchor(let p, _):
             point(p)
             if control.triggers.isEmpty { problems.append(String(localized: "\(name): needs a trigger", bundle: .avoKit)) }
-            if case .anchor(_, let area?) = control.kind {
-                if !area.isValid {
-                    problems.append(String(localized: "\(name): anchor area is invalid", bundle: .avoKit))
-                } else if !area.contains(p) {
-                    problems.append(String(localized: "\(name): position must be inside the anchor area", bundle: .avoKit))
-                }
+            if case .anchor(_, let radius?) = control.kind, !Control.anchorRadiusRange.contains(radius) {
+                problems.append(String(localized: "\(name): anchor reach must be between 0.03 and 1", bundle: .avoKit))
             }
+        case .switchMode(_, let p), .mouseLook(_, let p):
+            point(p)
+            if control.triggers.isEmpty { problems.append(String(localized: "\(name): needs a trigger", bundle: .avoKit)) }
         case let .repeatTap(p, interval):
             point(p)
             if control.triggers.isEmpty { problems.append(String(localized: "\(name): needs a trigger", bundle: .avoKit)) }
             if interval < 50 { problems.append(String(localized: "\(name): repeat interval must be at least 50 ms", bundle: .avoKit)) }
-        case let .dpad(center, radius, _, _, _, _, _):
+        case let .dpad(center, radius, up, down, left, right, _):
             point(center)
             if !(0.01...0.5).contains(radius) { problems.append(String(localized: "\(name): radius must be between 0.01 and 0.5", bundle: .avoKit)) }
+            if let run = control.run {
+                if !JoystickRun.scaleRange.contains(run.scale) {
+                    problems.append(String(localized: "\(name): running reach must be 1 to 4 times the joystick's", bundle: .avoKit))
+                }
+                if [up, down, left, right].contains(run.trigger) {
+                    problems.append(String(localized: "\(name): the key to run is also a direction", bundle: .avoKit))
+                }
+                if run.trigger.isMomentary { problems.append(String(localized: "\(name): the wheel cannot be held to run", bundle: .avoKit)) }
+            }
         case let .mobaMove(center, radius):
             point(center)
             if control.triggers.isEmpty { problems.append(String(localized: "\(name): needs a trigger", bundle: .avoKit)) }
@@ -772,8 +861,8 @@ extension KeymapProfile {
         }
         if control.allTriggers.contains(where: \.isMomentary) {
             switch control.kind {
-            case .tap, .swipe, .macro: break
-            default: problems.append(String(localized: "\(name): scroll triggers only work with tap, swipe or macro controls", bundle: .avoKit))
+            case .tap, .swipe, .macro, .switchMode, .mouseLook: break
+            default: problems.append(String(localized: "\(name): scroll triggers only work with tap, swipe, macro, mode switch and mouse lock controls", bundle: .avoKit))
             }
         }
         return problems

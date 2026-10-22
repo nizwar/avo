@@ -59,6 +59,8 @@ public struct KeymapEngine: Sendable {
         public var consumed = false
         /// Set when the host should engage (true) or release (false) pointer lock.
         public var pointerLock: Bool?
+        /// The mode the layout switched to (its id), for the host to say so.
+        public var mode: String?
     }
 
     public let profile: KeymapProfile
@@ -68,6 +70,9 @@ public struct KeymapEngine: Sendable {
     /// FPS combat mode: the mouse drives the aim control.
     public private(set) var pointerLocked = false
     public private(set) var adsActive = false
+    /// The layout's mode now (`KeymapProfile.modes`); nil without modes.
+    /// It stays through `reset`: a window losing focus keeps the vehicle.
+    public private(set) var mode: String?
 
     private struct Touch: Sendable {
         let id: Int
@@ -96,16 +101,16 @@ public struct KeymapEngine: Sendable {
     private var pressed: Set<Trigger> = []
     /// Touches held by hold, ads, dpad, aim, anchor, MOBA move and smart cast controls.
     private var held: [String: Int] = [:]
-    /// Where each held anchor tap's touch is now, and the area it stays in, in pixels.
+    /// Where each held anchor tap's touch is now, and how far it may go from its point, in pixels.
     private var anchors: [String: AnchorTouch] = [:]
 
     private struct AnchorTouch: Sendable {
         var x: Double
         var y: Double
-        let minX: Double
-        let maxX: Double
-        let minY: Double
-        let maxY: Double
+        let centerX: Double
+        let centerY: Double
+        /// nil: anywhere on the screen.
+        let radius: Double?
     }
     /// When each tap, MOBA move or smart cast went down: it lasts as long
     /// as its key, but never less than tapDurationMilliseconds.
@@ -136,6 +141,7 @@ public struct KeymapEngine: Sendable {
         self.displayID = displayID
         self.width = width
         self.height = height
+        mode = profile.firstMode
     }
 
     // MARK: Public API
@@ -264,7 +270,7 @@ public struct KeymapEngine: Sendable {
             lift(clickFinger)
             self.clickFinger = nil
         }
-        if locked, let camera = fpsAim, case let .aim(area, _, _, _, _, _, _, origin) = camera.kind {
+        if locked, let camera = fpsAim, isActive(camera), case let .aim(area, _, _, _, _, _, _, origin) = camera.kind {
             let start = touchDown(in: area, at: origin)
             held[camera.id] = down(x: start.x, y: start.y)
         }
@@ -318,6 +324,7 @@ public struct KeymapEngine: Sendable {
     }
 
     private func isActive(_ control: Control) -> Bool {
+        guard control.belongs(to: mode) else { return false }
         guard profile.fps != nil else { return true }
         // Aimed at the cursor, which is hidden and parked while the mouse is locked.
         if control.followsCursor, pointerLocked { return false }
@@ -326,10 +333,13 @@ public struct KeymapEngine: Sendable {
     }
 
     private mutating func press(_ trigger: Trigger, at now: TimeInterval, output: inout Output) -> Bool {
+        // The cursor toggle, and the controls on the same key too (Tab: the
+        // game's inventory, and the mouse free to use it).
+        var toggled = false
         if let fps = profile.fps, trigger == fps.cursorToggle {
             output.pointerLock = !pointerLocked
             events += setPointerLocked(!pointerLocked)
-            return true
+            toggled = true
         }
         guard !pressed.contains(trigger) || trigger.isMomentary else { return true }
         var matches = controls.filter { isActive($0) && $0.allTriggers.contains(trigger) }
@@ -341,10 +351,54 @@ public struct KeymapEngine: Sendable {
             matches = matches.filter { $0.layer == .cursor || $0.followsCursor }
         }
         // In cursor mode an unbound left click is a normal touch at the cursor (handled by the host).
-        guard !matches.isEmpty else { return false }
+        guard !matches.isEmpty else { return toggled }
         pressed.insert(trigger)
-        for control in matches { activate(control, trigger: trigger, at: now) }
+        // The game's buttons first, then the switches: Enter vehicle is
+        // pressed in the mode it belongs to, and lifts with its key.
+        for control in matches where control.touchesTheScreen { activate(control, trigger: trigger, at: now) }
+        for control in matches {
+            switch control.kind {
+            case .switchMode(let target, _): enterMode(target, output: &output)
+            case .mouseLook(let lock, _): lockPointer(lock, output: &output)
+            default: break
+            }
+        }
         return true
+    }
+
+    /// The pointer locked to the eye or freed, as the cursor toggle does.
+    private mutating func lockPointer(_ lock: Bool, output: inout Output) {
+        guard profile.fps != nil, lock != pointerLocked else { return }
+        output.pointerLock = lock
+        events += setPointerLocked(lock)
+    }
+
+    /// Turns the layout to `target`: what the old mode's controls held
+    /// lifts (a tap or hold still pressed lifts with its key), the new
+    /// mode's D-pads take the keys still held (driving on), and the mouse
+    /// does what the mode says.
+    private mutating func enterMode(_ target: String, output: inout Output) {
+        guard target != mode, let entered = profile.modes.first(where: { $0.id == target }) else { return }
+        mode = target
+        output.mode = target
+        for (controlID, touchID) in held {
+            guard let control = controls.first(where: { $0.id == controlID }), !isActive(control) else { continue }
+            switch control.kind {
+            case .tap, .hold: continue
+            default: break
+            }
+            lift(touchID)
+            held[controlID] = nil
+            anchors[controlID] = nil
+            heldSince[controlID] = nil
+            glides[controlID] = nil
+            stickRestingSince[controlID] = nil
+            if case .ads = control.kind { adsActive = false }
+        }
+        for control in controls where isActive(control) {
+            if case .dpad = control.kind { updateDPad(control, smoothly: false) }
+        }
+        if let look = entered.mouseLook { lockPointer(look, output: &output) }
     }
 
     private mutating func release(_ trigger: Trigger, at now: TimeInterval) -> Bool {
@@ -429,13 +483,11 @@ public struct KeymapEngine: Sendable {
             enqueue(now + Double(interval) / 1000, .repeatTap(control: control.id, trigger: trigger))
         case .macro:
             runMacroStep(control, index: 0, at: now)
-        case let .anchor(point, area):
+        case let .anchor(point, radius):
             guard held[control.id] == nil, let touch = down(point) else { return }
             held[control.id] = touch
-            let bounds = area ?? .screen
-            anchors[control.id] = AnchorTouch(x: point.x * width, y: point.y * height,
-                                              minX: clampX(bounds.minX * width), maxX: clampX(bounds.maxX * width),
-                                              minY: clampY(bounds.minY * height), maxY: clampY(bounds.maxY * height))
+            anchors[control.id] = AnchorTouch(x: point.x * width, y: point.y * height, centerX: point.x * width,
+                                              centerY: point.y * height, radius: radius.map { $0 * height })
         case .mobaMove(let origin, _), .smartCast(let origin, _, _):
             // Down on the joystick or the skill button, then dragged: the
             // game needs the drag to start moving or aiming.
@@ -445,16 +497,27 @@ public struct KeymapEngine: Sendable {
             let x = origin.x * width, y = origin.y * height
             glides[control.id] = GlideTouch(x: x, y: y, targetX: x, targetY: y)
             aimAtCursor(control, now: true)
+        case .switchMode, .mouseLook:
+            // Handled by `press`: they touch nothing.
+            break
         }
     }
 
-    /// Drags every held anchor tap by the mouse movement, kept in its area
-    /// (the whole screen unless it has one).
+    /// Drags every held anchor tap by the mouse movement, within its reach
+    /// of its point (the whole screen unless it has one) and on the screen.
     private mutating func moveAnchors(dx: Double, dy: Double) {
         for (controlID, var anchor) in anchors {
             guard let touch = held[controlID] else { continue }
-            anchor.x = min(max(anchor.x + dx, anchor.minX), anchor.maxX)
-            anchor.y = min(max(anchor.y + dy, anchor.minY), anchor.maxY)
+            var x = anchor.x + dx, y = anchor.y + dy
+            if let radius = anchor.radius {
+                let ox = x - anchor.centerX, oy = y - anchor.centerY, distance = hypot(ox, oy)
+                if distance > radius, distance > 0 {
+                    x = anchor.centerX + ox / distance * radius
+                    y = anchor.centerY + oy / distance * radius
+                }
+            }
+            anchor.x = clampX(x)
+            anchor.y = clampY(y)
             anchors[controlID] = anchor
             move(touch, x: anchor.x, y: anchor.y)
         }
@@ -510,7 +573,9 @@ public struct KeymapEngine: Sendable {
             if let touch = held.removeValue(forKey: control.id) { lift(touch) }
             return
         }
-        let radiusPixels = radius * height
+        // Further while its run key is held.
+        let reach = control.run.map { pressed.contains($0.trigger) ? $0.scale : 1 } ?? 1
+        let radiusPixels = radius * reach * height
         let targetX = center.x * width + vx * radiusPixels
         let targetY = center.y * height + vy * radiusPixels
         if held[control.id] == nil {

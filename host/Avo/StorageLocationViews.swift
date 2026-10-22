@@ -157,6 +157,7 @@ struct StorageLocationRows: View {
             }
             if let problem = location.problem {
                 StorageProblemRow(problem: problem, flow: flow)
+                    .hazeRowNote()
             }
             if let copy = location.internalCopy {
                 LabeledContent {
@@ -176,6 +177,7 @@ struct StorageLocationRows: View {
             }
             if let progress = model.storageProgress, !progress.isDone {
                 StorageProgressRow(progress: progress)
+                    .hazeRowNote()
             }
         } else {
             // An older daemon: the data is where it always was.
@@ -392,7 +394,7 @@ struct StorageLocationSheet: View {
                 HStack(spacing: 10) {
                     Text("Size")
                     HazePicker("Size", selection: $size) {
-                        ForEach(VMConfig.dataDiskChoices, id: \.self) { Text("\($0) GB").tag($0) }
+                        for choice in VMConfig.dataDiskChoices { HazeOption("\(choice) GB", choice) }
                     }
                 }
                 .padding(.leading, 24)

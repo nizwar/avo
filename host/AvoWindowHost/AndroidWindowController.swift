@@ -10,6 +10,9 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     private weak var app: ShimAppDelegate?
     private let frames: FrameRouter
     private let displayView: DisplayView
+    /// The display's right edge: in from the window's while the key mapping
+    /// editor's panel is beside it.
+    private var displayTrailing: NSLayoutConstraint?
     private let placeholder = PlaceholderView()
     private let notice = NoticeView()
     /// Over the window while Android is locked, and the display that waits
@@ -57,15 +60,12 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// Translate Screen and Translate Into.
     private let translateButton = TitlebarButton(symbol: "translate", label: String(localized: "Translate Screen (⌘⇧T)", bundle: .windowHost),
                                                  action: nil)
-    /// Take Screenshot, Record Screen and their folders (red while recording).
-    private let captureButton = TitlebarButton(symbol: "camera", label: String(localized: "Screenshot and Screen Recording", bundle: .windowHost),
-                                               action: nil)
-    private var titlebarActions: [TitlebarButton] { [backButton, gameModeButton, translateButton, captureButton] }
-    /// Keep on Top (also View › Keep on Top): a pin, filled while this app's
-    /// windows float over other apps'. Not one of `titlebarActions`: it works
-    /// without the display.
-    private let keepOnTopButton = TitlebarButton(symbol: "pin", label: String(localized: "Keep on Top", bundle: .windowHost),
-                                                 action: #selector(AndroidWindowController.toggleKeepOnTop))
+    /// The phone itself (`deviceMenu`): shake, rotate, location and the
+    /// fingerprint, screenshots and recordings, Keep on Top. Not one of
+    /// `titlebarActions`: some of it works without the display.
+    private let deviceButton = TitlebarButton(symbol: "candybarphone", label: String(localized: "Device", bundle: .windowHost),
+                                              action: nil)
+    private var titlebarActions: [TitlebarButton] { [backButton, gameModeButton, translateButton] }
     /// Touches Android's fingerprint sensor with a finger from Settings ›
     /// Fingerprints (FingerprintMenu.swift). Not one of `titlebarActions`: it
     /// works without the display, also on Android's lock screen.
@@ -98,22 +98,27 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// Keep on Top and where Picture in Picture goes, for this app (WindowModeSettings).
     static let windowModes = WindowModeSettings(store: .standard)
 
-    /// Back, then three icons that open menus of related actions (the same
-    /// as the menu bar's): game controls, translation and capture; then the
-    /// fingerprint, whose menu has no menu bar counterpart, Keep on Top, and
-    /// last Quick Settings.
+    /// Back, then icons that open menus of related actions (the same as the
+    /// menu bar's): game controls, translation and the device; last Quick
+    /// Settings. The fingerprint shows first, only while this app, Android's
+    /// lock screen or Settings asks for a finger (FingerprintMenu); the
+    /// Device menu has it otherwise.
     private lazy var titlebarButtons: NSTitlebarAccessoryViewController = {
         backButton.target = self
-        keepOnTopButton.target = self
         gameModeButton.popUpMenu = { [weak self] in self?.gameControlsMenu() }
         translateButton.popUpMenu = { [weak self] in self?.translationMenu() }
-        captureButton.popUpMenu = { [weak self] in self?.captureMenu() }
-        let stack = NSStackView(views: titlebarActions + [fingerprintMenu.button, keepOnTopButton, quickSettings.button])
+        deviceButton.popUpMenu = { [weak self] in self?.deviceMenu() }
+        let fingerprint = fingerprintMenu.button
+        let stack = NSStackView(views: [fingerprint] + titlebarActions + [deviceButton, quickSettings.button])
         stack.orientation = .horizontal
         stack.spacing = 2
         stack.translatesAutoresizingMaskIntoConstraints = false
-        // Trailing accessories are laid out by their frame, not Auto Layout.
+        // Trailing accessories are laid out by their frame, not Auto Layout:
+        // room for the fingerprint too, which then shows without moving the rest.
+        let hidden = fingerprint.isHidden
+        fingerprint.isHidden = false
         let size = stack.fittingSize
+        fingerprint.isHidden = hidden
         let container = NSView(frame: NSRect(x: 0, y: 0, width: size.width + 10, height: max(size.height, 28)))
         container.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -153,11 +158,32 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         return menu
     }
 
+    /// The phone itself: shake, rotate and where Android is (as in the
+    /// Controls menu), the fingerprint, then screenshots and recordings (as
+    /// in the File menu) and Keep on Top (as in the View menu).
+    private func deviceMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(withTitle: String(localized: "Shake", bundle: .windowHost), action: #selector(shakeDevice), keyEquivalent: "z")
+            .keyEquivalentModifierMask = [.control, .command]
+        menu.addItem(withTitle: String(localized: "Rotate", bundle: .windowHost), action: #selector(rotateWindow), keyEquivalent: "r")
+        for item in menu.items { item.target = self }
+        // The app's (ShimAppDelegate), on the way up from this window.
+        menu.addItem(withTitle: String(localized: "Location…", bundle: .windowHost), action: #selector(ShimAppDelegate.showLocation),
+                     keyEquivalent: "l").keyEquivalentModifierMask = [.command, .option]
+        menu.addItem(withTitle: FingerprintMenu.title, action: nil, keyEquivalent: "").submenu = fingerprintMenu.makeMenu()
+        menu.addItem(.separator())
+        addCaptureItems(to: menu)
+        menu.addItem(.separator())
+        menu.addItem(withTitle: String(localized: "Keep on Top", bundle: .windowHost), action: #selector(toggleKeepOnTop), keyEquivalent: "")
+            .target = self
+        return menu
+    }
+
     /// Take Screenshot, Record Screen (Stop Recording while recording),
     /// whether recordings take Android's sound, and the folders they save to
     /// (also in the File menu).
-    private func captureMenu() -> NSMenu {
-        let menu = NSMenu()
+    private func addCaptureItems(to menu: NSMenu) {
+        let first = menu.items.count
         menu.addItem(withTitle: String(localized: "Take Screenshot", bundle: .windowHost), action: #selector(takeScreenshot), keyEquivalent: "s")
             .keyEquivalentModifierMask = [.command, .shift]
         menu.addItem(withTitle: String(localized: "Record Screen", bundle: .windowHost), action: #selector(toggleRecording), keyEquivalent: "r")
@@ -169,8 +195,41 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
                      keyEquivalent: "")
         menu.addItem(withTitle: String(localized: "Show Recordings in Finder", bundle: .windowHost), action: #selector(showRecordingsFolder),
                      keyEquivalent: "")
-        for item in menu.items where !item.isSeparatorItem { item.target = self }
-        return menu
+        for item in menu.items[first...] where !item.isSeparatorItem { item.target = self }
+    }
+
+    /// Device › Shake (⌃⌘Z, also in the Controls menu): Android's
+    /// accelerometer swings for a second, as a hand shaking the phone would,
+    /// for apps that undo, shuffle or report a bug on a shake. The window
+    /// gives a little shake with it.
+    @objc func shakeDevice() {
+        wobble()
+        Task { [weak self] in
+            do {
+                try await self?.client?.shakeDevice()
+            } catch {
+                self?.notice.show(error.localizedDescription)
+            }
+        }
+    }
+
+    /// The window shakes from side to side for a moment (not in full
+    /// screen, nor with Reduce Motion).
+    private func wobble() {
+        guard let window, !window.styleMask.contains(.fullScreen),
+              !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+        let origin = window.frame.origin
+        let path = CGMutablePath()
+        path.move(to: origin)
+        for step in 0..<6 {
+            path.addLine(to: CGPoint(x: origin.x + (step % 2 == 0 ? -7 : 7), y: origin.y))
+        }
+        path.addLine(to: origin)
+        let animation = CAKeyframeAnimation()
+        animation.path = path
+        animation.duration = 0.36
+        window.animations = ["frameOrigin": animation]
+        window.animator().setFrameOrigin(origin)
     }
 
     @objc func toggleKeymapHints() {
@@ -241,9 +300,14 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         recordingBadge.translatesAutoresizingMaskIntoConstraints = false
         recordingBadge.isHidden = true
         container.addSubview(recordingBadge)
+        let trailing = displayView.trailingAnchor.constraint(equalTo: container.trailingAnchor)
+        // A window too narrow for the editor's panel keeps some of the game.
+        trailing.priority = .init(999)
+        displayTrailing = trailing
         NSLayoutConstraint.activate([
             displayView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            displayView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            trailing,
+            displayView.widthAnchor.constraint(greaterThanOrEqualToConstant: 120),
             displayView.topAnchor.constraint(equalTo: container.topAnchor),
             displayView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
             placeholder.leadingAnchor.constraint(equalTo: container.leadingAnchor),
@@ -349,12 +413,17 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
                     self?.keyMappingChanged(profile != nil)
                     GamepadForwarder.shared.update()
                 }
-                keymap.onEditing = { [weak self] editing in self?.hints.editing = editing }
+                keymap.onEditing = { [weak self] editing in
+                    self?.hints.editing = editing
+                    self?.makeRoom(forEditor: editing)
+                }
+                keymap.onMode = { [weak self] mode in self?.hints.mode = mode }
                 keymap.onGameMode = { [weak self] on in
                     self?.showGameMode(on)
                     GamepadForwarder.shared.update()
                 }
                 hints.profile = keymap.profile
+                hints.mode = keymap.mode
                 showGameMode(keymap.gameMode)
                 if keymap.profile != nil {
                     notice.show(keymap.gameMode
@@ -430,6 +499,14 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         return DisplaySizing.request(contentWidth: content.width, contentHeight: content.height,
                                      backingScale: window.backingScaleFactor, settings: graphics.settings, device: deviceDisplay,
                                      landscape: lockedRatio != nil ? fixedLandscape : nil)
+    }
+
+    /// The key mapping editor's panel takes the right of the window, and the
+    /// game moves over: its picture smaller, Android's display the same (the
+    /// window keeps its size, so nothing re-plugs).
+    private func makeRoom(forEditor editing: Bool) {
+        displayTrailing?.constant = editing ? -KeymapEditorView.panelWidth : 0
+        hints.needsDisplay = true
     }
 
     static var hostApplication: URL? {
@@ -905,14 +982,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         recordingIndicator.run(since: start)
         recordingBadge.run(since: start)
         showRecordingBadge()
-        // The camera turns red; its menu then offers Stop Recording.
-        let label = on ? String(localized: "Recording the screen. ⌘⇧R stops it.", bundle: .windowHost)
-                       : String(localized: "Screenshot and Screen Recording", bundle: .windowHost)
-        captureButton.image = NSImage(systemSymbolName: on ? "camera.fill" : "camera", accessibilityDescription: label)?
-            .withSymbolConfiguration(.init(pointSize: 13, weight: .medium))
-        captureButton.contentTintColor = on ? .systemRed : nil
-        captureButton.toolTip = label
-        captureButton.setAccessibilityLabel(label)
+        // The red dot and time show it; the Device menu then offers Stop Recording.
+        recordingIndicator.toolTip = on ? String(localized: "Recording the screen. ⌘⇧R stops it.", bundle: .windowHost) : nil
         recordingCheck?.invalidate()
         recordingCheck = nil
         guard on else { return }
@@ -942,7 +1013,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
                                          : String(localized: "Stop Recording", bundle: .windowHost)
             return recorder != nil || displayID != nil
         }
-        if item.action == #selector(takeScreenshot) { return displayID != nil }
+        if item.action == #selector(takeScreenshot) || item.action == #selector(shakeDevice) { return displayID != nil }
         if item.action == #selector(toggleRecordAndroidSound) {
             item.state = Self.captureSettings.recordsAndroidSound ? .on : .off
             return true
@@ -980,15 +1051,10 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     }
 
     /// Floats over other apps' windows while Keep on Top is on; full screen
-    /// has its own Space. The pin shows the setting either way.
+    /// has its own Space.
     func applyWindowLevel() {
-        let on = Self.windowModes.keepOnTop
-        keepOnTopButton.state = on ? .on : .off
-        keepOnTopButton.contentTintColor = on ? .controlAccentColor : nil
-        keepOnTopButton.image = NSImage(systemSymbolName: on ? "pin.fill" : "pin", accessibilityDescription: keepOnTopButton.toolTip)?
-            .withSymbolConfiguration(.init(pointSize: 13, weight: .medium))
         guard let window else { return }
-        let floats = on && !fullScreenTransition && !window.styleMask.contains(.fullScreen)
+        let floats = Self.windowModes.keepOnTop && !fullScreenTransition && !window.styleMask.contains(.fullScreen)
         window.level = floats ? .floating : .normal
     }
 
@@ -1074,7 +1140,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     private var lockedRatio: Double? { graphics.settings.lockedRatio(device: deviceDisplay) }
 
     private var renderOptions: RenderOptions {
-        RenderOptions(filter: graphics.settings.filter, sharpness: graphics.settings.sharpness)
+        RenderOptions(filter: graphics.settings.filter, sharpness: graphics.settings.sharpness, fxaa: graphics.settings.antiAliasing == .fxaa)
     }
 
     /// A message over the game (a failed save, from the app delegate).
@@ -1243,6 +1309,11 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         changeGraphics { $0.filter = filter }
     }
 
+    @objc func chooseAntiAliasing(_ sender: NSMenuItem) {
+        guard let value = (sender.representedObject as? String).flatMap(GraphicsSettings.AntiAliasing.init(rawValue:)) else { return }
+        changeGraphics { $0.antiAliasing = value }
+    }
+
     @objc func useDefaultGraphicsSettings(_ sender: Any?) {
         app?.applyLocalOverride(nil)
     }
@@ -1366,6 +1437,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
             check(item.representedObject as? String == settings.orientation.rawValue)
         case #selector(chooseScalingFilter(_:)):
             check(item.representedObject as? String == settings.filter.rawValue)
+        case #selector(chooseAntiAliasing(_:)):
+            check(item.representedObject as? String == settings.antiAliasing.rawValue)
         case #selector(togglePerformanceHUD(_:)):
             item.title = hudLevel == .off ? String(localized: "Show Performance HUD", bundle: .windowHost)
                                           : String(localized: "Hide Performance HUD", bundle: .windowHost)
@@ -1382,7 +1455,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
 
 /// An icon-only title bar button, outlined only under the pointer.
 final class TitlebarButton: NSButton {
-    /// Set: a click opens this menu under the button instead of sending an action.
+    /// Set: a click opens this menu under the button, in the haze
+    /// (HazeMenu.swift), instead of sending an action.
     var popUpMenu: (() -> NSMenu?)? {
         didSet {
             target = self
@@ -1406,8 +1480,9 @@ final class TitlebarButton: NSButton {
 
     @objc private func showPopUpMenu() {
         guard let menu = popUpMenu?() else { return }
-        // Its top-left corner just under the button.
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: isFlipped ? bounds.height + 4 : -4), in: self)
+        // The button stays pressed while its menu shows.
+        highlight(true)
+        HazeMenuPresenter.shared.popUp(menu, below: self) { [weak self] in self?.highlight(false) }
     }
 }
 
@@ -1562,7 +1637,8 @@ extension AndroidWindowController: QuickSettingsTarget {
 
     func quickSettingsPreviewSharpness(_ sharpness: Int?) {
         let settings = graphics.settings
-        displayView.renderer.setOptions(RenderOptions(filter: settings.filter, sharpness: sharpness ?? settings.sharpness))
+        displayView.renderer.setOptions(RenderOptions(filter: settings.filter, sharpness: sharpness ?? settings.sharpness,
+                                                      fxaa: settings.antiAliasing == .fxaa))
     }
 
     func quickSettingsSetFrameRateLimit(_ fps: Int) {
@@ -1579,5 +1655,13 @@ extension AndroidWindowController: QuickSettingsTarget {
 
     func quickSettingsSetTranslating(_ on: Bool) {
         if translation.isActive != on { translation.toggle() }
+    }
+
+    func quickSettingsAndroidVolume() async -> AndroidVolume? {
+        try? await client?.androidVolume()
+    }
+
+    func quickSettingsSetAndroidVolume(_ level: Int) async -> AndroidVolume? {
+        try? await client?.setAndroidVolume(level)
     }
 }

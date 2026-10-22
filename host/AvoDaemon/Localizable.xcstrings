@@ -478,6 +478,16 @@
         }
       }
     },
+    "Send" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kirim"
+          }
+        }
+      }
+    },
     "Software" : {
       "localizations" : {
         "id" : {

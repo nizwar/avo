@@ -13,8 +13,9 @@
 //! --properties names a file of key=value lines that replace the image's
 //! properties (the device profile's identity, e.g. ro.product.model).
 //!
-//! --gpu gfxstream renders Android on the Mac's GPU with gfxstream from the
-//! Android Emulator in --gfxstream-dir (the directory with lib64/); --hwc
+//! --gpu gfxstream renders Android on the Mac's GPU with the gfxstream in
+//! --gfxstream-dir (the directory with lib64/: Avo.app's own build, or an
+//! Android Emulator); --hwc
 //! host lets the composer use gfxstream's host composition (bring-up A/B).
 //! Without --gpu (or with 2d) Android renders in software. Exit code 75:
 //! the GPU renderer could not start, before any guest code ran.

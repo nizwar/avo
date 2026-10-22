@@ -89,7 +89,8 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .devices: ["Wi-Fi", "Bluetooth", String(localized: "Location"), "GPS", String(localized: "Network speed"),
                         "5G", "4G", "LTE", "3G", "EDGE", String(localized: "Offline"), "SIM", String(localized: "Mobile network"),
                         String(localized: "Mobile data"), String(localized: "Signal"), String(localized: "Cameras"),
-                        String(localized: "Camera"), "Webcam", String(localized: "Microphone"), String(localized: "Clipboard"),
+                        String(localized: "Camera"), "Webcam", String(localized: "Sound"), String(localized: "Volume"),
+                        String(localized: "Microphone"), String(localized: "Clipboard"),
                         String(localized: "Privacy")]
         case .performance: [String(localized: "Memory"), "RAM", String(localized: "CPU cores")]
         case .storage: [String(localized: "Data disk"), String(localized: "Android storage"), String(localized: "GPU shader cache"),
@@ -537,7 +538,7 @@ private struct SettingsDetail: View {
             case .performance: PerformancePane()
             case .storage: StoragePane()
             case .fingerprints: FingerprintsPane()
-            case .devices: SystemPane(sections: [.network, .mobile, .bluetooth, .cameras, .microphone, .location, .clipboard])
+            case .devices: SystemPane(sections: [.network, .mobile, .bluetooth, .cameras, .sound, .microphone, .location, .clipboard])
             case .privacy: SystemPane(sections: .identity)
             case .developer: SystemPane(sections: .developer)
             case .about: AboutPane()

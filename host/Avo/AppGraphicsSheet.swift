@@ -62,8 +62,8 @@ struct AppGraphicsForm: View {
                             write(profile: choice == automatic ? nil : choice,
                                   changes: .difference(resolved.changes.applied(to: base), from: base))
                         })) {
-                            ForEach(GraphicsProfile.allCases, id: \.self) { profile in
-                                Text(label(for: profile)).tag(profile)
+                            for profile in GraphicsProfile.allCases {
+                                HazeOption(verbatim: label(for: profile), profile)
                             }
                         }
                     } label: {

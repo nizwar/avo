@@ -1,8 +1,8 @@
 import AvoKit
 import SwiftUI
 
-// Library › Home: the game to continue, a row of games, and the apps; and
-// the Games and Apps collections, and search results.
+// Library › Home: the game to continue, a row of games, and the apps; the
+// Library section's All, Games and Apps tabs; and Home's search results.
 
 struct LibraryHome: View {
     @Environment(ControlPanelModel.self) private var model
@@ -17,7 +17,7 @@ struct LibraryHome: View {
                     WelcomeHero()
                 }
                 VStack(alignment: .leading, spacing: 14) {
-                    SectionHeader(title: "Games", seeAll: model.games.count > 1 ? { router.show(.games) } : nil)
+                    SectionHeader(title: "Games", seeAll: model.games.count > 1 ? { router.showLibrary(.games) } : nil)
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 16), count: 3), spacing: 16) {
                         ForEach(homeGames) { game in
                             GameCard(app: game)
@@ -29,7 +29,7 @@ struct LibraryHome: View {
                 }
                 if !model.nonGameApps.isEmpty {
                     VStack(alignment: .leading, spacing: 14) {
-                        SectionHeader(title: "Apps", seeAll: model.nonGameApps.count > 6 ? { router.show(.apps) } : nil)
+                        SectionHeader(title: "Apps", seeAll: model.nonGameApps.count > 6 ? { router.showLibrary(.apps) } : nil)
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 14), count: 6), spacing: 14) {
                             ForEach(model.nonGameApps.prefix(6)) { app in
                                 LibraryAppTile(app: app)
@@ -450,7 +450,54 @@ extension AppActivity {
 
 // MARK: - Collections
 
-/// Library › Games: every game, in a grid or a list.
+/// The Library's All tab: every game, then every app.
+struct LibraryAllCollection: View {
+    @Environment(ControlPanelModel.self) private var model
+    @Environment(LibraryRouter.self) private var router
+
+    var body: some View {
+        let games = filtered(model.games)
+        let apps = filtered(model.nonGameApps)
+        if games.isEmpty && apps.isEmpty {
+            if router.search.isEmpty {
+                LibraryEmpty(symbol: "square.grid.2x2", title: "No Android apps yet",
+                             detail: "Double-click an .apk file in Finder, or drop it here. Apps you install from F-Droid or Aurora Store inside Android show up here too.")
+            } else {
+                LibraryEmpty(symbol: "magnifyingglass", title: "No results", detail: nil)
+            }
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 26) {
+                    if !games.isEmpty {
+                        VStack(alignment: .leading, spacing: 14) {
+                            SectionHeader(title: "Games", seeAll: { router.tab = .games })
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: 16), count: 3), spacing: 16) {
+                                ForEach(games) { GameCard(app: $0, height: 132) }
+                            }
+                        }
+                    }
+                    if !apps.isEmpty {
+                        VStack(alignment: .leading, spacing: 14) {
+                            SectionHeader(title: "Apps", seeAll: { router.tab = .apps })
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 128), spacing: 14)], spacing: 14) {
+                                ForEach(apps) { LibraryAppTile(app: $0) }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 34)
+                .padding(.bottom, 56)
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+
+    private func filtered(_ list: [AppRecord]) -> [AppRecord] {
+        router.search.isEmpty ? list : list.filter { $0.matches(router.search) }
+    }
+}
+
+/// The Library's Games tab: every game, in a grid or a list.
 struct GamesCollection: View {
     @Environment(ControlPanelModel.self) private var model
     @Environment(LibraryRouter.self) private var router
@@ -561,7 +608,7 @@ private struct GameRow: View {
     }
 }
 
-/// Library › Apps: every app that is not a game.
+/// The Library's Apps tab: every app that is not a game.
 struct AppsCollection: View {
     @Environment(ControlPanelModel.self) private var model
     @Environment(LibraryRouter.self) private var router

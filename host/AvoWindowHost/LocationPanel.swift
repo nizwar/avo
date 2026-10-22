@@ -931,7 +931,7 @@ private struct AndroidLocationCard: View {
 
     var body: some View {
         let status = model.status
-        QuickCard(title: L("Android Is At"), scope: status?.ownLocation == true ? L("This app") : L("Every app")) {
+        QuickCard(title: L("Android Is At"), scope: status?.ownLocation == true ? L("This app") : L("Every app"), separated: false) {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: symbol(status))
                     .font(.system(size: 15, weight: .semibold))
@@ -1022,7 +1022,7 @@ private struct NowPlayingCard: View {
     @State private var seeking: Double?
 
     var body: some View {
-        QuickCard(title: L("Route"), scope: route.playback.loop ? L("Loops") : L("Plays once")) {
+        QuickCard(title: L("Route"), scope: route.playback.loop ? L("Loops") : L("Plays once"), separated: false) {
             VStack(alignment: .leading, spacing: 6) {
                 QuickSlider(label: L("Progress"), value: Binding(get: { seeking ?? route.progress }, set: { value in
                     if seeking == nil {
@@ -1069,7 +1069,7 @@ private struct PlaceCard: View {
     @ObservedObject var editor: LocationEditor
 
     var body: some View {
-        QuickCard(title: L("Place"), scope: L("Stays put")) {
+        QuickCard(title: L("Place"), scope: L("Stays put"), separated: false) {
             if let pin = editor.pin {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "mappin.circle.fill").font(.system(size: 22)).foregroundStyle(QuickHaze.rgb(0x8BB35E))
@@ -1098,7 +1098,7 @@ private struct RouteCard: View {
     @ObservedObject var editor: LocationEditor
 
     var body: some View {
-        QuickCard(title: L("New Route"), scope: editor.isEmpty ? "" : LocationText.distance(editor.draft?.distance ?? 0)) {
+        QuickCard(title: L("New Route"), scope: editor.isEmpty ? "" : LocationText.distance(editor.draft?.distance ?? 0), separated: false) {
             if editor.isEmpty {
                 QuickCaption(L("Click the map to add stops, or import a GPX, KML or KMZ file."))
             } else {
@@ -1233,7 +1233,7 @@ struct QuickLocationCard: View {
 
     var body: some View {
         let status = model.status
-        QuickCard(title: L("Location"), scope: L("Every app")) {
+        QuickCard(title: L("Location"), scope: L("Every app"), separated: false) {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: status?.source == .route ? "point.topleft.down.to.point.bottomright.curvepath"
                       : status?.source == .point ? "mappin" : "location.fill")

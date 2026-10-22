@@ -610,7 +610,7 @@ fn boot(options: &Options, renderer: Option<&RenderHost>, bluetooth: Option<&Arc
     // Mobile accept only controllers whose name they know.
     let gamepad = Input::new(Description::gamepad("Xbox Wireless Controller"));
     let controls = Controls::new(touchscreens, keyboard.sender(), gamepad.sender(), displays, frame_handle,
-                                 options.display, gnss);
+                                 options.display, gnss, sensors.clone());
     machine.add_virtio(Box::new(keyboard));
     control::serve(&options.runtime.join("control.sock"), controls)?;
 

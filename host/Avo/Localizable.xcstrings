@@ -906,7 +906,14 @@
       }
     },
     "Add" : {
-
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tambah"
+          }
+        }
+      }
     },
     "Add Finger" : {
       "localizations" : {
@@ -919,7 +926,14 @@
       }
     },
     "Add a Widget" : {
-
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tambah Widget"
+          }
+        }
+      }
     },
     "Add fingers to Android in its Settings app." : {
       "localizations" : {
@@ -1174,7 +1188,14 @@
       }
     },
     "An open app’s Dock icon shows how many notifications it has in Android, as a phone’s home screen does." : {
-
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ikon Dock aplikasi yang terbuka menunjukkan jumlah notifikasinya di Android, seperti layar utama ponsel."
+          }
+        }
+      }
     },
     "An upgrade can take your current apps and data along, but the older Android can’t use them afterwards." : {
       "localizations" : {
@@ -1348,7 +1369,14 @@
       }
     },
     "Android asks for its settings when it is added" : {
-
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android menanyakan pengaturannya saat widget ditambahkan"
+          }
+        }
+      }
     },
     "Android can’t start fresh there." : {
       "localizations" : {
@@ -1799,6 +1827,16 @@
         }
       }
     },
+    "Android renders 2 or 4 times the pixels at the same layout, and Avo shrinks the picture to the window: the smoothest edges, but the GPU draws that many more pixels." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android merender 2 atau 4 kali piksel dengan tata letak yang sama, lalu Avo memperkecil gambarnya ke jendela: tepi paling halus, tapi GPU menggambar piksel sebanyak itu."
+          }
+        }
+      }
+    },
     "Android renders at the window's size, so text stays sharp. Resizing the window changes Android's resolution." : {
       "localizations" : {
         "id" : {
@@ -2069,6 +2107,16 @@
         }
       }
     },
+    "Android volume" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volume Android"
+          }
+        }
+      }
+    },
     "Android wants its PIN, pattern or password before a fingerprint." : {
       "localizations" : {
         "id" : {
@@ -2229,12 +2277,12 @@
         }
       }
     },
-    "Apple’s upscaler keeps edges and text sharp when the picture is enlarged. Best for most games." : {
+    "Apple’s MetalFX keeps edges and text sharp when the picture is enlarged. Best for most games." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Upscaler buatan Apple yang menjaga tepi dan teks tetap tajam saat gambar diperbesar. Paling cocok untuk kebanyakan game."
+            "value" : "MetalFX buatan Apple menjaga tepi dan teks tetap tajam saat gambar diperbesar. Paling cocok untuk kebanyakan game."
           }
         }
       }
@@ -2302,6 +2350,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aplikasi"
+          }
+        }
+      }
+    },
+    "Apps and Games are the two presets in Settings › Graphics. Avo picks one by itself (an app with key mapping is a game); the changes made on this page stay on top of either." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aplikasi dan Game adalah dua preset di Pengaturan › Grafis. Avo memilih salah satunya sendiri (aplikasi yang punya pemetaan tombol dianggap game); perubahan di halaman ini tetap berlaku di atas keduanya."
           }
         }
       }
@@ -2467,12 +2525,12 @@
         }
       }
     },
-    "Automatic uses this Mac’s GPU when the Android Emulator is installed, and software rendering otherwise." : {
+    "Automatic uses this Mac’s GPU, and software rendering when the GPU cannot start." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Otomatis memakai GPU Mac ini jika Android Emulator terpasang, dan rendering software jika tidak."
+            "value" : "Otomatis memakai GPU Mac ini, dan rendering software jika GPU tidak bisa dimulai."
           }
         }
       }
@@ -2503,6 +2561,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tersedia setelah layanan latar belakang Avo berjalan."
+          }
+        }
+      }
+    },
+    "Available while Android is running" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tersedia saat Android berjalan"
           }
         }
       }
@@ -2910,7 +2978,14 @@
       }
     },
     "Badges in the Dock" : {
-
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lencana di Dock"
+          }
+        }
+      }
     },
     "Balanced (%lld%%)" : {
       "localizations" : {
@@ -4509,6 +4584,16 @@
         }
       }
     },
+    "Fast (FXAA)" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cepat (FXAA)"
+          }
+        }
+      }
+    },
     "Fewer pixels mean more FPS: 720p draws less than half the pixels of 1080p." : {
       "localizations" : {
         "id" : {
@@ -4689,16 +4774,6 @@
         }
       }
     },
-    "Frame rate cap" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Batas FPS"
-          }
-        }
-      }
-    },
     "Frame rate limit" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4850,16 +4925,6 @@
         }
       }
     },
-    "GPU rendering needs the Android Emulator 37 or later. Install it with Android Studio’s SDK Manager (SDK Tools › Android Emulator)." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rendering GPU memerlukan Android Emulator 37 atau yang lebih baru. Instal melalui SDK Manager di Android Studio (SDK Tools › Android Emulator)."
-          }
-        }
-      }
-    },
     "GPU rendering needs the Android Emulator 37 or later; this Mac has %@. Update it with Android Studio’s SDK Manager." : {
       "localizations" : {
         "id" : {
@@ -4967,26 +5032,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Game"
-          }
-        }
-      }
-    },
-    "Games and Apps are the two sets of graphics in Settings › Graphics. Avo picks one by itself (an app with key mapping is a game); the changes made on this page stay on top of either." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Games dan Apps adalah dua set grafis di Pengaturan › Grafis. Avo memilih salah satunya sendiri (app yang punya key mapping dianggap game); perubahan di halaman ini tetap berlaku di atas keduanya."
-          }
-        }
-      }
-    },
-    "Games are apps with a key mapping, or apps you set to game settings in their Graphics Settings." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Game adalah aplikasi yang punya pemetaan tombol, atau yang Anda atur ke pengaturan game di Pengaturan Grafis aplikasi itu."
           }
         }
       }
@@ -5419,6 +5464,26 @@
         }
       }
     },
+    "High (2× supersampling)" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tinggi (supersampling 2×)"
+          }
+        }
+      }
+    },
+    "High and Ultra" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tinggi dan Ultra"
+          }
+        }
+      }
+    },
     "Home" : {
       "localizations" : {
         "id" : {
@@ -5435,6 +5500,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Seberapa sibuk GPU Mac Anda, dan bagian waktunya yang dipakai Android. Waktu GPU per aplikasi tidak diukur: aplikasi Android berbagi satu renderer di Mac Anda."
+          }
+        }
+      }
+    },
+    "How loud Android plays, in every app, under your Mac’s volume. At 100%, your Mac’s volume alone sets how loud Android is, as with other Mac apps." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seberapa keras suara Android di semua aplikasi, di bawah volume Mac Anda. Di 100%, volume Mac saja yang mengatur seberapa keras Android, sama seperti aplikasi Mac lainnya."
           }
         }
       }
@@ -5846,7 +5921,14 @@
       }
     },
     "Its size on the Mac, in points" : {
-
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ukurannya di Mac, dalam poin"
+          }
+        }
+      }
     },
     "Its speed is Network speed’s: choose the same type there for a connection as slow as the badge says." : {
       "localizations" : {
@@ -6229,6 +6311,16 @@
         }
       }
     },
+    "Max FPS" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FPS maksimum"
+          }
+        }
+      }
+    },
     "May Not Work" : {
       "localizations" : {
         "id" : {
@@ -6275,16 +6367,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "MetalFX hanya memperbesar. Jika gambar Android lebih besar dari jendela, Avo mengecilkannya dengan halus."
-          }
-        }
-      }
-    },
-    "MetalFX upscaling" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Upscaling MetalFX"
           }
         }
       }
@@ -6699,15 +6781,22 @@
         }
       }
     },
-    "No widgets" : {
-
-    },
     "No signal" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tanpa sinyal"
+          }
+        }
+      }
+    },
+    "No widgets" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidak ada widget"
           }
         }
       }
@@ -6733,7 +6822,14 @@
       }
     },
     "None of the apps in Android offers a widget yet." : {
-
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Belum ada aplikasi di Android yang menyediakan widget."
+          }
+        }
+      }
     },
     "Not Now" : {
       "localizations" : {
@@ -7067,7 +7163,14 @@
       }
     },
     "On Your Mac" : {
-
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Di Mac Anda"
+          }
+        }
+      }
     },
     "On this display the lowest is %lld%%, because Android's density can't go below 120 dpi." : {
       "localizations" : {
@@ -7539,6 +7642,16 @@
         }
       }
     },
+    "Preset" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preset"
+          }
+        }
+      }
+    },
     "Previous version" : {
       "localizations" : {
         "id" : {
@@ -7569,18 +7682,15 @@
         }
       }
     },
-    "Profile" : {
+    "Put Android widgets on your Mac. Each one sits on the desktop and stays live: it updates and takes clicks as on a phone. Hover over one to move it, keep it on top or remove it." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Profil"
+            "value" : "Taruh widget Android di Mac Anda. Setiap widget ada di desktop dan tetap hidup: diperbarui dan menerima klik seperti di ponsel. Arahkan penunjuk ke widget untuk memindahkannya, membuatnya selalu di atas, atau menghapusnya."
           }
         }
       }
-    },
-    "Put Android widgets on your Mac. Each one sits on the desktop and stays live: it updates and takes clicks as on a phone. Hover over one to move it, keep it on top or remove it." : {
-
     },
     "Quality (%lld%%)" : {
       "localizations" : {
@@ -8455,6 +8565,16 @@
         }
       }
     },
+    "Sharp upscaling" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upscaling tajam"
+          }
+        }
+      }
+    },
     "Sharpness" : {
       "localizations" : {
         "id" : {
@@ -8605,6 +8725,26 @@
         }
       }
     },
+    "Smooth edges" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haluskan tepi"
+          }
+        }
+      }
+    },
+    "Smooths jagged edges in Avo's renderer, before the picture is scaled. Light on the GPU; edges and small text get a little softer." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menghaluskan tepi bergerigi di renderer Avo, sebelum gambar diskalakan. Ringan untuk GPU; tepi dan teks kecil jadi sedikit lebih lembut."
+          }
+        }
+      }
+    },
     "Software" : {
       "localizations" : {
         "id" : {
@@ -8665,6 +8805,16 @@
         }
       }
     },
+    "Sound" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suara"
+          }
+        }
+      }
+    },
     "Speed" : {
       "localizations" : {
         "id" : {
@@ -8706,7 +8856,14 @@
       }
     },
     "Start Android to see the widgets its apps offer. Widgets you added come back when it runs." : {
-
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mulai Android untuk melihat widget yang disediakan aplikasinya. Widget yang Anda tambahkan muncul lagi saat Android berjalan."
+          }
+        }
+      }
     },
     "Start Android to see what its apps use." : {
       "localizations" : {
@@ -9098,7 +9255,14 @@
       }
     },
     "Takes the widget off the Mac" : {
-
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menghapus widget dari Mac"
+          }
+        }
+      }
     },
     "Taking Google apps out of the system partitions…" : {
       "localizations" : {
@@ -9304,6 +9468,16 @@
         }
       }
     },
+    "The settings below are the Apps preset’s or the Games preset’s. Games are apps with a key mapping, or apps you set to the Games preset on their page." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pengaturan di bawah adalah milik preset Aplikasi atau preset Game. Game adalah aplikasi yang punya pemetaan tombol, atau aplikasi yang Anda atur ke preset Game di halamannya."
+          }
+        }
+      }
+    },
     "The shape an app's window opens in, and the one a fixed shape or the phone's screen keeps; open windows turn right away. An app that asks for the other orientation still turns its window." : {
       "localizations" : {
         "id" : {
@@ -9424,12 +9598,12 @@
         }
       }
     },
-    "These settings are for this app only and apply to its windows right away. The frame rate cap is Android’s, for every app." : {
+    "These settings are for this app only and apply to its windows right away. Max FPS is Android’s, for every app." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pengaturan ini hanya untuk aplikasi ini dan langsung berlaku di jendelanya. Batas FPS adalah milik Android, untuk semua aplikasi."
+            "value" : "Pengaturan ini hanya untuk aplikasi ini dan langsung berlaku di jendelanya. FPS maksimum adalah milik Android, untuk semua aplikasi."
           }
         }
       }
@@ -9500,6 +9674,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Build Avo ini tidak punya feed pembaruan: versi baru datang sebagai unduhan."
+          }
+        }
+      }
+    },
+    "This copy of Avo is missing its GPU renderer, so Android renders in software. Install Avo again to use the GPU." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salinan Avo ini tidak memiliki renderer GPU-nya, jadi Android merender secara software. Instal ulang Avo untuk memakai GPU."
           }
         }
       }
@@ -9800,6 +9984,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Menonaktifkan verified boot…"
+          }
+        }
+      }
+    },
+    "Ultra (4× supersampling)" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ultra (supersampling 4×)"
           }
         }
       }
@@ -10224,6 +10418,16 @@
         }
       }
     },
+    "Volume" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volume"
+          }
+        }
+      }
+    },
     "Waiting for Android to boot" : {
       "localizations" : {
         "id" : {
@@ -10314,9 +10518,6 @@
         }
       }
     },
-    "Widgets" : {
-
-    },
     "While Bluetooth is on in Android, its apps find and use the Bluetooth LE devices this Mac sees: watches, sensors, beacons. macOS asks for permission the first time." : {
       "localizations" : {
         "id" : {
@@ -10333,6 +10534,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wi-Fi"
+          }
+        }
+      }
+    },
+    "Widgets" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Widget"
           }
         }
       }

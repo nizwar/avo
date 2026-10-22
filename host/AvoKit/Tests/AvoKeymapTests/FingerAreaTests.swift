@@ -106,28 +106,27 @@ private func locked(_ camera: Control) -> KeymapEngine {
     }
 }
 
-@Suite struct AnchorAreaTests {
-    @Test func anAnchorTapStaysInsideItsArea() {
-        // Area x 960…1440, y 324…756 px.
-        let wheel = Control(id: "emote", kind: .anchor(NormalizedPoint(0.5, 0.5), area: NormalizedRect(0.4, 0.3, 0.6, 0.7)),
-                            triggers: [.key(.b)])
+@Suite struct AnchorReachTests {
+    @Test func anAnchorTapStaysWithinItsReach() {
+        // Reach 0.2 of the display height: 216 px around 1200,540.
+        let wheel = Control(id: "emote", kind: .anchor(NormalizedPoint(0.5, 0.5), radius: 0.2), triggers: [.key(.b)])
         var e = engine([wheel])
         #expect(summary(e.handle(.keyDown(.b), at: 0).events) == ["down[0] 0@1200,540"])
-        #expect(summary(e.handle(.pointerMoved(dx: 500, dy: -500), at: 0.1).events) == ["move[0] 0@1440,324"])
+        // Up and right as far as the circle allows, the way the mouse went.
+        #expect(summary(e.handle(.pointerMoved(dx: 500, dy: -500), at: 0.1).events) == ["move[0] 0@1353,387"])
         // Clamped, not wound up: moving back moves at once.
-        #expect(summary(e.handle(.pointerMoved(dx: -100, dy: 0), at: 0.2).events) == ["move[0] 0@1340,324"])
-        #expect(summary(e.handle(.keyUp(.b), at: 0.3).events) == ["up[0] 0@1340,324"])
+        #expect(summary(e.handle(.pointerMoved(dx: -100, dy: 0), at: 0.2).events) == ["move[0] 0@1253,387"])
+        #expect(summary(e.handle(.keyUp(.b), at: 0.3).events) == ["up[0] 0@1253,387"])
     }
 
     @Test func theLockedMouseIsClampedToo() {
         let camera = eye(NormalizedRect(0.5, 0.1, 1, 0.7))
-        let wheel = Control(id: "emote", kind: .anchor(NormalizedPoint(0.2, 0.5), area: NormalizedRect(0.1, 0.4, 0.3, 0.6)),
-                            triggers: [.key(.b)])
+        let wheel = Control(id: "emote", kind: .anchor(NormalizedPoint(0.2, 0.5), radius: 0.1), triggers: [.key(.b)])
         var e = engine([camera, wheel], fps: FPSSettings(aimControl: "eye"))
         _ = e.setPointerLocked(true)
         _ = e.handle(.keyDown(.b), at: 0)
-        // Only the anchor (pointer 1) moves, and no further than x 720, y 648.
-        #expect(summary(e.handle(.mouseMoved(dx: 900, dy: 900), at: 0.1).events) == ["move[0] 0@1800,432 1@720,648"])
+        // Only the anchor (pointer 1) moves, 108 px from 480,540 at most.
+        #expect(summary(e.handle(.mouseMoved(dx: 900, dy: 900), at: 0.1).events) == ["move[0] 0@1800,432 1@556,616"])
     }
 
     @Test func withoutAnAreaTheWholeScreenIsTheLimit() {
@@ -158,8 +157,8 @@ private func locked(_ camera: Control) -> KeymapEngine {
         #expect(profile.controls[0].kind == .aim(area: area, sensitivity: AxisPair(x: 1, y: 1), adsSensitivity: AxisPair(x: 0.6, y: 0.6),
                                                  exponent: 1, deadzone: 0, invertY: false, stick: .right, origin: nil))
         #expect(profile.controls[0].touchPoint == area.center)
-        #expect(profile.controls[1].kind == .anchor(NormalizedPoint(0.3125, 0.1218716613247863), area: nil))
-        #expect(profile.controls[1].fingerArea == .screen)
+        #expect(profile.controls[1].kind == .anchor(NormalizedPoint(0.3125, 0.1218716613247863), radius: nil))
+        #expect(profile.controls[1].fingerArea == nil)
         // Saving writes the same fields back, nothing added.
         let saved = try JSONSerialization.jsonObject(with: profile.encoded()) as? NSDictionary
         let original = try JSONSerialization.jsonObject(with: Data(Self.oldJSON.utf8)) as? NSDictionary
@@ -169,8 +168,7 @@ private func locked(_ camera: Control) -> KeymapEngine {
     @Test func pointsAndAreasRoundTrip() throws {
         let profile = KeymapProfile(package: "com.example.fps", name: "Areas", controls: [
             eye(EyeAreaTests.tall, origin: NormalizedPoint(0.7, 0.6)),
-            Control(id: "emote", kind: .anchor(NormalizedPoint(0.3, 0.2), area: NormalizedRect(0.2, 0.05, 0.45, 0.4)),
-                    triggers: [.key(.f)]),
+            Control(id: "emote", kind: .anchor(NormalizedPoint(0.3, 0.2), radius: 0.15), triggers: [.key(.f)]),
         ], fps: FPSSettings(aimControl: "eye"))
         #expect(profile.validate().isEmpty)
         let data = try profile.encoded()
@@ -178,6 +176,23 @@ private func locked(_ camera: Control) -> KeymapEngine {
         let json = String(decoding: data, as: UTF8.self)
         #expect(json.contains("\"origin\" : ["))
         #expect(json.contains("\"area\" : ["))
+        #expect(json.contains("\"radius\" : 0.15"))
+    }
+
+    /// Avo before b64 kept an anchor tap's finger in a rectangle: it becomes the circle as tall.
+    @Test func anOldAnchorAreaBecomesACircle() throws {
+        let json = """
+        {"schema": 1, "package": "x", "name": "x",
+         "controls": [{"id": "emote", "type": "anchor", "position": [0.3, 0.2], "area": [0.2, 0.05, 0.45, 0.4], "triggers": ["key:F"]}]}
+        """
+        let profile = try KeymapProfile.decode(Data(json.utf8))
+        guard case let .anchor(point, radius?) = profile.controls[0].kind else {
+            Issue.record("no reach")
+            return
+        }
+        #expect(point == NormalizedPoint(0.3, 0.2))
+        #expect(abs(radius - 0.175) < 1e-9)
+        #expect(profile.validate().isEmpty)
     }
 
     @Test func unreadableAreasAndPointsFallBackToTheOldBehaviour() throws {
@@ -197,13 +212,13 @@ private func locked(_ camera: Control) -> KeymapEngine {
     @Test func validatesPointsAgainstTheirAreas() {
         let profile = KeymapProfile(package: "x", name: "x", controls: [
             eye(NormalizedRect(0.5, 0.1, 1, 0.9), origin: NormalizedPoint(0.3, 0.5)),
-            Control(id: "a", kind: .anchor(NormalizedPoint(0.1, 0.1), area: NormalizedRect(0.2, 0.2, 0.4, 0.4)), triggers: [.key(.f)]),
-            Control(id: "b", kind: .anchor(NormalizedPoint(0.3, 0.3), area: NormalizedRect(0.4, 0.2, 0.2, 0.4)), triggers: [.key(.g)]),
+            Control(id: "a", kind: .anchor(NormalizedPoint(0.1, 0.1), radius: 2), triggers: [.key(.f)]),
+            Control(id: "b", kind: .anchor(NormalizedPoint(0.3, 0.3), radius: 0.01), triggers: [.key(.g)]),
         ], fps: FPSSettings(aimControl: "eye"))
         let problems = profile.validate()
         #expect(problems.contains("eye: touch-down point must be inside the aim area"))
-        #expect(problems.contains("a: position must be inside the anchor area"))
-        #expect(problems.contains("b: anchor area is invalid"))
+        #expect(problems.contains("a: anchor reach must be between 0.03 and 1"))
+        #expect(problems.contains("b: anchor reach must be between 0.03 and 1"))
         #expect(problems.count == 3)
     }
 }
@@ -255,16 +270,14 @@ private func locked(_ camera: Control) -> KeymapEngine {
         #expect(close(camera.touchPoint, NormalizedPoint(0.725, 0.5)))
     }
 
-    @Test func anAnchorAreaOfTheWholeScreenIsNone() {
-        var wheel = Control(id: "emote", kind: .anchor(NormalizedPoint(0.3, 0.2)), triggers: [.key(.f)])
+    /// The swipe area is the eye's: an anchor tap's reach is a circle (AnchorReachTests).
+    @Test func onlyTheEyeHasAFingerArea() {
+        var wheel = Control(id: "emote", kind: .anchor(NormalizedPoint(0.3, 0.2), radius: 0.2), triggers: [.key(.f)])
         wheel.setFingerArea(NormalizedRect(0.4, 0.3, 0.8, 0.9))
-        // The point moves into the area it was given.
-        #expect(wheel.kind == .anchor(NormalizedPoint(0.4, 0.3), area: NormalizedRect(0.4, 0.3, 0.8, 0.9)))
-        wheel.setFingerArea(.screen)
-        #expect(wheel.kind == .anchor(NormalizedPoint(0.4, 0.3)))
-        // Without an area, moving it moves only the point, kept on the screen.
         wheel.moveFinger(dx: -0.5, dy: 0.1)
-        #expect(wheel.fingerArea == .screen)
-        #expect(close(wheel.touchPoint, NormalizedPoint(0, 0.4)))
+        wheel.setTouchPoint(NormalizedPoint(0.9, 0.9))
+        #expect(wheel.kind == .anchor(NormalizedPoint(0.3, 0.2), radius: 0.2))
+        #expect(wheel.fingerArea == nil)
+        #expect(wheel.touchPoint == nil)
     }
 }

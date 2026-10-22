@@ -19,9 +19,16 @@ final class UserNotificationPresenter: NSObject, NotificationPresenter, UNUserNo
     private var onOpen: (@Sendable (String, String) -> Void)?
     private var onPermission: (@Sendable (MacNotificationPermission) -> Void)?
     private var onDismiss: (@Sendable (String) -> Void)?
+    private var onAction: (@Sendable (String, UInt32, String?) -> Void)?
     /// Android notifications ask to hear when the user closes them, which
     /// dismisses them in Android too.
     private static let category = "android"
+    /// A category per set of buttons Android notifications came with
+    /// (`category(for:)`), each with the plain one's dismiss action.
+    private var categories: [String: UNNotificationCategory] = [:]
+    private static let categoryLimit = 64
+    /// Button identifiers: this prefix and the button's NotificationAction.index.
+    private static let actionPrefix = "android.action."
     /// Requests whose alert still waits for the user's answer.
     private var pendingRequests = 0
     /// What macOS said when it refused to ask, until the next request.
@@ -42,8 +49,7 @@ final class UserNotificationPresenter: NSObject, NotificationPresenter, UNUserNo
     func start(onOpen: @escaping @Sendable (String, String) -> Void) {
         lock.withLock { self.onOpen = onOpen }
         center.delegate = self
-        center.setNotificationCategories([UNNotificationCategory(identifier: Self.category, actions: [], intentIdentifiers: [],
-                                                                 options: [.customDismissAction])])
+        center.setNotificationCategories([Self.plainCategory])
         // Asks right away rather than at the first Android notification:
         // until Avo has asked once, macOS does not list it in System
         // Settings › Notifications, so there would be nothing to turn on.
@@ -59,6 +65,43 @@ final class UserNotificationPresenter: NSObject, NotificationPresenter, UNUserNo
         lock.withLock { self.onDismiss = onDismiss }
     }
 
+    func observeActions(_ onAction: @escaping @Sendable (String, UInt32, String?) -> Void) {
+        lock.withLock { self.onAction = onAction }
+    }
+
+    private static var plainCategory: UNNotificationCategory {
+        UNNotificationCategory(identifier: category, actions: [], intentIdentifiers: [], options: [.customDismissAction])
+    }
+
+    /// The category that shows these buttons (Reply as a text field), known
+    /// to Notification Center before the notification that needs it.
+    private func category(for actions: [Avo_V1_NotificationAction]) async -> String {
+        guard !actions.isEmpty else { return Self.category }
+        let identifier = Self.category + ":" + actions.map { "\($0.index)\($0.reply ? "r" : "")=\($0.title)" }.joined(separator: "|")
+        let added = lock.withLock { () -> Set<UNNotificationCategory>? in
+            guard categories[identifier] == nil else { return nil }
+            // Old button sets go once there are many: today's notifications bring theirs again.
+            if categories.count >= Self.categoryLimit { categories.removeAll() }
+            categories[identifier] = UNNotificationCategory(identifier: identifier, actions: actions.map(Self.action),
+                                                            intentIdentifiers: [], options: [.customDismissAction])
+            return Set(categories.values).union([Self.plainCategory])
+        }
+        if let added {
+            center.setNotificationCategories(added)
+            // Asked after the change, which Notification Center then has.
+            _ = await center.notificationCategories()
+        }
+        return identifier
+    }
+
+    private static func action(_ action: Avo_V1_NotificationAction) -> UNNotificationAction {
+        let identifier = actionPrefix + String(action.index)
+        guard action.reply else { return UNNotificationAction(identifier: identifier, title: action.title) }
+        return UNTextInputNotificationAction(identifier: identifier, title: action.title, options: [],
+                                             textInputButtonTitle: String(localized: "Send"),
+                                             textInputPlaceholder: action.replyHint)
+    }
+
     func post(_ notification: Avo_V1_Notification, appName: String, icon: Data?) {
         guard !notification.ongoing else { return } // progress bars and media sessions stay in Android
         Task {
@@ -70,7 +113,7 @@ final class UserNotificationPresenter: NSObject, NotificationPresenter, UNUserNo
             content.subtitle = notification.title.isEmpty ? "" : appName
             content.body = notification.body
             content.threadIdentifier = notification.package
-            content.categoryIdentifier = Self.category
+            content.categoryIdentifier = await category(for: notification.actions)
             content.userInfo = ["package": notification.package, "key": notification.key]
             if !notification.silent { content.sound = .default }
             if let attachment = attachment(icon: notification.largeIconPng.isEmpty ? icon : notification.largeIconPng,
@@ -181,6 +224,10 @@ final class UserNotificationPresenter: NSObject, NotificationPresenter, UNUserNo
         guard let package = info["package"] as? String, let key = info["key"] as? String else { return }
         if response.actionIdentifier == UNNotificationDismissActionIdentifier {
             lock.withLock { onDismiss }?(key)
+        } else if response.actionIdentifier.hasPrefix(Self.actionPrefix),
+                  let index = UInt32(response.actionIdentifier.dropFirst(Self.actionPrefix.count)) {
+            let reply = (response as? UNTextInputNotificationResponse)?.userText
+            lock.withLock { onAction }?(key, index, reply)
         } else {
             lock.withLock { onOpen }?(package, key)
         }

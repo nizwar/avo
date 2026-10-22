@@ -3,10 +3,10 @@ import Foundation
 extension VMConfig {
     /// Graphics › Renderer: how avo-vmm draws Android (docs/engine.md, "GPU").
     public enum RendererMode: String, Codable, CaseIterable, Sendable {
-        /// The GPU when the Android Emulator's gfxstream libraries are
-        /// installed, software rendering otherwise.
+        /// The GPU through gfxstream (Avo's own build, or an Android
+        /// Emulator's), software rendering when there is none.
         case auto
-        /// The same as `auto`, but a missing emulator is shown prominently.
+        /// The same as `auto`, but a missing renderer is shown prominently.
         case gpu
         /// Software rendering in Android on the CPU, always (today's engine).
         case software
@@ -50,7 +50,7 @@ public struct RendererStatus: Codable, Equatable, Sendable {
     public enum Reason: String, Codable, Sendable {
         /// The Renderer setting asked for it (and the emulator was found for GPU).
         case chosen
-        /// No usable Android Emulator: software rendering.
+        /// No GPU renderer (neither Avo's nor an Android Emulator's): software rendering.
         case emulatorMissing
         /// The Android Emulator is older than GPU rendering needs.
         case emulatorUnsupported

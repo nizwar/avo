@@ -756,6 +756,44 @@ final class ControlPanelModel {
         (try? await client?.permissions(for: app.package)) ?? []
     }
 
+    // MARK: Android's volume (Settings › Devices › Sound)
+
+    /// Android's media volume while Settings shows it; nil while Android is not running.
+    private(set) var androidVolume: AndroidVolume?
+    /// The level the slider asked for while a change was on its way: the latest wins.
+    @ObservationIgnored private var volumeWanted: Int?
+    @ObservationIgnored private var volumeSending = false
+
+    func loadAndroidVolume() async {
+        guard let client, status.state == .running else {
+            androidVolume = nil
+            return
+        }
+        let volume = try? await client.androidVolume()
+        // Not over a level the slider is sending.
+        if volumeWanted == nil, !volumeSending { androidVolume = volume }
+    }
+
+    /// The slider moved: Android follows, one change at a time, the latest level last.
+    func setAndroidVolume(_ level: Int) {
+        guard var shown = androidVolume, shown.level != level else { return }
+        shown.level = level
+        androidVolume = shown
+        volumeWanted = level
+        guard !volumeSending else { return }
+        volumeSending = true
+        Task { await sendAndroidVolume() }
+    }
+
+    private func sendAndroidVolume() async {
+        while let level = volumeWanted {
+            volumeWanted = nil
+            let result = try? await client?.setAndroidVolume(level)
+            if volumeWanted == nil, let result { androidVolume = result }
+        }
+        volumeSending = false
+    }
+
     func setPermission(_ permission: AppPermission, granted: Bool, for app: AppRecord) async {
         do {
             try await client?.setPermission(permission.name, granted: granted, for: app.package)

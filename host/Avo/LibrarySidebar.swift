@@ -1,8 +1,9 @@
 import AvoKit
 import SwiftUI
 
-/// The Library's sidebar: Avo, the sections, the apps running now, and
-/// Settings at the bottom (its own window).
+/// The Library's sidebar: Avo, the sections (games and apps together in
+/// Library, under its tabs), the apps running now, and Settings at the
+/// bottom (its own window).
 struct LibrarySidebar: View {
     @Environment(ControlPanelModel.self) private var model
     @Environment(LibraryRouter.self) private var router

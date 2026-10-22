@@ -89,12 +89,13 @@ private let eye = Control(id: "eye", kind: .aim(area: NormalizedRect(0.5, 0.1, 1
         #expect(problems.count == 2)
     }
 
-    @Test func aDPadThatTheDPadButtonsPushClaimsThem() {
+    @Test func aDPadThatTheDPadButtonsPushListensToThem() {
         var move = move
         move.dpadButtons = true
         let tapOnUp = Control(id: "up", kind: .tap(NormalizedPoint(0.5, 0.5)), triggers: [.gamepad(.dpadUp)])
         #expect(move.allTriggers.contains(.gamepad(.dpadLeft)))
-        #expect(profile([move, tapOnUp]).validate().contains { $0.hasPrefix("pad:dpadUp is bound more than once") })
+        // A button may press several things, as a key may.
+        #expect(profile([move, tapOnUp]).validate().isEmpty)
         #expect(profile([move]).usesGamepad)
     }
 }
@@ -198,11 +199,11 @@ private let eye = Control(id: "eye", kind: .aim(area: NormalizedRect(0.5, 0.1, 1
         var p = profile([jump, reload])
         try p.bind(.button(.a), to: "jump")
         #expect(p.controls[0].triggers == [.key(.space), .gamepad(.a)])
-        #expect(p.controls[1].triggers == [.key(.r)], "a button does one thing")
+        #expect(p.controls[1].triggers == [.key(.r), .gamepad(.a)], "a button may press several things")
         try p.bind(.button(.b), to: "jump")
         #expect(p.controls[0].triggers == [.key(.space), .gamepad(.b)], "instead of the one it had")
         #expect(p.controls(boundTo: .button(.b)).map(\.id) == ["jump"])
-        #expect(p.boundGamepadElements == [.button(.b)])
+        #expect(p.boundGamepadElements == [.button(.a), .button(.b)])
     }
 
     @Test func aKeyFromTheKeyboardLeavesTheControllerButton() {
@@ -231,17 +232,21 @@ private let eye = Control(id: "eye", kind: .aim(area: NormalizedRect(0.5, 0.1, 1
         #expect(p.boundGamepadElements == Set([.stick(.left), .dpad] + GamepadElement.dpadButtons.map(GamepadElement.button)))
     }
 
-    @Test func directionsAndTheMouseLockKeepTheirButtons() throws {
+    /// A button may press several things, a direction or the mouse lock
+    /// among them, as a key may; the d-pad steers one joystick at a time.
+    @Test func buttonsMayBeSharedButNotTheDPad() throws {
         let padMove = Control(id: "pad-move", kind: .dpad(center: NormalizedPoint(0.2, 0.7), radius: 0.1, up: .gamepad(.dpadUp),
                                                           down: .gamepad(.dpadDown), left: .gamepad(.dpadLeft),
                                                           right: .gamepad(.dpadRight), stick: nil))
         var p = profile([jump, padMove, move, eye], fps: FPSSettings(cursorToggle: .gamepad(.options), aimControl: "eye"))
-        #expect(throws: KeymapProfile.GamepadBindingProblem.heldByDirection(controlID: "pad-move")) {
-            try p.bind(.button(.dpadUp), to: "jump")
-        }
+        try p.bind(.button(.dpadUp), to: "jump")
+        #expect(p.controls(boundTo: .button(.dpadUp)).map(\.id) == ["jump", "pad-move"])
         #expect(throws: KeymapProfile.GamepadBindingProblem.heldByDirection(controlID: "pad-move")) { try p.bind(.dpad, to: "move") }
-        #expect(throws: KeymapProfile.GamepadBindingProblem.cursorToggle) { try p.bind(.button(.options), to: "jump") }
+        try p.bind(.button(.options), to: "jump")
+        #expect(p.controls[0].gamepadButtons == [.options])
+        #expect(p.fps?.cursorToggle == .gamepad(.options))
         try p.bind(.dpad, to: "pad-move") // it is the d-pad already
+        #expect(p.validate().isEmpty)
     }
 
     @Test func placingMakesABoundControlWhereTheButtonWasDropped() throws {

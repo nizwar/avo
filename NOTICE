@@ -10,12 +10,18 @@ Third-party components included in Avo.app:
 - SwiftProtobuf (Apache License 2.0), https://github.com/apple/swift-protobuf
 - smoltcp (0BSD) and mio (MIT), used by avo-vmm
 - Hubot Sans and Mona Sans (SIL Open Font License 1.1), by GitHub
+- The GPU renderer in Contents/Resources/gfxstream, built from source by
+  scripts/build-gfxstream.sh: gfxstream (Apache License 2.0, the Android
+  Open Source Project, with headers under MIT-style licences), the Vulkan
+  loader (Apache License 2.0, Khronos) and MoltenVK (Apache License 2.0,
+  Khronos); their licences are in that folder's licenses/.
 
 Used at run time, not included:
 - AOSP Cuttlefish images (Apache License 2.0, with the Linux kernel under
   GPL-2.0), downloaded by the user from Google's public build server.
-- gfxstream and MoltenVK from the Android Emulator (Apache License 2.0),
-  installed by the user.
+- netsimd from the Android Emulator, for Android's Bluetooth, installed by
+  the user; and the Android Emulator's own gfxstream and MoltenVK, only when
+  a developer points Avo at them instead of its own renderer.
 - MindTheGapps (Google apps), downloaded only when the user asks for them.
 
 Android is a trademark of Google LLC. Device names in profiles/devices are used

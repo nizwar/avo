@@ -36,6 +36,7 @@ struct IssueText: View {
                 .font(.mona(12))
                 .foregroundStyle(issue.severity == .error ? Haze.danger : Haze.warning)
                 .fixedSize(horizontal: false, vertical: true)
+                .hazeRowNote()
         }
     }
 }
@@ -48,6 +49,7 @@ struct RestartNote: View {
             .font(.mona(12))
             .foregroundStyle(Haze.textTertiary)
             .fixedSize(horizontal: false, vertical: true)
+            .hazeRowNote()
     }
 }
 
@@ -62,6 +64,7 @@ struct FrameRateNote: View {
                 .font(.mona(12))
                 .foregroundStyle(Haze.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
+                .hazeRowNote()
         }
     }
 }
@@ -153,7 +156,7 @@ struct StoragePane: View {
                 } else {
                     LabeledContent {
                         HazePicker("Android storage", selection: Binding(get: { config.dataDiskGiB }, set: { value in model.update { $0.dataDiskGiB = value } })) {
-                            ForEach(Self.choices(including: config.dataDiskGiB), id: \.self) { Text("\($0) GB").tag($0) }
+                            for size in Self.choices(including: config.dataDiskGiB) { HazeOption("\(size) GB", size) }
                         }
                     } label: {
                         HelpTitle("Android storage", help: "Android creates its storage at this size when it first starts, and its Settings show this size. After that the size stays: changing it erases Android’s data. The disk only takes up the space Android fills.")
@@ -215,7 +218,7 @@ private struct ResizeStorageSheet: View {
                 .tracking(-0.3)
             LabeledContent {
                 HazePicker("Size", selection: $size) {
-                    ForEach(VMConfig.dataDiskChoices, id: \.self) { Text("\($0) GB").tag($0) }
+                    for choice in VMConfig.dataDiskChoices { HazeOption("\(choice) GB", choice) }
                 }
             } label: {
                 Text("Size")
@@ -276,13 +279,13 @@ struct GraphicsPane: View {
             Section("Rendering") {
                 LabeledContent {
                     HazePicker("Renderer", selection: Binding(get: { config.rendererMode }, set: { value in model.update { $0.rendererMode = value } })) {
-                        Text("Automatic").tag(VMConfig.RendererMode.auto)
-                        Text("GPU (Metal)").tag(VMConfig.RendererMode.gpu)
-                        Text("Software").tag(VMConfig.RendererMode.software)
+                        HazeOption("Automatic", VMConfig.RendererMode.auto)
+                        HazeOption("GPU (Metal)", VMConfig.RendererMode.gpu)
+                        HazeOption("Software", VMConfig.RendererMode.software)
                     }
                 } label: {
                     HelpTitle("Renderer") {
-                        Text("Automatic uses this Mac’s GPU when the Android Emulator is installed, and software rendering otherwise.")
+                        Text("Automatic uses this Mac’s GPU, and software rendering when the GPU cannot start.")
                         Text("Applies after Android restarts.")
                     }
                 }
@@ -295,9 +298,9 @@ struct GraphicsPane: View {
                                                            set: { value in model.update { $0.fpsLimit = value } }))
                         .fixedSize()
                         .accessibilityElement(children: .contain)
-                        .accessibilityLabel(Text("Frame rate cap"))
+                        .accessibilityLabel(Text("Max FPS"))
                 } label: {
-                    HelpTitle("Frame rate cap", help: "Android draws at most this many frames per second, in every app. A screen’s own rate between 60 and 120 appears too, so Android runs in step with it. A rate above the one Android started at applies after a restart. 30 saves power and heat.")
+                    HelpTitle("Max FPS", help: "Android draws at most this many frames per second, in every app. A screen’s own rate between 60 and 120 appears too, so Android runs in step with it. A rate above the one Android started at applies after a restart. 30 saves power and heat.")
                 }
                 FrameRateNote(cap: config.fpsLimit)
                 IssueText(field: "fpsLimit")
@@ -307,9 +310,9 @@ struct GraphicsPane: View {
                     HazeSegmented.inset([(GraphicsProfile.apps, Text("Apps")), (GraphicsProfile.games, Text("Games"))], selection: $profile)
                         .fixedSize()
                         .accessibilityElement(children: .contain)
-                        .accessibilityLabel(Text("Profile"))
+                        .accessibilityLabel(Text("Preset"))
                 } label: {
-                    HelpTitle("Profile", help: "Games are apps with a key mapping, or apps you set to game settings in their Graphics Settings.")
+                    HelpTitle("Preset", help: "The settings below are the Apps preset’s or the Games preset’s. Games are apps with a key mapping, or apps you set to the Games preset on their page.")
                 }
                 GraphicsSettingsEditor(settings: Binding(get: { config.settings(for: profile) }, set: { value in
                     let profile = profile
@@ -350,9 +353,9 @@ struct GraphicsPane: View {
                 LabeledContent("Show in app windows") {
                     HazePicker("Show in app windows", selection: Binding(get: { config.performanceHUD },
                                                                          set: { value in model.update { $0.performanceHUD = value } })) {
-                        Text("Off").tag(PerformanceHUDLevel.off)
-                        Text("FPS Only").tag(PerformanceHUDLevel.fps)
-                        Text("Detailed").tag(PerformanceHUDLevel.detailed)
+                        HazeOption("Off", PerformanceHUDLevel.off)
+                        HazeOption("FPS Only", PerformanceHUDLevel.fps)
+                        HazeOption("Detailed", PerformanceHUDLevel.detailed)
                     }
                 }
             } header: {
@@ -413,10 +416,10 @@ struct SystemPane: View {
                                                                  set: { value in model.update { $0.deviceProfileID = value } })) {
                         // Avo's honest identity first, then the phones it can impersonate.
                         let phones = model.profiles.filter { !$0.isAvoIdentity }
-                        ForEach(model.profiles.filter(\.isAvoIdentity)) { Text($0.name).tag($0.id) }
+                        for profile in model.profiles.filter(\.isAvoIdentity) { HazeOption(verbatim: profile.name, profile.id) }
                         if !phones.isEmpty {
-                            Section("Impersonate a phone") {
-                                ForEach(phones) { Text($0.name).tag($0.id) }
+                            HazeSection("Impersonate a phone") {
+                                for phone in phones { HazeOption(verbatim: phone.name, phone.id) }
                             }
                         }
                     }
@@ -438,6 +441,7 @@ struct SystemPane: View {
                     }
                     if config.emulateHardware, let hardware = profile.hardware {
                         DeviceSpecCard(hardware: hardware, display: profile.display, vcpus: config.cpuCount)
+                            .hazeRowNote()
                     }
                 }
             }
@@ -470,7 +474,7 @@ struct SystemPane: View {
                 }
                 LabeledContent {
                     HazePicker("Speed", selection: Binding(get: { config.networkSpeed }, set: { value in model.update { $0.networkSpeed = value } })) {
-                        ForEach(NetworkSpeed.allCases, id: \.self) { speed in Text(Self.title(of: speed)).tag(speed) }
+                        for speed in NetworkSpeed.allCases { HazeOption(verbatim: Self.title(of: speed), speed) }
                     }
                 } label: {
                     HelpTitle("Network speed") {
@@ -491,12 +495,12 @@ struct SystemPane: View {
                     LabeledContent("Network type") {
                         HazePicker("Network type", selection: Binding(get: { config.mobileNetworkType },
                                                                        set: { value in model.update { $0.mobileNetworkType = value } })) {
-                            ForEach(MobileNetworkType.allCases.reversed(), id: \.self) { type in Text(Self.title(of: type)).tag(type) }
+                            for type in MobileNetworkType.allCases.reversed() { HazeOption(verbatim: Self.title(of: type), type) }
                         }
                     }
                     LabeledContent("Signal") {
                         HazePicker("Signal", selection: Binding(get: { config.cellularSignal }, set: { value in model.update { $0.cellularSignal = value } })) {
-                            ForEach(Array((0...4).reversed()), id: \.self) { bars in Text(Self.signalTitle(bars)).tag(bars) }
+                            for bars in (0...4).reversed() { HazeOption(verbatim: Self.signalTitle(bars), bars) }
                         }
                     }
                 }
@@ -539,6 +543,10 @@ struct SystemPane: View {
                 }
             }
             .shown(sections.contains(.cameras))
+            Section("Sound") {
+                AndroidVolumeRow()
+            }
+            .shown(sections.contains(.sound))
             Section("Microphone") {
                 Toggle(isOn: Binding(get: { config.microphoneEnabled }, set: { value in model.update { $0.microphoneEnabled = value } })) {
                     HelpTitle("Microphone") {
@@ -743,7 +751,37 @@ struct SystemSections: OptionSet {
     static let microphone = SystemSections(rawValue: 1 << 13)
     static let clipboard = SystemSections(rawValue: 1 << 14)
     static let translation = SystemSections(rawValue: 1 << 15)
-    static let all = SystemSections(rawValue: (1 << 16) - 1)
+    static let sound = SystemSections(rawValue: 1 << 16)
+    static let all = SystemSections(rawValue: (1 << 17) - 1)
+}
+
+/// Android's media volume, every app's: a slider while Android runs (also
+/// in an app window's Quick Settings).
+private struct AndroidVolumeRow: View {
+    @Environment(ControlPanelModel.self) private var model
+
+    var body: some View {
+        LabeledContent {
+            if let volume = model.androidVolume {
+                HStack(spacing: 12) {
+                    HazeSlider(value: Binding(get: { Double(volume.level) }, set: { model.setAndroidVolume(Int($0.rounded())) }),
+                               range: 0...Double(volume.maximum), step: 1)
+                        .frame(width: 220)
+                        .accessibilityLabel(Text("Android volume"))
+                    Text(Double(volume.level) / Double(max(volume.maximum, 1)), format: .percent.precision(.fractionLength(0)))
+                        .monospacedDigit()
+                        .foregroundStyle(Haze.text)
+                        .frame(width: 48, alignment: .trailing)
+                }
+            } else {
+                Text("Available while Android is running")
+                    .foregroundStyle(Haze.textTertiary)
+            }
+        } label: {
+            HelpTitle("Android volume", help: "How loud Android plays, in every app, under your Mac’s volume. At 100%, your Mac’s volume alone sets how loud Android is, as with other Mac apps.")
+        }
+        .task(id: model.status.state) { await model.loadAndroidVolume() }
+    }
 }
 
 extension View {
@@ -764,6 +802,7 @@ private struct ADBStatusRow: View {
                 Label(problem, systemImage: "xmark.octagon.fill")
                     .font(.mona(12))
                     .foregroundStyle(Haze.danger)
+                    .hazeRowNote()
             } else {
                 LabeledContent("Connect with") {
                     HStack(spacing: 6) {
@@ -815,12 +854,12 @@ struct CameraPicker: View {
     var body: some View {
         LabeledContent(title) {
             HazePicker(title, selection: $selection) {
-                Text("Emulated").tag(CameraSource.emulated)
-                Text("None").tag(CameraSource.none)
-                Section("This Mac") {
-                    ForEach(cameras, id: \.uniqueID) { camera in Text(verbatim: camera.name).tag(CameraSource.mac(camera.uniqueID)) }
+                HazeOption("Emulated", CameraSource.emulated)
+                HazeOption("None", CameraSource.none)
+                HazeSection("This Mac") {
+                    for camera in cameras { HazeOption(verbatim: camera.name, CameraSource.mac(camera.uniqueID)) }
                     if let id = selection.macCameraID, !cameras.contains(where: { $0.uniqueID == id }) {
-                        Text("Not connected").tag(selection)
+                        HazeOption("Not connected", selection)
                     }
                 }
             }

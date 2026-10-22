@@ -1,5 +1,6 @@
 import AvoKeymap
 import AvoKit
+import AvoWindowHost
 import SwiftUI
 
 /// An app's page in the Library, over the whole window: a hero in the
@@ -92,6 +93,28 @@ struct AppPage: View {
         }
     }
 
+    /// The More menu: what the page has no button for, as in the menu on
+    /// the app's tile (AppMenu).
+    private var moreActions: [HazeMenuEntry] {
+        var entries: [HazeMenuEntry] = [
+            .item(HazeMenuItem(title: String(localized: "Force Stop"), symbol: "stop.circle",
+                               isEnabled: model.activity[app.package] != nil) { model.forceStop(app) }),
+        ]
+        if let shim = app.shortcuts.shimPath {
+            entries.append(.item(HazeMenuItem(title: String(localized: "Show in Finder"), symbol: "folder") {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(filePath: shim)])
+            }))
+        }
+        entries.append(.separator())
+        entries.append(.item(HazeMenuItem(title: String(localized: "Clear Data…"), symbol: "eraser") { confirmClear = true }))
+        if !app.systemApp {
+            entries.append(.item(HazeMenuItem(title: String(localized: "Uninstall…"), symbol: "trash", role: .destructive) {
+                confirmUninstall = true
+            }))
+        }
+        return entries
+    }
+
     /// The app's key mapping; one without controls counts as none.
     private static func mapping(for package: String) async -> KeymapProfile? {
         guard let profile = await loadKeyMapping(for: package), !profile.controls.isEmpty else { return nil }
@@ -152,27 +175,15 @@ struct AppPage: View {
                 .buttonStyle(HazeButtonStyle(kind: .primary, height: 46, fontSize: 15, horizontalPadding: 26))
                 .shadow(color: Haze.accent.opacity(0.25), radius: 15, y: 10)
                 .keyboardShortcut(.defaultAction)
-                Menu {
-                    Button("Force Stop") { model.forceStop(app) }
-                        .disabled(model.activity[app.package] == nil)
-                    if let shim = app.shortcuts.shimPath {
-                        Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(filePath: shim)]) }
-                    }
-                    Divider()
-                    Button("Clear Data…") { confirmClear = true }
-                    if !app.systemApp {
-                        Button("Uninstall…", role: .destructive) { confirmUninstall = true }
-                    }
-                } label: {
+                // In the haze, as the app's menu on its tile (AppMenu).
+                HazeMenuButton { moreActions } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 16, weight: .bold))
                         .frame(width: 46, height: 46)
                         .background(Color.black.opacity(0.34), in: Circle())
                         .contentShape(Circle())
                 }
-                .menuStyle(.button)
                 .buttonStyle(.plain)
-                .menuIndicator(.hidden)
                 .fixedSize()
                 .accessibilityLabel(Text("More actions"))
             }
@@ -296,96 +307,98 @@ private struct AppGraphicsCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 4) {
                 Text("Graphics").font(.mona(15, 600))
-                HelpButton("Graphics", "These settings are for this app only and apply to its windows right away. The frame rate cap is Android’s, for every app.")
+                HelpButton("Graphics", "These settings are for this app only and apply to its windows right away. Max FPS is Android’s, for every app.")
             }
             if let resolved = model.graphics(for: app.package), let config = model.config {
                 let settings = resolved.settings
                 let mode = settings.effectiveMode(device: model.deviceProfile?.display)
                 // The profile the app's graphics start from, switched right here.
                 let automatic: GraphicsProfile = model.hasKeyMapping(app.package) ? .games : .apps
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 4) {
-                        Text("Profile").font(.mona(12)).foregroundStyle(Haze.textTertiary)
-                        HelpButton("Profile", "Games and Apps are the two sets of graphics in Settings › Graphics. Avo picks one by itself (an app with key mapping is a game); the changes made on this page stay on top of either.")
+                HazeRows {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 4) {
+                            Text("Preset").font(.mona(12)).foregroundStyle(Haze.textTertiary)
+                            HelpButton("Preset", "Apps and Games are the two presets in Settings › Graphics. Avo picks one by itself (an app with key mapping is a game); the changes made on this page stay on top of either.")
+                        }
+                        HazeSegmented(options: [(GraphicsProfile.apps, Text("Apps")), (GraphicsProfile.games, Text("Games"))],
+                                      selection: Binding(get: { resolved.profile }, set: { choice in
+                                          // As in All Graphics Settings: the app keeps what it changed,
+                                          // minus what the new profile already has.
+                                          let base = config.settings(for: choice)
+                                          model.setAppGraphics(AppGraphicsOverride(profile: choice == automatic ? nil : choice,
+                                                                                   changes: .difference(resolved.changes.applied(to: base), from: base)),
+                                                               for: app.package)
+                                      }),
+                                      height: 32, cornerRadius: 12, fill: Haze.inset, selectedFill: Haze.accent.opacity(0.2),
+                                      segmentPadding: 4, equalWidths: true)
                     }
-                    HazeSegmented(options: [(GraphicsProfile.apps, Text("Apps")), (GraphicsProfile.games, Text("Games"))],
-                                  selection: Binding(get: { resolved.profile }, set: { choice in
-                                      // As in All Graphics Settings: the app keeps what it changed,
-                                      // minus what the new profile already has.
-                                      let base = config.settings(for: choice)
-                                      model.setAppGraphics(AppGraphicsOverride(profile: choice == automatic ? nil : choice,
-                                                                               changes: .difference(resolved.changes.applied(to: base), from: base)),
-                                                           for: app.package)
-                                  }),
-                                  height: 32, cornerRadius: 12, fill: Haze.inset, selectedFill: Haze.accent.opacity(0.2),
-                                  segmentPadding: 4, equalWidths: true)
-                }
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Resolution").font(.mona(12)).foregroundStyle(Haze.textTertiary)
-                    // The big steps; All Graphics Settings has every one.
-                    HazeSegmented(options: Self.resolutions.map { ($0, Text(verbatim: GraphicsSettings.resolutionName($0))) },
-                                  selection: Binding(get: { mode == .fixed ? settings.shortSide : 0 }, set: { value in
-                                      var changed = settings
-                                      changed.mode = .fixed
-                                      changed.shortSide = value
-                                      model.setAppGraphicsSettings(changed, for: app.package)
-                                  }),
-                                  height: 32, cornerRadius: 12, fill: Haze.inset, selectedFill: Haze.accent.opacity(0.2),
-                                  segmentPadding: 4, equalWidths: true)
-                    Group {
-                        switch mode {
-                        case .followWindow:
-                            Text("Follows the window (\(settings.renderScale)% render scale)")
-                        case .deviceProfile:
-                            Text("Phone’s screen (\(model.deviceProfile?.name ?? ""))")
-                        case .fixed:
-                            if !Self.resolutions.contains(settings.shortSide) {
-                                Text("Fixed at \(GraphicsSettings.resolutionName(settings.shortSide))")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Resolution").font(.mona(12)).foregroundStyle(Haze.textTertiary)
+                        // The big steps; All Graphics Settings has every one.
+                        HazeSegmented(options: Self.resolutions.map { ($0, Text(verbatim: GraphicsSettings.resolutionName($0))) },
+                                      selection: Binding(get: { mode == .fixed ? settings.shortSide : 0 }, set: { value in
+                                          var changed = settings
+                                          changed.mode = .fixed
+                                          changed.shortSide = value
+                                          model.setAppGraphicsSettings(changed, for: app.package)
+                                      }),
+                                      height: 32, cornerRadius: 12, fill: Haze.inset, selectedFill: Haze.accent.opacity(0.2),
+                                      segmentPadding: 4, equalWidths: true)
+                        Group {
+                            switch mode {
+                            case .followWindow:
+                                Text("Follows the window (\(settings.renderScale)% render scale)")
+                            case .deviceProfile:
+                                Text("Phone’s screen (\(model.deviceProfile?.name ?? ""))")
+                            case .fixed:
+                                if !Self.resolutions.contains(settings.shortSide) {
+                                    Text("Fixed at \(GraphicsSettings.resolutionName(settings.shortSide))")
+                                }
                             }
                         }
+                        .font(.mona(12)).foregroundStyle(Haze.textTertiary)
                     }
-                    .font(.mona(12)).foregroundStyle(Haze.textTertiary)
-                }
-                HStack(spacing: 4) {
-                    Toggle(isOn: Binding(get: { settings.filter == .metalFXSpatial }, set: { on in
-                        var changed = settings
-                        changed.filter = on ? .metalFXSpatial : .bilinear
-                        model.setAppGraphicsSettings(changed, for: app.package)
-                    })) {
-                        HStack(spacing: 4) {
-                            Text("MetalFX upscaling").font(.mona(14))
-                            HelpButton("MetalFX upscaling", "Apple’s upscaler keeps edges and text sharp when the picture is enlarged. Best for most games.")
+                    HStack(spacing: 4) {
+                        Toggle(isOn: Binding(get: { settings.filter == .metalFXSpatial }, set: { on in
+                            var changed = settings
+                            changed.filter = on ? .metalFXSpatial : .bilinear
+                            model.setAppGraphicsSettings(changed, for: app.package)
+                        })) {
+                            HStack(spacing: 4) {
+                                Text("Sharp upscaling").font(.mona(14))
+                                HelpButton("Sharp upscaling", "Apple’s MetalFX keeps edges and text sharp when the picture is enlarged. Best for most games.")
+                            }
+                        }
+                        .toggleStyle(HazeCheckboxStyle())
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        SharpnessSlider(value: settings.sharpness, enabled: settings.filter != .nearest) { value in
+                            var changed = settings
+                            changed.sharpness = value
+                            model.setAppGraphicsSettings(changed, for: app.package)
                         }
                     }
-                    .toggleStyle(HazeCheckboxStyle())
-                }
-                VStack(alignment: .leading, spacing: 8) {
-                    SharpnessSlider(value: settings.sharpness, enabled: settings.filter != .nearest) { value in
-                        var changed = settings
-                        changed.sharpness = value
-                        model.setAppGraphicsSettings(changed, for: app.package)
+                    HStack(spacing: 8) {
+                        HStack(spacing: 4) {
+                            Text("Max FPS").font(.mona(14)).lineLimit(1)
+                            HelpButton("Max FPS", "Android draws at most this many frames per second, in every app. A screen’s own rate between 60 and 120 appears too, so Android runs in step with it. A rate above the one Android started at applies after a restart. 30 saves power and heat.")
+                        }
+                        Spacer(minLength: 4)
+                        let rates = FrameRates.choices(for: ScreenRefresh.attached, keeping: config.fpsLimit)
+                        HazeSegmented(options: rates.map { ($0, Text(verbatim: "\($0)")) },
+                                      selection: Binding(get: { config.fpsLimit },
+                                                         set: { value in model.update { $0.fpsLimit = value } }),
+                                      height: 28, cornerRadius: 10, fontSize: 12, fill: Haze.inset, selectedFill: Haze.accent.opacity(0.2),
+                                      segmentPadding: 8)
+                            .fixedSize()
                     }
+                    FrameRateNote(cap: config.fpsLimit)
+                    IssueText(field: "graphicsOverrides.\(app.package).sharpness")
+                    Button(showsAll ? "Hide Graphics Settings" : "All Graphics Settings…") { showsAll.toggle() }
+                        .buttonStyle(HazeLinkButtonStyle())
+                        .font(.mona(13))
+                        .foregroundStyle(Haze.accent)
                 }
-                HStack(spacing: 8) {
-                    HStack(spacing: 4) {
-                        Text("Frame rate cap").font(.mona(14)).lineLimit(1)
-                        HelpButton("Frame rate cap", "Android draws at most this many frames per second, in every app. A screen’s own rate between 60 and 120 appears too, so Android runs in step with it. A rate above the one Android started at applies after a restart. 30 saves power and heat.")
-                    }
-                    Spacer(minLength: 4)
-                    let rates = FrameRates.choices(for: ScreenRefresh.attached, keeping: config.fpsLimit)
-                    HazeSegmented(options: rates.map { ($0, Text(verbatim: "\($0)")) },
-                                  selection: Binding(get: { config.fpsLimit },
-                                                     set: { value in model.update { $0.fpsLimit = value } }),
-                                  height: 28, cornerRadius: 10, fontSize: 12, fill: Haze.inset, selectedFill: Haze.accent.opacity(0.2),
-                                  segmentPadding: 8)
-                        .fixedSize()
-                }
-                FrameRateNote(cap: config.fpsLimit)
-                IssueText(field: "graphicsOverrides.\(app.package).sharpness")
-                Button(showsAll ? "Hide Graphics Settings" : "All Graphics Settings…") { showsAll.toggle() }
-                    .buttonStyle(HazeLinkButtonStyle())
-                    .font(.mona(13))
-                    .foregroundStyle(Haze.accent)
             } else {
                 // Its controls' shapes until the settings arrive.
                 HazeSkeleton(bars: [(0.3, 10), (1, 32), (0.36, 10), (1, 32), (0.7, 16), (0.9, 16)])

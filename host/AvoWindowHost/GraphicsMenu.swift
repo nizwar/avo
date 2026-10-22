@@ -97,6 +97,13 @@ final class GraphicsMenu: NSObject, NSMenuDelegate {
         }
         submenu(filters, in: menu, id: nil)
 
+        let smoothing = NSMenu(title: String(localized: "Smooth Edges", bundle: .windowHost))
+        for value in GraphicsSettings.AntiAliasing.allCases {
+            smoothing.addItem(withTitle: Self.title(value), action: #selector(AndroidWindowController.chooseAntiAliasing(_:)), keyEquivalent: "")
+                .representedObject = value.rawValue
+        }
+        submenu(smoothing, in: menu, id: nil)
+
         menu.addItem(.separator())
         // ⌥⌘ and ⌃⌘ combinations never reach Android (MacShortcuts), so the menu gets them.
         menu.addItem(withTitle: String(localized: "Show Performance HUD", bundle: .windowHost),
@@ -123,6 +130,25 @@ final class GraphicsMenu: NSObject, NSMenuDelegate {
         let item = menu.addItem(withTitle: submenu.title, action: nil, keyEquivalent: "")
         item.submenu = submenu
         item.identifier = id
+    }
+
+    static func title(_ value: GraphicsSettings.AntiAliasing) -> String {
+        switch value {
+        case .off: String(localized: "Off", bundle: .windowHost)
+        case .fxaa: String(localized: "Fast (FXAA)", bundle: .windowHost)
+        case .ssaa2x: String(localized: "High (2× Supersampling)", bundle: .windowHost)
+        case .ssaa4x: String(localized: "Ultra (4× Supersampling)", bundle: .windowHost)
+        }
+    }
+
+    /// For a segmented control: "High".
+    static func shortTitle(_ value: GraphicsSettings.AntiAliasing) -> String {
+        switch value {
+        case .off: String(localized: "Off", bundle: .windowHost)
+        case .fxaa: String(localized: "Fast", bundle: .windowHost)
+        case .ssaa2x: String(localized: "High", bundle: .windowHost)
+        case .ssaa4x: String(localized: "Ultra", bundle: .windowHost)
+        }
     }
 
     static func title(_ preset: GraphicsSettings.RenderScalePreset) -> String {

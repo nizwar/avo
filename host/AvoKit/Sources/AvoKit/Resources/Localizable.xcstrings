@@ -81,22 +81,6 @@
         }
       }
     },
-    "%@ is bound more than once (%@)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ is bound more than once (%2$@)"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ dipasang lebih dari sekali (%@)"
-          }
-        }
-      }
-    },
     "%@ is in the way." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -194,12 +178,12 @@
         }
       }
     },
-    "%@: anchor area is invalid" : {
+    "%@: anchor reach must be between 0.03 and 1" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@: area jangkar tidak valid"
+            "value" : "%@: jangkauan jangkar harus antara 0,03 dan 1"
           }
         }
       }
@@ -236,6 +220,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@: tahan minimal %lld ms"
+          }
+        }
+      }
+    },
+    "%@: locking or freeing the mouse needs the eye (mouse look)" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: mengunci atau melepaskan mouse butuh mata (lihat dengan mouse)"
           }
         }
       }
@@ -280,6 +274,38 @@
         }
       }
     },
+    "%@: no mode %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: no mode %2$@"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: tidak ada mode %2$@"
+          }
+        }
+      }
+    },
+    "%@: no mode %@ to switch to" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: no mode %2$@ to switch to"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: tidak ada mode %2$@ untuk dituju"
+          }
+        }
+      }
+    },
     "%@: position %@, %@ is outside the screen" : {
       "localizations" : {
         "en" : {
@@ -292,16 +318,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@: posisi %@, %@ berada di luar layar"
-          }
-        }
-      }
-    },
-    "%@: position must be inside the anchor area" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: posisi harus berada di dalam area jangkar"
           }
         }
       }
@@ -346,12 +362,22 @@
         }
       }
     },
-    "%@: scroll triggers only work with tap, swipe or macro controls" : {
+    "%@: running reach must be 1 to 4 times the joystick's" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@: pemicu scroll hanya bisa untuk kontrol ketuk, geser, atau makro"
+            "value" : "%@: jangkauan lari harus 1 sampai 4 kali jangkauan joystick"
+          }
+        }
+      }
+    },
+    "%@: scroll triggers only work with tap, swipe, macro, mode switch and mouse lock controls" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: pemicu scroll hanya bisa untuk kontrol ketuk, geser, makro, ganti mode, dan kunci mouse"
           }
         }
       }
@@ -398,6 +424,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@: geser tidak boleh menyentuh area bidik (tanpa kompensasi recoil)"
+          }
+        }
+      }
+    },
+    "%@: the key to run is also a direction" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: tombol lari juga dipakai sebagai arah"
+          }
+        }
+      }
+    },
+    "%@: the wheel cannot be held to run" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: roda mouse tidak bisa ditahan untuk lari"
           }
         }
       }
@@ -524,6 +570,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Android tidak merespons."
+          }
+        }
+      }
+    },
+    "Android did not say its volume." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android tidak memberi tahu volumenya."
           }
         }
       }
@@ -655,7 +711,14 @@
       }
     },
     "Android no longer has this widget." : {
-
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android tidak lagi punya widget ini."
+          }
+        }
+      }
     },
     "Android reported an error." : {
       "localizations" : {
@@ -963,6 +1026,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Jawab pertanyaan macOS untuk melihat kamera Mac di sini."
+          }
+        }
+      }
+    },
+    "Avo cannot set this Android’s volume." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avo tidak dapat mengatur volume Android ini."
           }
         }
       }
@@ -2546,6 +2619,16 @@
         }
       }
     },
+    "This Android cannot be shaken." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android ini tidak bisa digoyangkan."
+          }
+        }
+      }
+    },
     "This Android data was last used by %@, newer than any Android on this Mac (the newest is %@). Android can’t go back to an older version without erasing its data. Download %@ in Settings › Android first." : {
       "localizations" : {
         "id" : {
@@ -2597,7 +2680,14 @@
       }
     },
     "This Android shows no widgets." : {
-
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android ini tidak menampilkan widget."
+          }
+        }
+      }
     },
     "This Mac can give Android at most %lld GB." : {
       "localizations" : {
@@ -2896,6 +2986,16 @@
         }
       }
     },
+    "duplicate or empty mode id %@" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "id mode %@ ganda atau kosong"
+          }
+        }
+      }
+    },
     "fps.aim_control must name an aim control" : {
       "localizations" : {
         "id" : {
@@ -2958,6 +3058,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "macOS tidak mengizinkan Avo memakai %@. Izinkan Avo di Volume yang Dapat Dilepas atau Volume Jaringan pada Pengaturan Sistem › Privasi & Keamanan › File & Folder."
+          }
+        }
+      }
+    },
+    "mode %@ has no name" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mode %@ tidak punya nama"
           }
         }
       }
@@ -3044,16 +3154,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "aplikasi butuh versi Android yang lebih baru"
-          }
-        }
-      }
-    },
-    "the cursor toggle %@ is also bound to a control" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "tombol kursor %@ juga dipakai kontrol lain"
           }
         }
       }

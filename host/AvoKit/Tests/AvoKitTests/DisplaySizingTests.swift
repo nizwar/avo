@@ -293,6 +293,33 @@ private func path(_ source: PixelSize, _ destination: PixelSize, _ filter: Graph
                                             windowAspect: 2400.0 / 1080, followsWindow: false))
     }
 
+    /// Supersampling: Android renders more pixels at the same layout, and the renderer shrinks them.
+    @Test func supersampling() {
+        func smoothed(_ settings: GraphicsSettings, _ value: GraphicsSettings.AntiAliasing) -> GraphicsSettings {
+            var settings = settings
+            settings.antiAliasing = value
+            return settings
+        }
+        // Follow mode: 824 × 1784 at 320 dpi, twice each side at 640 dpi: the same 412 × 892 dp.
+        let native = request(412, 892, follow(100))
+        let four = request(412, 892, smoothed(follow(100), .ssaa4x))
+        #expect(four == DisplayRequest(width: 1648, height: 3568, dpi: 640, effectiveRenderScale: 100))
+        #expect(four.layoutDP == native.layoutDP)
+        #expect(path(four.size, size(824, 1784)) == .downsample(taps: 2))
+        // √2 each side: the width in steps of 8, the height and density following it.
+        let two = request(412, 892, smoothed(follow(100), .ssaa2x))
+        #expect((two.size, two.dpi) == (size(1160, 2510), 450))
+        #expect(two.layoutDP == native.layoutDP)
+        // Fixed mode, and the phone's screen past Android's 640 dpi.
+        #expect(request(892, 501.75, smoothed(fixed(720, .ratio16x9), .ssaa4x)) == DisplayRequest(width: 2560, height: 1440, dpi: 560))
+        #expect(request(412, 892, smoothed(phone(), .ssaa4x), device: pixel) == DisplayRequest(width: 2160, height: 4800, dpi: 840))
+        // FXAA is the renderer's alone.
+        #expect(request(412, 892, smoothed(follow(100), .fxaa)) == native)
+        // Stopped at the largest display, and said so.
+        let fiveK = request(2560, 1440, smoothed(follow(100), .ssaa4x))
+        #expect((fiveK.size, fiveK.dpi, fiveK.limitedBySize) == (size(8192, 4608), 512, true))
+    }
+
     @Test func fourK() {
         let uhd = request(1600, 900, fixed(2160, .ratio16x9))
         #expect(uhd == DisplayRequest(width: 3840, height: 2160, dpi: 640, limitedByDensity: true))

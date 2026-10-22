@@ -78,6 +78,20 @@ private func decode(_ json: String) throws -> VMConfig {
         #expect(!AppGraphicsOverride(profile: .apps).isEmpty)
     }
 
+    @Test func antiAliasingIsSavedAndRead() throws {
+        #expect(GraphicsSettings.appsDefault.antiAliasing == .off)
+        var custom = GraphicsSettings.gamesDefault
+        custom.antiAliasing = .ssaa2x
+        let patch = GraphicsSettingsPatch.difference(custom, from: .gamesDefault)
+        #expect(patch.count == 1)
+        let data = try JSONEncoder().encode(patch)
+        #expect(String(decoding: data, as: UTF8.self) == #"{"antiAliasing":"ssaa2x"}"#)
+        #expect(try JSONDecoder().decode(GraphicsSettingsPatch.self, from: data).applied(to: .gamesDefault) == custom)
+        // A value from a newer Avo is dropped, the rest kept.
+        let newer = try JSONDecoder().decode(GraphicsSettingsPatch.self, from: Data(#"{"antiAliasing":"taa","sharpness":20}"#.utf8))
+        #expect(newer.antiAliasing == nil && newer.sharpness == 20)
+    }
+
     @Test func overridesFollowLaterProfileEdits() {
         var config = VMConfig()
         var patch = GraphicsSettingsPatch()

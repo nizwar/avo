@@ -313,10 +313,11 @@ private func summary(_ events: [TouchEvent]) -> [String] {
         ])
         let problems = profile.validate()
         #expect(problems.contains("a: position 0.5, 1.5 is outside the screen"))
-        #expect(problems.contains("key:Space is bound more than once (b)"))
+        // A key may press several controls (KeymapModesTests).
+        #expect(!problems.contains { $0.contains("bound more than once") })
         #expect(problems.contains("duplicate control id b"))
         #expect(problems.contains("b: repeat interval must be at least 50 ms"))
-        #expect(problems.contains("c: scroll triggers only work with tap, swipe or macro controls"))
+        #expect(problems.contains("c: scroll triggers only work with tap, swipe, macro, mode switch and mouse lock controls"))
     }
 
     @Test func layersMayReuseTriggers() {

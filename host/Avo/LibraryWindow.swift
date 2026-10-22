@@ -3,21 +3,21 @@ import AvoKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-// The Library window: Home, Games, Apps, Notifications and System Status in
-// a sidebar, and each app's own page over the whole window (its usage,
-// graphics, controls and storage). Settings live in their own window (SettingsWindow.swift);
+// The Library window: Home, the Library (every game and app, in All, Games
+// and Apps tabs), Widgets, Notifications and System Status in a sidebar, and
+// each app's own page over the whole window (its usage, graphics, controls
+// and storage). Settings live in their own window (SettingsWindow.swift);
 // the status pill floats below this one (StatusPill.swift).
 
 enum LibrarySection: String, CaseIterable, Identifiable {
-    case home, games, apps, widgets, notifications, activity
+    case home, library, widgets, notifications, activity
 
     var id: String { rawValue }
 
     var title: LocalizedStringKey {
         switch self {
         case .home: "Home"
-        case .games: "Games"
-        case .apps: "Apps"
+        case .library: "Library"
         case .widgets: "Widgets"
         case .notifications: "Notifications"
         case .activity: "System Status"
@@ -27,13 +27,17 @@ enum LibrarySection: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .home: "house"
-        case .games: "gamecontroller"
-        case .apps: "square.grid.2x2"
+        case .library: "books.vertical"
         case .widgets: "rectangle.3.group"
         case .notifications: "bell"
         case .activity: "waveform.path.ecg"
         }
     }
+}
+
+/// The Library section's tabs: every game and app, the games, the apps.
+enum LibraryTab: String, CaseIterable {
+    case all, games, apps
 }
 
 /// Where the Library is, shared with the app delegate (links, the Dock) and
@@ -43,6 +47,10 @@ enum LibrarySection: String, CaseIterable, Identifiable {
 final class LibraryRouter {
     var section: LibrarySection {
         didSet { UserDefaults.standard.set(section.rawValue, forKey: Self.sectionKey) }
+    }
+    /// The Library section's tab.
+    var tab: LibraryTab {
+        didSet { UserDefaults.standard.set(tab.rawValue, forKey: Self.tabKey) }
     }
     /// The app whose page covers the window.
     var page: String?
@@ -57,10 +65,19 @@ final class LibraryRouter {
     var confirmation: AppConfirmation?
 
     static let sectionKey = "AvoLibrarySection"
+    static let tabKey = "AvoLibraryTab"
     static let gamesListKey = "AvoLibraryGamesAsList"
 
     init() {
-        section = UserDefaults.standard.string(forKey: Self.sectionKey).flatMap(LibrarySection.init(rawValue:)) ?? .home
+        let saved = UserDefaults.standard.string(forKey: Self.sectionKey)
+        tab = UserDefaults.standard.string(forKey: Self.tabKey).flatMap(LibraryTab.init(rawValue:)) ?? .all
+        // Games and Apps were sections of their own before they were the Library's tabs.
+        if let old = saved.flatMap(LibraryTab.init(rawValue:)), old != .all {
+            section = .library
+            tab = old
+        } else {
+            section = saved.flatMap(LibrarySection.init(rawValue:)) ?? .home
+        }
         gamesAsList = UserDefaults.standard.bool(forKey: Self.gamesListKey)
     }
 
@@ -68,6 +85,12 @@ final class LibraryRouter {
         page = nil
         if self.section != section { search = "" }
         self.section = section
+    }
+
+    /// The Library section at `tab` (Home's See All).
+    func showLibrary(_ tab: LibraryTab) {
+        show(.library)
+        self.tab = tab
     }
 
     func open(_ app: AppRecord) {
@@ -159,8 +182,9 @@ struct LibraryView: View {
     }
 }
 
-/// The content beside the sidebar: the top bar (search, filter, Install App)
-/// over Home, Games and Apps; Notifications has its own header.
+/// The content beside the sidebar: the top bar (search, the Library's tabs,
+/// Install App) over Home and the Library; the other sections have their own
+/// headers.
 private struct LibraryMain: View {
     @Environment(ControlPanelModel.self) private var model
     @Environment(LibraryRouter.self) private var router
@@ -182,23 +206,25 @@ private struct LibraryMain: View {
                 case .widgets:
                     LibraryWidgets()
                         .transition(arrival)
-                case .home, .games, .apps:
+                case .home, .library:
                     VStack(alignment: .leading, spacing: 26) {
                         LibraryTopBar()
                             .padding(.horizontal, 34)
                         ZStack(alignment: .topLeading) {
-                            switch router.section {
-                            case .games: GamesCollection().transition(arrival)
-                            case .apps: AppsCollection().transition(arrival)
-                            default:
-                                if router.search.isEmpty {
-                                    LibraryHome().transition(arrival)
-                                } else {
-                                    SearchResults().transition(arrival)
+                            if router.section == .library {
+                                switch router.tab {
+                                case .all: LibraryAllCollection().transition(arrival)
+                                case .games: GamesCollection().transition(arrival)
+                                case .apps: AppsCollection().transition(arrival)
                                 }
+                            } else if router.search.isEmpty {
+                                LibraryHome().transition(arrival)
+                            } else {
+                                SearchResults().transition(arrival)
                             }
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .animation(Haze.Motion.animation(Haze.Motion.content, reduceMotion: reduceMotion), value: router.tab)
                     }
                     .padding(.top, 20)
                     .transition(arrival)
@@ -212,19 +238,24 @@ private struct LibraryMain: View {
     }
 }
 
-/// Search, the All / Games / Apps switch and Install App.
+/// Search, the Library's All / Games / Apps tabs and Install App.
 private struct LibraryTopBar: View {
     @Environment(ControlPanelModel.self) private var model
     @Environment(LibraryRouter.self) private var router
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         @Bindable var router = router
         HStack(spacing: 14) {
             HazeSearchField(text: $router.search, prompt: "Search apps and games")
                 .frame(maxWidth: 368)
-            HazeSegmented(options: [(LibrarySection.home, Text("All")), (.games, Text("Games")), (.apps, Text("Apps"))],
-                          selection: Binding(get: { router.section }, set: { router.show($0) }))
-                .fixedSize()
+            if router.section == .library {
+                // The search stays as the tab changes.
+                HazeSegmented(options: [(LibraryTab.all, Text("All")), (.games, Text("Games")), (.apps, Text("Apps"))],
+                              selection: $router.tab)
+                    .fixedSize()
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(x: -8)))
+            }
             Spacer(minLength: 0)
             Button {
                 model.chooseAndInstall()

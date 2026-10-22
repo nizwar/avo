@@ -13,9 +13,9 @@ struct PauseWhenIdleSection: View {
             LabeledContent {
                 HazePicker("Pause when idle", selection: Binding(get: { config.autoPauseMinutes },
                                                                  set: { value in model.update { $0.autoPauseMinutes = value } })) {
-                    Text("Never").tag(0)
-                    ForEach(VMConfig.autoPauseChoices.filter { $0 > 0 }, id: \.self) { minutes in
-                        Text("After \(minutes) minutes").tag(minutes)
+                    HazeOption("Never", 0)
+                    for minutes in VMConfig.autoPauseChoices.filter({ $0 > 0 }) {
+                        HazeOption("After \(minutes) minutes", minutes)
                     }
                 }
             } label: {

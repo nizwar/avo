@@ -192,8 +192,8 @@
     "macText": "M1 atau yang lebih baru. Mac Intel tidak didukung.",
     "osTitle": "macOS 15 Sequoia atau lebih baru",
     "osText": "Avo butuh fitur yang baru ada sejak macOS 15.",
-    "gpuTitle": "Supaya game paling lancar",
-    "gpuText": "Pasang Android Emulator dari Android Studio, gratis dari Google. Avo memakainya untuk menggambar game di chip grafis kamu."
+    "gpuTitle": "Ruang kosong sekitar 10 GB",
+    "gpuText": "Untuk Android, aplikasi, dan datanya. Game langsung digambar di chip grafis kamu, tanpa perlu Android Studio."
   },
   "dev": {
     "kicker": "Untuk developer",

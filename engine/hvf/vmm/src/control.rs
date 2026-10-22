@@ -19,6 +19,10 @@
 //! snapshot <index> <path>            next frame of a scanout as a BMP
 //! location <lat> <lng> [alt] [accuracy] [speed] [bearing]   GPS fix for Android (gnss.rs)
 //! location off                       no fix
+//! shake                              the phone shaken for a second: the
+//!                                     accelerometer swings sideways
+//!                                     (sensors.rs); an error before
+//!                                     Android's sensors are up
 //! network <down kbps> <up kbps> <latency ms>   limit Android's network link (0: no limit; link.rs)
 //! network off                        no limits
 //! cellular <gprs|edge|umts|hspa|lte|nr> <bars 0-4>   a SIM registered on that
@@ -57,6 +61,7 @@
 //! a new subscriber hears them again after the layouts.
 
 use crate::gnss::{Fix, Gnss};
+use crate::sensors::Sensors;
 use crate::frames::FrameHandle;
 use crate::virtio::gpu::{DisplayControl, edid};
 use crate::virtio::input::{self, Event, GamepadReport, InputSender};
@@ -281,6 +286,7 @@ pub struct Controls {
     /// Size of scanout 0, for the pixel-based debugging commands.
     pub primary: (u32, u32),
     pub gnss: Arc<Gnss>,
+    pub sensors: Arc<Sensors>,
     touch: Mutex<Vec<TouchState>>,
     pad: Mutex<PadState>,
     subscribers: Arc<Mutex<Vec<Subscriber>>>,
@@ -288,7 +294,7 @@ pub struct Controls {
 
 impl Controls {
     pub fn new(touchscreens: Vec<InputSender>, keyboard: InputSender, gamepad: InputSender, displays: DisplayControl,
-               frames: FrameHandle, primary: (u32, u32), gnss: Arc<Gnss>) -> Arc<Controls> {
+               frames: FrameHandle, primary: (u32, u32), gnss: Arc<Gnss>, sensors: Arc<Sensors>) -> Arc<Controls> {
         let touch = Mutex::new((0..touchscreens.len()).map(|_| TouchState::default()).collect());
         // The process's streams: a subscription goes on across guest reboots.
         let subscribers = SUBSCRIBERS.clone();
@@ -299,7 +305,7 @@ impl Controls {
             fanout.lock().unwrap().retain(|s| s.send(event.clone()));
         }));
         let pad = Mutex::new(PadState::default());
-        Arc::new(Controls { touchscreens, keyboard, gamepad, displays, frames, primary, gnss, touch, pad, subscribers })
+        Arc::new(Controls { touchscreens, keyboard, gamepad, displays, frames, primary, gnss, sensors, touch, pad, subscribers })
     }
 
     fn gamepad(&self, report: GamepadReport) {
@@ -382,6 +388,8 @@ impl Controls {
                     self.gnss.set(Some(Fix::parse(&words[1..])?));
                 }
             }
+            // The phone shaken for a second (sensors.rs).
+            Some("shake") => self.sensors.shake()?,
             Some("snapshot") => {
                 let index = int(1)? as usize;
                 let path = words.get(2).ok_or("snapshot needs a path")?;
@@ -643,7 +651,7 @@ mod tests {
         let handle = frames.handle();
         let displays = crate::virtio::gpu::Gpu::new(&[(64, 64)], Box::new(frames)).control();
         let sender = || input::Input::new(input::Description::keyboard("Test Keyboard")).sender();
-        (Controls::new(vec![sender()], sender(), sender(), displays, handle, (64, 64), Gnss::new()), dir)
+        (Controls::new(vec![sender()], sender(), sender(), displays, handle, (64, 64), Gnss::new(), Sensors::new()), dir)
     }
 
     #[test]

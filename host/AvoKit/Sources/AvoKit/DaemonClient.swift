@@ -258,6 +258,29 @@ public final class DaemonClient: @unchecked Sendable {
         try await voidCall { $0.cancelFingerprintRequest(reply: $1) }
     }
 
+    // MARK: Device
+
+    /// Shakes the phone for a second (an app window's Device menu).
+    public func shakeDevice() async throws {
+        try await voidCall { $0.shakeDevice(reply: $1) }
+    }
+
+    /// Android's media volume, every app's (Quick Settings, Settings › Devices).
+    public func androidVolume() async throws -> AndroidVolume {
+        let data: Data = try await call { proxy, done in
+            proxy.androidVolume { data, error in done(Self.result(data, error)) }
+        }
+        return try AvoXPC.decode(AndroidVolume.self, from: data)
+    }
+
+    /// Sets Android's media volume, within its steps; returns it as Android has it now.
+    public func setAndroidVolume(_ level: Int) async throws -> AndroidVolume {
+        let data: Data = try await call { proxy, done in
+            proxy.setAndroidVolume(level: level) { data, error in done(Self.result(data, error)) }
+        }
+        return try AvoXPC.decode(AndroidVolume.self, from: data)
+    }
+
     // MARK: Widgets
 
     public func widgetProviders() async throws -> [WidgetProvider] {

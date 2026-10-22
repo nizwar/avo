@@ -9,14 +9,17 @@
 #     --identity   code signing identity (default: "-", ad hoc)
 #
 # Steps:
-#   1. xcodebuild, Release, into build/DerivedData-release (needs the
+#   1. the GPU renderer, scripts/build-gfxstream.sh (only when its pinned
+#      versions changed: build/gfxstream);
+#   2. xcodebuild, Release, into build/DerivedData-release (needs the
 #      generated project, `make project`, and Rust for avo-vmm);
-#   2. a staged copy re-signed inside out, each item with its own
-#      entitlements; avo-vmm keeps the signature its build phase gave it
-#      (hardened runtime and the hypervisor entitlement);
-#   3. dmgbuild with scripts/dmg/settings.py (a virtual environment with
+#   3. a staged copy re-signed inside out, each item with its own
+#      entitlements (the renderer's libraries too); avo-vmm keeps the
+#      signature its build phase gave it (hardened runtime and the
+#      hypervisor entitlement);
+#   4. dmgbuild with scripts/dmg/settings.py (a virtual environment with
 #      dmgbuild is created in build/dmg-venv when none is there);
-#   4. checks: the image verifies and the app inside it still validates.
+#   5. checks: the image verifies and the app inside it still validates.
 #
 # Ad hoc signing is what preview builds use: testers confirm the first open in
 # System Settings › Privacy & Security. Public releases need a Developer ID
@@ -47,6 +50,10 @@ LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchSe
 export PATH="$HOME/.cargo/bin:$PATH"
 mkdir -p "$OUT"
 
+echo "== GPU renderer"
+# Built once, then only when its pinned versions change (build/gfxstream).
+"$ROOT/scripts/build-gfxstream.sh"
+
 echo "== build $VERSION ($BUILD)"
 xcodebuild -project "$ROOT/host/Avo.xcodeproj" -scheme Avo -configuration Release \
   -derivedDataPath "$DERIVED" CURRENT_PROJECT_VERSION="$BUILD" MARKETING_VERSION="$VERSION" \
@@ -67,6 +74,11 @@ sign() {
   fi
 }
 for framework in "$APP"/Contents/Frameworks/*.framework; do sign "$framework" "$(basename "$framework")"; done
+# The GPU renderer avo-vmm loads (build-gfxstream.sh): no release without it.
+[[ -f "$APP/Contents/Resources/gfxstream/.stamp" ]] || { echo "Avo.app has no GPU renderer (Resources/gfxstream)"; exit 1; }
+for lib in "$APP"/Contents/Resources/gfxstream/lib64/*.dylib "$APP"/Contents/Resources/gfxstream/lib64/vulkan/*.dylib; do
+  sign "$lib" "gfxstream-$(basename "$lib")"
+done
 [[ -d "$APP/Contents/Library/Shim/AvoShim.app" ]] && sign "$APP/Contents/Library/Shim/AvoShim.app" shim
 sign "$APP/Contents/Library/Helpers/AvoDaemon.app" daemon
 sign "$APP/Contents/MacOS/avoctl" avoctl

@@ -100,6 +100,24 @@ split bundles are looked up across density splits.
   `notificationCount` when it changes and when they connect. The shim sets
   `NSApp.dockTile.badgeLabel`. A shim runs only while the app has a window,
   so an app that is not open shows no badge.
+- Notification buttons: an Android notification's actions come with it
+  (`Notification.actions`, NotificationAction) and become a Notification
+  Center category per set of buttons (`UserNotificationPresenter`, at most 64
+  kept): a button that takes text (a free-form RemoteInput, Reply) is a text
+  field with Send, the others plain buttons. Pressing one sends
+  `PerformNotificationAction`; Android fires the button's PendingIntent as
+  its shade does, with the text as the RemoteInput's result
+  (SOURCE_FREE_FORM_INPUT). The app's update of an answered notification comes
+  back quietly, as in Android.
+- Now Playing: what Android plays (the first playing media session, or else
+  the most recent one with a title) is in Control Center and on the media
+  keys and AirPods (`MacNowPlaying`, MPNowPlayingInfoCenter and
+  MPRemoteCommandCenter, in the daemon): title, artist, album, artwork,
+  duration and position, and play, pause, next, previous and scrubbing when
+  the app allows them. The commands go to that session itself
+  (`MediaCommand`), not to whichever Android's own media keys would pick.
+  Avo takes the commands only while something plays in Android, so with
+  nothing playing the media keys stay with the Mac's apps.
 
 ## Windows (spec §2, "Native")
 
@@ -152,8 +170,8 @@ than the screen shows. The link pauses for hidden windows and static
 screens.
 
 Screenshots and screen recordings come from File › Take Screenshot (⌘⇧S)
-and File › Record Screen (⌘⇧R; again to stop), or the camera and record
-buttons in the title bar. Both take only what Android draws, at the
+and File › Record Screen (⌘⇧R; again to stop), or the title bar's Device
+menu. Both take only what Android draws, at the
 display's full pixel size: no title bar, key mapping hints or recording
 indicator.
 
@@ -170,7 +188,7 @@ indicator.
   dot and timer in the title bar show it is running; in full screen, where
   the title bar hides, a small badge at the top right does.
 - Android's sound goes into the same movie as AAC (48 kHz stereo,
-  160 kbit/s) while Record Android's Sound is on (the capture and File
+  160 kbit/s) while Record Android's Sound is on (the Device and File
   menus; on by default, for every app, in the Window Host's defaults). The
   engine copies every period the Mac has played into a ring in shared memory
   (`audio/playback.ring` in the instance, `virtio/sound/tap.rs`) with the host
@@ -253,13 +271,25 @@ and Android's screen lock bring the window back. Whether Android sees the
 display follows the panel then, not the hidden window. Chosen in full screen,
 it opens once full screen has ended.
 
+The title bar has Back, then menus of the menu bar's actions: the game
+controller's (Game Mode, key mapping, hints, scrolling), Translate Screen's,
+and the Device menu for the phone itself: Shake (⌃⌘Z, also in Controls: the
+engine's `shake` swings Android's accelerometer for a second; the window
+gives a little shake too, unless Reduce Motion is on), Rotate, Location…,
+Fingerprint, the screenshot and recording items, and Keep on Top. The
+fingerprint also has a button of its own at the front, shown only while
+this app, the lock screen or Settings asks for a finger.
+
 The title bar's last button opens Quick Settings (`QuickSettings.swift`), a
 transient popover in the Library's haze look with only the settings whose
-effect shows at once: this app's graphics (profile, resolution or follow
-window with its render scale, MetalFX, sharpness), Android's frame rate cap
+effect shows at once: this app's graphics (preset, screen size with its
+resolution or render scale and aspect ratio, orientation, sharp upscaling
+(MetalFX) with sharpness, smooth edges), Android's frame rate cap as Max FPS
 (for every app), the performance HUD, Game Mode and the key hints when the
 app has a key mapping, the scroll mode, and Translate Screen with Translate
-Into. Graphics save through `setAppGraphics`, which a shim may call only for
+Into. Each card puts a line between its settings (`QuickRows`; the ones that
+belong together, like a toggle and its slider, stay in one), and what a
+setting does is behind its (?), not under it. Graphics save through `setAppGraphics`, which a shim may call only for
 the package it said hello as; the frame rate cap saves through
 `setFrameRateLimit`, which changes nothing else (a cap that needs another
 display rate says Android runs at it after a restart). Everything that
@@ -379,6 +409,9 @@ Android's screen (`GraphicsSettings.mode`) is sized one of three ways:
   first window (`defaultWindowSize`, turned to it) and of a locked shape.
   A locked window opens in it, a free one as it was left; changing it turns
   open windows, and apps that ask for an orientation still turn theirs.
+- **Smooth edges** (`antiAliasing`, off by default): Fast is FXAA in the
+  renderer, High and Ultra supersampling 2× and 4× (below, under the
+  renderer).
 - **Interface size** (75–150 %) sets the density in follow and fixed mode,
   so changing the resolution or render scale changes sharpness only, never
   the layout, up to Android's highest density, 640 dpi: fixed resolutions
@@ -443,6 +476,16 @@ black bars). The renderer (`MetalRenderer`) then picks a path with
 - **Shrinking:** an averaging filter of 2–4 × 2–4 samples per pixel.
 - **Sharpening:** optional AMD FidelityFX RCAS (MIT) on 1:1 pictures (after
   1:1, bilinear or MetalFX at the full size), off while resizing.
+- **Anti-aliasing** (`antiAliasing`): FXAA is a pass on Android's frame at its
+  own size, before any of the above (`avo_fxaa`: where the corners' luma
+  differs enough to be an edge, a blend along it; flat areas are left as
+  they are), so MetalFX gets the smoothed frame it works best with.
+  Supersampling 2× and 4× is DisplaySizing's instead: Android's size and
+  density × √2 or × 2 (`supersampled`, after the mode's own request; the
+  height and density follow the width reached, so the layout stays the
+  same), up to the 8192-px display and 1280 dpi, past Android's own 640.
+  The renderer then shrinks the frame to the window, and Android lays out
+  the same either way. Recordings and screenshots keep Android's frame.
 
 When MetalFX does not apply the picture is drawn bilinearly, and the
 performance HUD (⌥⌘P) says why: preparing, resizing, failed (remembered
@@ -459,19 +502,54 @@ pressed in Game Mode (bundled profiles use F8).
 `KeymapEngine` is a pure state machine: input and timestamps in, complete
 multitouch events out (every event carries all active pointers, as
 `MotionEvent` requires). Controls: tap, hold, D-pad (keys or left stick),
-mouse aim, ADS, swipe, repeated tap, macros, and for MOBAs move by mouse and
-smart cast. FPS mode: the first click captures the pointer
+mouse aim, ADS, swipe, repeated tap, macros, anchor taps, mode switches and
+keys that lock or free the mouse, and for MOBAs move by mouse and smart cast.
+FPS mode: the first click captures the pointer
 (`CGAssociateMouseAndMouseCursorPosition`) and raw,
-unaccelerated deltas come from `GCMouse`; the camera touch swipes from its
+unaccelerated deltas come from every mouse GameController sees (`GCMouse`;
+not only the current one, which is the mouse moved last); for a mouse it
+does not see (some wireless receivers) the window's own mouse events stand
+in, counted only while no raw motion comes; the camera touch swipes from its
 point (the area's centre unless moved) across the whole of its area, then
 lifts at the edge, touches down at its point again and carries the rest of
 the movement over, so the camera turns without limit (a tall area lets a
-look up or down travel further per swipe); anchor taps stay inside their own
-area when they have one; ADS switches to its own sensitivity; Option toggles a
+look up or down travel further per swipe); an anchor tap's finger stays in
+the circle around its point (`radius`, a fraction of the window's height, like
+a joystick's), or goes anywhere on the screen without one; ADS switches to its own sensitivity; Option toggles a
 cursor layer for inventories and maps; up to 16 simultaneous touches. Profile
 validation enforces the spec's hard limits: in FPS mode, repeated taps and
 macros are rejected and swipes may not touch the aim area (no automatic rapid
 fire or recoil compensation).
+
+**Running.** A D-pad control may have a key held to run (`run`: its
+trigger and a `scale` of 1 to 4): while it is held the finger goes that many
+times further from the centre, for games that walk with the joystick
+partway and run with it all the way, or lock a sprint past its edge. The key
+counts among the joystick's triggers, so pressing or letting go of it moves
+the finger out or back at once (gliding), a controller button works too, and
+resetting the controller mapping takes a button's off.
+
+**Modes.** A profile may have modes (`modes`: an id, a name, and
+`mouse_look`, what the mouse does on entering: locked to the eye, free, or as
+it was), for the different sets of buttons a game shows: on foot and in a
+vehicle, an inventory. A control acts in every mode unless it names the ones
+it acts in (`modes`), and only the controls of the current mode answer their
+keys, show as hints and touch the screen. The engine starts in the first mode
+and stays in its mode through a reset (Game Mode off and on). A switch-mode
+control (`switch_mode`) enters its mode when its key or controller button
+goes down; on entering, the fingers of controls that do not act there lift
+(taps and holds still lift with their keys), and a joystick of the new mode
+takes keys that are already held, so W held while getting in drives on.
+`mouse_look` controls lock the mouse to the eye or free it (`lock`), for a
+key that leaves mouse look without a mode.
+
+**Shared keys.** A key, mouse button or controller button may drive any
+number of controls: F can press the game's Enter button and switch to the
+vehicle mode at once. On a press, the controls that touch the screen go first
+and the mode switch and mouse lock after, so the game's button is pressed in
+the mode it belongs to and lifts with its key. The eye's lock key may press
+controls too (Tab: the game's inventory and a free cursor). Within a joystick
+a key is one direction only.
 
 MOBA controls aim from the profile's hero point (where the camera keeps the
 character; the centre unless the player drags the hero marker in the editor)
@@ -481,6 +559,41 @@ skill that way while its key is held and casts on release, further the
 further the cursor is from the hero. Their targets are read once per display
 frame and glide like the D-pad. They follow the free cursor, so with the
 mouse locked in FPS mode they rest.
+
+The editor (KeymapEditorView.swift) is drawn over the game, and its panel
+(KeymapEditorPanel.swift, in the Quick Settings' haze) takes the right of
+the window: the game's picture moves over and gets smaller while the editor
+is open, Android's display staying the same (the window keeps its size, so
+nothing re-plugs). The panel has a Controls tab and a Controller tab, and on
+top what to do now:
+
+- **Mapping a button:** click the game's own button, then press its key (or
+  a controller button; right-click for a mouse button or the wheel). A tap
+  is made there, in the mode being edited, and the next click goes on to
+  the next button. A click on the waiting tap cancels it; Esc is a key like
+  any other (the panel's ✕ deselects).
+- **The other kinds:** the panel's controls (tap, repeat, anchor, joystick,
+  swipe; eye, aim down sights, free and lock the mouse; move by mouse and
+  smart cast; switch mode) are clicked, for one where that kind usually is,
+  or dragged onto the game where one goes. A second joystick takes the arrow
+  keys; the eye (one per layout) acts in every mode.
+- **The selected control:** its key and controller button
+  (waiting for a key while it has none), a mouse-button menu, remove; its
+  type among tap, repeat, anchor and aim (the wheel only taps, and the eye
+  allows no repeated taps); its settings (a repeat's interval, an anchor's
+  finger reach, in a circle of some size or the whole screen, a joystick's
+  keys, size, run key and running reach, a swipe's duration, the eye's
+  sensitivity, aiming sensitivity, vertical look and swipe area, aiming
+  held or toggled, a smart cast's drag distance and cursor range, a
+  switch's mode, a mouse key's action); and, with modes, the modes it works
+  in. A line separates each setting (or the ones that belong together),
+  and what each does is behind its (?).
+- **On the game:** drag a control to move it, ↘ for its reach, × to remove
+  it; the eye's area is dragged while the eye is selected, so a click in it
+  otherwise maps the game's button under it.
+- The panel also has the layout's modes, whether and how clearly the keys
+  show on the game, the editor's opacity, Templates, import, export and
+  removing every control, a line between each part.
 
 The editor's Templates menu inserts a starting layout for an FPS, MOBA,
 racing game or platformer, either next to the existing controls (keys
@@ -512,8 +625,10 @@ In a profile, a controller button is a `pad:` trigger, and a stick drives a
 D-pad control (joystick) or the eye (`stick`). A D-pad control may also follow
 the controller's d-pad buttons (`dpad_buttons`). A control answers one key and
 one controller button, so binding a key keeps the controller button and the
-other way round (`Control.setTrigger`). A button or stick drives one control,
-and binding it elsewhere takes it off the first.
+other way round (`Control.setTrigger`). Like a key, a button may drive several
+controls, including a mode switch or a mouse lock. A stick or the d-pad drives
+one control per mode: binding it takes it off the controls that share a mode
+with the new one, so one stick can walk on foot and drive in a vehicle.
 
 Stick behaviour comes from `"gamepad"`'s `left_stick` and `right_stick`:
 
@@ -542,9 +657,9 @@ and the guest's vibrator HAL is not bridged to the Mac.
   button fires), and the remaining controls get the buttons that are left,
   easiest to reach first.
 
-The editor's controller panel (ControllerPanel.swift, the toolbar's
-Controller button or Controls › Edit Controller Mapping…) draws the
-connected controller's kind from `GamepadDiagram` and `GamepadLayout`:
+The editor's controller panel (ControllerPanel.swift, the panel's Controller
+tab) draws the connected controller's kind from `GamepadDiagram` and
+`GamepadLayout`:
 
 - **Diagram:** Xbox, PlayStation or Nintendo legends with SF Symbols'
   controller glyphs. Without a controller connected, the player picks which
@@ -566,12 +681,34 @@ connected controller's kind from `GamepadDiagram` and `GamepadLayout`:
   off every control and removes the controls that only the controller
   worked.
 
+The editor shows one mode at a time, from the mode tabs on its panel (the
+flag marks the one the game starts in, the number its own controls). + Mode
+adds an empty mode and its name is typed in its tab; the layout's first
+also makes "Default", which takes the controls the layout had (the eye
+stays in every mode). New controls, controller parts dropped on the game
+and templates go into the mode shown, and the controller panel lists only
+its bindings; a control acting in every mode is marked ∞ on the game. The
+tab of the mode shown (clicked again, or right-clicked) has its menu:
+rename, duplicate (its own controls copied, the others acting in the copy
+too), start the game in it, the mouse on entering it, and delete it with
+its own controls and the switches to it (the layout's only mode: the
+layout is one set of controls again, and they all stay). The panel's Switch
+adds a switch to the other mode, to one chosen in a menu, or with no other
+mode to a new one; Free and Lock need the eye. Buttons have no size of
+their own: every tap-like bubble is the same size, and ↘ appears only on
+what has a reach (joysticks, move by mouse, smart cast, anchor taps).
+
 There is no limit on the number of controls. Only Android's 16 multitouch
 slots bound how many fingers are down at once.
 
 Every new field is optional. Profiles from before them load unchanged and
 are saved without them. An older Avo ignores `gamepad` and `dpad_buttons`,
-and its keys still work.
+and its keys still work; it also ignores a joystick's `run`, which then
+walks. An anchor's rectangular `area` from before build 64 loads as a circle
+half as tall as the rectangle. An older Avo skips
+`switch_mode` and `mouse_look` controls (kinds it does not know) and ignores
+`modes`, so there every control acts at once, and it refuses a layout that
+binds a key or button to more than one control.
 
 Profiles are JSON with positions normalized to the window, stored per package
 in `~/Library/Application Support/Avo/keymaps/`, with community starters in
@@ -602,7 +739,9 @@ needed. Its Settings window is laid out like System Settings (a searchable
 sidebar of panes, back and forward; Graphics holds rendering, resolution and
 scaling, app windows and the performance HUD) and dressed like the Library: the same
 haze, and every form's sections as cards (`HazeFormStyle`, with the haze's
-switches, menus and segmented controls).
+switches, menus and segmented controls), a line between each two rows as in
+System Settings; a row's note, caption or problem (`hazeRowNote`) stays
+right under it. The app page's Graphics card has the same lines (`HazeRows`).
 
 Android's storage size is chosen before Android creates its storage on a new
 data disk (`DataDiskStore`), sized so that Android's Settings, which rounds
@@ -617,8 +756,8 @@ first. Android's own figures (`statfs` of /data and /system) are kept in
 `data-disk.json` next to the data disk for the pane.
 
 Graphics › Renderer (`rendererMode`: Automatic, GPU (Metal), Software) picks
-avo-vmm's gfxstream GPU path or software rendering at the next start; GPU
-needs the Android Emulator 37+ (docs/engine.md, "GPU"). A failed GPU start
+avo-vmm's gfxstream GPU path or software rendering at the next start; the
+GPU renderer ships in Avo.app (docs/engine.md, "GPU"). A failed GPU start
 falls back to software on its own and stays there until "Try GPU Again"
 (`retryGPU`), a Renderer change, or a new avo-vmm, emulator or macOS;
 `VMStatus.renderer` says which renderer runs and why, for the pane's status
@@ -672,8 +811,9 @@ the Control Panel has. It shows Android's state (running, paused with why,
 stopped), avo-vmm's CPU and memory (`proc_pidinfo` of the engine, every two
 seconds while the panel is open, never otherwise), the apps that run (open,
 minimized, in the background) and the ones used last (`AppUsage`), and
-Start, Pause, Resume and Stop. A right click (or Control-click) opens the
-classic menu with every app. The menu also has:
+Start, Pause, Resume and Stop. A right click (or Control-click) opens a
+menu with every app, in the haze too (`HazeMenu.swift`, below). The menu
+also has:
 
 - **Check for Updates…:** opens the Control Panel with
   `avo-control-panel://check-for-updates`.
@@ -733,8 +873,8 @@ pointer, and the app's menu on a right click.
 ## App icons in the Library
 
 Every app tile, card and row in the Library (Home's hero, cards and tiles,
-Games and Apps, search results, the sidebar's running apps) answers the
-same way (`AppTileInteraction.swift`):
+the Library section's All, Games and Apps tabs, search results, the
+sidebar's running apps) answers the same way (`AppTileInteraction.swift`):
 
 - **Click:** opens the app in its window.
 - **Press and hold (0.45 s):** opens its page. The tile gives a little at
@@ -742,8 +882,8 @@ same way (`AppTileInteraction.swift`):
   page opens when it closes (with a haptic tick). Leaving the tile first
   cancels.
 - **Right click or Control-click:** the app's menu in the haze
-  (`HazeMenu.swift`, a borderless panel at the pointer that turns to fit the
-  screen): Open, App/Game Page, Force Stop, Show in Finder, Clear Data… and
+  (`HazeMenu.swift` in the Window Host, a borderless panel at the pointer
+  that turns to fit the screen): Open, App/Game Page, Force Stop, Show in Finder, Clear Data… and
   Uninstall… (in the haze's red), confirmed as on the page. The keyboard
   moves through it (arrows, Return or Space, Escape, typing an item's first
   letters); a click elsewhere, another app or scrolling closes it. One
@@ -752,8 +892,20 @@ same way (`AppTileInteraction.swift`):
   opens, ⌘I opens the page and Control-Return the menu; VoiceOver's
   default action opens, with the page and the menu (Show Menu) as actions.
 
-`HazeMenu.swift` uses only Haze types, so the daemon target could compile
-it too.
+Every menu Avo pops up is such a haze menu (`HazeMenu.swift`, public in
+the Window Host framework, which the Control Panel and the daemon link
+too): the menus of app tiles and pages, the Control Panel's choices
+(`HazePicker`: a check mark on the choice, sections, options that cannot be
+chosen), an app window's title bar menus and Quick Settings' choices, the
+key mapping editor's panel, mode and context menus, and the menu bar item's
+menu. AppKit code still builds an `NSMenu`: `HazeMenuPresenter.popUp(_:…)`
+has its delegate and validation update it as macOS would before showing
+it, and an item sends its action to its target (one without is found when
+the menu opens). A submenu opens in place, under its item (→ and ← with the
+keyboard); a menu taller than its screen scrolls. While a menu shows it has
+the keyboard, and the window that had it gets it back; a transient popover
+it opens from (Quick Settings) stays open meanwhile. Only the menu bar's
+menus and a text field's own context menu are still macOS's.
 
 ## Updating Avo
 

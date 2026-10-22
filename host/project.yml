@@ -11,6 +11,7 @@
 #     Contents/Library/Shim/AvoShim.app       App Shim template, copied per Android app
 #     Contents/Frameworks/AvoWindowHost.framework   Window Host, loaded by every shim
 #     Contents/Resources/profiles/            device and keymap profiles
+#     Contents/Resources/gfxstream/           GPU renderer for avo-vmm (scripts/build-gfxstream.sh)
 #     Contents/MacOS/avo-vmm                  Engine VM (engine/hvf/vmm, Rust)
 
 name: Avo
@@ -134,6 +135,34 @@ targets:
           # Xcode does not sign the app again when only this file changed:
           # seal the bundle over the new engine (keeping its entitlements),
           # or every Avo process fails code signature checks.
+          if codesign --display "$TARGET_BUILD_DIR/$WRAPPER_NAME" >/dev/null 2>&1; then
+            codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" \
+              --preserve-metadata=identifier,entitlements,requirements,flags,runtime "$TARGET_BUILD_DIR/$WRAPPER_NAME"
+          fi
+      # Avo.app/Contents/Resources/gfxstream: the GPU renderer avo-vmm loads
+      # (gfxstream, the Vulkan loader and MoltenVK, built from source by
+      # scripts/build-gfxstream.sh into build/gfxstream), so the GPU needs no
+      # Android Emulator.
+      - name: Embed the GPU renderer
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+          RENDERER="$SRCROOT/../build/gfxstream"
+          OUT="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/gfxstream"
+          if [ ! -f "$RENDERER/.stamp" ]; then
+            echo "warning: no GPU renderer in build/gfxstream (run scripts/build-gfxstream.sh); Avo.app then needs the Android Emulator for the GPU"
+            exit 0
+          fi
+          # Nothing to do when the renderer did not change: Avo.app stays sealed.
+          if [ -f "$OUT/.stamp" ] && cmp -s "$RENDERER/.stamp" "$OUT/.stamp"; then
+            exit 0
+          fi
+          rm -rf "$OUT.new"
+          ditto "$RENDERER" "$OUT.new"
+          find "$OUT.new" -name "*.dylib" -exec codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" {} \;
+          # Replace, never overwrite: a running avo-vmm has the old libraries mapped.
+          rm -rf "$OUT"
+          mv "$OUT.new" "$OUT"
           if codesign --display "$TARGET_BUILD_DIR/$WRAPPER_NAME" >/dev/null 2>&1; then
             codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" \
               --preserve-metadata=identifier,entitlements,requirements,flags,runtime "$TARGET_BUILD_DIR/$WRAPPER_NAME"

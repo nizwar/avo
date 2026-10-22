@@ -1,9 +1,12 @@
-//! gfxstream's renderer (`libgfxstream_backend.dylib` of the Android
-//! Emulator the user installed, 37.x): loading it, its C ABI (matching the
-//! 37.1.11 `virtio-gpu-gfxstream-renderer.h`, API 0.1.2) and its callbacks.
+//! gfxstream's renderer (`libgfxstream_backend.dylib`): loading it, its C
+//! ABI (matching the 37.1.11 `virtio-gpu-gfxstream-renderer.h`, API 0.1.2)
+//! and its callbacks.
 //!
-//! The library is loaded at run time from the emulator directory and never
-//! shipped with Avo. It runs inside avo-vmm, Vulkan only (USE_VK |
+//! The library is loaded at run time from a renderer directory with the
+//! Android Emulator's layout (`lib64/`, `lib64/vulkan/`): Avo's own build in
+//! Avo.app (gfxstream, the Vulkan loader and MoltenVK built from source,
+//! scripts/build-gfxstream.sh), or an Android Emulator 37 the user installed.
+//! It runs inside avo-vmm, Vulkan only (USE_VK |
 //! USE_SURFACELESS): its external-blob mode, which would let it live in a
 //! separate process, does not work on macOS, and host pointers reach the
 //! guest through hv_vm_map (hostmem.rs). Never call its post callback,
@@ -131,10 +134,11 @@ pub struct Library {
     pub resource_unmap: unsafe extern "C" fn(u32) -> c_int,
 }
 
-/// The backend's `@rpath` dependencies in `lib64`. avo-vmm has no rpath into
-/// the user's SDK (one into a home folder could not ship anyway): loading
-/// each by absolute path first makes the backend's references resolve to
-/// the images already loaded.
+/// The Android Emulator's backend's `@rpath` dependencies in `lib64`.
+/// avo-vmm has no rpath into the user's SDK (one into a home folder could
+/// not ship anyway): loading each by absolute path first makes the backend's
+/// references resolve to the images already loaded. Avo's own build needs
+/// only the system's libraries.
 const DEPENDENCIES: [&str; 10] = [
     "libabseil_dll",
     "libprotobuf.28.4.0",
@@ -172,10 +176,16 @@ macro_rules! symbol {
 }
 
 impl Library {
-    /// Loads the dependencies, then the backend, from `<emulator>/lib64`.
-    pub fn load(emulator: &Path) -> Result<Library, String> {
-        let lib64 = emulator.join("lib64");
-        let mut left: Vec<&str> = DEPENDENCIES.to_vec();
+    /// Loads the backend from `<dir>/lib64`, an Android Emulator's after its
+    /// dependencies.
+    pub fn load(dir: &Path) -> Result<Library, String> {
+        let lib64 = dir.join("lib64");
+        let backend = lib64.join("libgfxstream_backend.dylib");
+        if !backend.exists() {
+            return Err(format!("{} is missing", backend.display()));
+        }
+        let emulator = lib64.join("libemugl_common.dylib").exists();
+        let mut left: Vec<&str> = if emulator { DEPENDENCIES.to_vec() } else { Vec::new() };
         for name in &left {
             let path = lib64.join(format!("{name}.dylib"));
             if !path.exists() {
@@ -200,7 +210,7 @@ impl Library {
         if let Some(name) = left.first() {
             return Err(format!("cannot load {name}.dylib: {error}"));
         }
-        let backend = dlopen(&lib64.join("libgfxstream_backend.dylib"), libc::RTLD_NOW | libc::RTLD_LOCAL)?;
+        let backend = dlopen(&backend, libc::RTLD_NOW | libc::RTLD_LOCAL)?;
         Ok(Library {
             init: symbol!(backend, "init"),
             get_cap_set: symbol!(backend, "get_cap_set"),
@@ -259,8 +269,8 @@ impl Library {
     }
 }
 
-/// The environment gfxstream reads at init: where the emulator is (it finds
-/// MoltenVK's ICD from there), MoltenVK as the Vulkan driver (a developer can
+/// The environment gfxstream reads at init: the renderer directory (it finds
+/// MoltenVK's ICD there), MoltenVK as the Vulkan driver (a developer can
 /// export ANDROID_EMU_VK_ICD=kosmickrisp), the Vulkan loader and Avo's layer
 /// for it (astc.rs), no window; and Metal's shader cache in Avo's GPU cache
 /// folder (cache.rs).
@@ -375,7 +385,16 @@ mod tests {
 
     #[test]
     fn a_missing_library_is_named() {
-        let error = Library::load(Path::new("/nonexistent/emulator")).err().unwrap();
+        let error = Library::load(Path::new("/nonexistent/renderer")).err().unwrap();
+        assert!(error.contains("libgfxstream_backend.dylib is missing"), "{error}");
+        // An Android Emulator's backend without the libraries it needs.
+        let dir = std::env::temp_dir().join(format!("avo-gfxstream-test-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("lib64")).unwrap();
+        for name in ["libgfxstream_backend.dylib", "libemugl_common.dylib"] {
+            std::fs::write(dir.join("lib64").join(name), b"").unwrap();
+        }
+        let error = Library::load(&dir).err().unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
         assert!(error.contains("libabseil_dll.dylib is missing"), "{error}");
     }
 

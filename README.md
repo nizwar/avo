@@ -46,21 +46,26 @@ your Mac's GPU through gfxstream and Metal.
 **Apps as Mac apps**
 - One window per Android app, with its own Dock icon, Launchpad and
   Spotlight entries; full screen with the menu bar and title bar on hover.
-- Notifications in Notification Center; a shared clipboard;
+- Notifications in Notification Center, with their buttons and Reply right
+  from the banner; what Android plays in Control Center and on the media
+  keys and AirPods; a shared clipboard;
   Android links open in the Mac's default browser.
 - Install `.apk`, `.xapk`, `.apkm` and `.apks` files (OBB data included) by
   double-clicking, dropping them on Avo, or from Google Play.
 - Android follows the Mac: dark mode, time zone, 24-hour clock, language and
   battery level.
 - Screen translation (⌘⇧T), screenshots and screen recordings with sound,
-  Keep on Top and Picture in Picture.
+  Keep on Top and Picture in Picture, and a shake of the phone for apps that
+  listen for one.
 - A shared folder between the Mac and Android, location from the Mac (or a
   place or route you choose), the Mac's microphone, and mock fingerprints for
   apps that ask for one.
 
 **Games**
 - Key mapping: put keys on a game's touch controls, with templates for
-  shooters, MOBAs and racing games; profiles can be shared.
+  shooters, MOBAs and racing games; profiles can be shared. Modes switch the
+  layout with the game (on foot, in a vehicle), and one key may press several
+  buttons.
 - Shooter mode with mouse-look, and full game controller support with a
   visual controller editor.
 - GPU rendering through gfxstream and MoltenVK, a frame-rate cap of 30, 60,
@@ -86,10 +91,12 @@ your Mac's GPU through gfxstream and Metal.
 - macOS 15 Sequoia or newer.
 - At least 10 GB of free disk space: the Android image, and a data disk that
   grows as you use it.
-- For GPU rendering (recommended for games): Google's
-  [Android Emulator](https://developer.android.com/studio/run/emulator),
-  installed with Android Studio or the SDK command-line tools. Avo uses its
-  gfxstream renderer. Without it, Android renders in software.
+
+GPU rendering is built in: Avo ships its own gfxstream renderer, the Vulkan
+loader and MoltenVK, built from source, so you need no Android Studio for it.
+Only Android's Bluetooth still needs Google's
+[Android Emulator](https://developer.android.com/studio/run/emulator)
+(installed with Android Studio or the SDK command-line tools).
 
 ## Installing a preview build
 
@@ -109,12 +116,14 @@ one. Your Android data stays in `~/Library/Application Support/Avo`.
 ## Building from source
 
 Requirements: Xcode 26 or later, [XcodeGen](https://github.com/yonaskolb/XcodeGen),
-and a Rust toolchain (`rustup`, stable) for the engine. The Android SDK is
-needed only to rebuild the small Android helpers, which are checked in.
+a Rust toolchain (`rustup`, stable) for the engine, and CMake and Ninja for
+the GPU renderer. The Android SDK is needed only to rebuild the small Android
+helpers, which are checked in.
 
 ```sh
 make test       # host unit and integration tests (swift test)
 make project    # generate host/Avo.xcodeproj
+make gfxstream  # build the GPU renderer from source (once; about 6 minutes)
 make build      # build Avo.app (Debug) into build/DerivedData
 make helpers    # rebuild the Android helpers embedded in the daemon
 cd engine/hvf && cargo test   # engine tests
@@ -211,6 +220,16 @@ priority help.
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md), the
 [Code of Conduct](CODE_OF_CONDUCT.md) and [SUPPORT.md](SUPPORT.md).
+
+### Contributors
+
+Thank you to everyone who has made Avo better:
+
+<a href="https://github.com/nizwar/avo/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=nizwar/avo" alt="Avo's contributors" />
+</a>
+
+<sub>Made with [contrib.rocks](https://contrib.rocks).</sub>
 
 ## Acknowledgements
 

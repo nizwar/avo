@@ -77,6 +77,35 @@ enum MetalShaders {
         return float4(texel(t, in.position.xy, p.xy, int2(0)), 1);
     }
 
+    // FXAA (fast approximate anti-aliasing) on Android's frame at its own
+    // size, before it is scaled: where the corners' luma differs enough to
+    // be an edge, a blend along the edge; flat areas stay as they are.
+    // p = (1/width, 1/height, 0, 0).
+    fragment float4 avo_fxaa(Out in [[stage_in]], texture2d<float> t [[texture(0)]],
+                             constant float4 &p [[buffer(0)]]) {
+        constexpr sampler s(filter::linear, address::clamp_to_edge);
+        const float3 toLuma = float3(0.299, 0.587, 0.114);
+        float2 uv = in.uv, texel = p.xy;
+        float3 m = t.sample(s, uv).rgb;
+        float lumaM = dot(m, toLuma);
+        float lumaNW = dot(t.sample(s, uv + float2(-1, -1) * texel).rgb, toLuma);
+        float lumaNE = dot(t.sample(s, uv + float2(1, -1) * texel).rgb, toLuma);
+        float lumaSW = dot(t.sample(s, uv + float2(-1, 1) * texel).rgb, toLuma);
+        float lumaSE = dot(t.sample(s, uv + float2(1, 1) * texel).rgb, toLuma);
+        float lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
+        float lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
+        // Too little contrast for an edge: as it is.
+        if (lumaMax - lumaMin < max(0.0312, lumaMax * 0.125)) { return float4(m, 1); }
+        float2 dir = float2((lumaSW + lumaSE) - (lumaNW + lumaNE), (lumaNW + lumaSW) - (lumaNE + lumaSE));
+        float reduce = max((lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 / 8.0), 1.0 / 128.0);
+        float scale = 1.0 / (min(abs(dir.x), abs(dir.y)) + reduce);
+        dir = clamp(dir * scale, float2(-8.0), float2(8.0)) * texel;
+        float3 a = 0.5 * (t.sample(s, uv + dir * (1.0 / 3.0 - 0.5)).rgb + t.sample(s, uv + dir * (2.0 / 3.0 - 0.5)).rgb);
+        float3 b = a * 0.5 + 0.25 * (t.sample(s, uv - dir * 0.5).rgb + t.sample(s, uv + dir * 0.5).rgb);
+        float lumaB = dot(b, toLuma);
+        return float4(lumaB < lumaMin || lumaB > lumaMax ? a : b, 1);
+    }
+
     // Robust Contrast-Adaptive Sharpening from AMD FidelityFX FSR 1 (MIT
     // licence, Copyright (c) 2021 Advanced Micro Devices, Inc.), without its
     // noise detection. Sharpens a 1:1 picture by at most what keeps every

@@ -140,7 +140,8 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "Widgets")
 
     static let barHeight: CGFloat = 26
-    static let loadingBackground = NSColor(white: 0.12, alpha: 0.85).cgColor
+    /// The haze's base (QuickHaze), behind the placeholder.
+    static let loadingBackground = QuickHaze.nsRGB(0x0A1108, 0.88).cgColor
     static let cornerRadius: CGFloat = 18
 
     /// The widget's settings are on screen: the panel is `setupSize`.
@@ -198,8 +199,8 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
             widgetFrame.addSubview(view)
         }
         placeholder.alignment = .center
-        placeholder.textColor = .secondaryLabelColor
-        placeholder.font = .systemFont(ofSize: 12)
+        placeholder.textColor = QuickHaze.nsRGB(0xC5CDB9)
+        placeholder.font = QuickHaze.monaFont(12)
         widgetFrame.translatesAutoresizingMaskIntoConstraints = false
         bar.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(widgetFrame)
@@ -477,33 +478,35 @@ private final class HoverView: NSView {
 }
 
 /// The bar above a widget: its name (drag it to move the panel), keep on
-/// top and remove.
-private final class WidgetBar: NSVisualEffectView {
+/// top and remove, on a plate in the haze look (QuickHaze).
+private final class WidgetBar: NSView {
     var onTop: (() -> Void)?
     var onRemove: (() -> Void)?
     var title = "" { didSet { label.stringValue = title } }
     var pinned = false {
         didSet {
-            pin.contentTintColor = pinned ? .controlAccentColor : .secondaryLabelColor
+            pin.contentTintColor = pinned ? QuickHaze.nsRGB(0xD8E8A7) : Self.iconColor
             pin.toolTip = pinned ? String(localized: "Keep on Desktop", bundle: .windowHost)
                 : String(localized: "Keep on Top", bundle: .windowHost)
         }
     }
 
+    private static let iconColor = QuickHaze.nsRGB(0x9AA58E)
     private let label = NSTextField(labelWithString: "")
     private lazy var pin = button("pin.fill", String(localized: "Keep on Top", bundle: .windowHost), #selector(pinTapped))
     private lazy var remove = button("xmark", String(localized: "Remove Widget", bundle: .windowHost), #selector(removeTapped))
 
     init() {
         super.init(frame: .zero)
-        material = .hudWindow
-        blendingMode = .behindWindow
-        state = .active
         wantsLayer = true
+        layer?.backgroundColor = QuickHaze.nsRGB(0x0A1108, 0.92).cgColor
+        layer?.borderColor = QuickHaze.nsRGB(0xF3F1E8, 0.08).cgColor
+        layer?.borderWidth = 1
         layer?.cornerRadius = 11
+        layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
-        label.font = .systemFont(ofSize: 11, weight: .medium)
-        label.textColor = .secondaryLabelColor
+        label.font = QuickHaze.monaFont(11, 560)
+        label.textColor = QuickHaze.nsRGB(0xC5CDB9)
         label.lineBreakMode = .byTruncatingTail
         let stack = NSStackView(views: [remove, label, pin])
         stack.spacing = 6
@@ -531,7 +534,7 @@ private final class WidgetBar: NSVisualEffectView {
             .withSymbolConfiguration(.init(pointSize: 10, weight: .semibold))
         let button = NSButton(image: image ?? NSImage(), target: self, action: action)
         button.isBordered = false
-        button.contentTintColor = .secondaryLabelColor
+        button.contentTintColor = Self.iconColor
         button.toolTip = label
         button.setAccessibilityLabel(label)
         return button

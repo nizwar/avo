@@ -17,7 +17,8 @@ import QuartzCore
 /// a held frame (a resize) gives way to Android's new one, it fades out over it. How it is scaled (`DisplaySizing.scalingPath`): 1:1 when the sizes
 /// match, MetalFX Spatial when it is enlarged, an averaging filter when it
 /// is shrunk, and bilinear while the window is being resized or a scaler is
-/// still being built. An optional RCAS pass sharpens 1:1 pictures.
+/// still being built. An optional FXAA pass smooths the frame's edges at its
+/// own size before it is scaled, and an optional RCAS pass sharpens 1:1 pictures.
 final class MetalRenderer: @unchecked Sendable {
     let layer = CAMetalLayer()
     let device: MTLDevice
@@ -28,6 +29,7 @@ final class MetalRenderer: @unchecked Sendable {
     private let downsamplePipeline: MTLRenderPipelineState
     private let copyPipeline: MTLRenderPipelineState
     private let rcasPipeline: MTLRenderPipelineState
+    private let fxaaPipeline: MTLRenderPipelineState
     private let keyedPipeline: MTLRenderPipelineState
     /// Widget panels: black is transparent and the layer is not opaque
     /// (`avo_keyed`). Set before the first frame.
@@ -117,6 +119,8 @@ final class MetalRenderer: @unchecked Sendable {
     private lazy var upscalers = SpatialUpscalerCache(device: device, queue: renderQueue)
     /// Bilinear output that RCAS sharpens, the size of the presentation rect.
     private var scratch: MTLTexture?
+    /// Android's frame after FXAA, its own size.
+    private var smoothed: MTLTexture?
     /// The frame shrunk, then blurred, for the backdrop behind a fitted frame.
     private var ambient: (shrunk: MTLTexture, blurred: MTLTexture)?
     /// The long side of `ambient`, in pixels.
@@ -183,6 +187,7 @@ final class MetalRenderer: @unchecked Sendable {
             downsamplePipeline = try pipeline("avo_downsample")
             copyPipeline = try pipeline("avo_copy")
             rcasPipeline = try pipeline("avo_rcas")
+            fxaaPipeline = try pipeline("avo_fxaa")
             keyedPipeline = try pipeline("avo_keyed")
             blurPipeline = try pipeline("avo_blur")
             backdropPipeline = try pipeline("avo_backdrop")
@@ -352,7 +357,8 @@ final class MetalRenderer: @unchecked Sendable {
             guard case let .metalFX(output) = DisplaySizing.scalingPath(source: source, destination: rect.size,
                                                                        filter: options.filter, metalFXAvailable: true,
                                                                        interactive: false) else { return }
-            upscalers.request(FXKey(input: source, output: output, format: texture.pixelFormat)) {}
+            // The scaler takes the FXAA pass's output when there is one.
+            upscalers.request(FXKey(input: source, output: output, format: options.fxaa ? .bgra8Unorm : texture.pixelFormat)) {}
         }
     }
 
@@ -611,8 +617,9 @@ final class MetalRenderer: @unchecked Sendable {
 
     // MARK: Drawing
 
-    /// Draws `texture` into the next drawable (render queue).
-    private func draw(_ texture: MTLTexture) {
+    /// Draws Android's `frame` into the next drawable (render queue).
+    private func draw(_ frame: MTLTexture) {
+        var texture = frame
         // Two draws on the GPU already: this one is dropped, and the newest
         // frame is drawn once one completes.
         guard inFlight.wait(timeout: .now()) == .success else {
@@ -633,6 +640,12 @@ final class MetalRenderer: @unchecked Sendable {
             scheduleSettledRedraw()
         }
         let (options, resizing) = lock.withLock { (self.options, interactiveResize) }
+        // FXAA first, at the frame's own size: everything after scales the smoothed frame.
+        if options.fxaa, !keysOutBlack, let smoothed = smoothedTexture(source),
+           pass(buffer, into: smoothed, load: .dontCare, viewport: PixelRect(x: 0, y: 0, width: source.width, height: source.height),
+                pipeline: fxaaPipeline, texture: texture, params: SIMD4(1 / Float(source.width), 1 / Float(source.height), 0, 0)) {
+            texture = smoothed
+        }
         let settling = now - targetChangedAt < Self.settleTime
         let rect = DisplaySizing.presentationRect(source: source, target: target)
         var path = DisplaySizing.scalingPath(source: source, destination: rect.size, filter: options.filter,
@@ -846,6 +859,17 @@ final class MetalRenderer: @unchecked Sendable {
         _ = pass(buffer, into: drawable, load: .load, viewport: rect, pipeline: fadePipeline, texture: fade.texture,
                  params: SIMD4(alpha, 0, 0, 0))
         renderQueue.asyncAfter(deadline: .now() + 1.0 / 120) { [weak self] in self?.redraw() }
+    }
+
+    /// The FXAA pass's output at `size`, made again when the size changes (render queue).
+    private func smoothedTexture(_ size: PixelSize) -> MTLTexture? {
+        if let smoothed, smoothed.width == size.width, smoothed.height == size.height { return smoothed }
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: size.width,
+                                                                  height: size.height, mipmapped: false)
+        descriptor.storageMode = .private
+        descriptor.usage = [.renderTarget, .shaderRead]
+        smoothed = device.makeTexture(descriptor: descriptor)
+        return smoothed
     }
 
     /// The scratch texture at `size`, made again when the size changes (render queue).

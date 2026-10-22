@@ -1395,7 +1395,7 @@ private struct HazeFormSection: View {
                         .accessibilityAddTraits(.isHeader)
                 }
             }
-            section.content
+            HazeFormRows(rows: section.content)
             Group(subviews: section.footer) { footer in
                 if !footer.isEmpty {
                     VStack(alignment: .leading, spacing: 6) { ForEach(footer) { $0 } }
@@ -1424,14 +1424,48 @@ private struct HazeFormSection: View {
     }
 }
 
+/// Rows one under the other outside a form (the app page's Graphics card),
+/// a line between each two as in a form's section: each view of `content`
+/// is a row.
+struct HazeRows<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        Group(subviews: content) { rows in HazeFormRows(rows: rows) }
+    }
+}
+
+/// A section's rows, a line between each two as in System Settings; a
+/// row's note (`hazeRowNote`) stays right under it.
+private struct HazeFormRows: View {
+    let rows: SubviewsCollection
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(rows) { row in
+                if row.id != rows.first?.id {
+                    if row.containerValues.hazeRowNote {
+                        Color.clear.frame(height: 7)
+                    } else {
+                        Rectangle().fill(Haze.text.opacity(0.07)).frame(height: 1).padding(.vertical, 10)
+                    }
+                }
+                row
+            }
+        }
+    }
+}
+
+extension ContainerValues {
+    /// A form row's note, caption, problem or second control: it stays
+    /// under that row, with no line between them (HazeFormRows).
+    @Entry var hazeRowNote = false
+}
+
 extension View {
-    /// The system's styles again, for menu content inside a haze form: menus
-    /// build their items from toggles and buttons, so the form's switch and
-    /// pill styles would show up in the menu as extra, empty rows.
-    func menuItemStyles() -> some View {
-        toggleStyle(.automatic)
-            .buttonStyle(.automatic)
-            .labeledContentStyle(.automatic)
+    /// This view belongs to the form row above it: no line between them.
+    func hazeRowNote() -> some View {
+        containerValue(\.hazeRowNote, true)
     }
 
     /// The haze's form controls for everything inside: labeled values,
@@ -1531,71 +1565,6 @@ struct HazeSwitch: View {
         .animation(Haze.Motion.animation(Haze.Motion.press, reduceMotion: reduceMotion), value: isOn)
         .animation(Haze.Motion.hover, value: lit)
         .onHover { hovering = $0 }
-    }
-}
-
-/// A choice from a menu in the haze: the chosen option on a veiled capsule
-/// with chevrons; the menu is macOS's own, with a checkmark on the choice,
-/// sections and disabled options. Takes a Picker's content (options with
-/// `.tag`); VoiceOver gets a Picker with `title`.
-struct HazePicker<Value: Hashable, Content: View>: View {
-    private let title: Text
-    @Binding private var selection: Value
-    private let content: Content
-    @State private var hovering = false
-    @Environment(\.isEnabled) private var isEnabled
-
-    init(_ title: LocalizedStringKey, selection: Binding<Value>, @ViewBuilder content: () -> Content) {
-        self.title = Text(title)
-        _selection = selection
-        self.content = content()
-    }
-
-    var body: some View {
-        Menu {
-            Picker(selection: $selection) { content } label: { title }
-                .pickerStyle(.inline)
-                .labelsHidden()
-                // macOS's own menu items: an inline picker draws its options
-                // as toggles, and the form's switch style would split each
-                // into a title and blank, checked rows.
-                .menuItemStyles()
-        } label: {
-            HStack(spacing: 7) {
-                // The option tagged with the selection, as the menu shows it.
-                Group(subviews: content) { options in
-                    if let chosen = options.first(where: { $0.containerValues.tag(for: Value.self) == selection }) {
-                        chosen
-                    }
-                }
-                .lineLimit(1)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(Haze.textTertiary)
-            }
-            .font(.mona(13))
-            .foregroundStyle(Haze.text)
-            .padding(.leading, 12)
-            .padding(.trailing, 10)
-            .frame(height: 28)
-            .background {
-                ZStack {
-                    Capsule().fill(Haze.field)
-                    Capsule().fill(Haze.text.opacity(hovering && isEnabled ? 0.05 : 0))
-                }
-            }
-            .contentShape(Capsule())
-        }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .opacity(isEnabled ? 1 : 0.45)
-        .animation(Haze.Motion.hover, value: hovering)
-        .onHover { hovering = $0 }
-        .accessibilityRepresentation {
-            Picker(selection: $selection) { content } label: { title }
-        }
     }
 }
 

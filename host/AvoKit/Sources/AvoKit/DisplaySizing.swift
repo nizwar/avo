@@ -101,6 +101,9 @@ public enum DisplaySizing {
     /// at 4K), still well short of a tablet's 600.
     public static let minimumDPI = 120
     public static let maximumDPI = 640
+    /// The highest density supersampling takes Android to (its own top is
+    /// 640): the layout stays the same as without it up to here.
+    public static let maximumSupersampledDPI = 1280
     /// Fixed + Match window re-plugs once the window's shape is more than 1%
     /// off what Android has.
     public static let replugTolerance = 0.01
@@ -134,18 +137,40 @@ public enum DisplaySizing {
         let width = contentWidth.isFinite ? max(contentWidth, 0) : 0
         let height = contentHeight.isFinite ? max(contentHeight, 0) : 0
         let mode = settings.effectiveMode(device: device)
+        let factor = settings.antiAliasing.supersampling
         if mode == .deviceProfile, let device {
-            return deviceRequest(device, landscape: landscape ?? (width > height))
+            return supersampled(deviceRequest(device, landscape: landscape ?? (width > height)), by: factor)
         }
         if mode == .fixed {
-            return fixedRequest(width: width, height: height, settings: settings, landscape: landscape)
+            return supersampled(fixedRequest(width: width, height: height, settings: settings, landscape: landscape), by: factor)
         }
         let scale = backingScale.isFinite && backingScale > 0 ? backingScale : 1
         var content = (width: width, height: height)
         if let ratio = settings.followAspectRatio.longOverShort {
             content = fittedContentSize(width: width, height: height, longOverShort: ratio, landscape: landscape ?? (width > height))
         }
-        return followRequest(width: content.width, height: content.height, backingScale: scale, settings: settings)
+        return supersampled(followRequest(width: content.width, height: content.height, backingScale: scale, settings: settings), by: factor)
+    }
+
+    /// `request` × `factor` on each side and on the density, so Android lays
+    /// out the same and the renderer shrinks the frame back (supersampling);
+    /// less where the largest display or density stops it.
+    private static func supersampled(_ request: DisplayRequest, by factor: Double) -> DisplayRequest {
+        guard factor > 1, request.width > 0, request.height > 0, request.dpi > 0 else { return request }
+        let longest = Double(max(request.width, request.height))
+        let k = min(factor, Double(maximumSide) / longest, Double(maximumSupersampledDPI) / Double(request.dpi))
+        guard k > 1 else {
+            var limited = request
+            limited.limitedBySize = true
+            return limited
+        }
+        let w = floor(Double(request.width) * k, to: widthAlignment)
+        // The height and density for the width actually reached, so the layout matches.
+        let reached = Double(w) / Double(request.width)
+        let h = floor(Double(request.height) * reached, to: 2)
+        let dpi = Int((Double(request.dpi) * reached).rounded())
+        return DisplayRequest(width: UInt32(w), height: UInt32(h), dpi: UInt32(dpi), effectiveRenderScale: request.effectiveRenderScale,
+                              limitedByDensity: request.limitedByDensity, limitedBySize: request.limitedBySize || k < factor)
     }
 
     private static func followRequest(width: Double, height: Double, backingScale b: Double, settings: GraphicsSettings) -> DisplayRequest {

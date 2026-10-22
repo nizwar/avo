@@ -21,15 +21,25 @@ final class KeymapController {
     private var displayLink: CADisplayLink?
     /// The controllers' changes, from GamepadHub.
     private var gamepadListener: UUID?
-    /// The mice whose raw movement handlers are installed while locked.
-    private var lockedMice: [GCMouse] = []
-    private var mouseObservers: [NSObjectProtocol] = []
     private var overlay: KeymapOverlay?
     private(set) var isPointerLocked = false
+    /// While the pointer is locked: GameController's mouse notifications.
+    private var mouseObservers: [any NSObjectProtocol] = []
+    /// When raw motion last came from a mouse GameController sees.
+    private var rawMotionAt: CFTimeInterval = 0
+    /// This lock, the mouse moved without raw motion: its events count at once.
+    private var eventMotionOnly = false
+    /// A locked mouse's event motion, held until raw motion would have come
+    /// (then it was the same movement, counted once).
+    private var heldMotion: (dx: Double, dy: Double, since: CFTimeInterval)?
     /// The profile has MOBA controls, which need to know where the cursor is.
     private var aimsAtCursor = false
     /// Short messages for the window (mouse locked or freed).
     var onNotice: ((String) -> Void)?
+    /// The layout's mode changed (a Switch Mode control, a new layout): its id.
+    var onMode: ((String?) -> Void)?
+    /// The mode the layout is in now; nil without modes.
+    var mode: String? { engine?.mode }
     /// The profile in use changed (loaded, saved, imported).
     var onProfile: ((KeymapProfile?) -> Void)?
     /// The editor opened (true) or closed (false).
@@ -74,21 +84,6 @@ final class KeymapController {
         bundledDirectory = Self.bundledDirectory(hostApplication: hostApplication)
         load()
         gamepadListener = GamepadHub.shared.addListener { [weak self] inputs, _ in self?.gamepad(inputs) }
-        let center = NotificationCenter.default
-        mouseObservers = [
-            center.addObserver(forName: .GCMouseDidConnect, object: nil, queue: .main) { [weak self] note in
-                nonisolated(unsafe) let mouse = note.object as? GCMouse
-                MainActor.assumeIsolated { self?.bindPointerLock(to: mouse) }
-            },
-            center.addObserver(forName: .GCMouseDidBecomeCurrent, object: nil, queue: .main) { [weak self] note in
-                nonisolated(unsafe) let mouse = note.object as? GCMouse
-                MainActor.assumeIsolated { self?.bindPointerLock(to: mouse) }
-            },
-            center.addObserver(forName: .GCMouseDidDisconnect, object: nil, queue: .main) { [weak self] note in
-                nonisolated(unsafe) let mouse = note.object as? GCMouse
-                MainActor.assumeIsolated { self?.unbindPointerLock(from: mouse) }
-            },
-        ]
     }
 
     /// Where Avo.app keeps the community profiles.
@@ -112,12 +107,14 @@ final class KeymapController {
             engine = nil
             updateTicking()
             onProfile?(nil)
+            onMode?(nil)
             return
         }
         let size = view.displaySize
         engine = KeymapEngine(profile: profile, displayID: displayID, width: size.width, height: size.height)
         updateTicking()
         onProfile?(profile)
+        onMode?(engine?.mode)
     }
 
     func save(_ profile: KeymapProfile) throws {
@@ -183,8 +180,6 @@ final class KeymapController {
         stopTicking()
         if let gamepadListener { GamepadHub.shared.removeListener(gamepadListener) }
         gamepadListener = nil
-        for observer in mouseObservers { NotificationCenter.default.removeObserver(observer) }
-        mouseObservers.removeAll()
         overlay?.close()
     }
 
@@ -193,6 +188,12 @@ final class KeymapController {
         let output = engine.handle(input, at: CACurrentMediaTime())
         self.engine = engine
         emit(output.events)
+        if let mode = output.mode {
+            onMode?(mode)
+            if let name = profile?.modes.first(where: { $0.id == mode })?.name {
+                onNotice?(String(localized: "Mode: \(name)", bundle: .windowHost))
+            }
+        }
         if let lock = output.pointerLock {
             if lock { lockPointer() } else { unlockPointer() }
         }
@@ -260,8 +261,9 @@ final class KeymapController {
     }
 
     private func tick() {
-        guard var engine else { return }
         let now = CACurrentMediaTime()
+        if isPointerLocked { flushHeldMotion(at: now) }
+        guard var engine else { return }
         // A held MOBA control or click reads the cursor on every frame: while
         // a mouse button is down macOS sends drags, which never reach pointerMoved.
         if engine.isFollowingCursor, mapping, !isPointerLocked, let cursor = cursorInDisplay() {
@@ -287,26 +289,11 @@ final class KeymapController {
             CGWarpMouseCursorPosition(CGPoint(x: center.x, y: screen.frame.maxY - center.y))
         }
         // Raw, unaccelerated deltas (spec §5a: "gerakan mouse mentah").
-        for mouse in GCMouse.mice() { bindPointerLock(to: mouse) }
+        listenToMice()
         if var engine {
             emit(engine.setPointerLocked(true))
             self.engine = engine
         }
-    }
-
-    private func bindPointerLock(to mouse: GCMouse?) {
-        guard isPointerLocked, let mouse, let input = mouse.mouseInput else { return }
-        guard !lockedMice.contains(where: { $0 === mouse }) else { return }
-        lockedMice.append(mouse)
-        input.mouseMovedHandler = { [weak self] _, dx, dy in
-            MainActor.assumeIsolated { _ = self?.handle(.mouseMoved(dx: Double(dx), dy: Double(-dy))) }
-        }
-    }
-
-    private func unbindPointerLock(from mouse: GCMouse?) {
-        guard let mouse else { return }
-        mouse.mouseInput?.mouseMovedHandler = nil
-        lockedMice.removeAll { $0 === mouse }
     }
 
     private func unlockPointer() {
@@ -315,14 +302,77 @@ final class KeymapController {
         if let toggle = engine?.profile.fps?.cursorToggle.shortLabel {
             onNotice?(String(localized: "Mouse free. Press \(toggle) to aim with it.", bundle: .windowHost))
         }
-        for mouse in lockedMice { mouse.mouseInput?.mouseMovedHandler = nil }
-        lockedMice.removeAll()
+        stopListeningToMice()
         CGAssociateMouseAndMouseCursorPosition(1)
         NSCursor.unhide()
         if var engine {
             emit(engine.setPointerLocked(false))
             self.engine = engine
         }
+    }
+
+    // Raw motion while the pointer is locked: from every mouse GameController
+    // sees (GCMouse.current is only the one that moved last, so a second
+    // mouse, or a trackpad used before it, went unheard), and for a mouse it
+    // does not see (some wireless receivers) from the window's mouse events,
+    // which stand in while no raw motion comes.
+
+    private func listenToMice() {
+        for mouse in GCMouse.mice() { listen(to: mouse) }
+        mouseObservers = [Notification.Name.GCMouseDidConnect, .GCMouseDidBecomeCurrent].map { name in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, self.isPointerLocked else { return }
+                    for mouse in GCMouse.mice() { self.listen(to: mouse) }
+                }
+            }
+        }
+    }
+
+    private func listen(to mouse: GCMouse) {
+        mouse.mouseInput?.mouseMovedHandler = { [weak self] _, dx, dy in
+            MainActor.assumeIsolated { self?.rawMotion(dx: Double(dx), dy: Double(-dy)) }
+        }
+    }
+
+    private func stopListeningToMice() {
+        for mouse in GCMouse.mice() { mouse.mouseInput?.mouseMovedHandler = nil }
+        for observer in mouseObservers { NotificationCenter.default.removeObserver(observer) }
+        mouseObservers = []
+        heldMotion = nil
+        eventMotionOnly = false
+    }
+
+    private func rawMotion(dx: Double, dy: Double) {
+        rawMotionAt = CACurrentMediaTime()
+        // What the window's events said meanwhile was this same movement.
+        heldMotion = nil
+        eventMotionOnly = false
+        _ = handle(.mouseMoved(dx: dx, dy: dy))
+    }
+
+    /// The window's mouse motion while the pointer is locked (DisplayView):
+    /// it counts for a mouse GameController does not see.
+    func lockedMotion(dx: Double, dy: Double) {
+        guard isPointerLocked, mapping, dx != 0 || dy != 0 else { return }
+        let now = CACurrentMediaTime()
+        // Raw motion is coming: this is the same movement.
+        if now - rawMotionAt < 0.5 { return }
+        if eventMotionOnly {
+            _ = handle(.mouseMoved(dx: dx, dy: dy))
+            return
+        }
+        let held = heldMotion
+        heldMotion = (dx + (held?.dx ?? 0), dy + (held?.dy ?? 0), held?.since ?? now)
+    }
+
+    /// Event motion no raw motion followed: a mouse GameController does not
+    /// see. It moves the eye, and from now on (this lock) its events at once.
+    private func flushHeldMotion(at now: CFTimeInterval) {
+        guard let held = heldMotion, now - held.since >= 0.05 else { return }
+        heldMotion = nil
+        eventMotionOnly = true
+        _ = handle(.mouseMoved(dx: held.dx, dy: held.dy))
     }
 
     // MARK: Gamepads (GameController.framework, through GamepadHub)
@@ -346,7 +396,7 @@ final class KeymapController {
 
     // MARK: Editor (Cmd+Shift+K)
 
-    /// Opens the editor, or closes it. Its toolbar's Controller button brings
+    /// Opens the editor, or closes it. Its bar's Controller button brings
     /// the controller panel out (ControllerPanel.swift).
     func toggleEditor(over window: NSWindow?) {
         guard let window, let view else { return }

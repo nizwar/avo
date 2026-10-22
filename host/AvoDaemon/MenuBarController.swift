@@ -1,13 +1,15 @@
 import AppKit
 import AvoDaemonCore
 import AvoKit
+import AvoWindowHost
 import SwiftUI
 
 /// Menu Bar Item (spec: NSStatusItem with VM status, start/stop and a
 /// shortcut to the Control Panel). A click opens a small panel in the
 /// Library's look (MenuBarPanel.swift): Android's state, CPU and memory,
 /// the running and recent apps, Start, Pause, Resume and Stop. A right
-/// click (or Control-click) opens the classic menu, with every app.
+/// click (or Control-click) opens the menu, with every app, in the haze too
+/// (HazeMenu.swift in the Window Host).
 @MainActor
 final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     private let core: DaemonCore
@@ -75,9 +77,11 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
         let event = NSApp.currentEvent
         if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
             popover.performClose(nil)
-            // Shown by the item itself, so it highlights like any menu bar menu.
-            item.menu = menu
-            sender.performClick(nil)
+            // Under the item, which stays lit meanwhile like any menu bar
+            // menu's; the menu takes the keyboard.
+            NSApp.activate()
+            sender.highlight(true)
+            HazeMenuPresenter.shared.popUp(menu, below: sender) { sender.highlight(false) }
             return
         }
         if popover.isShown {
@@ -87,11 +91,6 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
             NSApp.activate()
             popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
         }
-    }
-
-    func menuDidClose(_ menu: NSMenu) {
-        // Back to the panel for the next click.
-        item.menu = nil
     }
 
     func popoverDidShow(_ notification: Notification) {

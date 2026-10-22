@@ -2,7 +2,7 @@
 
 DERIVED ?= build/DerivedData
 
-.PHONY: help test project build strings agent helpers proto icons clean
+.PHONY: help test project build strings agent helpers gfxstream proto icons clean
 
 help:
 	@echo "make test     run the host core tests (swift test)"
@@ -11,6 +11,7 @@ help:
 	@echo "make strings  update the String Catalogs from the last build"
 	@echo "make agent    build the Bridge Agent APK (Android SDK + NDK)"
 	@echo "make helpers  rebuild the guest helpers embedded in the daemon (clipboard, links, macstate, fingerprint, gpuprofile, gfxsync)"
+	@echo "make gfxstream  build the GPU renderer Avo.app ships (gfxstream, Vulkan loader, MoltenVK) into build/gfxstream"
 	@echo "make proto    regenerate protocol bindings"
 	@echo "make icons    regenerate brand assets"
 
@@ -36,6 +37,9 @@ helpers:
 	guest/fingerprint/build.sh
 	guest/gpuprofile/build.sh
 	guest/gfxsync/build.sh
+
+gfxstream:
+	scripts/build-gfxstream.sh
 
 proto:
 	scripts/gen-proto.sh

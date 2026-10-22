@@ -9,9 +9,8 @@ import SwiftUI
 // control for it, or onto a control to bind it; with a control selected,
 // click a part here or press it on the controller. Its other tabs set the
 // sticks' dead zones and sensitivity, vibration, and the game's controller
-// presets. It floats over the game inside the editor, in the Quick
-// Settings' haze look, is moved by its header and made larger (its diagram
-// with it) by its bottom-right corner.
+// presets. It is the Controller tab of the editor's panel beside the game
+// (KeymapEditorPanel), in the Quick Settings' haze look.
 
 private func L(_ key: String.LocalizationValue) -> String { String(localized: key, bundle: .windowHost) }
 
@@ -28,7 +27,6 @@ final class ControllerPanelModel: ObservableObject {
     @Published private(set) var reading = GamepadReading()
     @Published var tab = Tab.buttons
     @Published var stick = GamepadStick.left
-    @Published var collapsed = false
     /// The kind of controller drawn while none is connected.
     @Published var chosenLayout = GamepadHub.shared.layout
     /// What each part drives, by the controls' names (the editor's).
@@ -36,14 +34,6 @@ final class ControllerPanelModel: ObservableObject {
     /// The parts that drive the selected control.
     @Published var selection: Set<GamepadElement> = []
     @Published var settings = GamepadSettings.standard
-    /// The panel's width, set by its corner (remembered per app).
-    @Published var width = ControllerPanelModel.savedWidth
-    /// The widest the editor has room for.
-    @Published var maxWidth = CGFloat.greatestFiniteMagnitude
-    static let minWidth: CGFloat = 344
-    static let widthKey = "AvoControllerPanelWidth"
-    /// 0 (never set) is the narrowest.
-    static var savedWidth: CGFloat { max(CGFloat(UserDefaults.standard.double(forKey: widthKey)), minWidth) }
 
     var layout: GamepadLayout { info?.layout ?? chosenLayout }
 
@@ -57,11 +47,6 @@ final class ControllerPanelModel: ObservableObject {
     var deletePreset: (String) -> Void = { _ in }
     var savePreset: () -> Void = {}
     var reset: () -> Void = {}
-    var close: () -> Void = {}
-    /// The header dragged by a translation (window points, y down); true when let go.
-    var move: (CGSize, Bool) -> Void = { _, _ in }
-    /// The corner dragged (`width` follows); true when let go.
-    var resize: (Bool) -> Void = { _ in }
 
     private var listener: UUID?
     private var observer: (any NSObjectProtocol)?
@@ -121,73 +106,29 @@ final class ControllerPanelModel: ObservableObject {
 // MARK: - The panel
 
 struct ControllerPanelView: View {
-    /// The panel's coordinates: its hosting view's, y down from its top left.
+    /// Where a part dragged from the diagram is: the editor's panel's
+    /// coordinates (KeymapEditorPanel names them so), y down from its top left.
     static let space = "avo.controllerPanel"
     @ObservedObject var model: ControllerPanelModel
-    /// The width when the corner's drag began.
-    @State private var resizeStart: CGFloat?
+    @State private var showsHowTo = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
-            if !model.collapsed {
-                QuickSegmented(label: L("Controller panel"),
-                               options: [(ControllerPanelModel.Tab.buttons, L("Buttons")), (.sticks, L("Sticks")), (.presets, L("Presets"))],
-                               selection: model.tab, fill: true) { tab in
-                    withAnimation(.easeOut(duration: 0.15)) { model.tab = tab }
-                }
-                switch model.tab {
-                case .buttons: ButtonsTab(model: model)
-                case .sticks: SticksTab(model: model)
-                case .presets: PresetsTab(model: model)
-                }
+            QuickSegmented(label: L("Controller panel"),
+                           options: [(ControllerPanelModel.Tab.buttons, L("Buttons")), (.sticks, L("Sticks")), (.presets, L("Presets"))],
+                           selection: model.tab, fill: true) { tab in
+                withAnimation(.easeOut(duration: 0.15)) { model.tab = tab }
+            }
+            switch model.tab {
+            case .buttons: ButtonsTab(model: model)
+            case .sticks: SticksTab(model: model)
+            case .presets: PresetsTab(model: model)
             }
         }
-        .padding(12)
-        .frame(width: min(model.width, max(model.maxWidth, ControllerPanelModel.minWidth)))
-        .background { QuickHaze.background.clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous)) }
-        .overlay { RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(QuickHaze.text.opacity(0.12)) }
-        .overlay(alignment: .bottomTrailing) { if !model.collapsed { resizeCorner } }
-        .environment(\.colorScheme, .dark)
-        .coordinateSpace(name: Self.space)
     }
 
-    /// Drag to make the panel (and its diagram) larger or smaller; it grows from its top left.
-    private var resizeCorner: some View {
-        Canvas { context, size in
-            for step in 0..<3 {
-                let inset = 3 + CGFloat(step) * 4
-                var line = Path()
-                line.move(to: CGPoint(x: size.width - inset, y: size.height - 2))
-                line.addLine(to: CGPoint(x: size.width - 2, y: size.height - inset))
-                context.stroke(line, with: .color(QuickHaze.text.opacity(0.4)), style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
-            }
-        }
-        .frame(width: 14, height: 14)
-        .padding(5)
-        .contentShape(Rectangle())
-        .help(L("Drag to make the panel larger or smaller"))
-        .onHover { inside in
-            if inside { NSCursor.frameResize(position: .bottomRight, directions: .all).push() } else { NSCursor.pop() }
-        }
-        .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
-            .onChanged { value in
-                let start = resizeStart ?? model.width
-                if resizeStart == nil {
-                    resizeStart = start
-                    model.resize(false)
-                }
-                let widest = max(model.maxWidth, ControllerPanelModel.minWidth)
-                model.width = min(max(start + value.translation.width, ControllerPanelModel.minWidth), widest).rounded()
-            }
-            .onEnded { _ in
-                resizeStart = nil
-                model.resize(true)
-            })
-        .accessibilityHidden(true)
-    }
-
-    private var header: some View {
+    @ViewBuilder private var header: some View {
         HStack(spacing: 10) {
             Image(systemName: model.layout.logoSymbol)
                 .font(.system(size: 17, weight: .semibold))
@@ -203,18 +144,15 @@ struct ControllerPanelView: View {
                     .foregroundStyle(QuickHaze.textTertiary)
                     .lineLimit(1)
             }
-            Spacer(minLength: 6)
-            PanelIconButton(symbol: model.collapsed ? "chevron.down" : "chevron.up",
-                            label: model.collapsed ? L("Show the Controller Panel’s Settings") : L("Fold the Controller Panel")) {
-                withAnimation(.easeOut(duration: 0.15)) { model.collapsed.toggle() }
-            }
-            PanelIconButton(symbol: "xmark", label: L("Hide the Controller Panel")) { model.close() }
+            Spacer(minLength: 0)
+            QuickHelpButton(help: Self.howTo, shown: $showsHowTo)
         }
-        .contentShape(Rectangle())
-        .help(L("Drag to move the panel"))
-        .gesture(DragGesture(minimumDistance: 2, coordinateSpace: .global)
-            .onChanged { model.move($0.translation, false) }
-            .onEnded { model.move($0.translation, true) })
+        if showsHowTo { QuickCaption(Self.howTo) }
+    }
+
+    /// How the diagram maps the controller, behind the header's (?).
+    private static var howTo: String {
+        L("Click a button or stick to place its control, or drag it to where it goes on the game (onto a control to bind it). With a control selected, press a button on the controller or click it here to bind it.")
     }
 
     private var status: String {
@@ -239,7 +177,6 @@ private struct ButtonsTab: View {
                                selection: model.chosenLayout, fill: true) { model.chosenLayout = $0 }
             }
             ControllerDiagram(model: model)
-            QuickCaption(L("Click a button or stick to place its control, or drag it to where it goes on the game (onto a control to bind it). With a control selected, press a button on the controller or click it here to bind it."))
         }
     }
 }
@@ -260,13 +197,15 @@ private struct SticksTab: View {
                              pressed: model.reading.pressed.contains(GamepadElement.pressButton(of: model.stick)))
                     .frame(width: 78, height: 78)
                 VStack(alignment: .leading, spacing: 8) {
-                    QuickSliderRow(label: L("Dead zone"), value: deadzone) {
+                    QuickSliderRow(label: L("Dead zone"), value: deadzone,
+                                   help: L("Small movements around the middle are ignored, so a worn stick’s drift stays out of the game.")) {
                         QuickSlider(label: L("Dead zone"), value: Binding(get: { stick.deadzone }, set: { value in
                             model.setStick { $0.deadzone = value }
                         }), range: StickSettings.deadzoneRange, step: 0.01, valueText: deadzone)
                     }
                     // Doubling and halving are the same step: 1× in the middle.
-                    QuickSliderRow(label: L("Sensitivity"), value: sensitivity) {
+                    QuickSliderRow(label: L("Sensitivity"), value: sensitivity,
+                                   help: L("Above 1×, a smaller push reaches the joystick’s edge, and the eye turns faster.")) {
                         QuickSlider(label: L("Sensitivity"), value: Binding(get: { log2(stick.sensitivity) }, set: { value in
                             model.setStick { $0.sensitivity = min(max((pow(2, value) * 20).rounded() / 20, 0.25), 4) }
                         }), range: log2(StickSettings.sensitivityRange.lowerBound)...log2(StickSettings.sensitivityRange.upperBound),
@@ -276,7 +215,7 @@ private struct SticksTab: View {
             }
             QuickCaption(drives)
             HStack {
-                PanelButton(title: L("Standard Stick Settings"), symbol: "arrow.counterclockwise", style: .secondary) {
+                PanelButton(title: L("Reset This Stick"), symbol: "arrow.counterclockwise", style: .secondary) {
                     model.setStick { $0 = .standard }
                 }
                 .disabled(stick == .standard)
@@ -302,7 +241,7 @@ private struct SticksTab: View {
         guard !names.isEmpty else {
             return L("Drives nothing yet: drag it onto a joystick or the eye, or onto the game.")
         }
-        return L("Drives \(names.joined(separator: ", ")). The dead zone keeps a worn stick’s drift out of the game; above 1× the joystick reaches its edge, and the eye turns, with less of a lean.")
+        return L("Drives \(names.joined(separator: ", ")).")
     }
 }
 
@@ -313,21 +252,19 @@ private struct PresetsTab: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 6) {
-                QuickText(L("Ready-made for this game’s controls"))
+                QuickLabel(L("Ready-made for this game’s controls"),
+                           help: L("Puts each control on the button games of that kind use, going by its name and key."))
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
                     ForEach(KeymapTemplate.allCases, id: \.self) { template in
                         PanelButton(title: ControllerPanelView.title(of: template), symbol: ControllerPanelView.symbol(of: template),
                                     style: .secondary, fill: true) { model.applyTemplate(template) }
                     }
                 }
-                QuickCaption(L("Puts each control on the button games of that kind use, going by its name and key."))
             }
             Divider().overlay(QuickHaze.text.opacity(0.08))
             VStack(alignment: .leading, spacing: 6) {
-                QuickText(L("Saved for this game"))
-                if model.settings.presets.isEmpty {
-                    QuickCaption(L("Save the controller layout as it is, to come back to it or to switch between layouts."))
-                }
+                QuickLabel(L("Saved for this game"),
+                           help: L("Save the controller layout as it is, to come back to it or to switch between layouts."))
                 ForEach(model.settings.presets) { preset in
                     HStack(spacing: 8) {
                         Image(systemName: "gamecontroller").font(.system(size: 12)).foregroundStyle(QuickHaze.textTertiary)
@@ -623,7 +560,7 @@ private struct StickPreview: View {
 
 // MARK: - Buttons
 
-private struct PanelButton: View {
+struct PanelButton: View {
     enum Style { case primary, secondary, destructive }
     let title: String
     let symbol: String
@@ -666,7 +603,7 @@ private struct PanelButton: View {
     }
 }
 
-private struct PanelIconButton: View {
+struct PanelIconButton: View {
     let symbol: String
     let label: String
     let action: () -> Void

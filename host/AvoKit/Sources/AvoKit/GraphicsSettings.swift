@@ -40,6 +40,28 @@ public struct GraphicsSettings: Codable, Equatable, Hashable, Sendable {
         case nearest
     }
 
+    /// Smoothing jagged edges: in the Window Host's renderer, or by Android
+    /// rendering more pixels than the window shows.
+    public enum AntiAliasing: String, Codable, CaseIterable, Sendable {
+        case off
+        /// Fast approximate anti-aliasing on Android's frame, before it is scaled.
+        case fxaa
+        /// Supersampling: Android renders 2 or 4 times the pixels (√2 or 2
+        /// times each side, the density too, so the layout stays), and the
+        /// renderer shrinks the frame to the window.
+        case ssaa2x
+        case ssaa4x
+
+        /// How many times each side Android renders.
+        public var supersampling: Double {
+            switch self {
+            case .off, .fxaa: 1
+            case .ssaa2x: 2.squareRoot()
+            case .ssaa4x: 2
+            }
+        }
+    }
+
     /// The shape of Android's screen: of the window in follow mode, of the
     /// fixed resolution in fixed mode.
     public enum AspectRatio: String, Codable, CaseIterable, Sendable {
@@ -90,9 +112,11 @@ public struct GraphicsSettings: Codable, Equatable, Hashable, Sendable {
     public var filter: Filter
     /// Adaptive sharpening after scaling, 0...100; 0 is off.
     public var sharpness: Int
+    public var antiAliasing: AntiAliasing
 
     public init(mode: Mode, renderScale: Int, shortSide: Int, aspectRatio: AspectRatio, followAspectRatio: AspectRatio = .matchWindow,
-                orientation: VMConfig.Orientation = .portrait, interfaceScale: Int, filter: Filter, sharpness: Int) {
+                orientation: VMConfig.Orientation = .portrait, interfaceScale: Int, filter: Filter, sharpness: Int,
+                antiAliasing: AntiAliasing = .off) {
         self.mode = mode
         self.renderScale = renderScale
         self.shortSide = shortSide
@@ -102,6 +126,7 @@ public struct GraphicsSettings: Codable, Equatable, Hashable, Sendable {
         self.interfaceScale = interfaceScale
         self.filter = filter
         self.sharpness = sharpness
+        self.antiAliasing = antiAliasing
     }
 
     /// Apps: sharp text at the window's own resolution, in portrait.
@@ -225,6 +250,7 @@ public struct GraphicsSettingsPatch: Codable, Equatable, Hashable, Sendable {
     public var interfaceScale: Int?
     public var filter: GraphicsSettings.Filter?
     public var sharpness: Int?
+    public var antiAliasing: GraphicsSettings.AntiAliasing?
 
     public init() {}
 
@@ -232,7 +258,8 @@ public struct GraphicsSettingsPatch: Codable, Equatable, Hashable, Sendable {
 
     /// How many fields the patch changes.
     public var count: Int {
-        let fields: [Any?] = [mode, renderScale, shortSide, aspectRatio, followAspectRatio, orientation, interfaceScale, filter, sharpness]
+        let fields: [Any?] = [mode, renderScale, shortSide, aspectRatio, followAspectRatio, orientation, interfaceScale, filter, sharpness,
+                              antiAliasing]
         return fields.count(where: { $0 != nil })
     }
 
@@ -247,6 +274,7 @@ public struct GraphicsSettingsPatch: Codable, Equatable, Hashable, Sendable {
         if let interfaceScale { settings.interfaceScale = interfaceScale }
         if let filter { settings.filter = filter }
         if let sharpness { settings.sharpness = sharpness }
+        if let antiAliasing { settings.antiAliasing = antiAliasing }
         return settings
     }
 
@@ -262,6 +290,7 @@ public struct GraphicsSettingsPatch: Codable, Equatable, Hashable, Sendable {
         if settings.interfaceScale != base.interfaceScale { patch.interfaceScale = settings.interfaceScale }
         if settings.filter != base.filter { patch.filter = settings.filter }
         if settings.sharpness != base.sharpness { patch.sharpness = settings.sharpness }
+        if settings.antiAliasing != base.antiAliasing { patch.antiAliasing = settings.antiAliasing }
         return patch
     }
 
@@ -273,7 +302,7 @@ public struct GraphicsSettingsPatch: Codable, Equatable, Hashable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case mode, renderScale, shortSide, aspectRatio, followAspectRatio, orientation, interfaceScale, filter, sharpness
+        case mode, renderScale, shortSide, aspectRatio, followAspectRatio, orientation, interfaceScale, filter, sharpness, antiAliasing
     }
 
     /// Read, never written: before the phone's screen, files said whether
@@ -299,6 +328,7 @@ public struct GraphicsSettingsPatch: Codable, Equatable, Hashable, Sendable {
         interfaceScale = field(.interfaceScale)
         filter = (field(.filter) as String?).flatMap(GraphicsSettings.Filter.init(rawValue:))
         sharpness = field(.sharpness)
+        antiAliasing = (field(.antiAliasing) as String?).flatMap(GraphicsSettings.AntiAliasing.init(rawValue:))
     }
 }
 

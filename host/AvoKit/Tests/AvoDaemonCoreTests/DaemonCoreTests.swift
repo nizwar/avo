@@ -44,7 +44,10 @@ final class RecordingNotifications: NotificationPresenter, @unchecked Sendable {
 
     func start(onOpen: @escaping @Sendable (String, String) -> Void) {}
     func post(_ notification: Avo_V1_Notification, appName: String, icon: Data?) {
-        lock.withLock { _posted.append((appName, notification.title)) }
+        lock.withLock {
+            _posted.append((appName, notification.title))
+            _posts.append(notification)
+        }
     }
     private var _removed: [String] = []
     private var onDismiss: (@Sendable (String) -> Void)?
@@ -54,6 +57,34 @@ final class RecordingNotifications: NotificationPresenter, @unchecked Sendable {
     func observeDismissals(_ onDismiss: @escaping @Sendable (String) -> Void) { lock.withLock { self.onDismiss = onDismiss } }
     /// The user closes one in Notification Center.
     func closeInNotificationCenter(_ key: String) { lock.withLock { onDismiss }?(key) }
+    private var onAction: (@Sendable (String, UInt32, String?) -> Void)?
+    private var _posts: [Avo_V1_Notification] = []
+    /// Everything posted, as Android sent it.
+    var posts: [Avo_V1_Notification] { lock.withLock { _posts } }
+    func observeActions(_ onAction: @escaping @Sendable (String, UInt32, String?) -> Void) {
+        lock.withLock { self.onAction = onAction }
+    }
+    /// The user presses one's button in Notification Center (Reply with `reply` typed).
+    func press(_ key: String, button index: UInt32, reply: String? = nil) { lock.withLock { onAction }?(key, index, reply) }
+}
+
+final class RecordingNowPlaying: NowPlayingPresenter, @unchecked Sendable {
+    private let lock = NSLock()
+    private var onCommand: (@Sendable (Avo_V1_MediaCommand) -> Void)?
+    private var _shown: [(playing: Avo_V1_NowPlaying?, appName: String, artwork: Data?)] = []
+    /// Each `show`, in order.
+    var shown: [(playing: Avo_V1_NowPlaying?, appName: String, artwork: Data?)] { lock.withLock { _shown } }
+
+    func start(onCommand: @escaping @Sendable (Avo_V1_MediaCommand) -> Void) { lock.withLock { self.onCommand = onCommand } }
+    func show(_ playing: Avo_V1_NowPlaying?, appName: String, artwork: Data?) {
+        lock.withLock { _shown.append((playing, appName, artwork)) }
+    }
+    /// A media key or Control Center.
+    func command(_ command: Avo_V1_MediaCommand.Command) {
+        var media = Avo_V1_MediaCommand()
+        media.command = command
+        lock.withLock { onCommand }?(media)
+    }
 }
 
 func eventually(timeout: Duration = .seconds(5), _ condition: () async -> Bool) async -> Bool {
@@ -73,6 +104,7 @@ struct Harness {
     let agent: FakeBridgeAgent
     let core: DaemonCore
     let notifications = RecordingNotifications()
+    let nowPlaying = RecordingNowPlaying()
     let adbKey: ADBKey
     let desktopAliases: Bool
 
@@ -114,7 +146,7 @@ struct Harness {
         let host = HostInfo(physicalMemoryBytes: 32 << 30, performanceCores: 8, efficiencyCores: 4, isAppleSilicon: true, macOSVersion: "27.0")
         core = DaemonCore(.init(paths: paths, engine: wrap(engine), adbKey: adbKey, profiles: profiles, host: host,
                                 shortcuts: ShortcutManager(builder: builder, paths: paths), notifications: notifications,
-                                softwareVersion: "avo-host test", bootTimeout: .seconds(5), screenText: screenText,
+                                nowPlaying: nowPlaying, softwareVersion: "avo-host test", bootTimeout: .seconds(5), screenText: screenText,
                                 loadImage: { image }))
     }
 

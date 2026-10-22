@@ -328,13 +328,13 @@ membaca hardware:
 - Mock sidik jari: jari yang didaftarkan dengan nama di Control Panel
   (Pengaturan › Sidik Jari) di-enroll Avo sendiri ke stack sidik jari Android
   (sensor virtual AOSP di image userdebug), jadi aplikasi (BiometricPrompt) dan
-  layar kunci melihat sidik jari terdaftar. Tombol sidik jari di title bar
-  jendela aplikasi membuka menu berisi jari-jari itu: memilih satu jari
+  layar kunci melihat sidik jari terdaftar. Menu Device › Fingerprint di
+  title bar jendela aplikasi berisi jari-jari itu: memilih satu jari
   menyentuh sensor dengan jari tersebut; "Jari Tak Terdaftar" menyentuh dengan
   jari yang tidak dikenali; "Kelola Sidik Jari…" membuka Control Panel. Prompt
   sidik jari aplikasi tampil di layar Android sendiri (tidak terlihat di
-  jendela), jadi tombolnya menyala saat aplikasi itu atau layar kunci meminta
-  sidik jari. Android hanya menerima sidik jari jika ada kunci layar (PIN, pola,
+  jendela), jadi selama aplikasi itu atau layar kunci meminta sidik jari, menu
+  yang sama muncul juga sebagai tombol biru sendiri di title bar. Android hanya menerima sidik jari jika ada kunci layar (PIN, pola,
   atau sandi); menghapus kunci layar, atau Reset Android, menghapus semua
   sidik jari. Lima jari salah mengunci sidik jari 30 detik, dua puluh
   berturut-turut sampai kunci layar dimasukkan. Batasan: sensor virtual tidak

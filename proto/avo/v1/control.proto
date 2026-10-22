@@ -63,6 +63,8 @@ message Envelope {
     DismissNotification dismiss_notification = 34;
     SetRefreshRate set_refresh_rate = 35;
     FocusDisplay focus_display = 36;
+    PerformNotificationAction perform_notification_action = 37;
+    MediaCommand media_command = 38;
 
     // Guest -> host.
     AppInstalled app_installed = 50;
@@ -77,6 +79,7 @@ message Envelope {
     PermissionList permission_list = 59;
     DisplayContentChanged display_content_changed = 60;
     TaskStarted task_started = 61;
+    NowPlaying now_playing = 62;
   }
 }
 
@@ -350,6 +353,26 @@ message Notification {
   string group = 7;
   bool ongoing = 8;
   bool silent = 9;
+  // Its buttons (Notification.actions), in Android's order.
+  repeated NotificationAction actions = 10;
+}
+
+message NotificationAction {
+  // Its place in Notification.actions, which PerformNotificationAction names.
+  uint32 index = 1;
+  string title = 2;
+  // It takes typed text (a free-form RemoteInput: Reply).
+  bool reply = 3;
+  // What its text field shows while empty (the RemoteInput's label).
+  string reply_hint = 4;
+}
+
+// A notification's button pressed on the Mac: Android fires it as a tap in
+// its shade does, with `reply_text` as the answer of a Reply button.
+message PerformNotificationAction {
+  string key = 1;
+  uint32 index = 2;
+  string reply_text = 3;
 }
 
 message NotificationRemoved {
@@ -364,6 +387,55 @@ message OpenNotification {
 
 message DismissNotification {
   string key = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Now Playing
+
+// What Android plays (its media session the Mac shows), sent as it changes.
+// An empty `package`: nothing plays.
+message NowPlaying {
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_PLAYING = 1;
+    STATE_PAUSED = 2;
+    STATE_BUFFERING = 3;
+    STATE_STOPPED = 4;
+  }
+  string package = 1;
+  string title = 2;
+  string artist = 3;
+  string album = 4;
+  int64 duration_ms = 5;
+  // Where it is as this is sent; it moves on at `speed` while playing.
+  int64 position_ms = 6;
+  float speed = 7;
+  State state = 8;
+  // What the app lets the Mac do.
+  bool can_next = 9;
+  bool can_previous = 10;
+  bool can_seek = 11;
+  // Set when the artwork changed (empty: it has none now); otherwise the
+  // last artwork sent still holds.
+  bool artwork_changed = 12;
+  bytes artwork_jpeg = 13;
+}
+
+// A media key or Control Center's controls, for what NowPlaying shows.
+message MediaCommand {
+  enum Command {
+    COMMAND_UNSPECIFIED = 0;
+    COMMAND_PLAY = 1;
+    COMMAND_PAUSE = 2;
+    COMMAND_TOGGLE = 3;
+    COMMAND_NEXT = 4;
+    COMMAND_PREVIOUS = 5;
+    COMMAND_STOP = 6;
+    COMMAND_SEEK = 7;
+  }
+  Command command = 1;
+  // COMMAND_SEEK: where to.
+  int64 position_ms = 2;
 }
 
 message SetClipboard {

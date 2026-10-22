@@ -6,7 +6,7 @@ import SwiftUI
 
 // Quick Settings: the title bar's slider button opens, under itself, the
 // settings of this window whose effect shows at once, in the Library's haze
-// look: this app's graphics (as on its page in the Control Panel) with
+// look: Android's volume, this app's graphics (as on its page in the Control Panel) with
 // Android's frame rate cap, the performance HUD, the key mapping, scrolling
 // and Translate Screen. What needs Android to restart or applies elsewhere
 // (CPU, memory, renderer, device identity, Android version) stays in the
@@ -70,6 +70,10 @@ protocol QuickSettingsTarget: AnyObject {
     func quickSettingsSetHUDLevel(_ level: PerformanceHUDLevel)
     func quickSettingsSetGameMode(_ on: Bool)
     func quickSettingsSetTranslating(_ on: Bool)
+    /// Android's media volume, every app's; nil while Android is not running.
+    func quickSettingsAndroidVolume() async -> AndroidVolume?
+    /// Sets it; the volume Android has afterwards.
+    func quickSettingsSetAndroidVolume(_ level: Int) async -> AndroidVolume?
 }
 
 @MainActor
@@ -83,13 +87,48 @@ final class QuickSettingsModel: ObservableObject {
     @Published private(set) var systemLanguage = ""
     /// The overlay never grows taller than its screen.
     @Published var maxHeight: CGFloat = 640
+    /// Android's media volume while the overlay shows; nil while Android is not running.
+    @Published private(set) var volume: AndroidVolume?
     weak var target: (any QuickSettingsTarget)?
+    /// The level the slider asked for while a change was on its way: the latest wins.
+    private var volumeWanted: Int?
+    private var volumeSending = false
 
     func refresh() {
         guard let new = target?.quickSettingsState, new != state else { return }
         let targetChanged = new.translationTarget != state.translationTarget
         state = new
         if targetChanged { chosenLanguage = TranslationLanguages.chosenMenuIdentifier }
+    }
+
+    /// Asks Android its volume as the overlay opens.
+    func loadVolume() {
+        Task { [weak self] in
+            guard let volume = await self?.target?.quickSettingsAndroidVolume() else { return }
+            // Not over a level the slider is sending.
+            if self?.volumeWanted == nil, self?.volumeSending == false { self?.volume = volume }
+        }
+    }
+
+    /// The slider moved: Android follows, one change at a time, the latest
+    /// level last.
+    func setVolume(_ level: Int) {
+        guard var shown = volume, shown.level != level else { return }
+        shown.level = level
+        volume = shown
+        volumeWanted = level
+        guard !volumeSending else { return }
+        volumeSending = true
+        Task { [weak self] in await self?.sendVolume() }
+    }
+
+    private func sendVolume() async {
+        while let level = volumeWanted {
+            volumeWanted = nil
+            let result = await target?.quickSettingsSetAndroidVolume(level)
+            if volumeWanted == nil, let result { volume = result }
+        }
+        volumeSending = false
     }
 
     /// The languages known now, then every one once macOS has said.
@@ -185,6 +224,7 @@ final class QuickSettingsOverlay: NSObject, NSPopoverDelegate {
         guard let window = button.window else { return }
         model.refresh()
         model.loadLanguages()
+        model.loadVolume()
         if let screen = window.screen { model.maxHeight = max(320, screen.visibleFrame.height - 140) }
         let popover = NSPopover()
         popover.behavior = .transient
@@ -202,6 +242,14 @@ final class QuickSettingsOverlay: NSObject, NSPopoverDelegate {
         for name in [KeymapHints.changed, ScreenTranslationSettings.changed] {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.model.refresh() }
+            })
+        }
+        // A choice's menu (QuickMenu) takes the keyboard while it shows: the
+        // overlay stays open meanwhile, and has the keyboard again after.
+        for (name, behavior) in [(HazeMenuPresenter.willShowNotification, NSPopover.Behavior.applicationDefined),
+                                 (HazeMenuPresenter.didCloseNotification, .transient)] {
+            observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
+                MainActor.assumeIsolated { self?.popover?.behavior = behavior }
             })
         }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -256,6 +304,7 @@ struct QuickSettingsView: View {
                 }
                 .padding(.horizontal, 4)
                 .padding(.bottom, 2)
+                if let volume = model.volume { soundCard(volume) }
                 QuickGraphicsCard(model: model)
                 QuickCard(title: L("Performance HUD"), scope: L("This window")) {
                     QuickSegmented(label: L("Performance HUD"),
@@ -285,19 +334,33 @@ struct QuickSettingsView: View {
         .environment(\.colorScheme, .dark)
     }
 
+    /// Android's media volume, under the Mac's volume.
+    private func soundCard(_ volume: AndroidVolume) -> some View {
+        let percent = Text(Double(volume.level) / Double(max(volume.maximum, 1)), format: .percent.precision(.fractionLength(0)))
+        return QuickCard(title: L("Sound"), scope: L("Every app")) {
+            QuickSliderRow(label: L("Volume"), value: percent,
+                           help: L("Android plays under your Mac’s volume: at 100%, the Mac’s volume alone sets how loud it is.")) {
+                QuickSlider(label: L("Volume"), value: Binding(get: { Double(volume.level) }, set: { model.setVolume(Int($0.rounded())) }),
+                            range: 0...Double(volume.maximum), step: 1, valueText: percent)
+            }
+        }
+    }
+
     private func keyMappingCard(_ keys: QuickSettingsState.KeyMapping) -> some View {
         let percent = Text(keys.hintsOpacity, format: .percent.precision(.fractionLength(0)))
         return QuickCard(title: L("Key mapping"), scope: L("This app")) {
             QuickToggle(label: L("Game Mode"), shortcut: "⌘G", caption: L("Keys and clicks become touches"), isOn: keys.gameMode) { on in
                 model.change { $0.quickSettingsSetGameMode(on) }
             }
-            QuickToggle(label: L("Show key hints"), isOn: keys.hintsVisible) { model.setHintsVisible($0) }
-            QuickSliderRow(label: L("Hint visibility"), value: percent) {
-                QuickSlider(label: L("Hint visibility"), value: Binding(get: { keys.hintsOpacity }, set: { model.setHintsOpacity($0) }),
-                            range: KeymapHints.opacityRange, step: 0.05, valueText: percent)
+            VStack(alignment: .leading, spacing: 9) {
+                QuickToggle(label: L("Show keys on the game"), isOn: keys.hintsVisible) { model.setHintsVisible($0) }
+                QuickSliderRow(label: L("Key visibility"), value: percent) {
+                    QuickSlider(label: L("Key visibility"), value: Binding(get: { keys.hintsOpacity }, set: { model.setHintsOpacity($0) }),
+                                range: KeymapHints.opacityRange, step: 0.05, valueText: percent)
+                }
+                .disabled(!keys.hintsVisible)
+                .opacity(keys.hintsVisible ? 1 : 0.5)
             }
-            .disabled(!keys.hintsVisible)
-            .opacity(keys.hintsVisible ? 1 : 0.5)
         }
     }
 
@@ -320,7 +383,7 @@ struct QuickSettingsView: View {
             }
             .disabled(!state.canTranslate && !state.translating)
             .opacity(state.canTranslate || state.translating ? 1 : 0.5)
-            QuickRow(label: L("Translate into"), caption: L("Every app")) {
+            QuickRow(label: L("Translate into"), caption: L("Every app"), inline: true) {
                 QuickMenu(label: L("Translate into"), title: targetTitle, options: targetOptions,
                           selection: model.chosenLanguage) { model.setTranslationTarget($0) }
             }
@@ -338,29 +401,33 @@ private struct QuickGraphicsCard: View {
         let state = model.state
         let settings = state.graphics.settings
         QuickCard(title: L("Graphics"), scope: L("This app")) {
-            QuickRow(label: L("Profile")) {
-                QuickSegmented(label: L("Profile"), options: [(GraphicsProfile.apps, L("Apps")), (.games, L("Games"))],
+            QuickRow(label: L("Preset"), help: L("Apps: Android takes the window’s size, sharp for reading. Games: a fixed 720p landscape screen that runs faster. What you change below is kept on top.")) {
+                QuickSegmented(label: L("Preset"), options: [(GraphicsProfile.apps, L("Apps")), (.games, L("Games"))],
                                selection: state.graphics.profile, fill: true) { choice in
                     model.change { $0.quickSettingsChooseProfile(choice) }
                 }
-                .frame(width: 150)
             }
             screenRows(settings, state: state)
-            QuickToggle(label: L("MetalFX upscaling"), isOn: settings.filter == .metalFXSpatial) { on in
-                model.changeGraphics { $0.filter = on ? .metalFXSpatial : .bilinear }
-            }
-            sharpness(settings)
-            VStack(alignment: .leading, spacing: 4) {
-                QuickRow(label: L("Frame rate cap"), caption: L("Every app")) {
-                    // 90 and 120 always, and a screen's own rate (75 Hz); 30 saves power.
-                    QuickSegmented(label: L("Frame rate cap"),
-                                   options: state.fpsChoices.map { ($0, "\($0)") },
-                                   selection: state.fpsLimit) { fps in
-                        model.change { $0.quickSettingsSetFrameRateLimit(fps) }
-                    }
-                    .fixedSize()
+            VStack(alignment: .leading, spacing: 9) {
+                QuickToggle(label: L("Sharp upscaling"), caption: L("Apple’s MetalFX keeps edges and text sharp when the picture is enlarged."),
+                            isOn: settings.filter == .metalFXSpatial) { on in
+                    model.changeGraphics { $0.filter = on ? .metalFXSpatial : .bilinear }
                 }
-                if let note = state.fpsNote { QuickCaption(note) }
+                sharpness(settings)
+            }
+            QuickRow(label: L("Smooth edges"), help: L("Fast smooths jagged edges in Avo (FXAA) and costs almost nothing. High and Ultra have Android draw 2 or 4 times the pixels and shrink them: the smoothest, but much more work for the GPU.")) {
+                QuickSegmented(label: L("Smooth edges"), options: GraphicsSettings.AntiAliasing.allCases.map { ($0, GraphicsMenu.shortTitle($0)) },
+                               selection: settings.antiAliasing, fill: true) { value in
+                    model.changeGraphics { $0.antiAliasing = value }
+                }
+            }
+            QuickRow(label: L("Max FPS"), caption: L("Every app"), help: state.fpsNote) {
+                // 90 and 120 always, and a screen's own rate (75 Hz); 30 saves power.
+                QuickSegmented(label: L("Max FPS"),
+                               options: state.fpsChoices.map { ($0, "\($0)") },
+                               selection: state.fpsLimit, fill: true) { fps in
+                    model.change { $0.quickSettingsSetFrameRateLimit(fps) }
+                }
             }
             if state.hasOwnGraphics {
                 Button {
@@ -375,13 +442,32 @@ private struct QuickGraphicsCard: View {
         }
     }
 
-    /// How Android's screen is sized, that mode's own row, its shape and its orientation.
+    /// How Android's screen is sized, with that mode's own row and its shape;
+    /// then its orientation.
     @ViewBuilder private func screenRows(_ settings: GraphicsSettings, state: QuickSettingsState) -> some View {
         let phone = state.phone
         let mode = settings.effectiveMode(device: phone?.display)
+        VStack(alignment: .leading, spacing: 9) {
+            screenSize(settings, mode: mode, phone: phone)
+            switch mode {
+            case .followWindow: renderScaleRow(settings, lowest: state.lowestRenderScale)
+            case .fixed: resolutionRow(settings)
+            case .deviceProfile: EmptyView()
+            }
+            aspectRatioRow(settings, mode: mode, phone: phone)
+        }
+        QuickRow(label: L("Orientation")) {
+            QuickSegmented(label: L("Orientation"), options: [(VMConfig.Orientation.portrait, L("Portrait")), (.landscape, L("Landscape"))],
+                           selection: settings.orientation, fill: true) { orientation in
+                model.changeGraphics { $0.orientation = orientation }
+            }
+        }
+    }
+
+    private func screenSize(_ settings: GraphicsSettings, mode: GraphicsSettings.Mode, phone: QuickSettingsState.Phone?) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            QuickRow(label: L("Screen")) {
-                QuickSegmented(label: L("Screen"),
+            QuickRow(label: L("Screen size"), help: L("How big Android’s screen is: the window’s size, one fixed resolution, or the size of the phone chosen in Avo’s Settings.")) {
+                QuickSegmented(label: L("Screen size"),
                                options: [(GraphicsSettings.Mode.followWindow, L("Window")), (.fixed, L("Fixed")), (.deviceProfile, L("Phone"))],
                                selection: mode, fill: true, help: { choice in
                     switch choice {
@@ -393,7 +479,6 @@ private struct QuickGraphicsCard: View {
                 }, enabled: { $0 != .deviceProfile || phone != nil }) { choice in
                     model.changeGraphics { $0.mode = choice }
                 }
-                .frame(width: 190)
             }
             if let phone, mode == .deviceProfile {
                 let display = phone.display
@@ -402,19 +487,6 @@ private struct QuickGraphicsCard: View {
                 QuickCaption(L("No phone is chosen in Avo’s Settings › Privacy & Security, so Android follows the window."))
             }
         }
-        switch mode {
-        case .followWindow: renderScaleRow(settings, lowest: state.lowestRenderScale)
-        case .fixed: resolutionRow(settings)
-        case .deviceProfile: EmptyView()
-        }
-        aspectRatioRow(settings, mode: mode, phone: phone)
-        QuickRow(label: L("Orientation")) {
-            QuickSegmented(label: L("Orientation"), options: [(VMConfig.Orientation.portrait, L("Portrait")), (.landscape, L("Landscape"))],
-                           selection: settings.orientation, fill: true) { orientation in
-                model.changeGraphics { $0.orientation = orientation }
-            }
-            .frame(width: 190)
-        }
     }
 
     private func resolutionRow(_ settings: GraphicsSettings) -> some View {
@@ -422,7 +494,7 @@ private struct QuickGraphicsCard: View {
         // A custom resolution (the View menu's Custom…, the Control Panel) is listed too.
         let values = presets.contains(settings.shortSide) ? presets : (presets + [settings.shortSide]).sorted()
         let options = values.map { QuickMenuOption(value: $0, title: GraphicsSettings.resolutionName($0)) }
-        return QuickRow(label: L("Resolution")) {
+        return QuickRow(label: L("Resolution"), inline: true) {
             QuickMenu(label: L("Resolution"), title: GraphicsSettings.resolutionName(settings.shortSide), options: options,
                       selection: settings.shortSide) { pixels in
                 model.changeGraphics {
@@ -437,13 +509,13 @@ private struct QuickGraphicsCard: View {
     @ViewBuilder private func aspectRatioRow(_ settings: GraphicsSettings, mode: GraphicsSettings.Mode,
                                              phone: QuickSettingsState.Phone?) -> some View {
         if mode == .deviceProfile, let phone {
-            QuickRow(label: L("Aspect ratio")) {
+            QuickRow(label: L("Aspect ratio"), inline: true) {
                 QuickValue(Text(verbatim: phone.display.ratioName))
             }
         } else {
             let current = settings.aspectRatio(for: mode)
             let title = { (ratio: GraphicsSettings.AspectRatio) in ratio == .matchWindow ? L("Match window") : ratio.rawValue }
-            QuickRow(label: L("Aspect ratio")) {
+            QuickRow(label: L("Aspect ratio"), inline: true) {
                 QuickMenu(label: L("Aspect ratio"), title: title(current),
                           options: GraphicsSettings.AspectRatio.allCases.map { QuickMenuOption(value: $0, title: title($0)) },
                           selection: current) { ratio in
@@ -461,7 +533,7 @@ private struct QuickGraphicsCard: View {
                                             : QuickMenuOption(value: preset.rawValue, title: title)
         }
         let title = GraphicsSettings.RenderScalePreset(rawValue: settings.renderScale).map(GraphicsMenu.title) ?? "\(settings.renderScale)%"
-        return QuickRow(label: L("Render scale")) {
+        return QuickRow(label: L("Render scale"), inline: true) {
             QuickMenu(label: L("Render scale"), title: title, options: options, selection: settings.renderScale) { percent in
                 model.changeGraphics {
                     $0.mode = .followWindow
@@ -510,12 +582,19 @@ private struct QuickGraphicsCard: View {
 // MARK: - The haze look, in small
 
 /// The Control Panel's haze (HazeTheme.swift in Avo.app), the few colours,
-/// type and controls the overlay uses (and the Location panel, LocationPanel.swift).
+/// type and controls the overlay uses (and the Location panel, LocationPanel.swift,
+/// and the widget panels, WidgetPanels.swift, through the AppKit ones).
 @MainActor
 enum QuickHaze {
     static func rgb(_ value: UInt32, _ alpha: Double = 1) -> Color {
         Color(.sRGB, red: Double((value >> 16) & 0xFF) / 255, green: Double((value >> 8) & 0xFF) / 255,
               blue: Double(value & 0xFF) / 255, opacity: alpha)
+    }
+
+    /// The same colours for AppKit views.
+    nonisolated static func nsRGB(_ value: UInt32, _ alpha: CGFloat = 1) -> NSColor {
+        NSColor(srgbRed: CGFloat((value >> 16) & 0xFF) / 255, green: CGFloat((value >> 8) & 0xFF) / 255,
+                blue: CGFloat(value & 0xFF) / 255, alpha: alpha)
     }
 
     static let base = rgb(0x0A1108)
@@ -529,6 +608,10 @@ enum QuickHaze {
     static let onAccent = rgb(0x15210E)
     static let accentText = rgb(0xEEF5D6)
     static let segmentSelection = rgb(0xD8E8A7, 0.2)
+    /// A menu's lit item (HazeMenu.swift), and a destructive one's.
+    static let selection = rgb(0xD8E8A7, 0.14)
+    static let danger = rgb(0xF3B8A2)
+    static let dangerFill = rgb(0xF39A7C, 0.14)
 
     /// Near black with a breath of Avo green top right and bottom left.
     static var background: some View {
@@ -554,19 +637,26 @@ enum QuickHaze {
     static func hubot(_ size: CGFloat, _ weight: CGFloat = 700) -> Font { font(.hubot, size, weight) }
     static func mona(_ size: CGFloat, _ weight: CGFloat = 400) -> Font { font(.mona, size, weight) }
 
+    /// Mona Sans for AppKit views.
+    static func monaFont(_ size: CGFloat, _ weight: CGFloat = 400) -> NSFont {
+        ctFont(.mona, size, weight).map { $0 as NSFont }
+            ?? .systemFont(ofSize: size, weight: weight >= 650 ? .bold : weight >= 550 ? .semibold : .regular)
+    }
+
     private static func font(_ family: Family, _ size: CGFloat, _ weight: CGFloat) -> Font {
         let key = "\(family.rawValue)-\(size)-\(weight)"
         if let font = fonts[key] { return font }
-        let font: Font
-        if let base = base(family) {
-            var descriptor = CTFontDescriptorCreateCopyWithVariation(base, tag("wght") as CFNumber, weight)
-            descriptor = CTFontDescriptorCreateCopyWithVariation(descriptor, tag("wdth") as CFNumber, 100)
-            font = Font(CTFontCreateWithFontDescriptor(descriptor, size, nil))
-        } else {
-            font = .system(size: size, weight: weight >= 650 ? .bold : weight >= 550 ? .semibold : .regular)
-        }
+        let font: Font = ctFont(family, size, weight).map { Font($0) }
+            ?? .system(size: size, weight: weight >= 650 ? .bold : weight >= 550 ? .semibold : .regular)
         fonts[key] = font
         return font
+    }
+
+    private static func ctFont(_ family: Family, _ size: CGFloat, _ weight: CGFloat) -> CTFont? {
+        guard let base = base(family) else { return nil }
+        var descriptor = CTFontDescriptorCreateCopyWithVariation(base, tag("wght") as CFNumber, weight)
+        descriptor = CTFontDescriptorCreateCopyWithVariation(descriptor, tag("wdth") as CFNumber, 100)
+        return CTFontCreateWithFontDescriptor(descriptor, size, nil)
     }
 
     private static func base(_ family: Family) -> CTFontDescriptor? {
@@ -591,6 +681,8 @@ enum QuickHaze {
 struct QuickCard<Content: View>: View {
     let title: String
     let scope: String
+    /// A line between its settings, so each one reads as its own.
+    var separated = true
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -605,12 +697,45 @@ struct QuickCard<Content: View>: View {
                     .font(QuickHaze.mona(11, 500))
                     .foregroundStyle(QuickHaze.sectionLabel)
             }
-            content
+            if separated {
+                QuickRows { content }
+            } else {
+                content
+            }
         }
         .padding(11)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(QuickHaze.card, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
         .accessibilityElement(children: .contain)
+    }
+}
+
+/// Settings one under the other, a line between each two: each view of
+/// `content` is one (a VStack keeps the ones that belong together).
+struct QuickRows<Content: View>: View {
+    var spacing: CGFloat = 9
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Group(subviews: content) { rows in
+                ForEach(rows) { row in
+                    if row.id != rows.first?.id { QuickSeparator().padding(.vertical, spacing) }
+                    row
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// The line between two settings.
+struct QuickSeparator: View {
+    var body: some View {
+        Rectangle()
+            .fill(QuickHaze.text.opacity(0.08))
+            .frame(height: 1)
+            .accessibilityHidden(true)
     }
 }
 
@@ -645,63 +770,146 @@ struct QuickValue: View {
     }
 }
 
-/// A label (and a caption under it) with its control at the end of the row.
+/// Whom a setting applies to ("Every app"), on the right of its name.
+struct QuickScope: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(verbatim: text).font(QuickHaze.mona(11, 500)).foregroundStyle(QuickHaze.sectionLabel).lineLimit(1)
+    }
+}
+
+/// A setting's (?): what it does, under the pointer, and below its name
+/// while clicked.
+struct QuickHelpButton: View {
+    let help: String
+    @Binding var shown: Bool
+
+    var body: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.15)) { shown.toggle() }
+        } label: {
+            Image(systemName: shown ? "questionmark.circle.fill" : "questionmark.circle")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(shown ? QuickHaze.accent : QuickHaze.textTertiary)
+                .frame(width: 16, height: 16)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .accessibilityLabel(Text(verbatim: L("More about this")))
+        .accessibilityHint(Text(verbatim: help))
+    }
+}
+
+/// A setting's name, its key in the window ("⌘G"), and a (?) when there is
+/// more to say: under the pointer, and below the name once it is clicked.
+struct QuickLabel: View {
+    let title: String
+    var shortcut: String?
+    var help: String?
+    var font = QuickHaze.mona(13.5)
+    var color = QuickHaze.text
+    @State private var showsHelp = false
+
+    init(_ title: String, shortcut: String? = nil, help: String? = nil, font: Font = QuickHaze.mona(13.5), color: Color = QuickHaze.text) {
+        self.title = title
+        self.shortcut = shortcut
+        self.help = help
+        self.font = font
+        self.color = color
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Text(verbatim: title).font(font).foregroundStyle(color)
+                if let shortcut {
+                    Text(verbatim: shortcut).font(QuickHaze.mona(11.5)).foregroundStyle(QuickHaze.textTertiary)
+                }
+                if let help { QuickHelpButton(help: help, shown: $showsHelp) }
+            }
+            if showsHelp, let help { QuickCaption(help) }
+        }
+    }
+}
+
+/// A setting: its name (and its ?) with whom it applies to on the right,
+/// and its control under them, as wide as the card; `inline`, a small
+/// control (a menu, a value) on the right of the name instead.
 struct QuickRow<Control: View>: View {
     let label: String
+    /// Whom it applies to ("Every app").
     var caption: String?
+    var help: String?
+    var inline = false
     @ViewBuilder let control: Control
 
     var body: some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 1) {
-                QuickText(label)
-                if let caption { QuickCaption(caption) }
+        if inline {
+            HStack(alignment: .center, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    QuickLabel(label, help: help)
+                    if let caption { QuickScope(caption) }
+                }
+                Spacer(minLength: 6)
+                control
             }
-            Spacer(minLength: 6)
-            control
+        } else {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    QuickLabel(label, help: help)
+                    Spacer(minLength: 6)
+                    if let caption { QuickScope(caption) }
+                }
+                control
+            }
         }
     }
 }
 
-/// A label, its slider and the value, on one line.
+/// A setting with a slider: its name (and its ?) and its value on one line,
+/// the slider under them.
 struct QuickSliderRow<Slider: View>: View {
     let label: String
     let value: Text
+    var help: String?
     @ViewBuilder let slider: Slider
 
     var body: some View {
-        HStack(spacing: 10) {
-            QuickText(label).fixedSize()
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                QuickLabel(label, help: help)
+                Spacer(minLength: 6)
+                QuickValue(value)
+            }
             slider.frame(maxWidth: .infinity)
-            QuickValue(value).frame(minWidth: 34, alignment: .trailing)
         }
     }
 }
 
-/// The haze checkbox (an Avo green square with a dark check) at the end of its row.
+/// The haze checkbox (an Avo green square with a dark check) at the end of
+/// its row; a click on the name sets it too.
 struct QuickToggle: View {
     let label: String
     /// Its key in the window ("⌘G"), after the label.
     var shortcut: String?
+    /// What it does, behind its (?).
     var caption: String?
     let isOn: Bool
     let set: (Bool) -> Void
 
     var body: some View {
-        Button {
-            set(!isOn)
-        } label: {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        QuickText(label)
-                        if let shortcut {
-                            Text(verbatim: shortcut).font(QuickHaze.mona(11.5)).foregroundStyle(QuickHaze.textTertiary)
-                        }
-                    }
-                    if let caption { QuickCaption(caption) }
-                }
-                Spacer(minLength: 8)
+        HStack(alignment: .top, spacing: 10) {
+            QuickLabel(label, shortcut: shortcut, help: caption)
+                .contentShape(Rectangle())
+                .onTapGesture { set(!isOn) }
+                .accessibilityHidden(true)
+            Spacer(minLength: 8)
+            Button {
+                set(!isOn)
+            } label: {
                 ZStack {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(isOn ? QuickHaze.accent : Color.white.opacity(0.92))
@@ -712,14 +920,14 @@ struct QuickToggle: View {
                             .foregroundStyle(QuickHaze.onAccent)
                     }
                 }
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(verbatim: label))
+            .accessibilityValue(Text(verbatim: isOn ? L("On") : L("Off")))
+            .accessibilityHint(Text(verbatim: caption ?? ""))
+            .accessibilityAddTraits(.isToggle)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(verbatim: label))
-        .accessibilityValue(Text(verbatim: isOn ? L("On") : L("Off")))
-        .accessibilityHint(Text(verbatim: caption ?? ""))
-        .accessibilityAddTraits(.isToggle)
     }
 }
 
@@ -778,7 +986,8 @@ private struct QuickMenuOption<Value: Hashable>: Identifiable {
     var id: String { title }
 }
 
-/// A pop-up choice in a recessed capsule (render scale, Translate Into).
+/// A pop-up choice in a recessed capsule (render scale, Translate Into),
+/// its choices in a haze menu (HazeMenu.swift).
 private struct QuickMenu<Value: Hashable>: View {
     let label: String
     let title: String
@@ -787,14 +996,11 @@ private struct QuickMenu<Value: Hashable>: View {
     let choose: (Value) -> Void
 
     var body: some View {
-        Menu {
-            ForEach(options) { option in
-                Toggle(isOn: Binding(get: { option.value == selection }, set: { _ in
+        HazeMenuButton(matchesWidth: true) {
+            options.map { option -> HazeMenuEntry in
+                .item(HazeMenuItem(title: option.title, state: option.value == selection ? .on : .off, isEnabled: option.enabled) {
                     if option.value != selection { choose(option.value) }
-                })) {
-                    Text(verbatim: option.title)
-                }
-                .disabled(!option.enabled)
+                })
             }
         } label: {
             HStack(spacing: 6) {
@@ -812,9 +1018,7 @@ private struct QuickMenu<Value: Hashable>: View {
             .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(QuickHaze.inset))
             .contentShape(Rectangle())
         }
-        .menuStyle(.button)
         .buttonStyle(.plain)
-        .menuIndicator(.hidden)
         .fixedSize()
         .accessibilityLabel(Text(verbatim: label))
         .accessibilityValue(Text(verbatim: title))

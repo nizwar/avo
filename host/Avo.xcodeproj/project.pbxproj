@@ -11,9 +11,9 @@
 		0377651E36509377ADAA4FA2 /* OFL-HubotSans.txt in Resources */ = {isa = PBXBuildFile; fileRef = B6217556F6C55857D2B6072D /* OFL-HubotSans.txt */; };
 		06DFCA945F7939BDE0516D41 /* ScreenTextReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99B617285BBAE286BD51626 /* ScreenTextReader.swift */; };
 		06EF44144268EDA889E46D1C /* AppsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCD2536A0FD4B7C10F14C8E7 /* AppsView.swift */; };
-		07BCF28B99370FA15D99E340 /* HazeMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEABA6BDB1E882AA73292D85 /* HazeMenu.swift */; };
 		0892E09C99877F8269BE8E9F /* LibraryOnboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1986CB9B7D4C96CDD6360302 /* LibraryOnboarding.swift */; };
 		0A9337658A7DD39148033B8D /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCA411BF620B4A6CD56B68BF /* main.swift */; };
+		0A98FA6FA78B0335C0A67623 /* HazePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 594482C7ACFF746F9F798377 /* HazePicker.swift */; };
 		1138D23B2432621A0392F88E /* SettingsPanes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57272A45292573622BEB9050 /* SettingsPanes.swift */; };
 		128569D3D4414E7CCAC8FBF0 /* AvoWindowHost.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 248B6565DC21EC727F3D7C71 /* AvoWindowHost.framework */; };
 		12B4999A17C07FA0376DF28D /* WheelScrolling.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF22EB11A4CB702484B63BA7 /* WheelScrolling.swift */; };
@@ -38,6 +38,7 @@
 		3A479B91F6B1973D718741D6 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = D66E6FED60FD73E9889C21B7 /* InfoPlist.xcstrings */; };
 		3B17A894C265E7F52B64E424 /* avoctl in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = C07D584FB71811F8CF054BA0 /* avoctl */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		3C3AD50A49B107F416BDE07A /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8013D3F2A040EAA894360D64 /* CoreHaptics.framework */; };
+		4079183167533C198BC9FC97 /* MacNowPlaying.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61A8FAD080DE0A465326E9C6 /* MacNowPlaying.swift */; };
 		40BB43C8EB6FA24466005634 /* AvoHostKit in Frameworks */ = {isa = PBXBuildFile; productRef = 1309BB8E795B40B4B3FCC1E4 /* AvoHostKit */; };
 		461C56E9076279938C7ADE84 /* DaemonApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 247F00D3F568BF9DAA251E37 /* DaemonApp.swift */; };
 		47016DFED92044DBDCC83456 /* AvoDaemon.app in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 441AA532CF90E8475DCB42F9 /* AvoDaemon.app */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -63,6 +64,7 @@
 		69A85120010849C649C6A0DF /* DisplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF84B0D93E7B26F1EBC816E3 /* DisplayView.swift */; };
 		6A099405637B410C4B19CFE8 /* StorageLocationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 926265DAA0B720EAF8BF3858 /* StorageLocationViews.swift */; };
 		6D9ACB9B75426991EF98DB74 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96ED77A3C55350AFFABBD5A8 /* main.swift */; };
+		6F118E0F055782730A37C41E /* HazeMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBB8F69EF7F6FF2FD5D076F /* HazeMenu.swift */; };
 		70E4B99BBAAA5F9FADD10C34 /* mona-sans.woff2 in Resources */ = {isa = PBXBuildFile; fileRef = 8B51354EC56633B01822C753 /* mona-sans.woff2 */; };
 		736A59C7F9BD129ACC6395F7 /* AvoHostKit in Frameworks */ = {isa = PBXBuildFile; productRef = B4FF4D9F0E4B7565B6EA4F98 /* AvoHostKit */; };
 		7631DB1ECEE4CF97D73AE738 /* GoogleAppsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C757D8A5FB2A2B753C155E /* GoogleAppsViews.swift */; };
@@ -90,6 +92,7 @@
 		9FAA8E4EF51EE25F06A5AA3C /* KeymapPainter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D63B45E8FF7A8CD3EA868420 /* KeymapPainter.swift */; };
 		A09E9299E5A5031C018DBE5C /* CaptureFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = EADFC800FDCF147039B429D8 /* CaptureFiles.swift */; };
 		A1B784729F3E35B8F50ED563 /* LibraryWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 905C8E6CAB4242DDF3E1E469 /* LibraryWidgets.swift */; };
+		A3D047C3346B6B7617A04997 /* KeymapEditorPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02BD2B2C3D7CB2D833661005 /* KeymapEditorPanel.swift */; };
 		A3E94E28A8A33351A9FC58CC /* AppUsageCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 133C04954F11344B77B5022D /* AppUsageCard.swift */; };
 		A49072EADBFC83C7D3B0CB7D /* AvoWindowHost.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 248B6565DC21EC727F3D7C71 /* AvoWindowHost.framework */; };
 		A4A31EDC272A86BE61A24F45 /* AndroidDataChoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A3463515835B3ED9B627C58 /* AndroidDataChoice.swift */; };
@@ -192,10 +195,10 @@
 		9B5483BA2FEF5F7A9BECF5F2 /* Embed Dependencies */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 6;
+			dstPath = Contents/Library/Helpers;
+			dstSubfolderSpec = 1;
 			files = (
-				3B17A894C265E7F52B64E424 /* avoctl in Embed Dependencies */,
+				47016DFED92044DBDCC83456 /* AvoDaemon.app in Embed Dependencies */,
 			);
 			name = "Embed Dependencies";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -203,10 +206,10 @@
 		C7672177C149A74FB486AFCE /* Embed Dependencies */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = Contents/Library/Helpers;
-			dstSubfolderSpec = 1;
+			dstPath = "";
+			dstSubfolderSpec = 6;
 			files = (
-				47016DFED92044DBDCC83456 /* AvoDaemon.app in Embed Dependencies */,
+				3B17A894C265E7F52B64E424 /* avoctl in Embed Dependencies */,
 			);
 			name = "Embed Dependencies";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -237,6 +240,7 @@
 
 /* Begin PBXFileReference section */
 		01DE9A3E8C4D5762AC330531 /* profiles */ = {isa = PBXFileReference; lastKnownFileType = folder; name = profiles; path = ../profiles; sourceTree = SOURCE_ROOT; };
+		02BD2B2C3D7CB2D833661005 /* KeymapEditorPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeymapEditorPanel.swift; sourceTree = "<group>"; };
 		0618B7045A2A842D4AD57B6E /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		08BF662568EB77466F4A1FEA /* MacSystemState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSystemState.swift; sourceTree = "<group>"; };
 		0A09687C574C3E6A5682388E /* ScreenTranslationOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTranslationOverlay.swift; sourceTree = "<group>"; };
@@ -252,6 +256,7 @@
 		1516A4C094E91BB02631FF77 /* SystemStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemStatusView.swift; sourceTree = "<group>"; };
 		169AFA72B5D4B196DA73B69A /* dev.avo.daemon.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = dev.avo.daemon.plist; sourceTree = "<group>"; };
 		1986CB9B7D4C96CDD6360302 /* LibraryOnboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryOnboarding.swift; sourceTree = "<group>"; };
+		1DBB8F69EF7F6FF2FD5D076F /* HazeMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HazeMenu.swift; sourceTree = "<group>"; };
 		1EE603498A6803B96C622035 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		1F46F80A9E9D0903E9D98E01 /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = System/Library/Frameworks/GameController.framework; sourceTree = SDKROOT; };
 		1F76FFA7A8CF6177165575DE /* ScreenLockViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenLockViews.swift; sourceTree = "<group>"; };
@@ -278,9 +283,11 @@
 		53B819E4E9EC51B816486754 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		5638BFA24A1A74D3AF8C2F48 /* RenderTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderTypes.swift; sourceTree = "<group>"; };
 		57272A45292573622BEB9050 /* SettingsPanes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPanes.swift; sourceTree = "<group>"; };
+		594482C7ACFF746F9F798377 /* HazePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HazePicker.swift; sourceTree = "<group>"; };
 		5B112861945965A970CF1B86 /* SetupPermissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupPermissions.swift; sourceTree = "<group>"; };
 		5DC33FB72869E092F27052D3 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		6133B2A1F9245B08C4BF4106 /* StatusPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusPill.swift; sourceTree = "<group>"; };
+		61A8FAD080DE0A465326E9C6 /* MacNowPlaying.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacNowPlaying.swift; sourceTree = "<group>"; };
 		620F07B134A6F78EB2D009F6 /* HelpButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpButton.swift; sourceTree = "<group>"; };
 		62921557685448757297D8EE /* ScreenLockViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenLockViews.swift; sourceTree = "<group>"; };
 		6443F229E33272C0A1B90151 /* ScreenRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRecorder.swift; sourceTree = "<group>"; };
@@ -345,7 +352,6 @@
 		E6B98E4EAC479449B37A4DA1 /* AndroidWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AndroidWindowController.swift; sourceTree = "<group>"; };
 		EADFC800FDCF147039B429D8 /* CaptureFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureFiles.swift; sourceTree = "<group>"; };
 		EB753E2158DC17A4E034C9B1 /* GraphicsMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphicsMenu.swift; sourceTree = "<group>"; };
-		EEABA6BDB1E882AA73292D85 /* HazeMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HazeMenu.swift; sourceTree = "<group>"; };
 		EF7F1029C48A58A05962B422 /* RecordingAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingAudio.swift; sourceTree = "<group>"; };
 		EF84B0D93E7B26F1EBC816E3 /* DisplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayView.swift; sourceTree = "<group>"; };
 		F11C20BD16E21123B21D88FB /* StatusViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusViews.swift; sourceTree = "<group>"; };
@@ -498,7 +504,7 @@
 				E1C757D8A5FB2A2B753C155E /* GoogleAppsViews.swift */,
 				0D64F1BB56C1F298D38C26FE /* GraphicsResultCard.swift */,
 				0E0802A87AF6B465008CA944 /* GraphicsSettingsEditor.swift */,
-				EEABA6BDB1E882AA73292D85 /* HazeMenu.swift */,
+				594482C7ACFF746F9F798377 /* HazePicker.swift */,
 				12A275DEF061CFBDBEF5CC62 /* HazeTheme.swift */,
 				620F07B134A6F78EB2D009F6 /* HelpButton.swift */,
 				E37F0548829F26D1E6A7E140 /* IconPalette.swift */,
@@ -573,6 +579,7 @@
 				3CD6BB66680DDF324313F398 /* MacIntegrations.swift */,
 				100F7F7DDE625723D3B3FC5F /* MacLinks.swift */,
 				A15CC47DB33A24C8B89FF454 /* MacLocation.swift */,
+				61A8FAD080DE0A465326E9C6 /* MacNowPlaying.swift */,
 				08BF662568EB77466F4A1FEA /* MacSystemState.swift */,
 				DCA411BF620B4A6CD56B68BF /* main.swift */,
 				0618B7045A2A842D4AD57B6E /* MenuBarController.swift */,
@@ -595,8 +602,10 @@
 				9BF3A0AB3B94D90F3F547F51 /* GamepadForwarder.swift */,
 				9F634C193B6443E2ED728668 /* GamepadHub.swift */,
 				EB753E2158DC17A4E034C9B1 /* GraphicsMenu.swift */,
+				1DBB8F69EF7F6FF2FD5D076F /* HazeMenu.swift */,
 				CB9BB689581B4EBDE7AC7F0B /* Info.plist */,
 				E2A074AE3498D751BAF59ECA /* KeymapController.swift */,
+				02BD2B2C3D7CB2D833661005 /* KeymapEditorPanel.swift */,
 				200BAE46675EB9F72EBCB5AA /* KeymapEditorView.swift */,
 				0AF48808B5AC365FE6115F6B /* KeymapOverlay.swift */,
 				D63B45E8FF7A8CD3EA868420 /* KeymapPainter.swift */,
@@ -648,6 +657,7 @@
 				1D53782E6B5857E8BE21FBDA /* Embed Dependencies */,
 				9B5483BA2FEF5F7A9BECF5F2 /* Embed Dependencies */,
 				0DF9162A1C0539A6B7AA1B4F /* Build avo-vmm */,
+				4985470071A358EF376C36F2 /* Embed the GPU renderer */,
 			);
 			buildRules = (
 			);
@@ -796,9 +806,9 @@
 			targets = (
 				243453C01CA644BAF15DD378 /* Avo */,
 				41761C4E2C66BAA7B6933779 /* AvoDaemon */,
+				4F7A38BABD13756D57420C24 /* AvoShim */,
 				694851832BD5A0D904312EAF /* AvoWindowHost */,
 				42DEABA5A84D92F2DA57154E /* avoctl */,
-				4F7A38BABD13756D57420C24 /* AvoShim */,
 			);
 		};
 /* End PBXProject section */
@@ -874,6 +884,25 @@
 			shellPath = /bin/sh;
 			shellScript = "set -euo pipefail\nCARGO=\"${CARGO:-$HOME/.cargo/bin/cargo}\"\nENGINE=\"$SRCROOT/../engine/hvf\"\nOUT=\"$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/avo-vmm\"\nif [ ! -x \"$CARGO\" ]; then\n  echo \"warning: cargo not found; Avo.app is built without avo-vmm (install Rust: https://rustup.rs)\"\n  exit 0\nfi\n\"$CARGO\" build --release --quiet --manifest-path \"$ENGINE/Cargo.toml\" -p avo-vmm --target-dir \"$DERIVED_FILE_DIR/cargo\"\n# Nothing to do when neither the engine nor its entitlements changed:\n# Avo.app stays sealed.\nINSTALLED=\"$DERIVED_FILE_DIR/avo-vmm.installed\"\nif [ -f \"$OUT\" ] && cmp -s \"$DERIVED_FILE_DIR/cargo/release/avo-vmm\" \"$INSTALLED\" \\\n   && [ ! \"$ENGINE/hypervisor.entitlements\" -nt \"$INSTALLED\" ]; then\n  exit 0\nfi\nSTAGED=\"$DERIVED_FILE_DIR/avo-vmm\"\ncp \"$DERIVED_FILE_DIR/cargo/release/avo-vmm\" \"$STAGED\"\ncodesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" --options runtime \\\n  --entitlements \"$ENGINE/hypervisor.entitlements\" \"$STAGED\"\n# Replace, never overwrite: macOS kills a running VM whose signed\n# executable pages change underneath it.\nmv -f \"$STAGED\" \"$OUT\"\ncp \"$DERIVED_FILE_DIR/cargo/release/avo-vmm\" \"$INSTALLED\"\n# Xcode does not sign the app again when only this file changed:\n# seal the bundle over the new engine (keeping its entitlements),\n# or every Avo process fails code signature checks.\nif codesign --display \"$TARGET_BUILD_DIR/$WRAPPER_NAME\" >/dev/null 2>&1; then\n  codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" \\\n    --preserve-metadata=identifier,entitlements,requirements,flags,runtime \"$TARGET_BUILD_DIR/$WRAPPER_NAME\"\nfi\n";
 		};
+		4985470071A358EF376C36F2 /* Embed the GPU renderer */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Embed the GPU renderer";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\nRENDERER=\"$SRCROOT/../build/gfxstream\"\nOUT=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/gfxstream\"\nif [ ! -f \"$RENDERER/.stamp\" ]; then\n  echo \"warning: no GPU renderer in build/gfxstream (run scripts/build-gfxstream.sh); Avo.app then needs the Android Emulator for the GPU\"\n  exit 0\nfi\n# Nothing to do when the renderer did not change: Avo.app stays sealed.\nif [ -f \"$OUT/.stamp\" ] && cmp -s \"$RENDERER/.stamp\" \"$OUT/.stamp\"; then\n  exit 0\nfi\nrm -rf \"$OUT.new\"\nditto \"$RENDERER\" \"$OUT.new\"\nfind \"$OUT.new\" -name \"*.dylib\" -exec codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" {} \\;\n# Replace, never overwrite: a running avo-vmm has the old libraries mapped.\nrm -rf \"$OUT\"\nmv \"$OUT.new\" \"$OUT\"\nif codesign --display \"$TARGET_BUILD_DIR/$WRAPPER_NAME\" >/dev/null 2>&1; then\n  codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" \\\n    --preserve-metadata=identifier,entitlements,requirements,flags,runtime \"$TARGET_BUILD_DIR/$WRAPPER_NAME\"\nfi\n";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -892,7 +921,9 @@
 				DE1E76ECF99037937ED9C0E5 /* GamepadForwarder.swift in Sources */,
 				65FEC67C958C9066A683517A /* GamepadHub.swift in Sources */,
 				FBAA61DF267ED3B773BEB75B /* GraphicsMenu.swift in Sources */,
+				6F118E0F055782730A37C41E /* HazeMenu.swift in Sources */,
 				18D8C01B3F511120069B064D /* KeymapController.swift in Sources */,
+				A3D047C3346B6B7617A04997 /* KeymapEditorPanel.swift in Sources */,
 				67FAB729663FFD0CE036A487 /* KeymapEditorView.swift in Sources */,
 				C9D28C1206FD10929949D950 /* KeymapOverlay.swift in Sources */,
 				9FAA8E4EF51EE25F06A5AA3C /* KeymapPainter.swift in Sources */,
@@ -940,7 +971,7 @@
 				7631DB1ECEE4CF97D73AE738 /* GoogleAppsViews.swift in Sources */,
 				802CBDCDB31C11D8E7A50856 /* GraphicsResultCard.swift in Sources */,
 				C3748A7453DFEE28D23D9314 /* GraphicsSettingsEditor.swift in Sources */,
-				07BCF28B99370FA15D99E340 /* HazeMenu.swift in Sources */,
+				0A98FA6FA78B0335C0A67623 /* HazePicker.swift in Sources */,
 				9EB8D450C0C503B5EFB30482 /* HazeTheme.swift in Sources */,
 				61B7BA2C35BBFCA906155177 /* HelpButton.swift in Sources */,
 				79569C517CFA4575CA0927F8 /* IconPalette.swift in Sources */,
@@ -982,6 +1013,7 @@
 				2E063FFE47A966F37777D8A2 /* MacIntegrations.swift in Sources */,
 				32472F4671F159BE72CC2628 /* MacLinks.swift in Sources */,
 				ECA7FE3A58397A06902EE5EA /* MacLocation.swift in Sources */,
+				4079183167533C198BC9FC97 /* MacNowPlaying.swift in Sources */,
 				58C8B111F8EB6806128D23F4 /* MacSystemState.swift in Sources */,
 				D274969A8BFA690ADC2E7160 /* MenuBarController.swift in Sources */,
 				B92DD580800E68A7C3F6715C /* MenuBarPanel.swift in Sources */,

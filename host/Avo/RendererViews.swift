@@ -34,6 +34,7 @@ struct RendererStatusRow: View {
                 }
             }
             .font(.mona(13))
+            .hazeRowNote()
         }
     }
 
@@ -44,7 +45,8 @@ struct RendererStatusRow: View {
         }
         switch renderer.reason {
         case .emulatorMissing?:
-            return Text("GPU rendering needs the Android Emulator 37 or later. Install it with Android Studio’s SDK Manager (SDK Tools › Android Emulator).")
+            // Avo.app brings its GPU renderer: only a damaged copy lacks it.
+            return Text("This copy of Avo is missing its GPU renderer, so Android renders in software. Install Avo again to use the GPU.")
         case .emulatorUnsupported?:
             return Text("GPU rendering needs the Android Emulator 37 or later; this Mac has \(renderer.emulatorVersion ?? "?"). Update it with Android Studio’s SDK Manager.")
         case .failed?:

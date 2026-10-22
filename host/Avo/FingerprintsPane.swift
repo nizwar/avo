@@ -1,4 +1,5 @@
 import AvoKit
+import AvoWindowHost
 import SwiftUI
 
 // Settings › Fingerprints: the user's fingers, kept in Avo. Android's
@@ -240,14 +241,15 @@ private struct AddFingerRow: View {
                     .labelsHidden()
                     .hazeField()
                     .onSubmit(add)
-                Menu {
-                    ForEach(suggestions, id: \.self) { suggestion in
-                        Button(suggestion) { name = suggestion }
-                    }
+                HazeMenuButton {
+                    suggestions.map { suggestion in .item(HazeMenuItem(title: suggestion) { name = suggestion }) }
                 } label: {
-                    Image(systemName: "hand.raised.fingers.spread").foregroundStyle(Haze.textSecondary)
+                    Image(systemName: "hand.raised.fingers.spread")
+                        .foregroundStyle(Haze.textSecondary)
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
                 }
-                .menuStyle(.borderlessButton)
+                .buttonStyle(.plain)
                 .fixedSize()
                 .disabled(suggestions.isEmpty)
                 .help("Choose a finger")

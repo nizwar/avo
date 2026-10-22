@@ -118,6 +118,13 @@ actor HostAgent: DisplayResizing {
     private var autoCancelNotifications: Set<String> = []
     /// Notifications to dismiss in Android, gathered for one helper run.
     private var pendingDismissals: Set<String> = []
+    /// Notifications answered from the Mac (Reply): the app's update with the
+    /// answer in it comes back quietly, as it does in Android's shade.
+    private var repliedNotifications: Set<String> = []
+    /// What Android plays, for the Mac's Now Playing (the helper's `media
+    /// watch`), and the stream that takes its commands.
+    private var mediaWatch: Task<Void, Never>?
+    private var mediaStream: ADBStream?
     private var dismissing: Task<Void, Never>?
     /// Avo Links (guest/links, see "Links"): where the links Android apps
     /// open go, what was read of its log, and the task following it.
@@ -200,6 +207,19 @@ actor HostAgent: DisplayResizing {
                     try? await Task.sleep(for: .seconds(2)) // it ended (Android restarted it): again
                 }
             }
+            mediaWatch = Task { [weak self] in
+                var wait = Duration.seconds(2)
+                while !Task.isCancelled {
+                    guard let self else { return }
+                    if await !paused {
+                        let started = ContinuousClock.now
+                        await watchMedia()
+                        // One that ends at once (it cannot run in this Android) is tried less and less often.
+                        wait = ContinuousClock.now - started < .seconds(10) ? min(wait * 2, .seconds(60)) : .seconds(2)
+                    }
+                    try? await Task.sleep(for: wait)
+                }
+            }
         }
         linkWatch = Task { [weak self] in await self?.runLinks() }
         widgetsInstall = Task { [weak self] in await self?.installWidgets() ?? false }
@@ -271,6 +291,8 @@ actor HostAgent: DisplayResizing {
         watching?.cancel()
         defaultWatch?.cancel()
         clipboardWatch?.cancel()
+        mediaWatch?.cancel()
+        await mediaStream?.close()
         linkWatch?.cancel()
         widgetsInstall?.cancel()
         bluetoothWatch?.cancel()
@@ -410,17 +432,48 @@ actor HostAgent: DisplayResizing {
 
     /// Android's media volume starts at a third, which plays 33 dB under the
     /// Mac's other apps: like any Mac app, Android plays at full scale and the
-    /// Mac's volume sets how loud. Once per data disk; after that the user's
-    /// setting stands.
+    /// Mac's volume sets how loud (Quick Settings and Settings › Devices turn
+    /// Android's own down). Once per data disk, and once more on disks from
+    /// before those sliders (marker 2), where something in Android had left
+    /// it low; after that the user's setting stands.
     private func raiseMediaVolume() async {
-        guard (try? await shell("settings get global avo_media_volume_set"))?.trimmed != "1" else { return }
-        let music = 3 // AudioManager.STREAM_MUSIC
-        guard let output = try? await shell("cmd media_session volume --stream \(music) --get"),
-              let range = output.range(of: #"\[0\.\.(\d+)\]"#, options: .regularExpression),
-              let maximum = Int(output[range].dropFirst(4).dropLast()) else { return }
+        let marker = "2"
+        guard (try? await shell("settings get global avo_media_volume_set"))?.trimmed != marker,
+              let volume = try? await mediaVolume() else { return }
+        _ = try? await setMediaVolume(volume.maximum)
+        _ = try? await shell("settings put global avo_media_volume_set \(marker)")
+    }
+
+    // MARK: Media volume
+
+    /// AudioManager.STREAM_MUSIC: what apps and games play on.
+    static let musicStream = 3
+
+    /// Android's media volume, for the volume sliders.
+    func mediaVolume() async throws -> AndroidVolume {
+        let output = try await shell("cmd media_session volume --stream \(Self.musicStream) --get")
+        guard let volume = Self.mediaVolume(from: output) else {
+            throw AvoError.internalError(String(localized: "Android did not say its volume.", bundle: .avoKit))
+        }
+        return volume
+    }
+
+    /// Sets the media volume, within its steps; Android shows no volume panel.
+    func setMediaVolume(_ level: Int) async throws -> AndroidVolume {
+        let maximum = try await mediaVolume().maximum
+        let level = min(max(level, 0), maximum)
         // As root: Android's audio hardening ignores volume changes from the shell user.
-        _ = try? await root("cmd media_session volume --stream \(music) --set \(maximum)")
-        _ = try? await shell("settings put global avo_media_volume_set 1")
+        try await root("cmd media_session volume --stream \(Self.musicStream) --set \(level)")
+        return AndroidVolume(level: level, maximum: maximum)
+    }
+
+    /// "volume is 3 in range [0..15]" (`cmd media_session volume --get`).
+    static func mediaVolume(from output: String) -> AndroidVolume? {
+        guard let range = output.range(of: #"volume is \d+ in range \[0\.\.\d+\]"#, options: .regularExpression) else { return nil }
+        // The level, 0, the maximum.
+        let numbers = output[range].split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }
+        guard numbers.count == 3, numbers[2] > 0 else { return nil }
+        return AndroidVolume(level: numbers[0], maximum: numbers[2])
     }
 
     /// Stops Cuttlefish's Thread HAL when the image has one (init keeps a
@@ -712,6 +765,19 @@ actor HostAgent: DisplayResizing {
                 await reply(envelope)
             case .dismissNotification(let request)?:
                 dismissNotification(request.key)
+                await reply(envelope)
+            case .performNotificationAction(let request)?:
+                var command = "act \(Self.quote(request.key)) \(request.index)"
+                if !request.replyText.isEmpty { command += " " + Data(request.replyText.utf8).base64EncodedString() }
+                let result = try await adbShell(Self.clipboardCommand(command))
+                if result.succeeded, !request.replyText.isEmpty { repliedNotifications.insert(request.key) }
+                await reply(envelope, result.succeeded ? .ok : .failed, message: result.errorOutput.trimmed)
+            case .mediaCommand(let request)?:
+                guard let line = Self.mediaCommandLine(request), let mediaStream else {
+                    await reply(envelope, .failed, message: "nothing plays")
+                    break
+                }
+                try await mediaStream.write(Data((line + "\n").utf8))
                 await reply(envelope)
             case .setRefreshRate(let request)?:
                 // A cap under the displays' rate is a render rate for every
@@ -1139,6 +1205,8 @@ actor HostAgent: DisplayResizing {
            let output = try? await shell(keys.map { "cmd notification get \(Self.quote($0)); echo \(marker)" }.joined(separator: "; ")) {
             dumps = Self.sections(of: output, marker: marker)
         }
+        var posting: [Avo_V1_Notification] = []
+        var withButtons: [String] = []
         for (index, key) in keys.enumerated() {
             guard index < dumps.count, let info = Self.parseNotification(dumps[index]), !info.ongoing,
                   shownNotifications[key] != info.postedAt else { continue }
@@ -1150,12 +1218,21 @@ actor HostAgent: DisplayResizing {
             notification.title = info.title
             notification.body = info.text
             notification.postedAtMs = info.postedAt
-            notification.silent = info.importance < 3
-            await send(Avo_V1_Envelope(.notification(notification)))
+            notification.silent = info.importance < 3 || repliedNotifications.remove(key) != nil
+            if info.actions > 0 { withButtons.append(key) }
+            posting.append(notification)
         }
+        // Their buttons, from the helper: the dump names them, not what they take.
+        if !withButtons.isEmpty,
+           let output = try? await shell(Self.clipboardCommand("actions " + withButtons.map(Self.quote).joined(separator: " "))) {
+            let buttons = Self.parseNotificationActions(output)
+            for index in posting.indices { posting[index].actions = buttons[posting[index].key] ?? [] }
+        }
+        for notification in posting { await send(Avo_V1_Envelope(.notification(notification))) }
         for key in shownNotifications.keys where !keys.contains(key) {
             shownNotifications[key] = nil
             autoCancelNotifications.remove(key)
+            repliedNotifications.remove(key)
             var removed = Avo_V1_NotificationRemoved()
             removed.key = key
             await send(Avo_V1_Envelope(.notificationRemoved(removed)))
@@ -1207,6 +1284,8 @@ actor HostAgent: DisplayResizing {
         var importance = 3
         /// FLAG_AUTO_CANCEL: opening it dismisses it.
         var autoCancel = false
+        /// How many buttons it has (`actions=` of the record line).
+        var actions = 0
     }
 
     /// `cmd notification get <key>`: the record line, `flags=`, `when=`,
@@ -1230,6 +1309,7 @@ actor HostAgent: DisplayResizing {
             if trimmed.hasPrefix("NotificationRecord(") {
                 info.package = value(trimmed, after: "pkg=").map(String.init) ?? ""
                 info.importance = value(trimmed, after: "importance=").flatMap { Int($0) } ?? 3
+                info.actions = value(trimmed, after: " actions=").flatMap { Int($0) } ?? 0
             } else if trimmed.hasPrefix("flags="), let raw = value(trimmed, after: "flags=") {
                 // Hex, a number, or names (`AUTO_CANCEL|GROUP_SUMMARY|…`) depending on the release.
                 flags = raw.hasPrefix("0x") ? Int(raw.dropFirst(2), radix: 16) ?? 0 : Int(raw) ?? 0
@@ -1251,6 +1331,118 @@ actor HostAgent: DisplayResizing {
         // FLAG_AUTO_CANCEL; without flags it goes, as most notifications do.
         info.autoCancel = !flagsRead || flags & 0x10 != 0 || names.contains("AUTO_CANCEL")
         return info
+    }
+
+    /// The helper's `actions`: one `{"key", "actions": [{"index", "title", "reply", "hint"?}]}` per line.
+    static func parseNotificationActions(_ output: String) -> [String: [Avo_V1_NotificationAction]] {
+        struct Line: Decodable {
+            struct Button: Decodable {
+                var index: UInt32
+                var title: String
+                var reply: Bool
+                var hint: String?
+            }
+            var key: String
+            var actions: [Button]
+        }
+        var buttons: [String: [Avo_V1_NotificationAction]] = [:]
+        for line in output.split(separator: "\n") {
+            guard let decoded = try? JSONDecoder().decode(Line.self, from: Data(line.utf8)) else { continue }
+            buttons[decoded.key] = decoded.actions.map { button in
+                var action = Avo_V1_NotificationAction()
+                action.index = button.index
+                action.title = button.title
+                action.reply = button.reply
+                action.replyHint = button.hint ?? ""
+                return action
+            }
+        }
+        return buttons
+    }
+
+    // MARK: Now Playing (the helper's `media watch`)
+
+    /// What Android plays as it changes, to the Mac; the commands from there
+    /// go to the same helper (`mediaCommand`). Ends with the helper, which
+    /// leaves nothing playing on the Mac until it runs again.
+    private func watchMedia() async {
+        guard let adb, let stream = try? await adb.open("exec:" + Self.clipboardCommand("media watch")) else { return }
+        mediaStream = stream
+        var buffer = Data()
+        var showing = false
+        do {
+            for try await chunk in stream.incoming {
+                buffer.append(chunk)
+                while let newline = buffer.firstIndex(of: 0x0A) {
+                    let line = String(decoding: buffer[buffer.startIndex..<newline], as: UTF8.self).trimmed
+                    buffer.removeSubrange(buffer.startIndex...newline)
+                    guard let playing = Self.nowPlaying(fromLine: line) else { continue }
+                    showing = !playing.package.isEmpty
+                    await send(Avo_V1_Envelope(.nowPlaying(playing)))
+                }
+            }
+        } catch {}
+        if mediaStream === stream { mediaStream = nil }
+        await stream.close()
+        if showing { await send(Avo_V1_Envelope(.nowPlaying(Avo_V1_NowPlaying()))) }
+    }
+
+    /// `media none` (nothing plays: no package) or `media {JSON}` (see guest/clipboard Media.java).
+    static func nowPlaying(fromLine line: String) -> Avo_V1_NowPlaying? {
+        guard line.hasPrefix("media ") else { return nil }
+        let rest = line.dropFirst(6)
+        if rest == "none" { return Avo_V1_NowPlaying() }
+        struct Line: Decodable {
+            var package: String
+            var title: String
+            var artist: String
+            var album: String
+            var durationMs: Int64
+            var positionMs: Int64
+            var speed: Double
+            var state: String
+            var next: Bool
+            var previous: Bool
+            var seek: Bool
+            var artworkJpeg: String?
+        }
+        guard let decoded = try? JSONDecoder().decode(Line.self, from: Data(rest.utf8)), !decoded.package.isEmpty else { return nil }
+        var playing = Avo_V1_NowPlaying()
+        playing.package = decoded.package
+        playing.title = decoded.title
+        playing.artist = decoded.artist
+        playing.album = decoded.album
+        playing.durationMs = decoded.durationMs
+        playing.positionMs = decoded.positionMs
+        playing.speed = Float(decoded.speed)
+        playing.state = switch decoded.state {
+        case "playing": .playing
+        case "paused": .paused
+        case "buffering": .buffering
+        default: .stopped
+        }
+        playing.canNext = decoded.next
+        playing.canPrevious = decoded.previous
+        playing.canSeek = decoded.seek
+        if let artwork = decoded.artworkJpeg {
+            playing.artworkChanged = true
+            playing.artworkJpeg = Data(base64Encoded: artwork) ?? Data()
+        }
+        return playing
+    }
+
+    /// The helper's line for a command (nil: none to send).
+    static func mediaCommandLine(_ command: Avo_V1_MediaCommand) -> String? {
+        switch command.command {
+        case .play: "play"
+        case .pause: "pause"
+        case .toggle: "toggle"
+        case .next: "next"
+        case .previous: "previous"
+        case .stop: "stop"
+        case .seek: "seek \(max(command.positionMs, 0))"
+        case .unspecified, .UNRECOGNIZED: nil
+        }
     }
 
     /// An installed app in front on Android's own screen was started by
@@ -2610,9 +2802,9 @@ extension HostAgent {
         await restartAudioServer(for: replaced)
     }
 
-    /// The HAL's 85 ms mixer period becomes 20 ms (GuestAudioHal) on the build
-    /// that is known; the restart that follows loads it. True when it was put
-    /// in place now.
+    /// The HAL's 85 ms mixer period becomes 20 ms and its input pipes twice
+    /// as large (GuestAudioHal) on the build that is known; the restart that
+    /// follows loads it. True when it was put in place now.
     private func shortenAudioPeriods() async -> Bool {
         guard let sums = try? await shell("sha256sum " + GuestAudioHal.binary) else { return false }
         switch GuestAudioHal.installed(sumOutput: sums) {

@@ -25,9 +25,11 @@ struct KeymapPainter {
     /// Smart casts' drag rings (editor only): over the game the buttons are enough.
     var guides = true
     var style: Style = .editor
-    /// Where the editor's own toolbar and status line cover the game: an
+    /// Where the editor's own bar and inspector cover the game: an
     /// area's name and size stay out from under them.
     var obstacles: [CGRect] = []
+    /// The layout's modes by id, for a Switch Mode control's caption.
+    var modeNames: [String: String] = [:]
 
     static let handleRadius: CGFloat = 9
     static let minimumBubble: CGFloat = 14
@@ -60,7 +62,8 @@ struct KeymapPainter {
 
     func anchor(of control: Control) -> NormalizedPoint {
         switch control.kind {
-        case .tap(let p), .hold(let p), .ads(let p, _), .repeatTap(let p, _), .anchor(let p, _), .smartCast(let p, _, _): p
+        case .tap(let p), .hold(let p), .ads(let p, _), .repeatTap(let p, _), .anchor(let p, _), .smartCast(let p, _, _),
+             .switchMode(_, let p), .mouseLook(_, let p): p
         case let .dpad(center, _, _, _, _, _, _), let .mobaMove(center, _): center
         case let .aim(area, _, _, _, _, _, _, origin): origin ?? area.center
         case let .swipe(from, _, _): from
@@ -70,8 +73,17 @@ struct KeymapPainter {
         }
     }
 
+    /// Every button the same size: its size never changed what it touches
+    /// (a `size` from Avo before b64 is not drawn).
     func bubbleRadius(_ control: Control) -> CGFloat {
-        max(CGFloat(control.size ?? Control.defaultSize) * displayRect.height, Self.minimumBubble)
+        max(CGFloat(Control.defaultSize) * displayRect.height, Self.minimumBubble)
+    }
+
+    /// How far an anchor tap's finger may go from its point, never inside
+    /// the button itself; nil for the whole screen (and the other kinds).
+    func anchorReach(_ control: Control) -> CGFloat? {
+        guard case .anchor(_, let radius?) = control.kind else { return nil }
+        return max(CGFloat(radius) * displayRect.height, bubbleRadius(control) + 6)
     }
 
     func dpadRadius(_ radius: Double) -> CGFloat {
@@ -99,6 +111,10 @@ struct KeymapPainter {
             // The ↘ handle sets the cast radius, so the handles sit on its ring.
             let c = point(anchor(of: control)), r = castRadius(control)
             return CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)
+        case .anchor:
+            // On its reach's circle: the ↘ handle sets it.
+            let c = point(anchor(of: control)), r = anchorReach(control) ?? bubbleRadius(control)
+            return CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)
         case .aim:
             let c = point(anchor(of: control)), r = Self.eyeRadius
             return CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)
@@ -125,10 +141,12 @@ struct KeymapPainter {
     /// still changes the size smoothly instead of jumping.
     func resizeCorner(_ control: Control) -> CGPoint? {
         switch control.kind {
-        case .swipe, .macro, .aim: return nil
-        default:
+        case .dpad, .mobaMove, .smartCast, .anchor:
             let f = frame(of: control)
             return CGPoint(x: f.maxX, y: f.minY)
+        default:
+            // Only what reaches somewhere has a size: a button touches its point whatever its size.
+            return nil
         }
     }
 
@@ -166,6 +184,13 @@ struct KeymapPainter {
                     below: frame(of: control), color: color)
         case let .dpad(center, radius, up, down, left, right, _):
             let c = point(center), r = dpadRadius(radius)
+            // How far it goes while its run key is held: a dashed ring further out.
+            if let run = control.run {
+                let reach = r * CGFloat(run.scale)
+                let ring = NSBezierPath(ovalIn: CGRect(x: c.x - reach, y: c.y - reach, width: 2 * reach, height: 2 * reach))
+                ring.setLineDash([6, 4], count: 2, phase: 0)
+                line(ring, color: fade(color, selected ? 0.9 : 0.5), width: 1.5)
+            }
             fade(color, 0.12 * opacity).setFill()
             NSBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)).fill()
             circle(at: c, radius: r, color: color, filled: false)
@@ -178,7 +203,8 @@ struct KeymapPainter {
             }
             circle(at: c, radius: max(r * 0.12, 5), color: color, filled: true, solid: true)
             // The controller's part that pushes it too: "D-pad · LS ✚".
-            let pads = [control.stick.map { GamepadHub.shared.layout.label($0) }, control.dpadButtons ? "✚" : nil].compactMap { $0 }
+            let pads = [control.stick.map { GamepadHub.shared.layout.label($0) }, control.dpadButtons ? "✚" : nil,
+                        control.run.map { String(localized: "\($0.trigger.shortLabel) runs", bundle: .windowHost) }].compactMap { $0 }
             caption(([String(localized: "D-pad", bundle: .windowHost)] + pads).joined(separator: " · "), below: frame(of: control), color: color)
         case let .swipe(from, to, _):
             let a = point(from), b = point(to)
@@ -191,8 +217,27 @@ struct KeymapPainter {
             bubble(control, at: a, color: color, symbolName: nil)
             caption(String(localized: "Swipe", bundle: .windowHost), below: frame(of: control), color: color)
         case .anchor:
-            bubble(control, at: point(anchor(of: control)), color: color, symbolName: "arrow.up.and.down.and.arrow.left.and.right")
-            caption(String(localized: "Anchor tap", bundle: .windowHost), below: frame(of: control), color: color)
+            let c = point(anchor(of: control))
+            // Its reach: a faint disc in a dashed ring, like a joystick's.
+            if let r = anchorReach(control) {
+                fade(color, (selected ? 0.12 : 0.07) * opacity).setFill()
+                NSBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)).fill()
+                let ring = NSBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))
+                ring.setLineDash([6, 4], count: 2, phase: 0)
+                line(ring, color: fade(color, selected ? 0.95 : 0.6), width: 1.5)
+            }
+            bubble(control, at: c, color: color, symbolName: "arrow.up.and.down.and.arrow.left.and.right")
+            let r = bubbleRadius(control)
+            caption(String(localized: "Anchor tap", bundle: .windowHost), below: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r),
+                    color: color)
+        case .switchMode(let target, _):
+            bubble(control, at: point(anchor(of: control)), color: color, symbolName: "arrow.triangle.2.circlepath")
+            let name = modeNames[target] ?? target
+            caption(String(localized: "Switch to “\(name)”", bundle: .windowHost), below: frame(of: control), color: color)
+        case .mouseLook(let lock, _):
+            bubble(control, at: point(anchor(of: control)), color: color, symbolName: lock ? "lock" : "cursorarrow")
+            caption(lock ? String(localized: "Lock the mouse", bundle: .windowHost) : String(localized: "Free the mouse", bundle: .windowHost),
+                    below: frame(of: control), color: color)
         case .repeatTap:
             bubble(control, at: point(anchor(of: control)), color: color, symbolName: "repeat")
             caption(String(localized: "Repeat", bundle: .windowHost), below: frame(of: control), color: color)
@@ -282,28 +327,18 @@ struct KeymapPainter {
         return handles.map { (edges: $0.0, at: reachable($0.1)) }
     }
 
-    /// An eye's swipe area or an anchor tap's finger area, under the
-    /// controls: a faint fill in a dashed frame, solid and named while it is
-    /// selected (and named under the pointer). An anchor tap without an area
-    /// of its own shows the whole screen as a dashed frame while selected.
+    /// An eye's swipe area, under the controls: a faint fill in a dashed
+    /// frame, solid and named while it is selected (and named under the pointer).
     func drawArea(_ control: Control, selected: Bool, hovered: Bool) {
         guard let r = areaRect(of: control) else { return }
         let color = selected ? Self.selection : Self.ink
-        let wholeScreen = { if case .anchor(_, nil) = control.kind { true } else { false } }()
-        if !wholeScreen {
-            fade(color, (selected ? 0.18 : hovered ? 0.14 : 0.1) * opacity).setFill()
-            NSBezierPath(rect: r).fill()
-        }
+        fade(color, (selected ? 0.18 : hovered ? 0.14 : 0.1) * opacity).setFill()
+        NSBezierPath(rect: r).fill()
         let frame = NSBezierPath(rect: r.insetBy(dx: 1, dy: 1))
-        if !selected || wholeScreen { frame.setLineDash([7, 5], count: 2, phase: 0) }
+        if !selected { frame.setLineDash([7, 5], count: 2, phase: 0) }
         line(frame, color: fade(color, selected ? 1 : hovered ? 0.8 : 0.55), width: selected ? 2 : 1.5)
         guard selected || hovered else { return }
-        let name = switch control.kind {
-        case .aim: String(localized: "Swipe area", bundle: .windowHost)
-        default: wholeScreen ? String(localized: "Finger area: whole screen", bundle: .windowHost)
-                             : String(localized: "Finger area", bundle: .windowHost)
-        }
-        tag(name, inside: r, color: color)
+        tag(String(localized: "Swipe area", bundle: .windowHost), inside: r, color: color)
     }
 
     /// The selected area's corner and edge handles; `hot` is the one under the pointer.
@@ -328,7 +363,7 @@ struct KeymapPainter {
         let measured = labelRect(text, at: .zero, size: 12)
         let size = CGSize(width: measured.width + 16, height: measured.height + 6)
         // Below and right of the pointer, else at another of its corners:
-        // on the display and clear of the toolbar and the status line.
+        // on the display and clear of the bar and the inspector.
         let corners = [CGPoint(x: pointer.x + 14, y: pointer.y - 14 - size.height), CGPoint(x: pointer.x - 14 - size.width, y: pointer.y - 14 - size.height),
                        CGPoint(x: pointer.x + 14, y: pointer.y + 14), CGPoint(x: pointer.x - 14 - size.width, y: pointer.y + 14)]
         let inside = displayRect.insetBy(dx: 4, dy: 4)
@@ -354,7 +389,7 @@ struct KeymapPainter {
         var plate = CGRect(x: r.minX + 6, y: r.maxY - 6 - (measured.height + 2), width: measured.width + 10, height: measured.height + 2)
         plate.origin.x = max(min(plate.minX, displayRect.maxX - 4 - plate.width), displayRect.minX + 4)
         plate.origin.y = max(min(plate.minY, displayRect.maxY - 4 - plate.height), displayRect.minY + 4)
-        // Down the area's left edge, out from under the toolbar.
+        // Down the area's left edge, out from under the bar.
         for obstacle in obstacles where obstacle.intersects(plate) && obstacle.minY - 4 - plate.height > r.minY {
             plate.origin.y = obstacle.minY - 4 - plate.height
         }
@@ -416,6 +451,29 @@ struct KeymapPainter {
         circle(at: c, radius: r, color: color, filled: true, solid: true)
         symbol(name, at: c, size: 22, color: .black)
         caption(text, below: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r), color: color)
+    }
+
+    /// Where a click on the game put a tap that waits for its key (editor):
+    /// a dashed ring in the selection colour, "?", and "Press a key" under it.
+    func drawPendingTap(at c: CGPoint) {
+        let r = max(CGFloat(Control.defaultSize) * displayRect.height, Self.minimumBubble)
+        let box = CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)
+        Self.selection.withAlphaComponent(0.22).setFill()
+        NSBezierPath(ovalIn: box).fill()
+        let ring = NSBezierPath(ovalIn: box)
+        ring.setLineDash([4, 3], count: 2, phase: 0)
+        line(ring, color: Self.selection, width: 2)
+        label("?", at: c, color: Self.selection, size: min(max(r * 0.7, 11), 18))
+        caption(String(localized: "Press a key", bundle: .windowHost), below: box, color: Self.selection)
+    }
+
+    /// A control that acts in every mode of a layout with modes (editor): a
+    /// small ∞ on the top left of its frame.
+    func drawEveryModeBadge(_ control: Control) {
+        let f = frame(of: control)
+        let c = reachable(CGPoint(x: f.minX, y: f.maxY))
+        circle(at: c, radius: 8, color: Self.ink, filled: true, solid: true)
+        symbol("infinity", at: c, size: 8.5, color: .black)
     }
 
     private func handle(at c: CGPoint, alpha: CGFloat, hot: Bool) {
@@ -558,6 +616,10 @@ struct KeymapPainter {
             for (slot, at) in dpadSlots(center: c, radius: r).enumerated() {
                 keyCap([up, left, down, right][slot].shortLabel, at: at, size: size)
             }
+            // The key held to run, under the joystick.
+            if let run = control.run {
+                keyCap(run.trigger.shortLabel, symbol: "figure.run", at: CGPoint(x: c.x, y: c.y - r - size * 1.4), size: size)
+            }
         case let .mobaMove(center, radius):
             let c = point(center), r = dpadRadius(radius)
             stickRing(center: c, radius: r)
@@ -588,6 +650,9 @@ struct KeymapPainter {
             keyCap(triggerText(control), symbol: "sparkles", at: c, size: capFontSize(radius: bubbleRadius(control)))
         case .macro, .tap, .hold:
             keyCap(triggerText(control), at: c, size: capFontSize(radius: bubbleRadius(control)))
+        case .switchMode, .mouseLook:
+            // They touch nothing on the game: no cap over it.
+            break
         }
     }
 
@@ -773,6 +838,8 @@ final class KeymapHintsMenu: NSObject, NSMenuItemValidation, NSMenuDelegate {
 @MainActor
 final class KeymapHintsView: NSView {
     var profile: KeymapProfile? { didSet { needsDisplay = true } }
+    /// The layout's mode now (KeymapController): only its controls show.
+    var mode: String? { didSet { if mode != oldValue { needsDisplay = true } } }
     /// Hidden while the editor is open (it shows everything itself) and
     /// outside Game Mode (the mapping is not in charge then).
     var editing = false { didSet { update() } }
@@ -811,7 +878,8 @@ final class KeymapHintsView: NSView {
         let painter = KeymapPainter(displayRect: displayRect(), opacity: CGFloat(KeymapHints.opacity), captions: false, guides: false,
                                     style: .hint)
         let eyeKey = profile.fps?.cursorToggle.shortLabel
-        for control in profile.controls where KeymapPainter.isEye(control) { painter.draw(control, eyeKey: eyeKey) }
-        for control in profile.controls where !KeymapPainter.isEye(control) { painter.draw(control) }
+        let shown = profile.controls.filter { $0.belongs(to: mode) && $0.touchesTheScreen }
+        for control in shown where KeymapPainter.isEye(control) { painter.draw(control, eyeKey: eyeKey) }
+        for control in shown where !KeymapPainter.isEye(control) { painter.draw(control) }
     }
 }

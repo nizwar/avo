@@ -103,6 +103,13 @@ device comes last (see "Shared folder" below). Frames go to shared memory
   runs in 21 ms periods. Measured on the test VM: a two-burst AAudio stream
   went from 11 underruns a second to none, and a game's write to the Mac
   playing it from about 255 ms (AAudio's default buffer) to about 82 ms.
+  The same copy asks for input pipes twice as large: the HAL's input thread
+  writes each buffer it reads from ALSA into a blocking MonoPipe of one
+  buffer, whose pacing slept 1.15 buffers per write, so recording took
+  23 ms of the device's time for every 20 ms of sound and lost about 13% of
+  it as 20 ms holes (voice chat in Call of Duty: Mobile came across choppy
+  or not at all). A two-instruction stub in the HAL's alignment padding
+  doubles the size of pipes whose writer blocks (only input ones).
 - **Cameras** (`virtio/media.rs`, `camera.rs`; with `--cameras`):
   two V4L2 capture devices in ChromeOS's virtio-media protocol (device
   48), back then front as two functions of one PCI device, so the guest's
@@ -164,14 +171,22 @@ device comes last (see "Shared folder" below). Frames go to shared memory
 (`vulkan.ranchu`) go through gfxstream to MoltenVK and Metal; apps get
 GLES 3.1 and Vulkan 1.3.
 
-- **Requirement**: the Android Emulator 37 or later from Android Studio's SDK
-  Manager (`~/Library/Android/sdk/emulator`, or
-  `defaults write dev.avo.daemon AvoAndroidEmulator <dir>`). avo-vmm loads its
-  `lib64/libgfxstream_backend.dylib` (and the ten libraries it needs) at run
-  time by absolute path; Avo never ships them. The dylibs carry Google's Team
+- **The renderer** ships in Avo.app (`Contents/Resources/gfxstream`, built
+  from source by `scripts/build-gfxstream.sh`, `make gfxstream`): gfxstream's
+  host backend at the snapshot the Android Emulator 37.1 has (emu-main-dev
+  `ec3143b`, built standalone, so it needs only the system's libraries), the
+  Khronos Vulkan loader 1.4.365 and MoltenVK 1.4.0 (the release binary), in
+  the emulator's layout (`lib64/`, `lib64/vulkan/`), its `source.properties`
+  saying `Pkg.Desc=Avo GPU renderer…` and `Pkg.Revision=avo.N`, which keys
+  the shader cache. The daemon passes it unless
+  `defaults write dev.avo.daemon AvoAndroidEmulator <dir>` names another; an
+  Android Emulator 37 or later (`~/Library/Android/sdk/emulator`) is the
+  fallback. avo-vmm loads `lib64/libgfxstream_backend.dylib` at run time by
+  absolute path, an emulator's after the ten libraries it needs (Avo never
+  ships those: Android SDK licence). The emulator's dylibs carry Google's Team
   ID, so avo-vmm is signed with `com.apple.security.cs.disable-library-validation`
   (`engine/hvf/hypervisor.entitlements`).
-- **Flags**: `--gpu gfxstream --gfxstream-dir <emulator dir>` (the daemon adds
+- **Flags**: `--gpu gfxstream --gfxstream-dir <renderer dir>` (the daemon adds
   them after `--properties`); none, or `--gpu 2d`, is the software engine bit
   for bit. `--hwc client|host` is a bring-up knob the daemon never passes.
 - **Exit 75**: the renderer could not load or initialise (within 20 s), before
@@ -231,9 +246,27 @@ GLES 3.1 and Vulkan 1.3.
   textures read back black, stale or magenta). The same layer traces what
   the guest's renderers ask of MoltenVK when `AVO_VK_TRACE=1` is set or
   `~/Library/Logs/Avo/vk-trace.on` exists as the engine starts: each kind of
-  image, view and sampler, every layout past Metal's 16 samplers a stage, and
-  every failed pipeline, image or image-format query, once each, with the
-  time, as `[vk-trace]` lines in `avo-vmm.log`. Off, it hooks nothing.
+  image, view and sampler, every layout past Metal's 16 samplers a stage, the
+  device's memory types and each memory type and size class allocated (0x10
+  is lazily allocated, Metal's memoryless), and every failed pipeline, image,
+  image-format query, allocation or image binding, once each, with the time,
+  as `[vk-trace]` lines in `avo-vmm.log`. Off, it hooks nothing.
+- **No memoryless memory** (the same layer, always on; `AVO_NATIVE_ASTC=0`
+  turns off only the ASTC part): MoltenVK's last memory type is lazily
+  allocated (Metal's memoryless storage, 0x11), and MoltenVK gives it only to
+  transient attachments that are not input attachments. ANGLE makes every
+  implicit multisampled image (GL's multisampled render to texture: WebGL's
+  antialiased canvases, games' MSAA) a transient attachment needing lazily
+  allocated memory whenever such a type exists, and a color one is an input
+  attachment too, so no type fit and ANGLE's allocator failed with
+  `VK_ERROR_FEATURE_NOT_PRESENT` (`initMemoryAndNonZeroFillIfNeeded` in
+  logcat): the image had no memory and the game drew garbage there (PUBG's
+  WebView pages, its end screen). The layer drops that type from the memory
+  properties gfxstream reads, and its bit from image memory requirements and
+  Metal handle properties, so ANGLE gives those images ordinary device
+  memory. Checked against MoltenVK 1.4.0 directly: without the layer a 4x
+  color image with ANGLE's usage finds no type; with it, type 0 allocates and
+  binds.
 - **Frames**: on each flush the engine reads the composed buffer back into the
   same shared-memory frames as software (0.6–1.2 ms a frame measured at
   720×1280 and 1080×1920), so the daemon, MetalFX and recording are
@@ -392,6 +425,7 @@ The control socket (`control.sock`, one text command per line):
 | `location <lat> <lng> [alt] [accuracy] [speed] [bearing]` / `location off` | the GPS fix Android's GNSS HAL reads from /dev/gnss1 (about once a second, timestamped when read, and carried on along its bearing at its speed for up to a second since it was set); a playing route sends it four times a second (architecture.md, "Android's location") |
 | `network <down kbps> <up kbps> <latency ms>` / `network off` | limits Android's network link to a mobile network type's speed and delay (Settings › Devices › Network speed; 0 is no limit, the latency is the round trip's); each direction queues at most 1 MiB, beyond which frames drop (link.rs). The daemon sends it after every start and when the setting changes |
 | `cellular <gprs\|edge\|umts\|hspa\|lte\|nr> <bars 0-4>` / `cellular off` | the modem's test SIM, registered at home on that network type with that signal, or no SIM (the default; `--cellular TYPE:BARS` sets it from the start). Live: Android hears of another type or signal at once, and of a SIM going in or out once it has turned the radio back on (modem.rs) |
+| `shake` | shakes the phone: Android's accelerometer swings ±15 m/s² sideways five times a second for one second, as a hand shaking it would, then reads still again (sensors.rs); an error until Android has turned its sensors on |
 | `microphone on\|off` | whether Android may use the Mac's microphone (Settings › Devices › Microphone); off, it records silence and the microphone is never opened (virtio/sound.rs) |
 | `camera feed` | turns the connection into the cameras' frames: each a 16-byte header (camera, width, height, length; u32 little endian) and that many bytes of JPEG (camera.rs) |
 | `snapshot <i> <path>` | next frame as a BMP |
@@ -515,7 +549,12 @@ daemon plays it over ADB (vsock 6520, root through `su` on userdebug):
   windows for apps started by adb or other apps on Android's own screen
   (TaskStarted);
 - clipboard both ways through `avo-clipboard.jar` (guest/clipboard, run with
-  `app_process` as the shell user), notifications from `cmd notification`,
+  `app_process` as the shell user), notifications from `cmd notification`
+  with their buttons from the same helper (`actions`, for those whose record
+  says `actions=N`; `act` presses one, filling a Reply's RemoteInput with the
+  text typed on the Mac), what Android plays from its `media watch` (one
+  long-running `exec:` stream: Now Playing lines out, play/pause/seek
+  commands in, for the session it shows),
   the Mac's location (CoreLocation), or a place or route from an app
   window's Location panel, as GNSS fixes (`LocationCenter`);
 - links apps open go to the Mac through Avo Links (guest/links, installed

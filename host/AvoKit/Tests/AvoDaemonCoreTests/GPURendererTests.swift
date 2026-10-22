@@ -53,6 +53,54 @@ import Testing
         #expect(parsed?.build == "15917651")
         #expect(AndroidEmulator.revision(sourceProperties: "Pkg.Revision = 38.0.1\r\n")?.build == nil)
         #expect(AndroidEmulator.revision(sourceProperties: "Pkg.Desc=x") == nil)
+        #expect(AndroidEmulator.revision(sourceProperties: "Pkg.Desc=Avo GPU renderer: x\nPkg.Revision=avo.1\n")?.description
+            == "Avo GPU renderer: x")
+    }
+
+    // MARK: Avo's own renderer
+
+    /// A fake build of scripts/build-gfxstream.sh.
+    private func avoRenderer(skipping: String? = nil) throws -> URL {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "avo-gfxstream-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: dir.appending(path: "lib64/vulkan"), withIntermediateDirectories: true)
+        let properties = "Pkg.Desc=Avo GPU renderer: gfxstream, the Vulkan loader and MoltenVK, built from source\n"
+            + "Pkg.Revision=avo.1\nPkg.BuildId=gfxstream-ec3143b4ac34\n"
+        try properties.write(to: dir.appending(path: "source.properties"), atomically: true, encoding: .utf8)
+        for file in AndroidEmulator.bundledFiles where file != skipping {
+            FileManager.default.createFile(atPath: dir.appending(path: file).path, contents: Data())
+        }
+        return dir
+    }
+
+    /// Avo's own build in Avo.app comes before the Android Emulator, which
+    /// a user then needs for nothing but Bluetooth.
+    @Test func prefersAvosOwnRenderer() throws {
+        let bundled = try avoRenderer()
+        let incomplete = try avoRenderer(skipping: "lib64/vulkan/libMoltenVK.dylib")
+        let home = FileManager.default.temporaryDirectory.appending(path: "avo-home-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let installed = home.appending(path: "Library/Android/sdk/emulator", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: installed.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.moveItem(at: try emulator(), to: installed)
+        defer { for dir in [bundled, incomplete, home] { try? FileManager.default.removeItem(at: dir) } }
+
+        // Avo's own build has no emulator version to check.
+        let own = try found(bundled)
+        #expect(own.isBundled)
+        #expect(own.version == "avo.1")
+        let emulator = try found(installed)
+        #expect(!emulator.isBundled)
+        #expect(AndroidEmulator.lookup(home: home, bundled: bundled, override: nil) == .found(own))
+        // A developer's override still wins; without Avo's build (or with a
+        // broken one), the installed emulator.
+        #expect(AndroidEmulator.lookup(home: home, bundled: bundled, override: installed.path) == .found(emulator))
+        #expect(AndroidEmulator.lookup(home: home, bundled: nil, override: nil) == .found(emulator))
+        #expect(AndroidEmulator.inspect(incomplete) == .missing)
+        #expect(AndroidEmulator.lookup(home: home, bundled: incomplete, override: nil) == .found(emulator))
+    }
+
+    @Test func findsTheRendererNextToTheEngine() {
+        let engine = URL(filePath: "/Applications/Avo.app/Contents/MacOS/avo-vmm")
+        #expect(AndroidEmulator.bundled(engine: engine).path == "/Applications/Avo.app/Contents/Resources/gfxstream")
     }
 
     // MARK: Plan

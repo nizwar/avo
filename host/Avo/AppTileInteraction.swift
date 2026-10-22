@@ -1,5 +1,6 @@
 import AppKit
 import AvoKit
+import AvoWindowHost
 import SwiftUI
 
 // How every app in the Library answers the pointer (Home's cards and tiles,
@@ -9,7 +10,8 @@ import SwiftUI
 // - pressing and holding opens its page: the tile gives a little and a ring
 //   of Avo green runs around it, and leaving the tile before it closes
 //   cancels;
-// - a right click (or Control-click) shows its menu in the haze (HazeMenu.swift).
+// - a right click (or Control-click) shows its menu in the haze (HazeMenu.swift
+//   in the Window Host).
 //
 // With the keyboard (Full Keyboard Access), Return or Space opens it, ⌘I
 // shows its page and Control-Return its menu; VoiceOver gets the same as
@@ -82,7 +84,7 @@ final class AppTileMenus {
 
     private func click(_ event: NSEvent) -> NSEvent? {
         guard event.type == .rightMouseDown || event.modifierFlags.contains(.control), let hovered,
-              let window = event.window, !(window is HazeMenuPanel) else { return event }
+              let window = event.window, !HazeMenuPresenter.shared.isMenu(window) else { return event }
         hovered.show(window.convertPoint(toScreen: event.locationInWindow), event)
         return nil
     }

@@ -14,15 +14,27 @@
 // tiling features of ASTC LDR formats wherever optimal tiling has them, so
 // gfxstream passes ASTC straight to MoltenVK. Avo's guest layer
 // (guest/gfxsync) takes the two bits away again, so apps never try a linear
-// ASTC image. Everything else passes straight through.
+// ASTC image. AVO_NATIVE_ASTC=0 leaves them out, to compare.
+//
+// It also hides MoltenVK's lazily allocated memory type (Metal's memoryless
+// storage, the last type) from gfxstream and so from the guest. MoltenVK
+// gives it only to transient attachments that are not input attachments, and
+// ANGLE's implicit multisampled images (GL's multisampled render to texture)
+// are both whenever a lazily allocated type exists: each such color image
+// found no memory (VK_ERROR_FEATURE_NOT_PRESENT from ANGLE's allocator) and
+// the game drew garbage there (PUBG's WebView pages, its end screen). Without
+// the type ANGLE gives them ordinary device memory. Everything else passes
+// straight through.
 //
 // With AVO_VK_TRACE=1 or ~/Library/Logs/Avo/vk-trace.on at the start, it also
 // writes to the engine's log, each kind once with the time, what the guest's
 // renderers ask MoltenVK for: images (format, size class, mips, layers, usage,
 // flags), views that read an image in another format, samplers, descriptor and
-// pipeline layouts that pass Metal's 16 samplers a stage, and every pipeline,
-// image or image-format query that fails. It is for finding what a game does
-// that the Mac's GPU path gets wrong, from the Mac's side only.
+// pipeline layouts that pass Metal's 16 samplers a stage, the device's memory
+// types and the memory allocated (type, size class, dedicated), and every
+// pipeline, image, image-format query, allocation or image binding that
+// fails. It is for finding what a game does that the Mac's GPU path gets
+// wrong, from the Mac's side only.
 #include <stdatomic.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -50,6 +62,8 @@ typedef struct VkDescriptorSetLayout_T* VkDescriptorSetLayout;
 typedef struct VkPipelineLayout_T* VkPipelineLayout;
 typedef struct VkPipelineCache_T* VkPipelineCache;
 typedef struct VkPipeline_T* VkPipeline;
+typedef struct VkDeviceMemory_T* VkDeviceMemory;
+typedef uint64_t VkDeviceSize;
 typedef uint32_t VkBool32;
 typedef void (*PFN_vkVoidFunction)(void);
 typedef PFN_vkVoidFunction (*PFN_vkGetInstanceProcAddr)(VkInstance, const char*);
@@ -227,6 +241,66 @@ typedef VkResult (*PFN_vkCreateDescriptorSetLayout)(VkDevice, const VkDescriptor
 typedef VkResult (*PFN_vkCreatePipelineLayout)(VkDevice, const VkPipelineLayoutCreateInfo*, const void*, VkPipelineLayout*);
 typedef VkResult (*PFN_vkCreatePipelines)(VkDevice, VkPipelineCache, uint32_t, const void*, const void*, VkPipeline*);
 
+typedef struct {
+    VkStructureType sType;
+    const void* pNext;
+    VkDeviceSize allocationSize;
+    uint32_t memoryTypeIndex;
+} VkMemoryAllocateInfo;
+
+typedef struct {
+    VkStructureType sType;
+    const void* pNext;
+    VkImage image;
+    VkDeviceMemory memory;
+    VkDeviceSize memoryOffset;
+} VkBindImageMemoryInfo;
+
+typedef struct { VkFlags propertyFlags; uint32_t heapIndex; } VkMemoryType;
+typedef struct { VkDeviceSize size; VkFlags flags; } VkMemoryHeap;
+typedef struct {
+    uint32_t memoryTypeCount;
+    VkMemoryType memoryTypes[32];
+    uint32_t memoryHeapCount;
+    VkMemoryHeap memoryHeaps[16];
+} VkPhysicalDeviceMemoryProperties;
+
+typedef struct {
+    VkStructureType sType;
+    void* pNext;
+    VkPhysicalDeviceMemoryProperties memoryProperties;
+} VkPhysicalDeviceMemoryProperties2;
+
+typedef struct {
+    VkDeviceSize size;
+    VkDeviceSize alignment;
+    uint32_t memoryTypeBits;
+} VkMemoryRequirements;
+
+typedef struct {
+    VkStructureType sType;
+    void* pNext;
+    VkMemoryRequirements memoryRequirements;
+} VkMemoryRequirements2;
+
+// VkMemoryMetalHandlePropertiesEXT.
+typedef struct {
+    VkStructureType sType;
+    void* pNext;
+    uint32_t memoryTypeBits;
+} VkMemoryMetalHandleProperties;
+
+typedef VkResult (*PFN_vkAllocateMemory)(VkDevice, const VkMemoryAllocateInfo*, const void*, VkDeviceMemory*);
+typedef VkResult (*PFN_vkBindImageMemory)(VkDevice, VkImage, VkDeviceMemory, VkDeviceSize);
+typedef VkResult (*PFN_vkBindImageMemory2)(VkDevice, uint32_t, const VkBindImageMemoryInfo*);
+typedef void (*PFN_vkGetPhysicalDeviceMemoryProperties)(VkPhysicalDevice, VkPhysicalDeviceMemoryProperties*);
+typedef void (*PFN_vkGetPhysicalDeviceMemoryProperties2)(VkPhysicalDevice, VkPhysicalDeviceMemoryProperties2*);
+typedef void (*PFN_vkGetImageMemoryRequirements)(VkDevice, VkImage, VkMemoryRequirements*);
+// vkGetImageMemoryRequirements2 and vkGetDeviceImageMemoryRequirements: an
+// info structure in, VkMemoryRequirements2 out.
+typedef void (*PFN_vkGetMemoryRequirements2)(VkDevice, const void*, VkMemoryRequirements2*);
+typedef VkResult (*PFN_vkGetMemoryMetalHandleProperties)(VkDevice, int32_t, const void*, VkMemoryMetalHandleProperties*);
+
 #define EXPORT __attribute__((visibility("default")))
 
 // The first word of an instance, physical device or device handle: the
@@ -247,6 +321,9 @@ typedef struct Instance {
     PFN_vkGetPhysicalDeviceImageFormatProperties image_format_properties;
     PFN_vkGetPhysicalDeviceImageFormatProperties2 image_format_properties2;
     PFN_vkGetPhysicalDeviceImageFormatProperties2 image_format_properties2_khr;
+    PFN_vkGetPhysicalDeviceMemoryProperties memory_properties;
+    PFN_vkGetPhysicalDeviceMemoryProperties2 memory_properties2;
+    PFN_vkGetPhysicalDeviceMemoryProperties2 memory_properties2_khr;
 } Instance;
 
 typedef struct Device {
@@ -262,6 +339,19 @@ typedef struct Device {
     PFN_vkCreatePipelineLayout create_pipeline_layout;
     PFN_vkCreatePipelines create_graphics_pipelines;
     PFN_vkCreatePipelines create_compute_pipelines;
+    PFN_vkAllocateMemory allocate_memory;
+    PFN_vkBindImageMemory bind_image_memory;
+    PFN_vkBindImageMemory2 bind_image_memory2;
+    PFN_vkBindImageMemory2 bind_image_memory2_khr;
+    // The memory types hidden from gfxstream, as memoryTypeBits, and the
+    // driver's functions that name memory types.
+    uint32_t hidden_types;
+    PFN_vkGetImageMemoryRequirements image_requirements;
+    PFN_vkGetMemoryRequirements2 image_requirements2;
+    PFN_vkGetMemoryRequirements2 image_requirements2_khr;
+    PFN_vkGetMemoryRequirements2 device_image_requirements;
+    PFN_vkGetMemoryRequirements2 device_image_requirements_khr;
+    PFN_vkGetMemoryMetalHandleProperties metal_handle_properties;
 } Device;
 
 static pthread_mutex_t lists_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -290,10 +380,22 @@ static Device* find_device(void* key) {
 // MARK: Format properties
 
 static atomic_flag announced = ATOMIC_FLAG_INIT;
+static atomic_int astc_state; // 0 not decided, 1 off, 2 on
+
+// AVO_NATIVE_ASTC=0 leaves gfxstream's ASTC emulation on.
+static int native_astc(void) {
+    int state = atomic_load(&astc_state);
+    if (state == 0) {
+        const char* value = getenv("AVO_NATIVE_ASTC");
+        state = value && strcmp(value, "0") == 0 ? 1 : 2;
+        atomic_store(&astc_state, state);
+    }
+    return state == 2;
+}
 
 static void add_linear(VkFormat format, VkFormatProperties* properties) {
     const VkFlags sampled = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
-    if (format < VK_FORMAT_ASTC_4x4_UNORM_BLOCK || format > VK_FORMAT_ASTC_12x12_SRGB_BLOCK) return;
+    if (format < VK_FORMAT_ASTC_4x4_UNORM_BLOCK || format > VK_FORMAT_ASTC_12x12_SRGB_BLOCK || !native_astc()) return;
     if ((properties->optimalTilingFeatures & sampled) != sampled) return;
     properties->linearTilingFeatures |= sampled;
     if (!atomic_flag_test_and_set(&announced)) {
@@ -322,6 +424,118 @@ static void GetPhysicalDeviceFormatProperties2KHR(VkPhysicalDevice physical, VkF
     add_linear(format, &properties->formatProperties);
 }
 
+// MARK: Memory types
+
+enum { VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT = 0x10 };
+
+static uint32_t lazy_types(const VkPhysicalDeviceMemoryProperties* properties) {
+    uint32_t bits = 0;
+    for (uint32_t i = 0; i < properties->memoryTypeCount && i < 32; i++) {
+        if (properties->memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT) bits |= 1u << i;
+    }
+    return bits;
+}
+
+// The lazily allocated types at the end go (MoltenVK's one is last). One
+// before another type would keep its index, without the flag, and no
+// resource names it (`hidden_types`).
+static void hide_lazy_types(VkPhysicalDeviceMemoryProperties* properties) {
+    if (properties->memoryTypeCount > 32) return;
+    while (properties->memoryTypeCount > 0 &&
+           (properties->memoryTypes[properties->memoryTypeCount - 1].propertyFlags & VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT)) {
+        properties->memoryTypeCount--;
+        memset(&properties->memoryTypes[properties->memoryTypeCount], 0, sizeof properties->memoryTypes[0]);
+    }
+    for (uint32_t i = 0; i < properties->memoryTypeCount; i++) {
+        properties->memoryTypes[i].propertyFlags &= ~(VkFlags)VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
+    }
+}
+
+static void GetPhysicalDeviceMemoryProperties(VkPhysicalDevice physical, VkPhysicalDeviceMemoryProperties* properties) {
+    Instance* instance = find_instance(key_of(physical));
+    if (!instance || !instance->memory_properties) return;
+    instance->memory_properties(physical, properties);
+    hide_lazy_types(properties);
+}
+
+static void GetPhysicalDeviceMemoryProperties2(VkPhysicalDevice physical, VkPhysicalDeviceMemoryProperties2* properties) {
+    Instance* instance = find_instance(key_of(physical));
+    if (!instance || !instance->memory_properties2) return;
+    instance->memory_properties2(physical, properties);
+    hide_lazy_types(&properties->memoryProperties);
+}
+
+static void GetPhysicalDeviceMemoryProperties2KHR(VkPhysicalDevice physical, VkPhysicalDeviceMemoryProperties2* properties) {
+    Instance* instance = find_instance(key_of(physical));
+    if (!instance || !instance->memory_properties2_khr) return;
+    instance->memory_properties2_khr(physical, properties);
+    hide_lazy_types(&properties->memoryProperties);
+}
+
+static Device* device_of(VkDevice handle) { return find_device(key_of(handle)); }
+
+static void GetImageMemoryRequirements(VkDevice handle, VkImage image, VkMemoryRequirements* requirements) {
+    Device* device = device_of(handle);
+    device->image_requirements(handle, image, requirements);
+    requirements->memoryTypeBits &= ~device->hidden_types;
+}
+
+static void requirements2(VkDevice handle, PFN_vkGetMemoryRequirements2 next, const void* info, VkMemoryRequirements2* requirements) {
+    next(handle, info, requirements);
+    requirements->memoryRequirements.memoryTypeBits &= ~device_of(handle)->hidden_types;
+}
+
+static void GetImageMemoryRequirements2(VkDevice handle, const void* info, VkMemoryRequirements2* requirements) {
+    requirements2(handle, device_of(handle)->image_requirements2, info, requirements);
+}
+
+static void GetImageMemoryRequirements2KHR(VkDevice handle, const void* info, VkMemoryRequirements2* requirements) {
+    requirements2(handle, device_of(handle)->image_requirements2_khr, info, requirements);
+}
+
+static void GetDeviceImageMemoryRequirements(VkDevice handle, const void* info, VkMemoryRequirements2* requirements) {
+    requirements2(handle, device_of(handle)->device_image_requirements, info, requirements);
+}
+
+static void GetDeviceImageMemoryRequirementsKHR(VkDevice handle, const void* info, VkMemoryRequirements2* requirements) {
+    requirements2(handle, device_of(handle)->device_image_requirements_khr, info, requirements);
+}
+
+// gfxstream imports a ColorBuffer's or Buffer's MTLHeap; a private one also
+// names the memoryless type.
+static VkResult GetMemoryMetalHandlePropertiesEXT(VkDevice handle, int32_t type, const void* metal,
+                                                  VkMemoryMetalHandleProperties* properties) {
+    Device* device = device_of(handle);
+    VkResult result = device->metal_handle_properties(handle, type, metal, properties);
+    if (result == VK_SUCCESS) properties->memoryTypeBits &= ~device->hidden_types;
+    return result;
+}
+
+// The function for `name` that hides memory types when the device has some
+// to hide and the driver has the function, or NULL.
+static PFN_vkVoidFunction memory_device_function(const Device* device, const char* name) {
+    if (!device || !device->hidden_types) return NULL;
+    if (strcmp(name, "vkGetImageMemoryRequirements") == 0 && device->image_requirements) {
+        return (PFN_vkVoidFunction)GetImageMemoryRequirements;
+    }
+    if (strcmp(name, "vkGetImageMemoryRequirements2") == 0 && device->image_requirements2) {
+        return (PFN_vkVoidFunction)GetImageMemoryRequirements2;
+    }
+    if (strcmp(name, "vkGetImageMemoryRequirements2KHR") == 0 && device->image_requirements2_khr) {
+        return (PFN_vkVoidFunction)GetImageMemoryRequirements2KHR;
+    }
+    if (strcmp(name, "vkGetDeviceImageMemoryRequirements") == 0 && device->device_image_requirements) {
+        return (PFN_vkVoidFunction)GetDeviceImageMemoryRequirements;
+    }
+    if (strcmp(name, "vkGetDeviceImageMemoryRequirementsKHR") == 0 && device->device_image_requirements_khr) {
+        return (PFN_vkVoidFunction)GetDeviceImageMemoryRequirementsKHR;
+    }
+    if (strcmp(name, "vkGetMemoryMetalHandlePropertiesEXT") == 0 && device->metal_handle_properties) {
+        return (PFN_vkVoidFunction)GetMemoryMetalHandlePropertiesEXT;
+    }
+    return NULL;
+}
+
 // MARK: Trace
 
 static atomic_int trace_state; // 0 not decided, 1 off, 2 on
@@ -338,7 +552,7 @@ static int tracing(void) {
     }
     int expected = 0;
     if (atomic_compare_exchange_strong(&trace_state, &expected, on ? 2 : 1) && on) {
-        fprintf(stderr, "[vk-trace] on: images, views, samplers, layouts past 16 samplers a stage, and failures, each kind once\n");
+        fprintf(stderr, "[vk-trace] on: images, views, samplers, layouts past 16 samplers a stage, memory, and failures, each kind once\n");
     }
     return atomic_load(&trace_state) == 2;
 }
@@ -443,8 +657,6 @@ static Counts* counts_slot(VkDescriptorSetLayout layout, int insert) {
 
 static const char* const stage_names[STAGES] = {"vertex", "fragment", "compute"};
 static const VkFlags stage_bits[STAGES] = {0x1, 0x10, 0x20};
-
-static Device* device_of(VkDevice handle) { return find_device(key_of(handle)); }
 
 static VkResult CreateImage(VkDevice handle, const VkImageCreateInfo* info, const void* allocator, VkImage* out) {
     Device* device = device_of(handle);
@@ -573,6 +785,57 @@ static VkResult GetPhysicalDeviceImageFormatProperties2KHR(VkPhysicalDevice phys
     return image_format_properties2(find_instance(key_of(physical))->image_format_properties2_khr, physical, info, properties);
 }
 
+// Memory: each type and size class once (a dedicated allocation is one
+// image's), and every allocation or image binding that fails, with its size.
+static uint64_t mib_class(VkDeviceSize size) {
+    uint64_t mib = (size + (1u << 20) - 1) >> 20, class = 1;
+    while (class < mib) class <<= 1;
+    return class;
+}
+
+// VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO in `next`'s chain.
+static int dedicated(const void* next) {
+    for (const VkBaseStructure* s = next; s; s = s->pNext) {
+        if (s->sType == 1000127001) return 1;
+    }
+    return 0;
+}
+
+static VkResult AllocateMemory(VkDevice handle, const VkMemoryAllocateInfo* info, const void* allocator, VkDeviceMemory* out) {
+    Device* device = device_of(handle);
+    VkResult result = device->allocate_memory(handle, info, allocator, out);
+    if (result != VK_SUCCESS) {
+        trace("memory type %u, %llu bytes%s FAILED with %d", info->memoryTypeIndex, (unsigned long long)info->allocationSize,
+              dedicated(info->pNext) ? " dedicated" : "", result);
+    } else {
+        trace("memory type %u, %llu MiB class%s", info->memoryTypeIndex, (unsigned long long)mib_class(info->allocationSize),
+              dedicated(info->pNext) ? " dedicated" : "");
+    }
+    return result;
+}
+
+static VkResult BindImageMemory(VkDevice handle, VkImage image, VkDeviceMemory memory, VkDeviceSize offset) {
+    VkResult result = device_of(handle)->bind_image_memory(handle, image, memory, offset);
+    if (result != VK_SUCCESS) trace("binding a format %d image FAILED with %d", format_of(image), result);
+    return result;
+}
+
+static VkResult bind_image_memory2(PFN_vkBindImageMemory2 next, VkDevice handle, uint32_t count, const VkBindImageMemoryInfo* infos) {
+    VkResult result = next(handle, count, infos);
+    if (result != VK_SUCCESS) {
+        for (uint32_t i = 0; i < count; i++) trace("binding a format %d image (of %u) FAILED with %d", format_of(infos[i].image), count, result);
+    }
+    return result;
+}
+
+static VkResult BindImageMemory2(VkDevice handle, uint32_t count, const VkBindImageMemoryInfo* infos) {
+    return bind_image_memory2(device_of(handle)->bind_image_memory2, handle, count, infos);
+}
+
+static VkResult BindImageMemory2KHR(VkDevice handle, uint32_t count, const VkBindImageMemoryInfo* infos) {
+    return bind_image_memory2(device_of(handle)->bind_image_memory2_khr, handle, count, infos);
+}
+
 // The trace's function for `name` when tracing and the driver has it, or NULL.
 static PFN_vkVoidFunction traced_device_function(const Device* device, const char* name) {
     if (!device || !tracing()) return NULL;
@@ -583,6 +846,10 @@ static PFN_vkVoidFunction traced_device_function(const Device* device, const cha
     if (strcmp(name, "vkCreatePipelineLayout") == 0 && device->create_pipeline_layout) return (PFN_vkVoidFunction)CreatePipelineLayout;
     if (strcmp(name, "vkCreateGraphicsPipelines") == 0 && device->create_graphics_pipelines) return (PFN_vkVoidFunction)CreateGraphicsPipelines;
     if (strcmp(name, "vkCreateComputePipelines") == 0 && device->create_compute_pipelines) return (PFN_vkVoidFunction)CreateComputePipelines;
+    if (strcmp(name, "vkAllocateMemory") == 0 && device->allocate_memory) return (PFN_vkVoidFunction)AllocateMemory;
+    if (strcmp(name, "vkBindImageMemory") == 0 && device->bind_image_memory) return (PFN_vkVoidFunction)BindImageMemory;
+    if (strcmp(name, "vkBindImageMemory2") == 0 && device->bind_image_memory2) return (PFN_vkVoidFunction)BindImageMemory2;
+    if (strcmp(name, "vkBindImageMemory2KHR") == 0 && device->bind_image_memory2_khr) return (PFN_vkVoidFunction)BindImageMemory2KHR;
     return NULL;
 }
 
@@ -617,6 +884,9 @@ static VkResult CreateInstance(const VkBaseStructure* info, const void* allocato
     instance->image_format_properties = (PFN_vkGetPhysicalDeviceImageFormatProperties)gipa(*out, "vkGetPhysicalDeviceImageFormatProperties");
     instance->image_format_properties2 = (PFN_vkGetPhysicalDeviceImageFormatProperties2)gipa(*out, "vkGetPhysicalDeviceImageFormatProperties2");
     instance->image_format_properties2_khr = (PFN_vkGetPhysicalDeviceImageFormatProperties2)gipa(*out, "vkGetPhysicalDeviceImageFormatProperties2KHR");
+    instance->memory_properties = (PFN_vkGetPhysicalDeviceMemoryProperties)gipa(*out, "vkGetPhysicalDeviceMemoryProperties");
+    instance->memory_properties2 = (PFN_vkGetPhysicalDeviceMemoryProperties2)gipa(*out, "vkGetPhysicalDeviceMemoryProperties2");
+    instance->memory_properties2_khr = (PFN_vkGetPhysicalDeviceMemoryProperties2)gipa(*out, "vkGetPhysicalDeviceMemoryProperties2KHR");
     pthread_mutex_lock(&lists_lock);
     instance->next = instances;
     instances = instance;
@@ -669,6 +939,33 @@ static VkResult CreateDevice(VkPhysicalDevice physical, const VkBaseStructure* i
     device->create_pipeline_layout = (PFN_vkCreatePipelineLayout)gdpa(*out, "vkCreatePipelineLayout");
     device->create_graphics_pipelines = (PFN_vkCreatePipelines)gdpa(*out, "vkCreateGraphicsPipelines");
     device->create_compute_pipelines = (PFN_vkCreatePipelines)gdpa(*out, "vkCreateComputePipelines");
+    device->allocate_memory = (PFN_vkAllocateMemory)gdpa(*out, "vkAllocateMemory");
+    device->bind_image_memory = (PFN_vkBindImageMemory)gdpa(*out, "vkBindImageMemory");
+    device->bind_image_memory2 = (PFN_vkBindImageMemory2)gdpa(*out, "vkBindImageMemory2");
+    device->bind_image_memory2_khr = (PFN_vkBindImageMemory2)gdpa(*out, "vkBindImageMemory2KHR");
+    device->image_requirements = (PFN_vkGetImageMemoryRequirements)gdpa(*out, "vkGetImageMemoryRequirements");
+    device->image_requirements2 = (PFN_vkGetMemoryRequirements2)gdpa(*out, "vkGetImageMemoryRequirements2");
+    device->image_requirements2_khr = (PFN_vkGetMemoryRequirements2)gdpa(*out, "vkGetImageMemoryRequirements2KHR");
+    device->device_image_requirements = (PFN_vkGetMemoryRequirements2)gdpa(*out, "vkGetDeviceImageMemoryRequirements");
+    device->device_image_requirements_khr = (PFN_vkGetMemoryRequirements2)gdpa(*out, "vkGetDeviceImageMemoryRequirementsKHR");
+    device->metal_handle_properties = (PFN_vkGetMemoryMetalHandleProperties)gdpa(*out, "vkGetMemoryMetalHandlePropertiesEXT");
+    // The driver's memory types (0x10 lazily allocated, Metal's memoryless):
+    // which to hide, and for the trace, each one's property flags and heap.
+    if (instance && instance->memory_properties) {
+        VkPhysicalDeviceMemoryProperties properties;
+        memset(&properties, 0, sizeof properties);
+        instance->memory_properties(physical, &properties);
+        device->hidden_types = lazy_types(&properties);
+        if (tracing()) {
+            char line[400] = "memory types:";
+            for (uint32_t i = 0; i < properties.memoryTypeCount && i < 32; i++) {
+                size_t used = strlen(line);
+                snprintf(line + used, sizeof line - used, " %u=0x%x/heap %u%s", i, properties.memoryTypes[i].propertyFlags,
+                         properties.memoryTypes[i].heapIndex, device->hidden_types & (1u << i) ? " (hidden)" : "");
+            }
+            trace("%s", line);
+        }
+    }
     pthread_mutex_lock(&lists_lock);
     device->next = devices;
     devices = device;
@@ -696,8 +993,9 @@ EXPORT PFN_vkVoidFunction vkGetDeviceProcAddr(VkDevice handle, const char* name)
     if (strcmp(name, "vkGetDeviceProcAddr") == 0) return (PFN_vkVoidFunction)vkGetDeviceProcAddr;
     if (strcmp(name, "vkDestroyDevice") == 0) return (PFN_vkVoidFunction)DestroyDevice;
     Device* device = handle ? find_device(key_of(handle)) : NULL;
-    PFN_vkVoidFunction traced = traced_device_function(device, name);
-    if (traced) return traced;
+    PFN_vkVoidFunction ours = memory_device_function(device, name);
+    if (!ours) ours = traced_device_function(device, name);
+    if (ours) return ours;
     return device ? device->gdpa(handle, name) : NULL;
 }
 
@@ -719,6 +1017,15 @@ EXPORT PFN_vkVoidFunction vkGetInstanceProcAddr(VkInstance handle, const char* n
     }
     if (strcmp(name, "vkGetPhysicalDeviceFormatProperties2KHR") == 0) {
         return instance->format_properties2_khr ? (PFN_vkVoidFunction)GetPhysicalDeviceFormatProperties2KHR : NULL;
+    }
+    if (strcmp(name, "vkGetPhysicalDeviceMemoryProperties") == 0) {
+        return instance->memory_properties ? (PFN_vkVoidFunction)GetPhysicalDeviceMemoryProperties : NULL;
+    }
+    if (strcmp(name, "vkGetPhysicalDeviceMemoryProperties2") == 0) {
+        return instance->memory_properties2 ? (PFN_vkVoidFunction)GetPhysicalDeviceMemoryProperties2 : NULL;
+    }
+    if (strcmp(name, "vkGetPhysicalDeviceMemoryProperties2KHR") == 0) {
+        return instance->memory_properties2_khr ? (PFN_vkVoidFunction)GetPhysicalDeviceMemoryProperties2KHR : NULL;
     }
     if (tracing() && strcmp(name, "vkGetPhysicalDeviceImageFormatProperties") == 0 && instance->image_format_properties) {
         return (PFN_vkVoidFunction)GetPhysicalDeviceImageFormatProperties;

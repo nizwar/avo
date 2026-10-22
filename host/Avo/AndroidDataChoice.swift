@@ -130,7 +130,7 @@ struct AndroidDataSheet: View {
                         HStack(spacing: 10) {
                             Text("Size")
                             HazePicker("Size", selection: $size) {
-                                ForEach(VMConfig.dataDiskChoices, id: \.self) { Text("\($0) GB").tag($0) }
+                                for choice in VMConfig.dataDiskChoices { HazeOption("\(choice) GB", choice) }
                             }
                         }
                         .padding(.leading, 24)

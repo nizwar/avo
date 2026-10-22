@@ -46,11 +46,11 @@ struct GraphicsSettingsEditor: View {
         if mode != .deviceProfile {
             LabeledContent {
                 HazePicker("Interface size", selection: $settings.interfaceScale) {
-                    ForEach(GraphicsSettings.InterfaceSizePreset.allCases, id: \.rawValue) { preset in
-                        Text(title(for: preset)).tag(preset.rawValue)
+                    for preset in GraphicsSettings.InterfaceSizePreset.allCases {
+                        HazeOption(verbatim: title(for: preset), preset.rawValue)
                     }
                     if GraphicsSettings.InterfaceSizePreset(rawValue: settings.interfaceScale) == nil {
-                        Text("Custom (\(settings.interfaceScale)%)").tag(settings.interfaceScale)
+                        HazeOption("Custom (\(settings.interfaceScale)%)", settings.interfaceScale)
                     }
                 }
             } label: {
@@ -61,9 +61,9 @@ struct GraphicsSettingsEditor: View {
 
         LabeledContent {
             HazePicker("Scaling filter", selection: $settings.filter) {
-                Text("MetalFX Spatial").tag(GraphicsSettings.Filter.metalFXSpatial)
-                Text("Bilinear (smooth)").tag(GraphicsSettings.Filter.bilinear)
-                Text("Nearest neighbor (pixel art)").tag(GraphicsSettings.Filter.nearest)
+                HazeOption("MetalFX Spatial", GraphicsSettings.Filter.metalFXSpatial)
+                HazeOption("Bilinear (smooth)", GraphicsSettings.Filter.bilinear)
+                HazeOption("Nearest neighbor (pixel art)", GraphicsSettings.Filter.nearest)
             }
         } label: {
             HelpTitle("Scaling filter") {
@@ -87,6 +87,20 @@ struct GraphicsSettingsEditor: View {
         .disabled(settings.filter == .nearest)
         IssueText(field: "\(fieldPrefix).sharpness")
 
+        LabeledContent {
+            HazePicker("Smooth edges", selection: $settings.antiAliasing) {
+                HazeOption("Off", GraphicsSettings.AntiAliasing.off)
+                HazeOption("Fast (FXAA)", GraphicsSettings.AntiAliasing.fxaa)
+                HazeOption("High (2× supersampling)", GraphicsSettings.AntiAliasing.ssaa2x)
+                HazeOption("Ultra (4× supersampling)", GraphicsSettings.AntiAliasing.ssaa4x)
+            }
+        } label: {
+            HelpTitle("Smooth edges") {
+                HelpTerm("Fast (FXAA)", "Smooths jagged edges in Avo's renderer, before the picture is scaled. Light on the GPU; edges and small text get a little softer.")
+                HelpTerm("High and Ultra", "Android renders 2 or 4 times the pixels at the same layout, and Avo shrinks the picture to the window: the smoothest edges, but the GPU draws that many more pixels.")
+            }
+        }
+
         resultRows
         warnings
     }
@@ -96,13 +110,12 @@ struct GraphicsSettingsEditor: View {
     @ViewBuilder private var modeRow: some View {
         LabeledContent {
             HazePicker("Android’s screen", selection: Binding(get: { mode }, set: { settings.mode = $0 })) {
-                Text("Follow window").tag(GraphicsSettings.Mode.followWindow)
-                Text("Fixed resolution").tag(GraphicsSettings.Mode.fixed)
+                HazeOption("Follow window", GraphicsSettings.Mode.followWindow)
+                HazeOption("Fixed resolution", GraphicsSettings.Mode.fixed)
                 if let phone, device != nil {
-                    Text("Phone’s screen (\(phone.name))").tag(GraphicsSettings.Mode.deviceProfile)
+                    HazeOption("Phone’s screen (\(phone.name))", GraphicsSettings.Mode.deviceProfile)
                 } else {
-                    Text("Phone’s screen").tag(GraphicsSettings.Mode.deviceProfile)
-                        .disabled(true)
+                    HazeOption("Phone’s screen", GraphicsSettings.Mode.deviceProfile, isEnabled: false)
                 }
             }
         } label: {
@@ -123,16 +136,15 @@ struct GraphicsSettingsEditor: View {
         let floor = minimumRenderScale
         LabeledContent {
             HazePicker("Render scale", selection: $settings.renderScale) {
-                ForEach(GraphicsSettings.RenderScalePreset.allCases, id: \.rawValue) { preset in
+                for preset in GraphicsSettings.RenderScalePreset.allCases {
                     if preset.rawValue < floor {
-                        Text("\(title(for: preset)) — not on this display").tag(preset.rawValue)
-                            .disabled(true)
+                        HazeOption("\(title(for: preset)) — not on this display", preset.rawValue, isEnabled: false)
                     } else {
-                        Text(title(for: preset)).tag(preset.rawValue)
+                        HazeOption(verbatim: title(for: preset), preset.rawValue)
                     }
                 }
                 if GraphicsSettings.RenderScalePreset(rawValue: settings.renderScale) == nil {
-                    Text("Custom (\(settings.renderScale)%)").tag(settings.renderScale)
+                    HazeOption("Custom (\(settings.renderScale)%)", settings.renderScale)
                 }
             }
         } label: {
@@ -141,6 +153,7 @@ struct GraphicsSettingsEditor: View {
         CommittingSlider(value: $settings.renderScale, range: GraphicsSettings.renderScaleRange, step: 1) {
             Text(Double($0) / 100, format: .percent)
         }
+        .hazeRowNote()
         // A limit of this display, so it stays in view.
         if floor > GraphicsSettings.renderScaleRange.lowerBound {
             caption("On this display the lowest is \(floor)%, because Android's density can't go below 120 dpi.")
@@ -171,8 +184,8 @@ struct GraphicsSettingsEditor: View {
                     .accessibilityElement(children: .contain)
                     .accessibilityLabel(Text("Resolution"))
                 HazePicker("Resolution", selection: selection) {
-                    ForEach(presets, id: \.self) { Text(verbatim: GraphicsSettings.resolutionName($0)).tag($0) }
-                    Text("Custom").tag(0)
+                    for preset in presets { HazeOption(verbatim: GraphicsSettings.resolutionName(preset), preset) }
+                    HazeOption("Custom", 0)
                 }
             }
         } label: {
@@ -197,6 +210,7 @@ struct GraphicsSettingsEditor: View {
                     .frame(width: 76)
                 Text("px").foregroundStyle(Haze.textTertiary)
             }
+            .hazeRowNote()
             if let roundedTo {
                 // Strings: resolutions are never digit-grouped.
                 let range = GraphicsSettings.shortSideRange
@@ -242,9 +256,9 @@ struct GraphicsSettingsEditor: View {
             LabeledContent {
                 HazePicker("Aspect ratio", selection: Binding(get: { settings.aspectRatio(for: current) },
                                                               set: { settings.setAspectRatio($0, for: current) })) {
-                    Text("Match window").tag(GraphicsSettings.AspectRatio.matchWindow)
-                    ForEach(ratios, id: \.self) { ratio in
-                        Text(verbatim: ratio.rawValue).tag(ratio)
+                    HazeOption("Match window", GraphicsSettings.AspectRatio.matchWindow)
+                    for ratio in ratios {
+                        HazeOption(verbatim: ratio.rawValue, ratio)
                     }
                 }
             } label: {
@@ -355,6 +369,7 @@ struct GraphicsSettingsEditor: View {
             if rendersInSoftware, window.request.width * window.request.height > GraphicsSettings.softwareRenderingPixelBudget {
                 HazeNote(symbol: "tortoise.fill", tint: Haze.warning,
                          text: Text("Android renders in software on this Mac’s CPU, so this many pixels can make apps and games slow. A lower resolution, or the GPU renderer under Rendering, runs faster."))
+                    .hazeRowNote()
             }
         }
     }
@@ -368,6 +383,7 @@ struct GraphicsSettingsEditor: View {
 
     private func caption(_ text: LocalizedStringKey) -> some View {
         Text(text).font(.mona(12)).foregroundStyle(Haze.textTertiary).fixedSize(horizontal: false, vertical: true)
+            .hazeRowNote()
     }
 
     private func warning(_ text: LocalizedStringKey) -> some View {
@@ -375,6 +391,7 @@ struct GraphicsSettingsEditor: View {
             .font(.mona(12))
             .foregroundStyle(Haze.warning)
             .fixedSize(horizontal: false, vertical: true)
+            .hazeRowNote()
     }
 
     private func title(for preset: GraphicsSettings.RenderScalePreset) -> String {
@@ -388,12 +405,12 @@ struct GraphicsSettingsEditor: View {
         }
     }
 
-    private func title(for preset: GraphicsSettings.InterfaceSizePreset) -> LocalizedStringKey {
+    private func title(for preset: GraphicsSettings.InterfaceSizePreset) -> String {
         switch preset {
-        case .smaller: "Smaller"
-        case .standard: "Default"
-        case .larger: "Larger"
-        case .largest: "Largest"
+        case .smaller: String(localized: "Smaller")
+        case .standard: String(localized: "Default")
+        case .larger: String(localized: "Larger")
+        case .largest: String(localized: "Largest")
         }
     }
 

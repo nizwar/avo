@@ -6,22 +6,39 @@ import Foundation
 // Android falls back to software. Everything here except the monitor is
 // pure, so VMMEngine's state machine is tested through it.
 
-/// The Android Emulator install whose gfxstream libraries avo-vmm loads at
-/// run time. Avo never ships them (Android SDK licence); our own build of
-/// gfxstream replaces this later.
+/// The gfxstream libraries avo-vmm loads at run time, in the Android
+/// Emulator's layout (`lib64/`, `lib64/vulkan/`): Avo's own build in
+/// Avo.app (scripts/build-gfxstream.sh: gfxstream, the Vulkan loader and
+/// MoltenVK built from source), or an Android Emulator the user installed,
+/// whose prebuilt libraries Avo never ships (Android SDK licence).
 public struct AndroidEmulator: Equatable, Sendable {
     /// The directory with `source.properties` and `lib64/`.
     public var directory: URL
-    /// `Pkg.Revision`, e.g. 37.1.11.
+    /// `Pkg.Revision`, e.g. 37.1.11 (Avo's own build: avo.1).
     public var version: String
     /// `Pkg.BuildId`, when the file has one.
     public var build: String?
+    /// Avo's own build, in Avo.app.
+    public var isBundled = false
 
     /// The first version whose gfxstream avo-vmm was tested with (37.1.11).
     public static let minimumMajorVersion = 37
 
-    /// What avo-vmm loads, relative to the directory; a missing one means
-    /// an incomplete install rather than an old one.
+    /// Avo's own build says so in its `source.properties`.
+    static let bundledDescription = "Avo GPU renderer"
+
+    /// What avo-vmm loads from Avo's own build: its gfxstream needs only the
+    /// system's libraries.
+    static let bundledFiles = [
+        "lib64/libgfxstream_backend.dylib",
+        "lib64/vulkan/libvulkan.dylib",
+        "lib64/vulkan/libMoltenVK.dylib",
+        "lib64/vulkan/MoltenVK_icd.json",
+    ]
+
+    /// What avo-vmm loads from an Android Emulator, relative to the
+    /// directory; a missing one means an incomplete install rather than an
+    /// old one.
     static let requiredFiles = [
         "lib64/libgfxstream_backend.dylib",
         "lib64/libemugl_common.dylib",
@@ -36,12 +53,21 @@ public struct AndroidEmulator: Equatable, Sendable {
         case unsupported(version: String)
     }
 
-    /// The emulator Android Studio's SDK Manager installs, or `override`
-    /// (`defaults write dev.avo.daemon AvoAndroidEmulator <dir>`) instead.
-    public static func lookup(home: URL,
+    /// `override` (`defaults write dev.avo.daemon AvoAndroidEmulator <dir>`)
+    /// when it is set; else Avo's own build (`bundled`, in Avo.app); else the
+    /// emulator Android Studio's SDK Manager installs.
+    public static func lookup(home: URL, bundled: URL? = nil,
                               override: String? = UserDefaults.standard.string(forKey: "AvoAndroidEmulator")) -> Lookup {
         if let override, !override.isEmpty { return inspect(URL(filePath: override, directoryHint: .isDirectory)) }
+        if let bundled, case .found(let renderer) = inspect(bundled) { return .found(renderer) }
         return inspect(home.appending(path: "Library/Android/sdk/emulator", directoryHint: .isDirectory))
+    }
+
+    /// Avo's own build, next to avo-vmm (`engine`) in Avo.app:
+    /// Contents/Resources/gfxstream.
+    public static func bundled(engine: URL) -> URL {
+        engine.deletingLastPathComponent().deletingLastPathComponent()
+            .appending(path: "Resources/gfxstream", directoryHint: .isDirectory)
     }
 
     /// The emulator's netsimd (Root Canal inside), Android's Bluetooth
@@ -57,16 +83,22 @@ public struct AndroidEmulator: Equatable, Sendable {
 
     public static func inspect(_ directory: URL) -> Lookup {
         guard let text = try? String(contentsOf: directory.appending(path: "source.properties"), encoding: .utf8),
-              let (version, build) = revision(sourceProperties: text) else { return .missing }
+              let (version, build, description) = revision(sourceProperties: text) else { return .missing }
+        let files = FileManager.default
+        func has(_ file: String) -> Bool { files.fileExists(atPath: directory.appending(path: file).path) }
+        // Avo's own build has no emulator version to check.
+        if description?.hasPrefix(bundledDescription) == true {
+            guard bundledFiles.allSatisfy(has) else { return .missing }
+            return .found(AndroidEmulator(directory: directory, version: version, build: build, isBundled: true))
+        }
         let major = version.split(separator: ".").first.flatMap { Int($0) } ?? 0
         guard major >= minimumMajorVersion else { return .unsupported(version: version) }
-        let files = FileManager.default
-        guard requiredFiles.allSatisfy({ files.fileExists(atPath: directory.appending(path: $0).path) }) else { return .missing }
+        guard requiredFiles.allSatisfy(has) else { return .missing }
         return .found(AndroidEmulator(directory: directory, version: version, build: build))
     }
 
-    /// `Pkg.Revision` and `Pkg.BuildId` from a `source.properties` file.
-    static func revision(sourceProperties: String) -> (revision: String, build: String?)? {
+    /// `Pkg.Revision`, `Pkg.BuildId` and `Pkg.Desc` from a `source.properties` file.
+    static func revision(sourceProperties: String) -> (revision: String, build: String?, description: String?)? {
         var values: [String: String] = [:]
         for line in sourceProperties.split(whereSeparator: \.isNewline) {
             let parts = line.split(separator: "=", maxSplits: 1)
@@ -74,7 +106,8 @@ public struct AndroidEmulator: Equatable, Sendable {
             values[parts[0].trimmingCharacters(in: .whitespaces)] = parts[1].trimmingCharacters(in: .whitespaces)
         }
         guard let revision = values["Pkg.Revision"], !revision.isEmpty else { return nil }
-        return (revision, values["Pkg.BuildId"].flatMap { $0.isEmpty ? nil : $0 })
+        func value(_ key: String) -> String? { values[key].flatMap { $0.isEmpty ? nil : $0 } }
+        return (revision, value("Pkg.BuildId"), value("Pkg.Desc"))
     }
 }
 

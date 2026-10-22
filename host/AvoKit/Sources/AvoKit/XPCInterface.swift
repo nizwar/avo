@@ -153,6 +153,15 @@ import IOSurface
     /// lets fingerprints work again after too many tries.
     func lockAndroidForFingerprints(reply: @escaping @Sendable (NSError?) -> Void)
 
+    // MARK: Device (an app window's Device menu and Quick Settings)
+    /// Shakes the phone for a second: Android's accelerometer swings as a
+    /// hand shaking it would (the engine's `shake`).
+    func shakeDevice(reply: @escaping @Sendable (NSError?) -> Void)
+    /// Android's media volume (AndroidVolume), every app's.
+    func androidVolume(reply: @escaping @Sendable (Data?, NSError?) -> Void)
+    /// Sets it, within its steps; replies with the volume Android has now.
+    func setAndroidVolume(level: Int, reply: @escaping @Sendable (Data?, NSError?) -> Void)
+
     // MARK: Widgets (Library › Widgets; Control Panel only)
     /// The widgets Android's apps offer (asks Android). Reply: JSON `[WidgetProvider]`.
     func widgetProviders(reply: @escaping @Sendable (Data?, NSError?) -> Void)
@@ -396,6 +405,19 @@ public struct InstallProgress: Codable, Equatable, Sendable {
         self.fraction = fraction
         self.package = package
         self.message = message
+    }
+}
+
+/// Android's media volume, every app's: its step, from 0 to `maximum` (15
+/// on a phone). Android plays under the Mac's volume, so at full the Mac's
+/// volume alone sets how loud it is.
+public struct AndroidVolume: Codable, Hashable, Sendable {
+    public var level: Int
+    public var maximum: Int
+
+    public init(level: Int, maximum: Int) {
+        self.level = level
+        self.maximum = maximum
     }
 }
 

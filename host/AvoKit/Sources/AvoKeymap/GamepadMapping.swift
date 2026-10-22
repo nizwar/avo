@@ -523,8 +523,13 @@ extension KeymapProfile {
         case unsuitable
         /// A D-pad control's direction, which cannot be left empty, uses it.
         case heldByDirection(controlID: String)
-        /// It locks and frees the mouse for the eye.
-        case cursorToggle
+    }
+
+    /// Whether `a` and `b` act at the same time: in a mode they both
+    /// belong to (always, without modes).
+    public func sharesMode(_ a: Control, _ b: Control) -> Bool {
+        guard !modes.isEmpty, let first = a.modes, let second = b.modes else { return true }
+        return !Set(first).isDisjoint(with: second)
     }
 
     /// The controls `element` drives.
@@ -546,25 +551,32 @@ extension KeymapProfile {
 
     /// Binds `element` to the control `id`: a button becomes its controller
     /// button (instead of the one it had), a stick drives its joystick or
-    /// camera, the d-pad pushes its joystick too. A part of the controller
-    /// does one thing, so it first leaves any other control.
+    /// camera, the d-pad pushes its joystick too. A button may press several
+    /// controls, as a key may (the game's Enter vehicle button and a switch
+    /// to the vehicle mode); a stick or the d-pad steers one joystick or
+    /// camera at a time, so it leaves the others of the control's modes
+    /// (on foot and in a vehicle, one stick may steer both).
     public mutating func bind(_ element: GamepadElement, to id: String) throws(GamepadBindingProblem) {
         guard let index = controls.firstIndex(where: { $0.id == id }) else { throw .noSuchControl }
         guard controls[index].accepts(element) else { throw .unsuitable }
+        let target = controls[index]
         switch element {
         case .button(let button):
-            let trigger = Trigger.gamepad(button)
-            if fps?.cursorToggle == trigger { throw .cursorToggle }
-            if let holder = directionHolder(of: [button], except: id) { throw .heldByDirection(controlID: holder) }
-            unbind(element)
-            controls[index].setTrigger(trigger)
+            controls[index].setTrigger(.gamepad(button))
         case .stick(let stick):
-            unbind(element)
-            controls[index].kind = controls[index].kind.with(stick: stick)
+            for i in controls.indices where i != index && controls[i].stick == stick && sharesMode(controls[i], target) {
+                controls[i].kind = controls[i].kind.with(stick: nil)
+            }
+            controls[index].kind = target.kind.with(stick: stick)
         case .dpad:
-            if controls[index].isDPadOfButtons { return }
-            if let holder = directionHolder(of: GamepadElement.dpadButtons, except: id) { throw .heldByDirection(controlID: holder) }
-            unbind(element)
+            if target.isDPadOfButtons { return }
+            if let holder = directionHolder(of: GamepadElement.dpadButtons, except: id, beside: target) {
+                throw .heldByDirection(controlID: holder)
+            }
+            for i in controls.indices where i != index && sharesMode(controls[i], target) {
+                controls[i].dpadButtons = false
+                for button in GamepadElement.dpadButtons { controls[i].triggers.removeAll { $0 == .gamepad(button) } }
+            }
             controls[index].dpadButtons = true
         }
     }
@@ -577,6 +589,7 @@ extension KeymapProfile {
             case .button(let button):
                 controls[i].triggers.removeAll { $0 == .gamepad(button) }
                 if GamepadElement.dpadButtons.contains(button) { controls[i].dpadButtons = false }
+                if controls[i].run?.trigger == .gamepad(button) { controls[i].run = nil }
             case .stick(let stick):
                 if controls[i].stick == stick { controls[i].kind = controls[i].kind.with(stick: nil) }
             case .dpad:
@@ -586,10 +599,12 @@ extension KeymapProfile {
         }
     }
 
-    /// The D-pad control (other than `id`) whose directions use one of `buttons`.
-    private func directionHolder(of buttons: [GamepadButton], except id: String) -> String? {
-        controls.first { control in
-            guard control.id != id, case let .dpad(_, _, up, down, left, right, _) = control.kind else { return false }
+    /// The D-pad control (other than `id`, and acting beside `control` when
+    /// given) whose directions use one of `buttons`.
+    private func directionHolder(of buttons: [GamepadButton], except id: String, beside control: Control? = nil) -> String? {
+        controls.first { other in
+            guard other.id != id, case let .dpad(_, _, up, down, left, right, _) = other.kind else { return false }
+            if let control, !sharesMode(other, control) { return false }
             return [up, down, left, right].contains { trigger in buttons.contains { trigger == .gamepad($0) } }
         }?.id
     }
@@ -762,7 +777,8 @@ extension KeymapProfile {
     /// element. A joystick gets keys too (WASD, else the arrow keys) while
     /// they are free, so it also works from the keyboard; from the d-pad, its
     /// directions are the d-pad's buttons.
-    public mutating func place(_ element: GamepadElement, as placement: GamepadPlacement, at point: NormalizedPoint) -> String? {
+    public mutating func place(_ element: GamepadElement, as placement: GamepadPlacement, at point: NormalizedPoint,
+                               modes: [String]? = nil) -> String? {
         guard placement.fits(element) else { return nil }
         let p = NormalizedPoint(min(max(point.x, 0), 1), min(max(point.y, 0), 1))
         if placement == .camera, let eye = controls.first(where: { if case .aim = $0.kind { true } else { false } }) {
@@ -778,7 +794,7 @@ extension KeymapProfile {
         case .tap: kind = .tap(p)
         case .repeatTap: kind = .repeatTap(p, intervalMilliseconds: 150)
         case .swipe: kind = .swipe(from: p, to: NormalizedPoint(p.x, max(p.y - 0.2, 0)), milliseconds: 150)
-        case .anchor: kind = .anchor(p)
+        case .anchor: kind = .anchor(p, radius: Control.defaultAnchorRadius)
         case .ads: kind = .ads(p, toggle: false)
         case .joystick:
             let directions = element == .dpad ? GamepadElement.dpadButtons.map(Trigger.gamepad) : freeDirections()
@@ -795,12 +811,16 @@ extension KeymapProfile {
         let id = "\(placement.idPrefix)-\(n)"
         if element == .dpad {
             // Its directions are the d-pad's buttons: they leave the other controls.
-            guard directionHolder(of: GamepadElement.dpadButtons, except: id) == nil else { return nil }
-            unbind(.dpad)
-            controls.append(Control(id: id, kind: kind))
+            let placed = Control(id: id, kind: kind, modes: modes)
+            guard directionHolder(of: GamepadElement.dpadButtons, except: id, beside: placed) == nil else { return nil }
+            for i in controls.indices where sharesMode(controls[i], placed) {
+                controls[i].dpadButtons = false
+                for button in GamepadElement.dpadButtons { controls[i].triggers.removeAll { $0 == .gamepad(button) } }
+            }
+            controls.append(placed)
             return id
         }
-        controls.append(Control(id: id, kind: kind))
+        controls.append(Control(id: id, kind: kind, modes: modes))
         do {
             try bind(element, to: id)
         } catch {

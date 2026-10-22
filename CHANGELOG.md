@@ -4,6 +4,86 @@ All notable changes to Avo are listed here. Versions follow
 [Semantic Versioning](https://semver.org); preview builds carry a build
 number (`CFBundleVersion`) that only goes up.
 
+## 0.2.0 Preview 3 (build 72)
+
+GPU rendering without Android Studio, modes and running for key mapping,
+smoother edges, Android's volume and a shake in every app window, and menus
+and settings in Avo's own look. Signed ad hoc and not notarized like the
+earlier previews: macOS asks you to confirm the first launch (System
+Settings › Privacy & Security › Open Anyway). Install it over Preview 2;
+your Android data stays.
+
+### New
+
+- **GPU rendering built in.** Avo ships its own GPU renderer (gfxstream, the
+  Vulkan loader and MoltenVK, built from source), so Android draws on your
+  Mac's graphics chip without Android Studio or the Android Emulator.
+- **Key mapping modes.** A layout can have modes for the game's situations,
+  such as on foot and in a vehicle: a Switch control changes the mode with
+  its key or controller button, and only that mode's controls answer. One
+  key may press several buttons (F gets in the vehicle and switches to its
+  mode at once), keys can free the mouse for a map or an inventory and lock
+  it again, and the controller follows the modes too.
+- **Running with the joystick.** A joystick can have a run key (Shift, for
+  example): while it is held, the joystick is pushed further, for games that
+  run when it is pushed all the way.
+- **Smooth edges.** Anti-aliasing for Android's picture: Fast (FXAA, almost
+  free) or High and Ultra (2× and 4× supersampling, the smoothest), in Quick
+  Settings, View › Smooth Edges, Settings › Graphics and each app's
+  graphics.
+- **Android's volume.** A Sound card in Quick Settings and Settings › Sound
+  set Android's media volume, under your Mac's.
+- **Shake.** Device › Shake (⌃⌘Z) shakes the phone for apps that listen for
+  a shake.
+- **Android widgets.** Library › Widgets lists the widgets Android's apps
+  offer, and each one you add shows live in a panel on your Mac. An open
+  app's Dock icon also shows how many notifications it has in Android
+  (Settings › Notifications). Thanks to Gabriel Momoh (@TheGemDev).
+
+### Improved
+
+- **The key mapping editor** is a panel beside the game: click the game's
+  button and press its key, or drag a control onto the game. The selected
+  control's settings are in the panel, among them the eye's sensitivity,
+  its aiming sensitivity and vertical look, and an anchor tap reaches within
+  a circle you size.
+- **The title bar** has fewer buttons: Back, Game Controls, Translate,
+  Device (Shake, Rotate, Location, Fingerprint, screenshots and recording,
+  Keep on Top) and Quick Settings.
+- **Every menu** has Avo's look: in app windows, Quick Settings, the Control
+  Panel and the menu bar item.
+- **The Library** keeps your games and apps in one place, with All, Games
+  and Apps tabs.
+- **Settings are easier to read:** a line between settings, the title above
+  its choices, explanations behind (?), and plainer names (Max FPS, Smooth
+  edges, Sharp upscaling, Preset).
+
+### Fixed
+
+- **PUBG MOBILE's Club pages and end-of-match screen** drew garbage (large
+  blue shapes, a black sky, stripes): Android's multisampled images got no
+  graphics memory on the Mac. They now get ordinary graphics memory, which
+  also fixes antialiased web graphics (WebGL) in other apps.
+- **Mouse look with some wireless mice** (with a USB receiver) did nothing:
+  Avo listened only to the mouse moved last. Every mouse now turns the
+  camera.
+
+### Known issues
+
+- Android's Bluetooth still needs Google's Android Emulator (installed with
+  Android Studio).
+- Bluetooth headsets and other classic Bluetooth devices, Bluetooth pairing
+  with the Mac's devices, and calls or SMS on the SIM don't work yet.
+- Root access may not start Android once Google apps are installed in it;
+  Avo then turns root back off.
+- Delta Force draws its terrain flat at the Ultimate and MAX presets; at
+  High and below it is textured (restart the game after changing the
+  preset).
+- With Android's data on an external drive, macOS asks again after an update
+  whether Avo may use the drive, and Android starts only once you allow it.
+- Apps that need hardware attestation (most banking apps, some DRM and
+  anti-cheat systems) generally do not run.
+
 ## 0.2.0 Preview 2 (build 59)
 
 Mobile network and saved-location fixes for Preview 1, and the phone's CPU

@@ -8,6 +8,8 @@ struct RenderOptions: Equatable, Sendable {
     var filter: GraphicsSettings.Filter
     /// 0...100; 0 turns the RCAS pass off.
     var sharpness: Int
+    /// FXAA on Android's frame, at its own size, before it is scaled.
+    var fxaa = false
 }
 
 /// Why a frame that asked for MetalFX was drawn bilinearly instead. The HUD

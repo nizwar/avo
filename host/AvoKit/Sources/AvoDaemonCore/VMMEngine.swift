@@ -459,14 +459,16 @@ extension VMMEngine {
     /// failure; published right away so the Control Panel shows the choice.
     private func gpuPlan(for launch: EngineLaunch) -> GPUPlan {
         let requested = launch.config.rendererMode
-        let emulator = requested == .software ? nil : AndroidEmulator.lookup(home: launch.paths.home)
+        let emulator = requested == .software ? nil
+            : AndroidEmulator.lookup(home: launch.paths.home, bundled: AndroidEmulator.bundled(engine: executable))
         let fallback = GPUFallbackRecord.load(paths: launch.paths)
         var key: String?
         if case let .found(found)? = emulator { key = GPUFallbackRecord.key(engine: executable, emulator: found) }
         let plan = GPUPlan.decide(mode: requested, emulator: emulator ?? .missing, fallback: fallback, key: key)
         switch plan {
         case let .gpu(found):
-            logger.notice("renderer: GPU with the Android Emulator \(found.version, privacy: .public) at \(found.directory.path, privacy: .public)")
+            let source = found.isBundled ? "Avo's renderer" : "the Android Emulator"
+            logger.notice("renderer: GPU with \(source, privacy: .public) \(found.version, privacy: .public) at \(found.directory.path, privacy: .public)")
         case let .software(reason, failure):
             logger.notice("renderer: software (\(reason.rawValue, privacy: .public)\(failure.map { ", \($0.rawValue)" } ?? "", privacy: .public))")
         }
@@ -624,6 +626,32 @@ extension VMMEngine: GPUFallbackEngine {
 /// the virtual sensor of userdebug Cuttlefish (GuestFingerprints).
 extension VMMEngine: FingerprintEngine {
     func fingerprintGuest() async throws -> any FingerprintGuest {
+        await wakeIfPaused()
+        guard let agent = lock.withLock({ self.agent }), await agent.isReady else { throw AvoError.vmNotRunning }
+        return agent
+    }
+}
+
+/// An app window's Device › Shake.
+extension VMMEngine: ShakeEngine {
+    func shake() async throws {
+        await wakeIfPaused()
+        guard let control = lock.withLock({ self.control }) else { throw AvoError.vmNotRunning }
+        try await control.send("shake")
+    }
+}
+
+extension VMMEngine: VolumeEngine {
+    func mediaVolume() async throws -> AndroidVolume {
+        try await readyAgent().mediaVolume()
+    }
+
+    func setMediaVolume(_ level: Int) async throws -> AndroidVolume {
+        try await readyAgent().setMediaVolume(level)
+    }
+
+    /// The host agent, once Android has started (woken from a pause first).
+    private func readyAgent() async throws -> HostAgent {
         await wakeIfPaused()
         guard let agent = lock.withLock({ self.agent }), await agent.isReady else { throw AvoError.vmNotRunning }
         return agent
