@@ -141,7 +141,13 @@ final class DaemonAppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        let listener = NSXPCListener(machServiceName: AvoIdentifiers.daemonMachService)
+        // launchd names the job in XPC_SERVICE_NAME. An older Avo's job (dev.avo,
+        // until the Control Panel moves it to this build's: DaemonAgent) runs
+        // this daemon after a restart and vends only its own Mach service.
+        let job = ProcessInfo.processInfo.environment["XPC_SERVICE_NAME"] ?? ""
+        let machService = job.hasPrefix(AvoIdentifiers.formerPrefix + ".")
+            ? AvoIdentifiers.formerDaemonMachService : AvoIdentifiers.daemonMachService
+        let listener = NSXPCListener(machServiceName: machService)
         let service = DaemonService(core: core, policy: Self.callerPolicy(avoApp: avoApp), listener: listener)
         service.resume()
         self.service = service

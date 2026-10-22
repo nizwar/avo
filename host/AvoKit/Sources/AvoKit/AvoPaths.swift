@@ -15,7 +15,7 @@ import Foundation
 ///   data-location.json     Android's data is in another folder (StorageLocation.swift)
 /// ~/Applications/Android Apps/<Label>.app   App Shims
 /// ~/Library/Logs/Avo/                          logs
-/// $TMPDIR/dev.avo/                             runtime sockets (mode 0700)
+/// $TMPDIR/com.avodroid/                        runtime sockets (mode 0700)
 /// ```
 public struct AvoPaths: Sendable, Equatable {
     public let home: URL

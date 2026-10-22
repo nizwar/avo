@@ -7,7 +7,7 @@
 #   Avo.app                                   Control Panel (SwiftUI)
 #     Contents/MacOS/Avo
 #     Contents/Library/Helpers/AvoDaemon.app  Runtime Daemon (LaunchAgent) + Menu Bar Item
-#     Contents/Library/LaunchAgents/dev.avo.daemon.plist
+#     Contents/Library/LaunchAgents/com.avodroid.daemon.plist
 #     Contents/Library/Shim/AvoShim.app       App Shim template, copied per Android app
 #     Contents/Frameworks/AvoWindowHost.framework   Window Host, loaded by every shim
 #     Contents/Resources/profiles/            device and keymap profiles
@@ -17,7 +17,7 @@
 
 name: Avo
 options:
-  bundleIdPrefix: dev.avo
+  bundleIdPrefix: com.avodroid
   developmentLanguage: en
   deploymentTarget:
     macOS: "15.0"
@@ -128,6 +128,7 @@ targets:
           STAGED="$DERIVED_FILE_DIR/avo-vmm"
           cp "$DERIVED_FILE_DIR/cargo/release/avo-vmm" "$STAGED"
           codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" --options runtime \
+            --identifier "$AVO_BUNDLE_ID_PREFIX.avo-vmm" \
             --entitlements "$ENGINE/hypervisor.entitlements" "$STAGED"
           # Replace, never overwrite: macOS kills a running VM whose signed
           # executable pages change underneath it.
@@ -188,7 +189,7 @@ targets:
           fi
           rm -rf "$OUT.new"
           ditto "$CONTROLLER" "$OUT.new"
-          codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" "$OUT.new/rootcanal"
+          codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" --identifier "$AVO_BUNDLE_ID_PREFIX.rootcanal" "$OUT.new/rootcanal"
           # Replace, never overwrite: a running avo-vmm may have started it.
           rm -rf "$OUT"
           mv "$OUT.new" "$OUT"
@@ -266,6 +267,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(AVO_BUNDLE_ID_PREFIX).avoctl
+        # A tool has no Info.plist to name it: without this its signature
+        # would be "avoctl-<hash>".
+        OTHER_CODE_SIGN_FLAGS: --identifier $(PRODUCT_BUNDLE_IDENTIFIER)
         PRODUCT_NAME: avoctl
         SKIP_INSTALL: YES
         # Installed as Avo.app/Contents/MacOS/avoctl.

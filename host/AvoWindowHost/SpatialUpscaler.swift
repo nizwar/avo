@@ -32,7 +32,7 @@ final class SpatialUpscalerCache: @unchecked Sendable {
 
     private let device: MTLDevice
     private let queue: DispatchQueue
-    private let fxQueue = DispatchQueue(label: "dev.avo.render.metalfx", qos: .userInitiated)
+    private let fxQueue = DispatchQueue(label: "com.avodroid.render.metalfx", qos: .userInitiated)
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "Rendering")
     private var entries: [FXKey: Entry] = [:]
     private var lastUsed: [FXKey: TimeInterval] = [:]

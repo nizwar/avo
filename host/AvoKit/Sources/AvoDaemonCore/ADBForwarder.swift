@@ -38,7 +38,7 @@ actor ADBForwarder {
             return
         }
         do {
-            listener = try LoopbackListener(port: tcpPort, label: "dev.avo.adb") { [weak self] socket in
+            listener = try LoopbackListener(port: tcpPort, label: "com.avodroid.adb") { [weak self] socket in
                 Task { await self?.accepted(socket) }
             }
             state = .listening(port: port)
@@ -58,7 +58,7 @@ actor ADBForwarder {
         do {
             // adb sees a closed connection while Android is off and retries.
             let guest = try await connectGuest()
-            let splice = SocketSplice(socket, guest, name: "dev.avo.adb.splice")
+            let splice = SocketSplice(socket, guest, name: "com.avodroid.adb.splice")
             let id = ObjectIdentifier(splice)
             splices[id] = splice
             // Forget it once both sockets are closed (checked lazily).

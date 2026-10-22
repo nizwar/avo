@@ -12,7 +12,7 @@ final class MacLocation: NSObject, CLLocationManagerDelegate {
     private var running = false
     private var sharing = true
     private var active = false
-    private let logger = Logger(subsystem: "dev.avo", category: "Location")
+    private let logger = Logger(subsystem: "com.avodroid", category: "Location")
 
     init(deliver: @escaping (LocationFix?) -> Void) {
         self.deliver = deliver

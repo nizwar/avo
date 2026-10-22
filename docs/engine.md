@@ -186,7 +186,7 @@ GLES 3.1 and Vulkan 1.3.
   away, and a host too busy to take a sent number in time would run commands
   out of order); and one that hides the linear ASTC sampling avo-vmm's layer
   reports (below) from the guest. The daemon passes it unless
-  `defaults write dev.avo.daemon AvoAndroidEmulator <dir>` names another; an
+  `defaults write com.avodroid.daemon AvoAndroidEmulator <dir>` names another; an
   Android Emulator 37 or later (`~/Library/Android/sdk/emulator`) is the
   fallback. avo-vmm loads `lib64/libgfxstream_backend.dylib` at run time by
   absolute path, an emulator's after the ten libraries it needs (Avo never
@@ -899,7 +899,7 @@ display id (`rcCreateDisplayById`), sizes it (`rcSetDisplayPose`) and posts
 each VirtualDisplay buffer with `rcSetDisplayColorBuffer`. On the host, the
 engine keeps a swapchain of three BGRA `IOSurface`s per display, copies (GPU
 blit) the posted color buffer into the next one, and tells the daemon over XPC
-(role `engine` on the `dev.avo.daemon` Mach service):
+(role `engine` on the `com.avodroid.daemon` Mach service):
 
 - `engineSetSurfaces(displayID, [IOSurface])` when a display is created or resized;
 - `enginePresent(displayID, surfaceIndex, sequence)` for every frame.

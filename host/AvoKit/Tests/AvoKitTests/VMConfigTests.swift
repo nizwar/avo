@@ -161,10 +161,35 @@ let macMini8 = HostInfo(physicalMemoryBytes: 8 << 30, performanceCores: 4, effic
 
 @Suite struct IdentifierTests {
     @Test func shimBundleIdentifiersAreValid() {
-        #expect(AvoIdentifiers.shimBundleIdentifier(for: "com.example.app") == "dev.avo.shim.com.example.app")
-        #expect(AvoIdentifiers.shimBundleIdentifier(for: "org.my_app.free") == "dev.avo.shim.org.my-app.free")
+        #expect(AvoIdentifiers.shimBundleIdentifier(for: "com.example.app") == "com.avodroid.shim.com.example.app")
+        #expect(AvoIdentifiers.shimBundleIdentifier(for: "org.my_app.free") == "com.avodroid.shim.org.my-app.free")
+        #expect(AvoIdentifiers.package(fromShimBundleIdentifier: "com.avodroid.shim.com.example") == "com.example")
+        // A shim made before com.avodroid still names its package.
         #expect(AvoIdentifiers.package(fromShimBundleIdentifier: "dev.avo.shim.com.example") == "com.example")
         #expect(AvoIdentifiers.package(fromShimBundleIdentifier: "com.other") == nil)
+    }
+
+    @Test func everyHelperIsUnderAvosDomain() {
+        for identifier in [AvoIdentifiers.windowHost, AvoIdentifiers.daemonLabel, AvoIdentifiers.daemonMachService,
+                           AvoIdentifiers.daemonBundleID, AvoIdentifiers.shimPrefix, AvoIdentifiers.logSubsystem] {
+            #expect(identifier.hasPrefix("com.avodroid"), "\(identifier)")
+        }
+        #expect(AvoIdentifiers.app == "com.avodroid.emulator")
+        #expect(AvoIdentifiers.formerDaemonMachService == "dev.avo.daemon")
+    }
+
+    @Test func formerPreferencesMoveToTheirNewDomains() {
+        let files = ["dev.avo.daemon.plist", "dev.avo.WindowHost.plist", "dev.avo.shim.com.dts.freefiremax.plist",
+                     "dev.avo.shim.org.my-app.free.plist", "dev.avo.hub.plist", "dev.avo.hub.agent.plist",
+                     "dev.avo.shim..plist", "com.avodroid.emulator.plist", "dev.avo.shim.com.example.app.plist.lockfile"]
+        let pairs = AvoIdentifiers.formerPreferenceDomains(preferenceFiles: files).map { "\($0.from) > \($0.to)" }
+        #expect(pairs == [
+            "dev.avo.daemon > com.avodroid.daemon",
+            "dev.avo.WindowHost > com.avodroid.WindowHost",
+            "dev.avo.avoctl > com.avodroid.avoctl",
+            "dev.avo.shim.com.dts.freefiremax > com.avodroid.shim.com.dts.freefiremax",
+            "dev.avo.shim.org.my-app.free > com.avodroid.shim.org.my-app.free",
+        ], "Avo Hub's dev.avo.hub domains are not Avo's to move")
     }
 
     @Test func prefixMatchesXcodeConfiguration() throws {
@@ -183,7 +208,7 @@ let macMini8 = HostInfo(physicalMemoryBytes: 8 << 30, performanceCores: 4, effic
         let paths = AvoPaths(home: URL(filePath: "/Users/someone-with-a-long-name"),
                              temporaryDirectory: URL(filePath: "/var/folders/ab/cdefghijklmnopqrstuvwxyz0000gn/T"))
         #expect(paths.shims.path == "/Users/someone-with-a-long-name/Applications/Android Apps")
-        #expect(paths.vsockSocket.path.hasSuffix("/T/dev.avo/vsock.sock"))
+        #expect(paths.vsockSocket.path.hasSuffix("/T/com.avodroid/vsock.sock"))
         try paths.validateSocketPaths()
     }
 

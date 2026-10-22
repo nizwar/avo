@@ -13,7 +13,7 @@ enum ScreenTextReader {
     typealias Reading = ScreenTextReading
 
     /// Samples have a queue of their own: they never wait for anything.
-    private static let sampleQueue = DispatchQueue(label: "dev.avo.screen-sample", qos: .userInitiated)
+    private static let sampleQueue = DispatchQueue(label: "com.avodroid.screen-sample", qos: .userInitiated)
 
     /// Reads `image` (a frame the renderer copied) in the daemon.
     /// `languages` (NaturalLanguage codes) are the ones a block may be in:

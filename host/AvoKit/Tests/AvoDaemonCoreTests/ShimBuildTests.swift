@@ -32,6 +32,13 @@ import Testing
         try plist(["CFBundleVersion": "42", AvoIdentifiers.shimHostAppInfoKey: "/Users/me/Avo.app"], at: shim)
         #expect(manager.madeForAnotherAvo(shortcuts), "made by another copy of Avo")
 
+        try plist(["CFBundleVersion": "42", AvoIdentifiers.shimHostAppInfoKey: host,
+                   "CFBundleIdentifier": "dev.avo.shim.org.fdroid.fdroid"], at: shim)
+        #expect(manager.madeForAnotherAvo(shortcuts), "made before com.avodroid")
+        try plist(["CFBundleVersion": "42", AvoIdentifiers.shimHostAppInfoKey: host,
+                   "CFBundleIdentifier": "com.avodroid.shim.org.fdroid.fdroid"], at: shim)
+        #expect(!manager.madeForAnotherAvo(shortcuts))
+
         // A template without a build (tests, hand builds) changes nothing.
         try plist([:], at: template)
         try plist(["CFBundleVersion": "41", AvoIdentifiers.shimHostAppInfoKey: host], at: shim)

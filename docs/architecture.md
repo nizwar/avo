@@ -9,7 +9,7 @@ left open. Protocol details are in [protocol.md](protocol.md), the VM engine in
 | Process | Bundle | Role |
 | --- | --- | --- |
 | `Avo` | `Avo.app` (`com.avodroid.emulator`) | Control Panel. Registers the daemon with `SMAppService`, handles `.apk/.xapk/.apkm/.apks` opens and drops. |
-| `AvoDaemon` | `Avo.app/Contents/Library/Helpers/AvoDaemon.app` (`dev.avo.daemon`) | Runtime Daemon (LaunchAgent, Mach service `dev.avo.daemon`). Also hosts the menu bar item and posts notifications. |
+| `AvoDaemon` | `Avo.app/Contents/Library/Helpers/AvoDaemon.app` (`com.avodroid.daemon`) | Runtime Daemon (LaunchAgent, Mach service `com.avodroid.daemon`). Also hosts the menu bar item and posts notifications. |
 | `avo-vmm` | `Avo.app/Contents/MacOS/avo-vmm` | Engine VM, a child of the daemon (see engine.md). |
 | `<App>` | `~/Applications/Android Apps/<Label>.app` | App Shim, one per Android app; loads `AvoWindowHost.framework` from Avo.app. |
 | `avoctl` | `Avo.app/Contents/MacOS/avoctl` | Command line for scripts and CI. |
@@ -80,7 +80,7 @@ split bundles are looked up across density splits.
 ## App Shims and icons (spec §4)
 
 - `ShimBuilder` copies the template bundle, writes `CFBundleIdentifier`
-  (`dev.avo.shim.<package>`, `_` → `-`), the label, version and
+  (`com.avodroid.shim.<package>`, `_` → `-`), the label, version and
   `AvoAndroidPackage`, swaps the bundle into place atomically
   (`renamex_np(RENAME_SWAP)`), signs it ad hoc and registers it with
   LaunchServices. Same label for two apps: the second becomes
@@ -1035,6 +1035,21 @@ that without the player's say:
   waits for `DaemonAgent.reload` the same way.
 - **App Shims** made from another build's template are made again
   (`ShortcutManager.madeForAnotherAvo` compares `CFBundleVersion`).
+- **From `dev.avo` to `com.avodroid`** (0.3.0 Preview 2): every helper's
+  identifier, the agent's label (`com.avodroid.daemon.agent`) and the Mach
+  service moved to Avo's domain (`AvoIdentifiers.prefix`; `formerPrefix` is
+  the old one). The first Control Panel of the new build copies the
+  helpers' and App Shims' preferences to their new domains
+  (`IdentifierMigration`; Avo Hub's `dev.avo.hub…` are not Avo's). While the
+  old agent is loaded it may hold Android: the Control Panel talks to its
+  daemon under the former Mach service and installs nothing beside it, and
+  once Android stops `DaemonAgent.reload` boots the old agent out, removes
+  its plist and loads the new one. A new daemon that launchd started under
+  the old job (a restart after the update, before the Control Panel ran)
+  serves the job's former Mach service (`XPC_SERVICE_NAME`). App Shims with
+  a `dev.avo.shim.` identifier are made again. macOS may ask once more for
+  what the helpers had been allowed (camera, microphone, Bluetooth,
+  location, notifications), which it keeps by identifier.
 
 Every release must raise `CFBundleVersion` (`CURRENT_PROJECT_VERSION`).
 Sparkle needs it, and so do the daemon's and the shims' build checks.
@@ -1051,7 +1066,8 @@ a README listing what is in it and:
   (`VMStatus.renderer`), ADB support, storage (`DataDiskStatus`,
   `StorageLocationStatus`) and GPU cache; the installed apps' packages and
   versions (optional); what could not be collected.
-- `daemon.log`: `log show --last 3h` of Avo's subsystem (`dev.avo`), whose
+- `daemon.log`: `log show --last 3h` of Avo's subsystem (`com.avodroid`, and
+  `dev.avo` of the builds before 0.3.0 Preview 2), whose
   private values the unified log already hides.
 - `avo-vmm.log` (and `avo-vmm-gpu-failed.log`), the end of `kernel.log` and,
   optionally, of `logcat.log`; small state files (`gpu-fallback.json`,
@@ -1416,7 +1432,7 @@ daemon never reads files the user picks. Everything is in AvoPackages
 ~/Library/Caches/Avo/gpu-cache/       GPU shader and pipeline caches
 ~/Applications/Android Apps/          App Shims
 ~/Library/Logs/Avo/                   avo-vmm.log (the engine's log, recreated at every start)
-$TMPDIR/dev.avo/                      vsock.sock, control.sock, console.sock (mode 0700)
+$TMPDIR/com.avodroid/                 vsock.sock, control.sock, console.sock (mode 0700)
 ```
 
 ## Where Android's data is (Settings › Storage › Location)

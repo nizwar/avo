@@ -103,8 +103,10 @@ private struct CheckForUpdatesCommand: View {
 /// Opens package files from Finder (double-click, Dock icon drop, Open With).
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    /// First, before anything reads the preferences.
+    /// First, before anything reads the preferences (and before the daemon
+    /// of this build starts: ControlPanelModel.start).
     private let movedDefaults = ControlPanelDefaults.migrate()
+    private let movedHelperDefaults = IdentifierMigration.migrate()
     let model = ControlPanelModel()
     /// Android images and the Setup Assistant (SetupAssistant.swift).
     let images = AndroidImageManager()
@@ -155,6 +157,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func chooseAndInstall() {
         model.chooseAndInstall()
+    }
+}
+
+/// What the helpers and App Shims kept under the identifiers of the builds
+/// before 0.3.0 Preview 2 (dev.avo) comes along once: each new domain takes
+/// the keys it does not have yet (AvoIdentifiers.formerPreferenceDomains).
+/// The old domains stay, for an older Avo opened again.
+enum IdentifierMigration {
+    static let migratedKey = "AvoMovedFromDevAvo"
+
+    @discardableResult
+    static func migrate(_ defaults: UserDefaults = .standard) -> Int {
+        guard Bundle.main.bundleIdentifier == AvoIdentifiers.app, !defaults.bool(forKey: migratedKey) else { return 0 }
+        defaults.set(true, forKey: migratedKey)
+        let preferences = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Preferences", directoryHint: .isDirectory)
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: preferences.path)) ?? []
+        var moved = 0
+        for (from, to) in AvoIdentifiers.formerPreferenceDomains(preferenceFiles: files) {
+            guard let former = defaults.persistentDomain(forName: from), !former.isEmpty else { continue }
+            var current = defaults.persistentDomain(forName: to) ?? [:]
+            for (key, value) in former where current[key] == nil { current[key] = value }
+            defaults.setPersistentDomain(current, forName: to)
+            moved += 1
+        }
+        return moved
     }
 }
 

@@ -38,7 +38,7 @@ public final class FileDescriptorStream: ByteStream, @unchecked Sendable {
     private let queue: DispatchQueue
 
     /// Takes ownership of `fileDescriptor`; it is closed when the stream closes.
-    public init(fileDescriptor: Int32, label: String = "dev.avo.io") {
+    public init(fileDescriptor: Int32, label: String = "com.avodroid.io") {
         Self.disableSIGPIPE(fileDescriptor)
         let queue = DispatchQueue(label: label)
         self.queue = queue

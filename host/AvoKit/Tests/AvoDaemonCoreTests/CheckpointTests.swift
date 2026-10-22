@@ -166,7 +166,7 @@ private let settings = CheckpointSettings(VMConfig())
             let template = root.appending(path: "AvoShim.app")
             try FileManager.default.createDirectory(at: template.appending(path: "Contents/MacOS"), withIntermediateDirectories: true)
             try FileManager.default.copyItem(at: URL(filePath: "/usr/bin/true"), to: template.appending(path: "Contents/MacOS/AvoShim"))
-            let info: [String: Any] = ["CFBundleExecutable": "AvoShim", "CFBundlePackageType": "APPL", "CFBundleIdentifier": "dev.avo.shim"]
+            let info: [String: Any] = ["CFBundleExecutable": "AvoShim", "CFBundlePackageType": "APPL", "CFBundleIdentifier": "com.avodroid.shim"]
             try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
                 .write(to: template.appending(path: "Contents/Info.plist"))
             var builder = ShimBuilder(template: template, hostApplication: URL(filePath: "/Applications/Avo.app"), directory: paths.shims)

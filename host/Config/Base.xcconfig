@@ -1,9 +1,10 @@
 // Settings shared by every Avo target.
 //
-// The bundle identifier prefix depends on the project domain, which is still an
-// open question in docs/spec.md. Keep it in sync with AvoIdentifiers.prefix
-// (AvoKit); IdentifierTests checks that they match.
-AVO_BUNDLE_ID_PREFIX = dev.avo
+// The bundle identifier prefix: Avo's domain, avodroid.com. Builds before
+// 0.3.0 Preview 2 used dev.avo (AvoIdentifiers.formerPrefix; Avo moves what
+// was kept under it). Keep it in sync with AvoIdentifiers.prefix (AvoKit);
+// VMConfigTests checks that they match.
+AVO_BUNDLE_ID_PREFIX = com.avodroid
 // Avo.app's own identifier (AvoIdentifiers.app); its helpers use the prefix.
 AVO_APP_BUNDLE_ID = com.avodroid.emulator
 

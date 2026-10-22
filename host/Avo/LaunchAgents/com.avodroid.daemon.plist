@@ -5,7 +5,7 @@
      Mach service follow AvoIdentifiers (AvoKit); keep them in sync. -->
 <dict>
 	<key>Label</key>
-	<string>dev.avo.daemon</string>
+	<string>com.avodroid.daemon</string>
 	<key>BundleProgram</key>
 	<string>Contents/Library/Helpers/AvoDaemon.app/Contents/MacOS/AvoDaemon</string>
 	<key>AssociatedBundleIdentifiers</key>
@@ -14,7 +14,7 @@
 	</array>
 	<key>MachServices</key>
 	<dict>
-		<key>dev.avo.daemon</key>
+		<key>com.avodroid.daemon</key>
 		<true/>
 	</dict>
 	<key>RunAtLoad</key>

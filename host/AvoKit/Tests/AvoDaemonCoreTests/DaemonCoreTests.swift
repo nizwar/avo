@@ -128,7 +128,7 @@ struct Harness {
         let template = root.appending(path: "AvoShim.app")
         try FileManager.default.createDirectory(at: template.appending(path: "Contents/MacOS"), withIntermediateDirectories: true)
         try FileManager.default.copyItem(at: URL(filePath: "/usr/bin/true"), to: template.appending(path: "Contents/MacOS/AvoShim"))
-        let info: [String: Any] = ["CFBundleExecutable": "AvoShim", "CFBundlePackageType": "APPL", "CFBundleIdentifier": "dev.avo.shim"]
+        let info: [String: Any] = ["CFBundleExecutable": "AvoShim", "CFBundlePackageType": "APPL", "CFBundleIdentifier": "com.avodroid.shim"]
         try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
             .write(to: template.appending(path: "Contents/Info.plist"))
         var builder = ShimBuilder(template: template, hostApplication: URL(filePath: "/Applications/Avo.app"), directory: paths.shims)
@@ -586,7 +586,7 @@ struct Harness {
         #expect(joined.contains("--block path=/img/overlay_rooted.img,ro=true,id=avo_overlay")) // root checkbox
         #expect(joined.contains("--block path=/cfg.img,ro=true,id=avo_config"))
         #expect(joined.contains("vulkan=true"))
-        #expect(joined.contains("--vsock cid=3,uds-path=/tmp/T/dev.avo/vsock.sock"))
+        #expect(joined.contains("--vsock cid=3,uds-path=/tmp/T/com.avodroid/vsock.sock"))
         #expect(args.last == "/img/kernel")
 
         config.rooted = false

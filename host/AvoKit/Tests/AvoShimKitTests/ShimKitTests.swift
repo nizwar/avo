@@ -94,7 +94,7 @@ private func solidImage(size: Int, argb: UInt32, insetTransparent: Int = 0) -> C
         try FileManager.default.createDirectory(at: macOS, withIntermediateDirectories: true)
         try FileManager.default.copyItem(at: URL(filePath: "/usr/bin/true"), to: macOS.appending(path: "AvoShim"))
         let info: [String: Any] = ["CFBundleExecutable": "AvoShim", "CFBundlePackageType": "APPL",
-                                   "CFBundleIdentifier": "dev.avo.shim.template", "LSMinimumSystemVersion": "15.0"]
+                                   "CFBundleIdentifier": "com.avodroid.shim.template", "LSMinimumSystemVersion": "15.0"]
         try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
             .write(to: template.appending(path: "Contents/Info.plist"))
         var builder = ShimBuilder(template: template, hostApplication: URL(filePath: "/Applications/Avo.app"),
@@ -119,7 +119,7 @@ private func solidImage(size: Int, argb: UInt32, insetTransparent: Int = 0) -> C
         #expect(ShimBuilder.cdhash(of: result.bundleURL) == result.cdhash)
 
         let info = try #require(NSDictionary(contentsOf: result.bundleURL.appending(path: "Contents/Info.plist")) as? [String: Any])
-        #expect(info["CFBundleIdentifier"] as? String == "dev.avo.shim.org.fdroid.fdroid")
+        #expect(info["CFBundleIdentifier"] as? String == "com.avodroid.shim.org.fdroid.fdroid")
         #expect(info["CFBundleName"] as? String == "F-Droid")
         #expect(info[AvoIdentifiers.shimPackageInfoKey] as? String == "org.fdroid.fdroid")
         #expect(info[AvoIdentifiers.shimHostAppInfoKey] as? String == "/Applications/Avo.app")

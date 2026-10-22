@@ -9,7 +9,7 @@ import os
 /// the first time it starts (Avo.app is responsible for the daemon).
 /// CoreBluetooth calls back on `queue`, where all of its state lives.
 final class MacBluetooth: NSObject, CBCentralManagerDelegate, @unchecked Sendable {
-    let queue = DispatchQueue(label: "dev.avo.bluetooth", qos: .userInitiated)
+    let queue = DispatchQueue(label: "com.avodroid.bluetooth", qos: .userInitiated)
     private var central: CBCentralManager?
     private var wantsScan = false
     private var peripherals: [UUID: CBPeripheral] = [:]

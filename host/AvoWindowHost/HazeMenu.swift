@@ -99,8 +99,8 @@ public final class HazeMenuPresenter {
     public static let shared = HazeMenuPresenter()
     /// Posted just before a menu takes the keyboard, and once it has gone: a
     /// transient popover it opens from holds still meanwhile (QuickSettings.swift).
-    public nonisolated static let willShowNotification = Notification.Name("dev.avo.HazeMenu.willShow")
-    public nonisolated static let didCloseNotification = Notification.Name("dev.avo.HazeMenu.didClose")
+    public nonisolated static let willShowNotification = Notification.Name("com.avodroid.HazeMenu.willShow")
+    public nonisolated static let didCloseNotification = Notification.Name("com.avodroid.HazeMenu.didClose")
 
     /// Where a menu goes: its top-left corner at a point, or under (or over)
     /// a control, in screen coordinates.

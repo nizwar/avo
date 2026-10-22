@@ -197,7 +197,7 @@ actor SharedFolderBridge {
 final class FolderWatcher: @unchecked Sendable {
     private var stream: FSEventStreamRef?
     private let root: String
-    private let queue = DispatchQueue(label: "dev.avo.shared-folder")
+    private let queue = DispatchQueue(label: "com.avodroid.shared-folder")
     private let changed: @Sendable ([String]) -> Void
 
     init?(path: String, latency: CFTimeInterval, changed: @escaping @Sendable ([String]) -> Void) {

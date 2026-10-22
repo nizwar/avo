@@ -28,7 +28,7 @@ public final class ChunkPipe: AsyncSequence, @unchecked Sendable {
                 self.finish(.failure(error))
             }
         }
-        thread.name = "dev.avo.chunkpipe"
+        thread.name = "com.avodroid.chunkpipe"
         thread.start()
     }
 

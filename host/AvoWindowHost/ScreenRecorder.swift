@@ -63,7 +63,7 @@ final class ScreenRecorder: @unchecked Sendable {
     private let textureCache: CVMetalTextureCache
     private let width: Int
     private let height: Int
-    private let queue = DispatchQueue(label: "dev.avo.recorder", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.avodroid.recorder", qos: .userInitiated)
     /// Frames being drawn or appended: finishing waits for them.
     private let inFlight = DispatchGroup()
     private let lock = NSLock()

@@ -55,6 +55,7 @@
 		5AF67682AFB60C03BCDA58C6 /* AvoHostKit in Frameworks */ = {isa = PBXBuildFile; productRef = 957B5B66D0F5E689DE4D838D /* AvoHostKit */; };
 		61B7BA2C35BBFCA906155177 /* HelpButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 620F07B134A6F78EB2D009F6 /* HelpButton.swift */; };
 		62538307D445FF200AE6E2A2 /* HazeTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12A275DEF061CFBDBEF5CC62 /* HazeTheme.swift */; };
+		627A2FA9B391B3A272709765 /* com.avodroid.daemon.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = 72EC3020F67F5E3A32BC3D88 /* com.avodroid.daemon.plist */; };
 		63C8EA7CB7DACF0E0EDC161A /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 32EDD9AC9A0DC88B6A25A322 /* Sparkle */; };
 		65FEC67C958C9066A683517A /* GamepadHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F634C193B6443E2ED728668 /* GamepadHub.swift */; };
 		6755F96AA82D28645EF428A5 /* DaemonAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 303350F925C8F3106A16A510 /* DaemonAgent.swift */; };
@@ -75,7 +76,6 @@
 		802CBDCDB31C11D8E7A50856 /* GraphicsResultCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D64F1BB56C1F298D38C26FE /* GraphicsResultCard.swift */; };
 		80F7B035228CE63F63182E75 /* PermissionNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27670785BC1057938A994E09 /* PermissionNames.swift */; };
 		824B4DCB7896D35C75E806E6 /* LibraryWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 801D5BA6131483549457E5CD /* LibraryWindow.swift */; };
-		8481943B1628A9A6E92AE05F /* dev.avo.daemon.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = 169AFA72B5D4B196DA73B69A /* dev.avo.daemon.plist */; };
 		87A7CC06BD009B6726F40C66 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F64C8E34E5447E3EB40D0D3F /* Assets.xcassets */; };
 		87A880D6FA3C9978CCB0C05D /* AvoHostKit in Frameworks */ = {isa = PBXBuildFile; productRef = 23CC27DBEFD245E22566CC33 /* AvoHostKit */; };
 		880B5417C47691C290E10E38 /* ScreenRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6443F229E33272C0A1B90151 /* ScreenRecorder.swift */; };
@@ -104,6 +104,7 @@
 		B67F6DA128DF5A02F67CC4F5 /* ShimMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B7EBE203806538C8FDEE11 /* ShimMain.swift */; };
 		B76D22608AE5966E57EAB0EA /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 0E077537E77456968A82C2C8 /* InfoPlist.xcstrings */; };
 		B92DD580800E68A7C3F6715C /* MenuBarPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B23A91A4EF315301DFC1D637 /* MenuBarPanel.swift */; };
+		B9456323324DA69F87A60416 /* profiles in Resources */ = {isa = PBXBuildFile; fileRef = 31698B2A48DD058C3771166B /* profiles */; };
 		BAD3E653F3299BA7C9E37614 /* SetupPermissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B112861945965A970CF1B86 /* SetupPermissions.swift */; };
 		BBE0E07832333AEC4397C8BC /* LibraryHome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BADB205DEE3953C71B93BBB /* LibraryHome.swift */; };
 		BD00C9F8FDCD8991B5ED8E3C /* QuickSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5636B87A263AF8AE0F99914 /* QuickSettings.swift */; };
@@ -122,7 +123,6 @@
 		D1A16D2DF31D16D8E046BA4C /* MetalShaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = C053250AD3795D366BC07270 /* MetalShaders.swift */; };
 		D2131F5B4D766155448D1B8D /* hubot-sans.woff2 in Resources */ = {isa = PBXBuildFile; fileRef = E5990156EBF343F953E52769 /* hubot-sans.woff2 */; };
 		D274969A8BFA690ADC2E7160 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0618B7045A2A842D4AD57B6E /* MenuBarController.swift */; };
-		D535237D658E53A31CF2FE9F /* profiles in Resources */ = {isa = PBXBuildFile; fileRef = 01DE9A3E8C4D5762AC330531 /* profiles */; };
 		D544BACD0B83BA0AEB67C3DF /* SettingsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47F3C42CCBD7A219B9BB4E75 /* SettingsWindow.swift */; };
 		D57AB7EFF17AF669B7653199 /* AndroidImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3160137FB918D2EBB43F9C29 /* AndroidImageManager.swift */; };
 		DE1E76ECF99037937ED9C0E5 /* GamepadForwarder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BF3A0AB3B94D90F3F547F51 /* GamepadForwarder.swift */; };
@@ -186,10 +186,10 @@
 		1D53782E6B5857E8BE21FBDA /* Embed Dependencies */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 6;
+			dstPath = Contents/Library/Shim;
+			dstSubfolderSpec = 1;
 			files = (
-				3B17A894C265E7F52B64E424 /* avoctl in Embed Dependencies */,
+				326B9CFA8AD399ABB0184081 /* AvoShim.app in Embed Dependencies */,
 			);
 			name = "Embed Dependencies";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -197,10 +197,10 @@
 		9B5483BA2FEF5F7A9BECF5F2 /* Embed Dependencies */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = Contents/Library/Shim;
-			dstSubfolderSpec = 1;
+			dstPath = "";
+			dstSubfolderSpec = 6;
 			files = (
-				326B9CFA8AD399ABB0184081 /* AvoShim.app in Embed Dependencies */,
+				3B17A894C265E7F52B64E424 /* avoctl in Embed Dependencies */,
 			);
 			name = "Embed Dependencies";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -222,7 +222,7 @@
 			dstPath = Contents/Library/LaunchAgents;
 			dstSubfolderSpec = 1;
 			files = (
-				8481943B1628A9A6E92AE05F /* dev.avo.daemon.plist in CopyFiles */,
+				627A2FA9B391B3A272709765 /* com.avodroid.daemon.plist in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -241,7 +241,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		01DE9A3E8C4D5762AC330531 /* profiles */ = {isa = PBXFileReference; lastKnownFileType = folder; name = profiles; path = ../profiles; sourceTree = SOURCE_ROOT; };
 		02BD2B2C3D7CB2D833661005 /* KeymapEditorPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeymapEditorPanel.swift; sourceTree = "<group>"; };
 		0618B7045A2A842D4AD57B6E /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		08BF662568EB77466F4A1FEA /* MacSystemState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSystemState.swift; sourceTree = "<group>"; };
@@ -256,7 +255,6 @@
 		12A275DEF061CFBDBEF5CC62 /* HazeTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HazeTheme.swift; sourceTree = "<group>"; };
 		133C04954F11344B77B5022D /* AppUsageCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUsageCard.swift; sourceTree = "<group>"; };
 		1516A4C094E91BB02631FF77 /* SystemStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemStatusView.swift; sourceTree = "<group>"; };
-		169AFA72B5D4B196DA73B69A /* dev.avo.daemon.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = dev.avo.daemon.plist; sourceTree = "<group>"; };
 		16EB0C6D06F2B4934D2B9DD6 /* CheckpointViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckpointViews.swift; sourceTree = "<group>"; };
 		1986CB9B7D4C96CDD6360302 /* LibraryOnboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryOnboarding.swift; sourceTree = "<group>"; };
 		1DBB8F69EF7F6FF2FD5D076F /* HazeMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HazeMenu.swift; sourceTree = "<group>"; };
@@ -274,6 +272,7 @@
 		2D9DA4A74ED2CAFCD7573F60 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		303350F925C8F3106A16A510 /* DaemonAgent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaemonAgent.swift; sourceTree = "<group>"; };
 		3160137FB918D2EBB43F9C29 /* AndroidImageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AndroidImageManager.swift; sourceTree = "<group>"; };
+		31698B2A48DD058C3771166B /* profiles */ = {isa = PBXFileReference; lastKnownFileType = folder; name = profiles; path = ../profiles; sourceTree = SOURCE_ROOT; };
 		38FD89258340C4BFC7DD70A4 /* SetupAssistant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupAssistant.swift; sourceTree = "<group>"; };
 		3CD6BB66680DDF324313F398 /* MacIntegrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacIntegrations.swift; sourceTree = "<group>"; };
 		441AA532CF90E8475DCB42F9 /* AvoDaemon.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AvoDaemon.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -296,6 +295,7 @@
 		6443F229E33272C0A1B90151 /* ScreenRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRecorder.swift; sourceTree = "<group>"; };
 		65F7E2A3C00C21BDBF58BE20 /* ReportProblem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportProblem.swift; sourceTree = "<group>"; };
 		7041D0AA8B7A00CB09C30AC6 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		72EC3020F67F5E3A32BC3D88 /* com.avodroid.daemon.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = com.avodroid.daemon.plist; sourceTree = "<group>"; };
 		757FE7FE5E8552F4983486D2 /* WidgetPanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetPanels.swift; sourceTree = "<group>"; };
 		75A225255260D6D6FA585B52 /* FrameRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameRouter.swift; sourceTree = "<group>"; };
 		76B7EBE203806538C8FDEE11 /* ShimMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShimMain.swift; sourceTree = "<group>"; };
@@ -415,15 +415,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		1172DD0AD31DDF8DA29C477A /* avo */ = {
-			isa = PBXGroup;
-			children = (
-				01DE9A3E8C4D5762AC330531 /* profiles */,
-			);
-			name = avo;
-			path = ..;
-			sourceTree = "<group>";
-		};
 		2A506A8BDC686CDD7C2443EE /* AvoShim */ = {
 			isa = PBXGroup;
 			children = (
@@ -439,7 +430,7 @@
 			isa = PBXGroup;
 			children = (
 				8884137A2D8A72EA20FE6F28 /* Avo */,
-				1172DD0AD31DDF8DA29C477A /* avo */,
+				F1CC7739FB26D01BF6056D71 /* avo-com-avodroid-ids */,
 				A7476617DA7B529836987A10 /* avoctl */,
 				D47E8630A3C1286789D7F14B /* AvoDaemon */,
 				2A506A8BDC686CDD7C2443EE /* AvoShim */,
@@ -477,7 +468,7 @@
 		7BDDAFBF6FFB6597718A0D10 /* LaunchAgents */ = {
 			isa = PBXGroup;
 			children = (
-				169AFA72B5D4B196DA73B69A /* dev.avo.daemon.plist */,
+				72EC3020F67F5E3A32BC3D88 /* com.avodroid.daemon.plist */,
 			);
 			path = LaunchAgents;
 			sourceTree = "<group>";
@@ -637,6 +628,15 @@
 				830E78F375BA121F14BD1E70 /* WindowChrome.swift */,
 			);
 			path = AvoWindowHost;
+			sourceTree = "<group>";
+		};
+		F1CC7739FB26D01BF6056D71 /* avo-com-avodroid-ids */ = {
+			isa = PBXGroup;
+			children = (
+				31698B2A48DD058C3771166B /* profiles */,
+			);
+			name = "avo-com-avodroid-ids";
+			path = ..;
 			sourceTree = "<group>";
 		};
 		FBA6D5D52CAF2627DF55D613 /* Config */ = {
@@ -842,7 +842,7 @@
 				9927CA7D5EE28CAC9BBFC966 /* OFL-MonaSans.txt in Resources */,
 				D2131F5B4D766155448D1B8D /* hubot-sans.woff2 in Resources */,
 				55582661F414850A21ED9F4A /* mona-sans.woff2 in Resources */,
-				D535237D658E53A31CF2FE9F /* profiles in Resources */,
+				B9456323324DA69F87A60416 /* profiles in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -889,7 +889,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -euo pipefail\nCONTROLLER=\"$SRCROOT/../build/bluetooth\"\nOUT=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/bluetooth\"\nif [ ! -f \"$CONTROLLER/.stamp\" ]; then\n  echo \"warning: no Bluetooth controller in build/bluetooth (run scripts/build-bluetooth.sh); Avo.app then needs the Android Emulator for Bluetooth\"\n  exit 0\nfi\n# Nothing to do when the controller did not change: Avo.app stays sealed.\nif [ -f \"$OUT/.stamp\" ] && cmp -s \"$CONTROLLER/.stamp\" \"$OUT/.stamp\"; then\n  exit 0\nfi\nrm -rf \"$OUT.new\"\nditto \"$CONTROLLER\" \"$OUT.new\"\ncodesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" \"$OUT.new/rootcanal\"\n# Replace, never overwrite: a running avo-vmm may have started it.\nrm -rf \"$OUT\"\nmv \"$OUT.new\" \"$OUT\"\nif codesign --display \"$TARGET_BUILD_DIR/$WRAPPER_NAME\" >/dev/null 2>&1; then\n  codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" \\\n    --preserve-metadata=identifier,entitlements,requirements,flags,runtime \"$TARGET_BUILD_DIR/$WRAPPER_NAME\"\nfi\n";
+			shellScript = "set -euo pipefail\nCONTROLLER=\"$SRCROOT/../build/bluetooth\"\nOUT=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/bluetooth\"\nif [ ! -f \"$CONTROLLER/.stamp\" ]; then\n  echo \"warning: no Bluetooth controller in build/bluetooth (run scripts/build-bluetooth.sh); Avo.app then needs the Android Emulator for Bluetooth\"\n  exit 0\nfi\n# Nothing to do when the controller did not change: Avo.app stays sealed.\nif [ -f \"$OUT/.stamp\" ] && cmp -s \"$CONTROLLER/.stamp\" \"$OUT/.stamp\"; then\n  exit 0\nfi\nrm -rf \"$OUT.new\"\nditto \"$CONTROLLER\" \"$OUT.new\"\ncodesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" --identifier \"$AVO_BUNDLE_ID_PREFIX.rootcanal\" \"$OUT.new/rootcanal\"\n# Replace, never overwrite: a running avo-vmm may have started it.\nrm -rf \"$OUT\"\nmv \"$OUT.new\" \"$OUT\"\nif codesign --display \"$TARGET_BUILD_DIR/$WRAPPER_NAME\" >/dev/null 2>&1; then\n  codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" \\\n    --preserve-metadata=identifier,entitlements,requirements,flags,runtime \"$TARGET_BUILD_DIR/$WRAPPER_NAME\"\nfi\n";
 		};
 		0DF9162A1C0539A6B7AA1B4F /* Build avo-vmm */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -908,7 +908,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -euo pipefail\nCARGO=\"${CARGO:-$HOME/.cargo/bin/cargo}\"\nENGINE=\"$SRCROOT/../engine/hvf\"\nOUT=\"$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/avo-vmm\"\nif [ ! -x \"$CARGO\" ]; then\n  echo \"warning: cargo not found; Avo.app is built without avo-vmm (install Rust: https://rustup.rs)\"\n  exit 0\nfi\n\"$CARGO\" build --release --quiet --manifest-path \"$ENGINE/Cargo.toml\" -p avo-vmm --target-dir \"$DERIVED_FILE_DIR/cargo\"\n# Nothing to do when neither the engine nor its entitlements changed:\n# Avo.app stays sealed.\nINSTALLED=\"$DERIVED_FILE_DIR/avo-vmm.installed\"\nif [ -f \"$OUT\" ] && cmp -s \"$DERIVED_FILE_DIR/cargo/release/avo-vmm\" \"$INSTALLED\" \\\n   && [ ! \"$ENGINE/hypervisor.entitlements\" -nt \"$INSTALLED\" ]; then\n  exit 0\nfi\nSTAGED=\"$DERIVED_FILE_DIR/avo-vmm\"\ncp \"$DERIVED_FILE_DIR/cargo/release/avo-vmm\" \"$STAGED\"\ncodesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" --options runtime \\\n  --entitlements \"$ENGINE/hypervisor.entitlements\" \"$STAGED\"\n# Replace, never overwrite: macOS kills a running VM whose signed\n# executable pages change underneath it.\nmv -f \"$STAGED\" \"$OUT\"\ncp \"$DERIVED_FILE_DIR/cargo/release/avo-vmm\" \"$INSTALLED\"\n# Xcode does not sign the app again when only this file changed:\n# seal the bundle over the new engine (keeping its entitlements),\n# or every Avo process fails code signature checks.\nif codesign --display \"$TARGET_BUILD_DIR/$WRAPPER_NAME\" >/dev/null 2>&1; then\n  codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" \\\n    --preserve-metadata=identifier,entitlements,requirements,flags,runtime \"$TARGET_BUILD_DIR/$WRAPPER_NAME\"\nfi\n";
+			shellScript = "set -euo pipefail\nCARGO=\"${CARGO:-$HOME/.cargo/bin/cargo}\"\nENGINE=\"$SRCROOT/../engine/hvf\"\nOUT=\"$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/avo-vmm\"\nif [ ! -x \"$CARGO\" ]; then\n  echo \"warning: cargo not found; Avo.app is built without avo-vmm (install Rust: https://rustup.rs)\"\n  exit 0\nfi\n\"$CARGO\" build --release --quiet --manifest-path \"$ENGINE/Cargo.toml\" -p avo-vmm --target-dir \"$DERIVED_FILE_DIR/cargo\"\n# Nothing to do when neither the engine nor its entitlements changed:\n# Avo.app stays sealed.\nINSTALLED=\"$DERIVED_FILE_DIR/avo-vmm.installed\"\nif [ -f \"$OUT\" ] && cmp -s \"$DERIVED_FILE_DIR/cargo/release/avo-vmm\" \"$INSTALLED\" \\\n   && [ ! \"$ENGINE/hypervisor.entitlements\" -nt \"$INSTALLED\" ]; then\n  exit 0\nfi\nSTAGED=\"$DERIVED_FILE_DIR/avo-vmm\"\ncp \"$DERIVED_FILE_DIR/cargo/release/avo-vmm\" \"$STAGED\"\ncodesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" --options runtime \\\n  --identifier \"$AVO_BUNDLE_ID_PREFIX.avo-vmm\" \\\n  --entitlements \"$ENGINE/hypervisor.entitlements\" \"$STAGED\"\n# Replace, never overwrite: macOS kills a running VM whose signed\n# executable pages change underneath it.\nmv -f \"$STAGED\" \"$OUT\"\ncp \"$DERIVED_FILE_DIR/cargo/release/avo-vmm\" \"$INSTALLED\"\n# Xcode does not sign the app again when only this file changed:\n# seal the bundle over the new engine (keeping its entitlements),\n# or every Avo process fails code signature checks.\nif codesign --display \"$TARGET_BUILD_DIR/$WRAPPER_NAME\" >/dev/null 2>&1; then\n  codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" \\\n    --preserve-metadata=identifier,entitlements,requirements,flags,runtime \"$TARGET_BUILD_DIR/$WRAPPER_NAME\"\nfi\n";
 		};
 		4985470071A358EF376C36F2 /* Embed the GPU renderer */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -1173,6 +1173,7 @@
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				OTHER_CODE_SIGN_FLAGS = "--identifier $(PRODUCT_BUNDLE_IDENTIFIER)";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(AVO_BUNDLE_ID_PREFIX).avoctl";
 				PRODUCT_NAME = avoctl;
 				SDKROOT = macosx;
@@ -1360,6 +1361,7 @@
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				OTHER_CODE_SIGN_FLAGS = "--identifier $(PRODUCT_BUNDLE_IDENTIFIER)";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(AVO_BUNDLE_ID_PREFIX).avoctl";
 				PRODUCT_NAME = avoctl;
 				SDKROOT = macosx;

@@ -49,7 +49,7 @@ actor HCIChip {
         }
         var on: Int32 = 1
         _ = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, socklen_t(MemoryLayout<Int32>.size))
-        return HCIChip(stream: FileDescriptorStream(fileDescriptor: fd, label: "dev.avo.bluetooth.chip"))
+        return HCIChip(stream: FileDescriptorStream(fileDescriptor: fd, label: "com.avodroid.bluetooth.chip"))
     }
 
     init(stream: FileDescriptorStream) {

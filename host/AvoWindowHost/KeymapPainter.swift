@@ -745,7 +745,7 @@ struct KeymapPainter {
 /// "Show on game" and how opaque it is, remembered per app (the shim's defaults).
 @MainActor
 enum KeymapHints {
-    static let changed = Notification.Name("dev.avo.KeymapHintsChanged")
+    static let changed = Notification.Name("com.avodroid.KeymapHintsChanged")
     static let opacityRange = 0.15...1.0
     /// Clear but light: the keys read on any scene, their plates let the
     /// game's buttons show through.

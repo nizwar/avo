@@ -53,7 +53,7 @@ public struct AndroidEmulator: Equatable, Sendable {
         case unsupported(version: String)
     }
 
-    /// `override` (`defaults write dev.avo.daemon AvoAndroidEmulator <dir>`)
+    /// `override` (`defaults write com.avodroid.daemon AvoAndroidEmulator <dir>`)
     /// when it is set; else Avo's own build (`bundled`, in Avo.app); else the
     /// emulator Android Studio's SDK Manager installs.
     public static func lookup(home: URL, bundled: URL? = nil,

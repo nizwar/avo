@@ -43,7 +43,7 @@ final class MetalRenderer: @unchecked Sendable {
     private let backdropPipeline: MTLRenderPipelineState
     /// Blends: the held frame fading out over the new one.
     private let fadePipeline: MTLRenderPipelineState
-    private let renderQueue = DispatchQueue(label: "dev.avo.render", qos: .userInteractive)
+    private let renderQueue = DispatchQueue(label: "com.avodroid.render", qos: .userInteractive)
     private let lock = NSLock()
     private var textures: [MTLTexture] = []
     /// The IOSurface behind each texture (same index).

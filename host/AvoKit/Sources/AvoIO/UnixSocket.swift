@@ -129,7 +129,7 @@ public enum UnixSocket {
 public enum VsockBridge {
     public static func connect(socketPath: String, port: UInt32, timeout: Duration = .seconds(5)) throws -> FileDescriptorStream {
         let fd = try connectSocket(socketPath: socketPath, port: port, timeout: timeout)
-        return FileDescriptorStream(fileDescriptor: fd, label: "dev.avo.vsock.\(port)")
+        return FileDescriptorStream(fileDescriptor: fd, label: "com.avodroid.vsock.\(port)")
     }
 
     /// The connected socket itself (blocking); the caller closes it.

@@ -22,7 +22,7 @@ import Vision
 /// on in any app, and every app after that finds the engine ready.
 public final class ScreenTextEngine: Sendable {
     /// Reads, one frame at a time, after the warm-up.
-    private let queue = DispatchQueue(label: "dev.avo.screen-text", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.avodroid.screen-text", qos: .userInitiated)
     private let translator = Translator()
     private let awake = OSAllocatedUnfairLock(initialState: false)
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "Translate")

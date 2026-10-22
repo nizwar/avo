@@ -2,11 +2,15 @@ import Foundation
 
 /// Bundle identifiers, launchd labels and Mach service names.
 ///
-/// The prefix is tied to the open question about the project domain
-/// (docs/spec.md). Change it here and in host/Config/Base.xcconfig
-/// (`AVO_BUNDLE_ID_PREFIX`); a unit test keeps the two in sync.
+/// The prefix is Avo's domain (avodroid.com). Change it here and in
+/// host/Config/Base.xcconfig (`AVO_BUNDLE_ID_PREFIX`); a unit test keeps the
+/// two in sync.
 public enum AvoIdentifiers {
-    public static let prefix = "dev.avo"
+    public static let prefix = "com.avodroid"
+    /// The prefix of builds before 0.3.0 Preview 2. What Avo kept under it
+    /// moves once (IdentifierMigration in Avo.app): the daemon's LaunchAgent,
+    /// and the helpers' and App Shims' preferences.
+    public static let formerPrefix = "dev.avo"
 
     /// Avo.app: Control Panel and menu bar item. Its own identifier, apart
     /// from the prefix its helpers share (Base.xcconfig `AVO_APP_BUNDLE_ID`).
@@ -14,7 +18,7 @@ public enum AvoIdentifiers {
     /// Avo.app's identifiers in earlier builds (`dev.avo.Avo`, then
     /// `emu.avo.droid` in one preview build): their preferences move to the
     /// new one at the first launch (ControlPanelDefaults).
-    public static let formerApps = ["\(prefix).Avo", "emu.avo.droid"]
+    public static let formerApps = ["\(formerPrefix).Avo", "emu.avo.droid"]
     /// AvoWindowHost.framework, loaded by every App Shim.
     public static let windowHost = "\(prefix).WindowHost"
     /// launchd label of the Runtime Daemon LaunchAgent.
@@ -25,6 +29,11 @@ public enum AvoIdentifiers {
     public static let daemonBundleID = "\(prefix).daemon"
     /// Bundle identifier prefix of generated App Shims.
     public static let shimPrefix = "\(prefix).shim."
+    /// The same, before 0.3.0 Preview 2 (such a shim is made again).
+    public static let formerShimPrefix = "\(formerPrefix).shim."
+    /// The daemon's Mach service before 0.3.0 Preview 2: an updated Control
+    /// Panel talks to the daemon still running under it until Android stops.
+    public static let formerDaemonMachService = "\(formerPrefix).daemon"
     /// os_log subsystem.
     public static let logSubsystem = prefix
     /// Info.plist key holding the Android package of an App Shim.
@@ -42,11 +51,26 @@ public enum AvoIdentifiers {
         return shimPrefix + sanitized
     }
 
+    /// The preference domains of the builds before 0.3.0 Preview 2 and the
+    /// ones that replace them: the daemon's, the Window Host's, avoctl's, and
+    /// each App Shim's among `preferenceFiles` (the names in
+    /// ~/Library/Preferences). Only Avo's own: Avo Hub's `dev.avo.hub…` stay.
+    public static func formerPreferenceDomains(preferenceFiles: [String]) -> [(from: String, to: String)] {
+        var pairs = [("\(formerPrefix).daemon", daemonBundleID), ("\(formerPrefix).WindowHost", windowHost),
+                     ("\(formerPrefix).avoctl", "\(prefix).avoctl")]
+        for file in preferenceFiles.sorted() where file.hasPrefix(formerShimPrefix) && file.hasSuffix(".plist") {
+            let domain = String(file.dropLast(".plist".count))
+            guard domain.count > formerShimPrefix.count else { continue }
+            pairs.append((domain, shimPrefix + domain.dropFirst(formerShimPrefix.count)))
+        }
+        return pairs
+    }
+
     /// The Android package for a shim bundle identifier, when it can be
     /// recovered unambiguously (the Info.plist key is authoritative).
     public static func package(fromShimBundleIdentifier identifier: String) -> String? {
-        guard identifier.hasPrefix(shimPrefix) else { return nil }
-        let rest = identifier.dropFirst(shimPrefix.count)
+        guard let prefix = [shimPrefix, formerShimPrefix].first(where: identifier.hasPrefix) else { return nil }
+        let rest = identifier.dropFirst(prefix.count)
         return rest.isEmpty ? nil : String(rest)
     }
 }

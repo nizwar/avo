@@ -71,7 +71,7 @@ enum CaptureFiles {
 
     /// Saving runs one at a time, so two screenshots in the same second get
     /// different names.
-    private static let queue = DispatchQueue(label: "dev.avo.capture-files", qos: .userInitiated)
+    private static let queue = DispatchQueue(label: "com.avodroid.capture-files", qos: .userInitiated)
 
     /// ~/Pictures/Avo or ~/Movies/Avo, created when missing.
     static func folder(_ directory: FileManager.SearchPathDirectory) throws -> URL {

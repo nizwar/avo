@@ -41,24 +41,24 @@ skip registration:
 
 ```sh
 APP=/path/to/DerivedData/Build/Products/Debug/Avo.app
-cat > /tmp/dev.avo.daemon.dev.plist <<EOF
+cat > /tmp/com.avodroid.daemon.dev.plist <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>Label</key><string>dev.avo.daemon.dev</string>
+  <key>Label</key><string>com.avodroid.daemon.dev</string>
   <key>Program</key><string>$APP/Contents/Library/Helpers/AvoDaemon.app/Contents/MacOS/AvoDaemon</string>
-  <key>MachServices</key><dict><key>dev.avo.daemon</key><true/></dict>
+  <key>MachServices</key><dict><key>com.avodroid.daemon</key><true/></dict>
   <key>RunAtLoad</key><true/>
   <key>LimitLoadToSessionType</key><string>Aqua</string>
   <key>ProcessType</key><string>Interactive</string>
 </dict></plist>
 EOF
-launchctl bootstrap gui/$(id -u) /tmp/dev.avo.daemon.dev.plist
+launchctl bootstrap gui/$(id -u) /tmp/com.avodroid.daemon.dev.plist
 open "$APP" --args -AvoSkipDaemonRegistration YES
 "$APP/Contents/MacOS/avoctl" status
 
 # afterwards
-launchctl bootout gui/$(id -u)/dev.avo.daemon.dev
+launchctl bootout gui/$(id -u)/com.avodroid.daemon.dev
 ```
 
 Keep `ProcessType Interactive` as in the real agent (Avo/LaunchAgents): a
@@ -101,7 +101,7 @@ docs/architecture.md, "Android images (Cuttlefish)".
 `scripts/fetch-cuttlefish.sh` still works: its downloads in
 `~/Library/Caches/Avo/cuttlefish/<build>/img` are used where they are; the
 daemon boots the chosen image with `avo-vmm` (see docs/engine.md).
-`defaults write dev.avo.daemon AvoCuttlefishImages <img folder>` overrides
+`defaults write com.avodroid.daemon AvoCuttlefishImages <img folder>` overrides
 the choice. The catalog's source is `AndroidBuildSource` (AvoPackages);
 `defaults write com.avodroid.emulator` with `AvoBuildAPIEndpoint`, `AvoBuildAPIKey`,
 `AvoBuildBranches` (comma-separated), `AvoBuildTarget` or
@@ -118,7 +118,7 @@ for trying windows, input, resizing, key mapping (its Arena game and
 GPU rendering (Graphics › Renderer) needs the Android Emulator 37 or later:
 install it with Android Studio's SDK Manager (SDK Tools › Android Emulator)
 into `~/Library/Android/sdk/emulator`, or point the daemon at another copy
-with `defaults write dev.avo.daemon AvoAndroidEmulator <dir>`. Without it
+with `defaults write com.avodroid.daemon AvoAndroidEmulator <dir>`. Without it
 Android renders in software. `avoctl retry-gpu` forgets a failed GPU start;
 `~/Library/Logs/Avo/avo-vmm-gpu-failed.log` keeps that start's log.
 Compiled shaders are kept in `~/Library/Caches/Avo/gpu-cache`; `avoctl gpu-cache`

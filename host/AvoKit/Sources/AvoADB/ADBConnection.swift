@@ -21,7 +21,7 @@ public actor ADBConnection {
     private let transport: any ByteStream
     private let key: ADBKey
     private let keyComment: String
-    private let logger = Logger(subsystem: "dev.avo", category: "ADB")
+    private let logger = Logger(subsystem: "com.avodroid", category: "ADB")
 
     private var decoder = ADBMessageDecoder()
     private var outgoing: AsyncStream<Data>.Continuation?

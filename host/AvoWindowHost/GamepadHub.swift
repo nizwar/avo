@@ -13,7 +13,7 @@ import GameController
 final class GamepadHub {
     static let shared = GamepadHub()
     /// Posted when a controller connects, disconnects or becomes the one in use.
-    static let changed = Notification.Name("dev.avo.GamepadHubChanged")
+    static let changed = Notification.Name("com.avodroid.GamepadHubChanged")
 
     /// What the editor shows of the controller in use.
     struct Info: Equatable {

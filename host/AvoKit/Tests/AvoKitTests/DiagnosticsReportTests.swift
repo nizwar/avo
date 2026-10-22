@@ -80,7 +80,7 @@ import Testing
                                             apps: [.init(AppRecord(package: "org.fdroid.fdroid", label: "F-Droid"))])
         let redactor = DiagnosticsRedactor(home: home.path, user: "nobody-here")
         try await DiagnosticsReport.write(to: zip, options: .init(note: "It froze"), facts: facts, paths: paths, redactor: redactor) { arguments in
-            #expect(arguments.contains("subsystem == \"\(AvoIdentifiers.logSubsystem)\""))
+            #expect(arguments.contains("subsystem == \"com.avodroid\" OR subsystem == \"dev.avo\""))
             return Data("daemon: Android paused (idle) at \(home.path)/x\n".utf8)
         }
 

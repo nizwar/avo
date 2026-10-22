@@ -21,8 +21,14 @@ import Security
 /// agent is out of date; `reload` restarts it on this Avo's daemon.
 enum DaemonAgent {
     static let label = "\(AvoIdentifiers.prefix).daemon.agent"
+    /// The agent of the builds before 0.3.0 Preview 2 (AvoIdentifiers.formerPrefix).
+    /// It may hold Android when this Avo first opens, so it stays until
+    /// Android stops: the Control Panel talks to its daemon under the former
+    /// Mach service, and `reload` puts this build's agent in its place. Two
+    /// agents never run at once (two daemons would share Android's data).
+    static let legacyLabel = "\(AvoIdentifiers.formerPrefix).daemon.agent"
     /// Agents of hand setups from before Avo did this itself.
-    static let formerLabels = ["\(AvoIdentifiers.prefix).daemon.release"]
+    static let formerLabels = ["\(AvoIdentifiers.prefix).daemon.release", "\(AvoIdentifiers.formerPrefix).daemon.release"]
 
     private static let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "DaemonAgent")
 
@@ -64,9 +70,22 @@ enum DaemonAgent {
 
     /// Installs the agent, or points its plist at this Avo's daemon, and
     /// makes sure it runs. True when launchd still holds an older plist (an
-    /// update changed it): `reload(plistChanged: true)` loads it.
+    /// update changed it), or the legacy agent still runs: `reload(plistChanged: true)`
+    /// loads this build's.
     static func install() async -> Bool {
-        await Task.detached(priority: .userInitiated) { installNow() }.value
+        await Task.detached(priority: .userInitiated) {
+            if legacyLoaded() { return true }
+            // A legacy plist launchd has not loaded would load at the next
+            // login, beside this build's agent.
+            _ = retireLegacy()
+            return installNow()
+        }.value
+    }
+
+    /// The legacy agent (`legacyLabel`) is loaded: its daemon serves
+    /// `AvoIdentifiers.formerDaemonMachService`.
+    static func legacyAgentLoaded() async -> Bool {
+        await Task.detached(priority: .userInitiated) { legacyLoaded() }.value
     }
 
     /// Starts the daemon again on this Avo's build: the agent loaded again
@@ -74,7 +93,9 @@ enum DaemonAgent {
     /// while Android holds nothing: the old daemon takes Android with it.
     static func reload(plistChanged: Bool) async {
         await Task.detached(priority: .userInitiated) {
-            if plistChanged {
+            if retireLegacy() {
+                _ = installNow()
+            } else if plistChanged {
                 _ = launchctl(["bootout", "\(domain)/\(label)"])
                 bootstrap()
             } else if launchctl(["kickstart", "-k", "\(domain)/\(label)"]) != 0 {
@@ -82,6 +103,25 @@ enum DaemonAgent {
             }
             logger.notice("daemon agent restarted on this Avo")
         }.value
+    }
+
+    private static func legacyLoaded() -> Bool {
+        launchctl(["print", "\(domain)/\(legacyLabel)"]) == 0
+    }
+
+    /// Unloads the legacy agent and removes its plist (false when there is
+    /// none), waiting until launchd has let go of it, its daemon with it.
+    private static func retireLegacy() -> Bool {
+        let plist = launchAgents.appending(path: "\(legacyLabel).plist")
+        let loaded = legacyLoaded()
+        guard loaded || FileManager.default.fileExists(atPath: plist.path) else { return false }
+        if loaded {
+            _ = launchctl(["bootout", "\(domain)/\(legacyLabel)"])
+            for _ in 0..<40 where legacyLoaded() { Thread.sleep(forTimeInterval: 0.25) }
+        }
+        try? FileManager.default.removeItem(at: plist)
+        logger.notice("the agent of an Avo from before com.avodroid gave way to this build's")
+        return true
     }
 
     private static func installNow() -> Bool {

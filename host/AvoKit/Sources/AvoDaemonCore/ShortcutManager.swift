@@ -60,11 +60,13 @@ public struct ShortcutManager: Sendable {
     /// replaced or moved): its windows would load that Avo's frameworks, old
     /// code or none, so it is made again for this one. So is one made from
     /// another build's template (Avo updated in place: the same path, a new
-    /// CFBundleVersion), which may differ from this build's.
+    /// CFBundleVersion), which may differ from this build's, and one with the
+    /// identifier of the builds before com.avodroid (`dev.avo.shim.…`).
     public func madeForAnotherAvo(_ shortcuts: AppRecord.Shortcuts) -> Bool {
         guard let builder, let path = shortcuts.shimPath else { return false }
         let plist = URL(filePath: path).appending(path: "Contents/Info.plist")
         guard let info = NSDictionary(contentsOf: plist) else { return false }
+        if (info["CFBundleIdentifier"] as? String)?.hasPrefix(AvoIdentifiers.formerShimPrefix) == true { return true }
         guard let host = info[AvoIdentifiers.shimHostAppInfoKey] as? String else { return true }
         if URL(filePath: host).standardizedFileURL.resolvingSymlinksInPath().path
             != builder.hostApplication.standardizedFileURL.resolvingSymlinksInPath().path {

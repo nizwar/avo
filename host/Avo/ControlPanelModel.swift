@@ -45,6 +45,10 @@ final class ControlPanelModel {
     private(set) var daemonUpdatePending = false
     /// The agent's plist changed with the update and launchd still holds the old one.
     private var daemonAgentOutdated = false
+    /// The daemon's Mach service: the former one while the agent of an Avo
+    /// from before com.avodroid still runs it (DaemonAgent.legacyLabel), until
+    /// it gives way to this build's (`finishDaemonUpdate`).
+    private var daemonMachService = AvoIdentifiers.daemonMachService
     /// Android stopped for the update starts again on the new daemon.
     private var startAndroidAfterDaemonUpdate = false
     /// The unlock sheet (ScreenLockViews.swift): it opens by itself when
@@ -162,7 +166,9 @@ final class ControlPanelModel {
         // Any other signature: a LaunchAgent of Avo's own (DaemonAgent says why).
         Task { @MainActor [weak self] in
             await self?.unregisterLoginItem()
+            let legacy = await DaemonAgent.legacyAgentLoaded()
             let outdated = await DaemonAgent.install()
+            self?.daemonMachService = legacy ? AvoIdentifiers.formerDaemonMachService : AvoIdentifiers.daemonMachService
             self?.daemonAgentOutdated = outdated
             self?.connect()
         }
@@ -242,7 +248,7 @@ final class ControlPanelModel {
     func connect() {
         eventTask?.cancel()
         client?.invalidate()
-        let client = DaemonClient(role: .controlPanel, version: "avo-control-panel \(Self.version)")
+        let client = DaemonClient(role: .controlPanel, version: "avo-control-panel \(Self.version)", machService: daemonMachService)
         self.client = client
         eventTask = Task { [weak self] in
             do {
@@ -318,7 +324,11 @@ final class ControlPanelModel {
         daemonUpdatePending = false
         let plistChanged = daemonAgentOutdated
         daemonAgentOutdated = false
-        Task { await DaemonAgent.reload(plistChanged: plistChanged) }
+        Task { @MainActor [weak self] in
+            await DaemonAgent.reload(plistChanged: plistChanged)
+            // This build's agent is in place: the reconnection goes to it.
+            self?.daemonMachService = AvoIdentifiers.daemonMachService
+        }
     }
 
     /// Settings › About's Restart Android: Android stops as with Stop

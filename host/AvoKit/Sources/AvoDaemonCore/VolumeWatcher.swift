@@ -86,7 +86,7 @@ public final class VolumeGuard: Sendable {
 /// DiskArbitration: refuses an unmount of a guarded volume until Android
 /// stopped (the user ejects again), and says when volumes come and go.
 public final class DiskArbitrationWatcher: VolumeWatching, @unchecked Sendable {
-    private let queue = DispatchQueue(label: "dev.avo.daemon.volumes")
+    private let queue = DispatchQueue(label: "com.avodroid.daemon.volumes")
     private var session: DASession?
     private var refusal: (@Sendable (String) -> String?)?
     private var events: (@Sendable (VolumeEvent) -> Void)?

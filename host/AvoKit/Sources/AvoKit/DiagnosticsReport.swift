@@ -118,6 +118,9 @@ public enum DiagnosticsReport {
         return "Avo Report \(formatter.string(from: date)).zip"
     }
 
+    /// Avo's log, under its subsystem and the one of the builds before com.avodroid.
+    static let logPredicate = "subsystem == \"\(AvoIdentifiers.logSubsystem)\" OR subsystem == \"\(AvoIdentifiers.formerPrefix)\""
+
     /// Runs `log show` (a parameter for tests): Avo's subsystem, compact.
     public typealias LogReader = @Sendable (_ arguments: [String]) async throws -> Data
 
@@ -148,8 +151,10 @@ public enum DiagnosticsReport {
         }
 
         do {
+            // The former subsystem too: the hours after an update from a build
+            // before com.avodroid (its daemon may still run).
             let log = try await readLog(["show", "--style", "compact", "--last", daemonLogSpan,
-                                         "--predicate", "subsystem == \"\(AvoIdentifiers.logSubsystem)\""])
+                                         "--predicate", Self.logPredicate])
             try put("daemon.log", String(decoding: tail(log, bytes: limits["daemon.log"]!), as: UTF8.self))
         } catch {
             facts.problems.append("daemon.log: \(error.localizedDescription)")

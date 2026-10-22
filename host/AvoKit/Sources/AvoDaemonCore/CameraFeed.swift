@@ -61,13 +61,13 @@ public final class CameraFeed: @unchecked Sendable {
     private let socketPath: String
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "cameras")
     /// Sources, requests and producers change on `state` only.
-    private let state = DispatchQueue(label: "dev.avo.cameras")
+    private let state = DispatchQueue(label: "com.avodroid.cameras")
     private var sources: [CameraSource]
     private var requests: [Int: Request] = [:]
     private var producers: [Int: any CameraProducer] = [:]
     private var stopped = false
     /// Frames go out on `output`, in order, over a blocking socket.
-    private let output = DispatchQueue(label: "dev.avo.cameras.feed")
+    private let output = DispatchQueue(label: "com.avodroid.cameras.feed")
     private var socket: Int32 = -1
     private var lastRefused: ContinuousClock.Instant?
     /// Frames waiting for `output`: past a few, new ones are dropped.
@@ -267,7 +267,7 @@ final class JPEGEncoder: @unchecked Sendable {
 /// One of this Mac's cameras, at Android's size and at most its rate.
 final class MacCamera: NSObject, CameraProducer, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
     private let session = AVCaptureSession()
-    private let queue = DispatchQueue(label: "dev.avo.cameras.capture")
+    private let queue = DispatchQueue(label: "com.avodroid.cameras.capture")
     private let request: CameraFeed.Request
     private let deliver: @Sendable (Data) -> Void
     private let encoder = JPEGEncoder()
@@ -342,7 +342,7 @@ final class DrawnCamera: CameraProducer, @unchecked Sendable {
         self.picture = picture
         self.request = request
         self.deliver = deliver
-        timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "dev.avo.cameras.drawn"))
+        timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "com.avodroid.cameras.drawn"))
         // A notice changes little: twice a second keeps avo-vmm from going gray.
         let fps: Int
         switch picture {

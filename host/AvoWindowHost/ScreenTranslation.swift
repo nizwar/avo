@@ -909,7 +909,7 @@ enum TranslationLanguages {
 /// every app (Avo's Window Host defaults, which every App Shim reads).
 @MainActor
 enum ScreenTranslationSettings {
-    static let changed = Notification.Name("dev.avo.ScreenTranslationChanged")
+    static let changed = Notification.Name("com.avodroid.ScreenTranslationChanged")
     /// Where it is kept: the Window Host's defaults (a test keeps its own).
     static var store = UserDefaults(suiteName: AvoIdentifiers.windowHost) ?? .standard
 
