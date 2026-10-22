@@ -90,9 +90,17 @@ rm -rf "$STAGE"
 mkdir -p "$STAGE/entitlements"
 ditto "$DERIVED/Build/Products/Release/Avo.app" "$STAGE/Avo.app"
 APP="$STAGE/Avo.app"
+# A piece's entitlements as Xcode signed them, without get-task-allow (a
+# debugger may attach), which the notary service refuses: in $STAGE/entitlements.
+entitlements() {
+  local plist="$STAGE/entitlements/$2.plist"
+  codesign -d --entitlements - --xml "$1" > "$plist" 2>/dev/null || true
+  [[ -s "$plist" ]] && /usr/libexec/PlistBuddy -c "Delete :com.apple.security.get-task-allow" "$plist" >/dev/null 2>&1 || true
+  printf '%s' "$plist"
+}
 sign() {
-  local path="$1" name="$2" plist="$STAGE/entitlements/$2.plist"
-  codesign -d --entitlements - --xml "$path" > "$plist" 2>/dev/null || true
+  local path="$1" plist
+  plist="$(entitlements "$1" "$2")"
   if [[ -s "$plist" ]]; then
     codesign --force "${SIGN_FLAGS[@]}" --sign "$IDENTITY" --entitlements "$plist" "$path"
   else
@@ -111,8 +119,14 @@ done
 # A tool or library has no Info.plist to name it: its signature gets one,
 # keeping its entitlements and hardened runtime.
 sign_as() {
-  codesign --force "${SIGN_FLAGS[@]}" --sign "$IDENTITY" --identifier "$2" \
-    --preserve-metadata=entitlements,flags,runtime "$1"
+  local plist
+  plist="$(entitlements "$1" "$2")"
+  if [[ -s "$plist" ]]; then
+    codesign --force "${SIGN_FLAGS[@]}" --sign "$IDENTITY" --identifier "$2" --entitlements "$plist" \
+      --preserve-metadata=flags,runtime "$1"
+  else
+    codesign --force "${SIGN_FLAGS[@]}" --sign "$IDENTITY" --identifier "$2" --preserve-metadata=flags,runtime "$1"
+  fi
 }
 # Sparkle's inner pieces, inside out, before the framework (docs/releasing.md).
 SPARKLE="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
