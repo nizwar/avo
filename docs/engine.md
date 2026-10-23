@@ -237,9 +237,16 @@ GLES 3.2 and Vulkan 1.3.
   avo-vmm's layer (below) offers it to every instance. The layer also turns
   on ANGLE's `exposeES32ForTesting` as it loads (the constructor in its
   source): OpenGL ES 3.2, which ANGLE otherwise caps at 3.1, for ANGLE asks
-  after twenty-four extensions and one is missing — geometry shaders, which
-  Metal has no stage for (the limits read zero) and no layer can add to a
-  GPU. Border-colour samplers, the second the driver lacks, the layer
+  after twenty-four extensions and one is missing — geometry shaders, and
+  that one twice over: Metal has no stage to run one on, and ANGLE offers
+  the extension only over native `VK_EXT_transform_feedback` (its own
+  emulation of GLES transform feedback, which is what runs here — MoltenVK
+  has none of the transform-feedback or generated-primitives extensions
+  among its 136 — cannot stand behind a geometry stage). Pretending the
+  extension exists instead would send every app's core ES 3.0 transform
+  feedback down a native path whose functions are not there. The way in,
+  one day, is upstream: ANGLE emulating geometry shaders, or MoltenVK
+  building them on Metal's mesh shaders. Border-colour samplers, the second the driver lacks, the layer
   stands in for: it offers `VK_EXT_custom_border_color` to ANGLE alone and
   answers its features, and takes each sampler's custom border colour to
   the nearest of Metal's six fixed ones (GLES's default (0,0,0,1) and the
