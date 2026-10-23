@@ -4,6 +4,49 @@ All notable changes to Avo are listed here. Versions follow
 [Semantic Versioning](https://semver.org); preview builds carry a build
 number (`CFBundleVersion`) that only goes up.
 
+## 0.3.1 Preview 2 (build 105)
+
+The first notarized Avo: it opens like any app, with no "Open Anyway" in
+System Settings. It also moves to new identifiers, learns to update itself
+from GitHub, adds a Phone graphics preset, and fixes a batch of window and
+daemon bugs. Install it over 0.3.0 Preview 1; your Android data stays.
+Because the identifiers changed, macOS asks once more for the camera,
+microphone, location and Bluetooth, and app widgets are re-created.
+
+### New
+
+- **Notarized, Developer ID signed.** No more confirming the first launch:
+  Gatekeeper calls Avo "Notarized Developer ID", even offline.
+- **Avo updates itself.** It checks its own GitHub releases (Avo › Check for
+  Updates…, or on its own about once a day) and installs a newer build with
+  Sparkle, offering to stop Android first so open games save.
+- **Phone graphics preset.** Beside Apps and Games, a Phone preset gives an
+  app the screen of the device profile under Settings › Privacy & Security,
+  at its own density, and opens it in the orientation it asks for.
+- **Android's own screen follows your settings.** The screen Android lays its
+  resources out on (and that apps read) now takes its size and density from
+  your graphics settings, or from the emulated phone, instead of a fixed one.
+- **Infinix X6878** joins the device profiles.
+
+### Changed
+
+- **New identifiers (`com.avodroid`).** A one-time move from the old ones;
+  Avo copies your settings over. Permissions are asked once more and widgets
+  are re-created, as above.
+
+### Fixed
+
+- The menu bar no longer stays stuck below the notch over other apps' full
+  screen after Avo quits.
+- Game Controls (and the other title-bar menus) open again in full screen
+  instead of hiding the bar.
+- Resizing a phone-style window no longer jumps.
+- The background service no longer crashes while installing an app, and the
+  notarized build's service starts cleanly.
+- Apps that refuse to run when they find a graphics layer in
+  `/data/local/debug` (such as FLUJO) see none: the layer now rides inside
+  the driver.
+
 ## 0.3.0 Preview 1 (build 79)
 
 Bluetooth without the Android Emulator, checkpoints of Android's apps and
