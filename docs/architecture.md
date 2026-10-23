@@ -497,6 +497,14 @@ Android's screen (`GraphicsSettings.mode`, Screen size: Window, Fixed or Phone) 
   renderer the editor says when Android renders more than 3.2 million
   pixels, since the CPU draws each of them.
 
+Android's own screen (display 0), which no window shows, is sized at boot
+by the same math (`VMConfig.androidScreen`, the engine's `--display` and
+`--density`): with "Emulate this phone's hardware" it is the phone's screen
+at its dpi, else what a new app window gets from the Apps profile on the
+default window size at the main display's backing scale, upright and
+without supersampling. Android sizes resources from it and apps can read it
+(`Resources.getSystem()`); it changes at the next start.
+
 Files from before the modes keep their meaning: `followsWindow` is still
 read (true is follow, false fixed, `mode` wins when both are there) but no
 longer written, and a ratio stored in `aspectRatio` still applies to fixed
