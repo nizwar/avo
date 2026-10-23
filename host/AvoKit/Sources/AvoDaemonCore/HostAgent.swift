@@ -57,6 +57,10 @@ actor HostAgent: DisplayResizing {
     /// Android has Avo's Vulkan driver wrapper (GuestVulkanWrapper): it runs
     /// this boot, or is installed for the next GPU start.
     private(set) var hasVulkanWrapper = false
+    /// It runs this boot (`checkVulkanWrapper`'s `.running`): the gfxstream
+    /// sync layer and the GPU profile layer ride inside it, so the Vulkan
+    /// profile layer stays out of /data/local/debug (`installGPUProfileLayers`).
+    private var vulkanWrapperRuns = false
     /// It runs at the next GPU start (this start's engine lets it), so that
     /// start needs no gfxstream sync layer in /data/local/debug.
     private var vulkanWrapperNextStart = false
@@ -481,9 +485,11 @@ actor HostAgent: DisplayResizing {
         vulkanWrapperAllowed = (try? await shell("getprop \(GuestVulkanWrapper.switchProperty)"))?.trimmed == "1"
         let state = GuestVulkanWrapper.state(output: output)
         vulkanWrapperState = state
+        vulkanWrapperRuns = false
         switch state {
         case .running:
             setVulkanWrapper(true)
+            vulkanWrapperRuns = true
             logger.notice("Vulkan driver: Avo's wrapper runs the gfxstream sync layer this start")
             return true
         case .pending:
@@ -688,16 +694,27 @@ actor HostAgent: DisplayResizing {
     /// before the restart a setting needs). The properties are set every boot
     /// (they reset). An app started after this reads the profile's GPU from
     /// its own `glGetString` and Vulkan.
+    ///
+    /// A boot the Vulkan driver wrapper runs carries the Vulkan layer inside
+    /// the HAL driver (guest/vkwrap): that boot installs and names the GLES
+    /// layer alone, takes the Vulkan layer out of `/data/local/debug` — that
+    /// path needs `ro.debuggable=1` — and leaves `debug.vulkan.layers` unset.
     private func installGPUProfileLayers() async {
         guard !GuestGPUProfile.layers.isEmpty, let check = try? await shell(GuestGPUProfile.checkCommand) else { return }
+        let vulkan = !vulkanWrapperRuns
         let sums = await gpuProfileSums()
-        let enable = GuestGPUProfile.enableCommands(checkOutput: check, present: GuestGPUProfile.present(sumOutput: sums))
-        let wanted = GuestGPUProfile.enableCommands(checkOutput: check, present: GuestGPUProfile.names)
+        var present = GuestGPUProfile.present(sumOutput: sums)
+        if !vulkan, present.contains(GuestGPUProfile.vulkanFile) {
+            await removeVulkanProfileLayer()
+            present.remove(GuestGPUProfile.vulkanFile)
+        }
+        let enable = GuestGPUProfile.enableCommands(checkOutput: check, present: present, vulkan: vulkan)
+        let wanted = GuestGPUProfile.enableCommands(checkOutput: check, present: GuestGPUProfile.names, vulkan: vulkan)
         guard !wanted.isEmpty else {
-            await removeGPUProfileLayers(present: GuestGPUProfile.present(sumOutput: sums))
+            await removeGPUProfileLayers(present: present)
             return
         }
-        guard await installGPUProfileFiles(sumOutput: sums) else { return }
+        guard await installGPUProfileFiles(sumOutput: sums, vulkan: vulkan) else { return }
         if enable.count < wanted.count {
             logger.notice("Avo GPU layers installed; apps read the profile's GPU from the next Android start")
         }
@@ -710,6 +727,18 @@ actor HostAgent: DisplayResizing {
         }
     }
 
+    /// The Vulkan profile layer a boot without the wrapper left in
+    /// `/data/local/debug`, which the wrapper makes needless — and which
+    /// libvulkan, on a userdebug image, would still open in every app:
+    /// it goes (`installGPUProfileLayers`).
+    private func removeVulkanProfileLayer() async {
+        if let result = try? await root(GuestGPUProfile.removeVulkanScript()), result.succeeded {
+            logger.notice("Avo Vulkan GPU layer removed from /data/local/debug: the driver wrapper runs it this start")
+        } else {
+            logger.error("Avo Vulkan GPU layer could not be removed")
+        }
+    }
+
     /// `sha256sum` of the guest's GPU layers (GuestGPUProfile), empty when it has none.
     private func gpuProfileSums() async -> String {
         let installed = GuestGPUProfile.layers.map { "\($0.dir)/\($0.name)" }.joined(separator: " ")
@@ -717,17 +746,19 @@ actor HostAgent: DisplayResizing {
     }
 
     /// Puts this build's GPU layers in place, unnamed, unless `sums` shows
-    /// the guest has them. False when they did not install.
-    private func installGPUProfileFiles(sumOutput sums: String) async -> Bool {
-        guard !GuestGPUProfile.upToDate(sumOutput: sums) else { return true }
+    /// the guest has them. With `vulkan: false`, the GLES layer alone: the
+    /// Vulkan driver wrapper runs the Vulkan one. False when they did not
+    /// install.
+    private func installGPUProfileFiles(sumOutput sums: String, vulkan: Bool = true) async -> Bool {
+        guard !GuestGPUProfile.upToDate(sumOutput: sums, vulkan: vulkan) else { return true }
         guard let adb else { return false }
         do {
             _ = try await shell("mkdir -p \(GuestGPUProfile.staging)")
-            for layer in GuestGPUProfile.layers {
+            for layer in GuestGPUProfile.layersToInstall(vulkan: vulkan) {
                 try await adb.push(AsyncStream { $0.yield(layer.data); $0.finish() },
                                    to: "\(GuestGPUProfile.staging)/\(layer.name)")
             }
-            let result = try await root(GuestGPUProfile.installScript())
+            let result = try await root(GuestGPUProfile.installScript(vulkan: vulkan))
             guard result.succeeded else {
                 logger.error("Avo GPU layers did not install: \(result.errorOutput + result.output, privacy: .public)")
                 return false
@@ -756,12 +787,18 @@ actor HostAgent: DisplayResizing {
     /// turns off goes at that start (`installGPUProfileLayers`,
     /// `enableGfxstreamSync`): a layer this boot named stays while its
     /// processes run. A GPU start that runs Avo's Vulkan driver wrapper needs
-    /// no gfxstream sync layer there.
+    /// no gfxstream sync layer there, and carries the Vulkan profile layer
+    /// itself: the next start stages the GLES layer alone.
     func stageGPULayers(profile: Bool, gfxstreamSync: Bool) async {
         guard isReady else { return }
         if profile, !GuestGPUProfile.layers.isEmpty {
+            // A GPU start the wrapper runs carries the Vulkan profile layer;
+            // a software start, or one without the wrapper, still needs its
+            // file in /data/local/debug.
+            let vulkan = !gfxstreamSync || !vulkanWrapperNextStart
             let sums = await gpuProfileSums()
-            if !GuestGPUProfile.upToDate(sumOutput: sums), await installGPUProfileFiles(sumOutput: sums) {
+            if !GuestGPUProfile.upToDate(sumOutput: sums, vulkan: vulkan),
+               await installGPUProfileFiles(sumOutput: sums, vulkan: vulkan) {
                 logger.notice("Avo GPU layers installed for the next Android start")
             }
         }

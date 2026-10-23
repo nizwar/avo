@@ -103,4 +103,51 @@ import Testing
         #expect(!GuestGPUProfile.upToDate(sumOutput: "\(vulkan.sha256)  \(vulkan.dir)/\(vulkan.name)"))
         #expect(!GuestGPUProfile.upToDate(sumOutput: ""))
     }
+
+    // MARK: A boot the Vulkan driver wrapper runs (the layer rides inside it)
+
+    /// The wrapper carries the profile layer inside the HAL driver
+    /// (guest/vkwrap), so only the GLES layer goes in /data/local/debug.
+    @Test func aBootWithTheWrapperInstallsOnlyTheGlesLayer() throws {
+        let gles = try #require(GuestGPUProfile.layers.first)
+        #expect(GuestGPUProfile.layersToInstall(vulkan: false).map(\.name) == [gles.name])
+        let lines = GuestGPUProfile.installScript(vulkan: false).split(separator: "\n").map(String.init)
+        #expect(lines.contains("mkdir -p /data/local/debug/gles"))
+        #expect(lines.contains("chmod 755 /data/local/debug /data/local/debug/gles"))
+        #expect(lines.contains("chcon u:object_r:apk_data_file:s0 /data/local/debug /data/local/debug/gles"))
+        let copy = try #require(lines.firstIndex(of: "cp /data/local/tmp/avo-gpuprofile/\(gles.name) /data/local/debug/gles/.avo-gpuprofile.new"))
+        let rename = try #require(lines.firstIndex(of: "mv -f /data/local/debug/gles/.avo-gpuprofile.new /data/local/debug/gles/\(gles.name)"))
+        #expect(copy < rename)
+        #expect(!lines.contains { $0.contains(GuestGPUProfile.vulkanDir) }, "the Vulkan loader's folder stays untouched")
+        #expect(lines.last == "rm -rf /data/local/tmp/avo-gpuprofile")
+    }
+
+    /// debug.vulkan.layers stays unset on such a boot: the /data/local/debug
+    /// path needs ro.debuggable=1, the wrapper does not.
+    @Test func aBootWithTheWrapperNamesNoVulkanLayer() {
+        let check = "Adreno (TM) 750\nQualcomm\nAdreno (TM) 750\nV@0762.11\n"
+        let gles = "setprop debug.gles.layers libGLES_avo_profile.so"
+        #expect(GuestGPUProfile.enableCommands(checkOutput: check, present: GuestGPUProfile.names, vulkan: false) == [gles])
+        // A Vulkan name alone names nothing: the wrapper answers it.
+        #expect(GuestGPUProfile.enableCommands(checkOutput: "Adreno (TM) 750\n\n\n\n", present: GuestGPUProfile.names,
+                                               vulkan: false).isEmpty)
+    }
+
+    @Test func theGlesLayerAloneIsUpToDateForTheWrapper() throws {
+        let gles = try #require(GuestGPUProfile.layers.first)
+        #expect(GuestGPUProfile.upToDate(sumOutput: "\(gles.sha256)  \(gles.dir)/\(gles.name)", vulkan: false))
+        #expect(!GuestGPUProfile.upToDate(sumOutput: "", vulkan: false))
+    }
+
+    /// The file a boot without the wrapper left goes: unnamed, libvulkan
+    /// would still open it in every app.
+    @Test func aBootWithTheWrapperTakesTheVulkanLayerAway() {
+        let lines = GuestGPUProfile.removeVulkanScript().split(separator: "\n").map(String.init)
+        #expect(lines.first == "set -e")
+        #expect(lines.contains("rm -f /data/local/debug/vulkan/libVkLayer_avo_profile.so"
+                               + " /data/local/debug/vulkan/.avo-gpuprofile.new"))
+        #expect(lines.last == "rmdir /data/local/debug/vulkan 2>/dev/null || true")
+        // The GLES layer and its folder stay.
+        #expect(!lines.contains { $0.contains(GuestGPUProfile.glesDir) })
+    }
 }
