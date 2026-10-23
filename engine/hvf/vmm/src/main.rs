@@ -8,7 +8,7 @@
 //!                       [--gpu 2d|gfxstream] [--gfxstream-dir DIR] [--hwc client|host]
 //!                       [--shared-dir DIR] [--refresh-rate HZ] [--bluetooth CONTROLLER]
 //!                       [--init-boot FILE] [--cellular TYPE:BARS] [--cameras LIST]
-//!                       [--no-microphone] [--cpu-clusters LIST]
+//!                       [--no-microphone] [--cpu-clusters LIST] [--hardware NAME]
 //!
 //! --properties names a file of key=value lines that replace the image's
 //! properties (the device profile's identity, e.g. ro.product.model).
@@ -46,6 +46,13 @@
 //! Each vCPU reports its cluster's MIDR, and each cluster is a cpufreq
 //! policy with frequencies from MIN to MAX. Without it the vCPUs report the
 //! Mac's cores and Android has no cpufreq.
+//!
+//! --hardware is the phone's hardware name ("Emulate this phone's hardware"):
+//! `androidboot.hardware`, which Android keeps as `ro.hardware` and apps read
+//! as `Build.HARDWARE` (`qcom` on a Snapdragon phone). Without it Android says
+//! the image's `cutf_cvm`. Cuttlefish's own parts are named by their own keys
+//! (`androidboot.hardware.egl`, `.gralloc`, `.vulkan`, ...) and its vendor
+//! init script is loaded from /vendor/etc/init whatever the name.
 //!
 //! --no-microphone keeps the Mac's microphone from Android from the start:
 //! it records silence, and macOS never asks for the microphone, until the
@@ -99,7 +106,7 @@ use virtio::gpu::{GpuMode, Hwc};
 const USAGE: &str = "usage: avo-vmm cuttlefish <image dir> [--instance DIR] [--runtime DIR] [--userdata FILE] [--disks DIR] [--cpus N] [--mem MiB] \
 [--display WxH] [--density DPI] [--timeout S] [--properties FILE] [--verbose] [--gpu 2d|gfxstream] [--gfxstream-dir DIR] [--bluetooth CONTROLLER] [--init-boot FILE] \
 [--hwc client|host] [--shared-dir DIR] [--refresh-rate HZ] [--cellular TYPE:BARS] [--cameras LIST] [--no-microphone] [--cpu-clusters LIST] \
-[--exit-on-reboot]";
+[--hardware NAME] [--exit-on-reboot]";
 
 /// `--gpu`, `--gfxstream-dir` and `--hwc` together.
 fn gpu_mode(gpu: Option<&str>, dir: Option<PathBuf>, hwc: Option<&str>) -> Result<GpuMode, String> {
@@ -137,6 +144,7 @@ fn parse(args: &[String]) -> Result<Options, String> {
     let mut cellular = None;
     let mut cameras = None;
     let mut cpu = None;
+    let mut hardware = None;
     let mut microphone = true;
     let mut exit_on_reboot = false;
     let mut refresh_rate = virtio::gpu::edid::DEFAULT_RATE;
@@ -171,6 +179,13 @@ fn parse(args: &[String]) -> Result<Options, String> {
             }
             "--cameras" => cameras = Some(camera::Present::parse(&value(i)?).map_err(|e| format!("bad --cameras: {e}"))?),
             "--cpu-clusters" => cpu = Some(cpu::Clusters::parse(&value(i)?).map_err(|e| format!("bad --cpu-clusters: {e}"))?),
+            "--hardware" => {
+                let name = value(i)?;
+                if !is_hardware_name(&name) {
+                    return Err(format!("bad --hardware {name} (1-32 of a-z, 0-9, _ and -)"));
+                }
+                hardware = Some(name);
+            }
             "--refresh-rate" => {
                 refresh_rate = value(i)?.parse().map_err(|_| "bad --refresh-rate")?;
                 if !virtio::gpu::edid::RATE_RANGE.contains(&refresh_rate) {
@@ -214,8 +229,15 @@ fn parse(args: &[String]) -> Result<Options, String> {
     std::fs::create_dir_all(&runtime).map_err(|e| format!("{}: {e}", runtime.display()))?;
     Ok(Options {
         images, instance, disks, runtime, userdata, cpus, memory_mib, display, density, timeout, verbose, properties, gpu, shared_dir,
-        bluetooth, init_boot, cellular, cameras, cpu, microphone, exit_on_reboot, refresh_rate,
+        bluetooth, init_boot, cellular, cameras, cpu, hardware, microphone, exit_on_reboot, refresh_rate,
     })
+}
+
+/// A name `ro.hardware` can hold that is also safe in a bootconfig value and
+/// a file name (init imports `init.${ro.hardware}.rc`): what phones use, like
+/// `qcom`, `mt6789`, `s5e8835` or `husky`.
+fn is_hardware_name(name: &str) -> bool {
+    (1..=32).contains(&name.len()) && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-')
 }
 
 fn main() -> ExitCode {
@@ -291,6 +313,13 @@ mod tests {
         assert_eq!(phone.cpu.map(|clusters| clusters.cores()), Some(8));
         assert!(parse(&args(&["--cpu-clusters", "6x513f0011@384000-3532800,2x514f0011@1017600-4320000"])).is_err(), "8 cores, 4 vCPUs");
         assert!(parse(&args(&["--cpu-clusters", "4x513f0011"])).is_err());
+        // The image's hardware name unless a phone's is asked for.
+        assert_eq!(options.hardware, None);
+        assert_eq!(parse(&args(&["--hardware", "qcom"])).unwrap().hardware.as_deref(), Some("qcom"));
+        assert!(parse(&args(&["--hardware", "Qcom"])).is_err());
+        assert!(parse(&args(&["--hardware", "qcom\"x"])).is_err());
+        assert!(parse(&args(&["--hardware", "../qcom"])).is_err());
+        assert!(parse(&args(&["--hardware", ""])).is_err());
         let _ = std::fs::remove_dir_all(&root);
     }
 

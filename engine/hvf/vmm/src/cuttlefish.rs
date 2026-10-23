@@ -74,6 +74,9 @@ pub struct Options {
     pub cameras: Option<camera::Present>,
     /// A phone's CPU for the vCPUs (`--cpu-clusters`; cpu.rs); `None`: the Mac's.
     pub cpu: Option<cpu::Clusters>,
+    /// The phone's hardware name for `ro.hardware` / `Build.HARDWARE`
+    /// (`--hardware`); `None`: the image's (`cutf_cvm`).
+    pub hardware: Option<String>,
     /// Android may use the Mac's microphone (`--no-microphone`: not until
     /// the control socket allows it; virtio/sound.rs).
     pub microphone: bool,
@@ -249,6 +252,11 @@ fn bootconfig(options: &Options, vendor: &str) -> Result<String, String> {
         Some(_) => "com.google.emulated.camera.provider.hal.v4l2",
     };
     set("androidboot.vendor.apex.com.google.emulated.camera.provider.hal", cameras);
+    // "Emulate this phone's hardware": the phone's name in place of the
+    // image's `cutf_cvm`. Cuttlefish's drivers go by their own keys above.
+    if let Some(hardware) = &options.hardware {
+        set("androidboot.hardware", hardware);
+    }
     Ok(android::bootconfig_text(&entries))
 }
 
