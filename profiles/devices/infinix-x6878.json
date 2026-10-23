@@ -6,22 +6,56 @@
     "ro.product.brand": "Infinix",
     "ro.product.manufacturer": "INFINIX",
     "ro.product.model": "Infinix X6878",
-    "ro.product.device": "Infinix-X6878",
     "ro.product.name": "X6878-OP",
-    "ro.build.fingerprint": "Infinix/X6878-OP/Infinix-X6878:16/BP2A.250605.031.A3/301500018:user/release-keys"
+    "ro.product.device": "Infinix-X6878",
+    "ro.build.fingerprint": "Infinix/X6878-OP/Infinix-X6878:16/BP2A.250605.031.A3/301500018:user/release-keys",
+    "ro.build.id": "BP2A.250605.031.A3",
+    "ro.build.version.incremental": "301500018",
+    "ro.build.display.id": "X6878-16.3.0.150SP09(OP005PF001AZ)",
+    "ro.build.description": "qssi_64-user 16 BP2A.250605.031.A3 release-keys",
+    "ro.build.product": "qssi_64",
+    "ro.build.flavor": "qssi_64-user",
+    "ro.system.build.fingerprint": "Transsion/tssi/qssi_64:16/BP2A.250605.031.A3/301500049:user/release-keys",
+    "ro.system.build.id": "BP2A.250605.031.A3",
+    "ro.system.build.version.incremental": "301500049",
+    "ro.product.system.brand": "Transsion",
+    "ro.product.system.manufacturer": "Transsion",
+    "ro.product.system.model": "Tssi",
+    "ro.product.system.name": "tssi",
+    "ro.product.system.device": "qssi_64",
+    "ro.system_ext.build.fingerprint": "Transsion/tssi/qssi_64:16/BP2A.250605.031.A3/301500049:user/release-keys",
+    "ro.system_ext.build.id": "BP2A.250605.031.A3",
+    "ro.system_ext.build.version.incremental": "301500049",
+    "ro.product.system_ext.brand": "Transsion",
+    "ro.product.system_ext.manufacturer": "Transsion",
+    "ro.product.system_ext.model": "Tssi",
+    "ro.product.system_ext.name": "tssi",
+    "ro.product.system_ext.device": "qssi_64",
+    "ro.product.build.fingerprint": "Transsion/tssi/qssi_64:16/BP2A.250605.031.A3/301500049:user/release-keys",
+    "ro.product.build.id": "BP2A.250605.031.A3",
+    "ro.product.build.version.incremental": "301500049",
+    "ro.product.product.brand": "Transsion",
+    "ro.product.product.manufacturer": "Transsion",
+    "ro.product.product.model": "Tssi",
+    "ro.product.product.name": "tssi",
+    "ro.product.product.device": "qssi_64",
+    "ro.bootimage.build.id": "UKQ1.250811.001",
+    "ro.odm_dlkm.build.id": "UKQ1.250811.001",
+    "ro.vendor_dlkm.build.id": "UKQ1.250811.001"
   },
   "display": {
     "width": 1208,
     "height": 2644,
     "dpi": 480
   },
-  "notes": "Read from a real Infinix X6878 (Snapdragon 7s Gen 3 / SM7635, Adreno 810, Android 16, build X6878-16.3.0.150SP09) on 2026-10-23 with getprop, dumpsys SurfaceFlinger and cmd gpu vkjson. The hardware block is used only when \"Emulate this phone's hardware\" is on.",
+  "notes": "Read from a real X6878 (Snapdragon 7s Gen 3, Android 16, build X6878-16.3.0.150SP09) on 2026-10-23 with getprop, dumpsys SurfaceFlinger, cmd gpu vkjson and /sys/devices/system/cpu. Its system image is Transsion's QSSI build, so the system, system_ext and product partitions name it. The Vulkan driverInfo keeps the first of its four lines (a property holds one). The hardware block is used only when \"Emulate this phone's hardware\" is on.",
   "hardware": {
     "soc": {
       "manufacturer": "QTI",
       "model": "SM7635",
       "platform": "volcano",
-      "board": "volcano"
+      "board": "volcano",
+      "hardware": "qcom"
     },
     "cpu": {
       "clusters": [
@@ -62,6 +96,7 @@
       "vkDriverID": 8,
       "vkDriverName": "Qualcomm Technologies Inc. Adreno Vulkan Driver",
       "vkDriverInfo": "Driver Build: a97e8c1cc4, I1c372a512c, 1778485024"
-    }
+    },
+    "memoryGB": 8
   }
 }
