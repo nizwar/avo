@@ -207,7 +207,8 @@ import Testing
                          overlayStock: "", overlayRooted: "", files: [])
         }
         #expect(VMMEngine.exposesES32(image: image(sdk: 37)))
-        #expect(!VMMEngine.exposesES32(image: image(sdk: 36)))
+        #expect(VMMEngine.exposesES32(image: image(sdk: 36)))
+        #expect(!VMMEngine.exposesES32(image: image(sdk: 35)))
         #expect(!VMMEngine.exposesES32(image: nil))
         let capable = VMMEngine.identityProperties(profile: .avo, plan: .gpu(emulator), image: image(sdk: 37),
                                                    markers: markers)
@@ -215,7 +216,7 @@ import Testing
         #expect(capable.contains("ro.opengles.version=196610\n"))
         #expect(!capable.contains("debug.avo.gl.max"))
         // An image without it writes nothing: the bootconfig's 3.1 stands.
-        let incapable = VMMEngine.identityProperties(profile: .avo, plan: .gpu(emulator), image: image(sdk: 36),
+        let incapable = VMMEngine.identityProperties(profile: .avo, plan: .gpu(emulator), image: image(sdk: 35),
                                                      markers: markers)
         #expect(!incapable.contains("es32"))
         #expect(!incapable.contains("opengles"))

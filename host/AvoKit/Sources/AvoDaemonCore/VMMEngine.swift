@@ -185,12 +185,12 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     /// `vulkanWrapper` lets Android run Avo's Vulkan driver wrapper on a GPU
     /// start (GuestVulkanWrapper.switchProperty).
     /// Whether the image's ANGLE knows exposeES32ForTesting, which raises
-    /// its cap to OpenGL ES 3.2 (the Android 17 image's ANGLE, 8d8796935e4f,
-    /// has it; the Android 16 image's predates it). An ANGLE that lacks the
-    /// feature merely ignores the name, and Android would promise 3.2
+    /// its cap to OpenGL ES 3.2 (both images Avo offers do: the Android 16's
+    /// ANGLE, ab6a82e0ed, and the 17's, 8d8796935e4f). An ANGLE that lacks
+    /// the feature merely ignores the name, and Android would promise 3.2
     /// contexts it cannot make, so nothing is written for such an image.
     static func exposesES32(image: AndroidImage?) -> Bool {
-        (image?.sdk ?? 0) >= 37
+        (image?.sdk ?? 0) >= 36
     }
 
     static func identityProperties(profile: DeviceProfile?, plan: GPUPlan, emulateHardware: Bool = false,
