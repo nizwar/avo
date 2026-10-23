@@ -23,7 +23,8 @@ pub fn graphics_bootconfig(mode: &GpuMode) -> Vec<(&'static str, &'static str)> 
         // composition SurfaceFlinger composes on the GPU too and the composer
         // only flips its target through KMS. ES 3.2 (196610): the sync layer
         // turns ANGLE's exposeES32ForTesting on (guest/gfxsync; without it
-        // ANGLE caps at 3.1, for the geometry shaders MoltenVK lacks).
+        // ANGLE caps at 3.1, for the geometry shaders and border-colour
+        // samplers Metal lacks).
         GpuMode::Gfxstream { hwc, .. } => {
             let mut keys = vec![
                 ("androidboot.cpuvulkan.version", "0"),
