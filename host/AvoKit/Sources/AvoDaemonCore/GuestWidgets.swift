@@ -38,9 +38,10 @@ enum GuestWidgets {
     }
 
     /// The `am start` that shows a panel's widget on its display: a task of
-    /// its own (NEW_TASK | MULTIPLE_TASK), one per panel.
+    /// its own (NEW_TASK | MULTIPLE_TASK), one per panel, with no opening
+    /// animation (NO_ANIMATION), which the panel would show as a flash.
     static func startCommand(data: String, display: Int) -> String {
-        "am start --display \(display) -f 0x18000000 -n \(AndroidWidgets.activity) -d " + HostAgent.quote(data)
+        "am start --display \(display) -f 0x18010000 -n \(AndroidWidgets.activity) -d " + HostAgent.quote(data)
     }
 }
 

@@ -16,9 +16,12 @@
     <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:allowBackup="false">
         <!-- One task per widget (FLAG_ACTIVITY_MULTIPLE_TASK from the
              daemon), out of Recents. Size and density changes are the
-             display's: the widget lays out again, the activity stays. -->
+             display's: the widget lays out again, the activity stays.
+             Translucent: Android shows no starting window (a splash on the
+             theme's background) before the widget, which the panel would
+             show as a flash. -->
         <activity android:name=".WidgetActivity" android:exported="true"
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:excludeFromRecents="true" android:resizeableActivity="true"
             android:configChanges="density|screenSize|smallestScreenSize|screenLayout|orientation|uiMode|keyboard|keyboardHidden|navigation|fontScale" />
         <!-- The widgets Android has, as JSON, and letting go of a removed

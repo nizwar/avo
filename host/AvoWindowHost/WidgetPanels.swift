@@ -78,10 +78,15 @@ public final class WidgetPanels {
     private func reconcile() {
         guard let backend else { return }
         for (id, panel) in panels where !widgets.contains(where: { $0.id == id }) {
+            panel.forget()
             panel.close()
             panels[id] = nil
         }
-        for (index, widget) in widgets.enumerated() where panels[widget.id] == nil {
+        for (index, widget) in widgets.enumerated() {
+            if let panel = panels[widget.id] {
+                panel.update(widget)
+                continue
+            }
             let panel = WidgetPanel(widget: widget, index: index, owner: self, backend: backend, frames: frames)
             panels[widget.id] = panel
             panel.show()
@@ -120,12 +125,26 @@ private final class InProcessClient: NSObject, AvoClientXPC, @unchecked Sendable
 
 // MARK: - One panel
 
-/// A borderless panel: the widget with rounded corners, and above it a bar
-/// that shows on hover (drag to move, keep on top, remove). It sits on the
-/// desktop under other windows, or on top of them.
+/// A widget display's size in pixels, and its density.
+private struct WidgetDisplayMode: Equatable {
+    var width: UInt32
+    var height: UInt32
+    var dpi: UInt32
+}
+
+/// A borderless panel that is the widget alone, with rounded corners, so it
+/// goes wherever a window goes (up to the menu bar too). It sits on the
+/// desktop under other windows, or on top of them. Its bar (drag to move,
+/// keep on top, remove) is a small panel of its own that shows on hover,
+/// over the widget's top edge, or under it at the top of the screen.
+///
+/// Dragging an edge resizes the panel as the widget allows: Android lays out
+/// a widget that resizes again for the new size (within its limits, along
+/// the ways it resizes), and zooms one that does not (its display gets more
+/// pixels at a higher density, the same layout in dp).
 @MainActor
 final class WidgetPanel: NSObject, NSWindowDelegate {
-    let widget: PlacedWidget
+    private(set) var widget: PlacedWidget
     private weak var owner: WidgetPanels?
     private let backend: WidgetPanelsBackend
     private let frames: FrameRouter
@@ -134,12 +153,18 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
     private let widgetFrame = NSView()
     private let placeholder = NSTextField(wrappingLabelWithString: "")
     private let bar = WidgetBar()
+    private let barWindow: NSPanel
     private(set) var displayID: UInt32?
+    /// What the display was last asked to be.
+    private var sentMode: WidgetDisplayMode?
+    private var resizeGeneration = 0
     private var opening = false
     private var retries = 0
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "Widgets")
 
-    static let barHeight: CGFloat = 26
+    static let barHeight: CGFloat = 22
+    /// Between the widget and its bar.
+    static let barGap: CGFloat = 4
     /// The haze's base (QuickHaze), behind the placeholder.
     static let loadingBackground = QuickHaze.nsRGB(0x0A1108, 0.88).cgColor
     static let cornerRadius: CGFloat = 18
@@ -150,10 +175,21 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
     private var sawSettings = false
     private var openedAt: Date?
 
+    /// The pointer is over the widget, or over its bar; the bar is being
+    /// dragged (from where the pointer and the panel were).
+    private var overPanel = false
+    private var overBar = false
+    private var drag: (pointer: NSPoint, origin: NSPoint)?
+    private var barShown = false
+    private var hidingBar: Task<Void, Never>?
+
+    private var frameName: String { "AvoWidget-\(widget.id)" }
     private var setUpKey: String { "AvoWidgetSetUp-\(widget.id)" }
     /// The user resized the panel: its saved frame's size wins over the widget's.
     private var resizedKey: String { "AvoWidgetResized-\(widget.id)" }
     private var onTopKey: String { "AvoWidgetOnTop-\(widget.id)" }
+    /// Its saved frame has no bar in it (builds before kept the bar above the widget, in the panel).
+    private var barApartKey: String { "AvoWidgetBarApart-\(widget.id)" }
     private var onTop: Bool {
         get { UserDefaults.standard.bool(forKey: onTopKey) }
         set { UserDefaults.standard.set(newValue, forKey: onTopKey) }
@@ -170,8 +206,10 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
         // A widget with settings shows them, larger, the first time.
         settingUp = widget.configurable == true && !UserDefaults.standard.bool(forKey: "AvoWidgetSetUp-\(widget.id)")
         let size = settingUp ? Self.setupSize : Self.contentSize(widget)
-        panel = WidgetWindow(contentRect: NSRect(x: 0, y: 0, width: size.width, height: size.height + Self.barHeight),
+        panel = WidgetWindow(contentRect: NSRect(origin: .zero, size: size),
                              styleMask: [.borderless, .nonactivatingPanel, .resizable], backing: .buffered, defer: false)
+        barWindow = BarWindow(contentRect: NSRect(x: 0, y: 0, width: 120, height: Self.barHeight),
+                              styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
         super.init()
         panel.delegate = self
         panel.isFloatingPanel = false
@@ -182,8 +220,6 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
         // The widget's own shape, no window shadow around a rectangle.
         panel.hasShadow = false
         panel.isMovableByWindowBackground = true
-        // Dragging an edge resizes: the widget lays out again for the new size.
-        panel.minSize = NSSize(width: 72, height: 72 + Self.barHeight)
         panel.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle, .fullScreenAuxiliary]
         panel.title = widget.label
 
@@ -202,17 +238,22 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
         placeholder.textColor = QuickHaze.nsRGB(0xC5CDB9)
         placeholder.font = QuickHaze.monaFont(12)
         widgetFrame.translatesAutoresizingMaskIntoConstraints = false
-        bar.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(widgetFrame)
-        content.addSubview(bar)
+        let tracking = HoverView { [weak self] inside in
+            self?.overPanel = inside
+            self?.hoverChanged()
+        }
+        tracking.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(tracking, positioned: .below, relativeTo: widgetFrame)
         NSLayoutConstraint.activate([
-            bar.topAnchor.constraint(equalTo: content.topAnchor),
-            bar.centerXAnchor.constraint(equalTo: content.centerXAnchor),
-            bar.heightAnchor.constraint(equalToConstant: Self.barHeight - 4),
-            widgetFrame.topAnchor.constraint(equalTo: content.topAnchor, constant: Self.barHeight),
             widgetFrame.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             widgetFrame.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            widgetFrame.topAnchor.constraint(equalTo: content.topAnchor),
             widgetFrame.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            tracking.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            tracking.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            tracking.topAnchor.constraint(equalTo: content.topAnchor),
+            tracking.bottomAnchor.constraint(equalTo: content.bottomAnchor),
             displayView.leadingAnchor.constraint(equalTo: widgetFrame.leadingAnchor),
             displayView.trailingAnchor.constraint(equalTo: widgetFrame.trailingAnchor),
             displayView.topAnchor.constraint(equalTo: widgetFrame.topAnchor),
@@ -222,30 +263,43 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
             placeholder.trailingAnchor.constraint(equalTo: widgetFrame.trailingAnchor, constant: -10),
         ])
         panel.contentView = content
+
+        barWindow.backgroundColor = .clear
+        barWindow.isOpaque = false
+        barWindow.hasShadow = false
+        barWindow.hidesOnDeactivate = false
+        barWindow.isReleasedWhenClosed = false
+        barWindow.isMovable = false
+        barWindow.collectionBehavior = panel.collectionBehavior
+        barWindow.contentView = bar
         bar.title = settingUp ? String(localized: "Set Up \(widget.label)", bundle: .windowHost) : widget.label
         bar.onTop = { [weak self] in self?.toggleOnTop() }
         bar.onRemove = { [weak self] in self?.remove() }
-        let tracking = HoverView(bar: bar)
-        tracking.translatesAutoresizingMaskIntoConstraints = false
-        content.addSubview(tracking, positioned: .below, relativeTo: widgetFrame)
-        NSLayoutConstraint.activate([
-            tracking.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-            tracking.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            tracking.topAnchor.constraint(equalTo: content.topAnchor),
-            tracking.bottomAnchor.constraint(equalTo: content.bottomAnchor),
-        ])
+        bar.onHover = { [weak self] inside in
+            self?.overBar = inside
+            self?.hoverChanged()
+        }
+        bar.onDrag = { [weak self] phase in self?.dragged(phase) }
 
         // Each panel keeps its place; a new one lines up under the screen's top right.
-        panel.setFrameAutosaveName("AvoWidget-\(widget.id)")
-        if !UserDefaults.standard.dictionaryRepresentation().keys.contains("NSWindow Frame AvoWidget-\(widget.id)"),
-           let screen = NSScreen.main?.visibleFrame {
+        let placed = UserDefaults.standard.object(forKey: "NSWindow Frame \(frameName)") != nil
+        panel.setFrameAutosaveName(frameName)
+        if !placed, let screen = NSScreen.main?.visibleFrame {
             let offset = CGFloat(index % 6) * 40
-            panel.setFrameTopLeftPoint(NSPoint(x: screen.maxX - panel.frame.width - 24 - offset, y: screen.maxY - 24 - offset))
+            panel.setFrameTopLeftPoint(NSPoint(x: screen.maxX - panel.frame.width - 24 - offset,
+                                               y: screen.maxY - 24 - Self.barHeight - Self.barGap - offset))
+        } else if !UserDefaults.standard.bool(forKey: barApartKey) {
+            // The widget stays where it was, without the bar's 26 points above it.
+            var frame = panel.frame
+            frame.size.height = max(frame.height - 26, 1)
+            panel.setFrame(frame, display: false)
         }
+        UserDefaults.standard.set(true, forKey: barApartKey)
         // A saved place keeps the widget's own size unless the user resized it.
-        if !settingUp, !UserDefaults.standard.bool(forKey: resizedKey) {
-            setPanelSize(Self.contentSize(widget))
+        if !settingUp {
+            setPanelSize(UserDefaults.standard.bool(forKey: resizedKey) ? fitted(panelSize) : Self.contentSize(widget))
         }
+        applySizeLimits()
         displayView.send = { [backend] record in
             guard let bytes = try? InputWire.encode(record) else { return }
             Task { await backend.sendInput(Data(bytes)) }
@@ -267,6 +321,55 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
         return NSSize(width: (size.width * scale / 8).rounded() * 8 / scale, height: size.height)
     }
 
+    /// The panel size the widget allows nearest `size`, whole 8-pixel steps
+    /// wide (a zoomed widget in its own shape at that width).
+    private func fitted(_ size: NSSize) -> NSSize {
+        let allowed = widget.allowedPanelSize(size)
+        let width = Self.aligned(allowed).width
+        guard widget.zooms else { return NSSize(width: width, height: allowed.height) }
+        return NSSize(width: width, height: width * CGFloat(widget.height) / CGFloat(max(widget.width, 1)))
+    }
+
+    /// The panel's size now (points): the widget's.
+    private var panelSize: NSSize { panel.contentLayoutRect.size }
+
+    /// What dragging an edge may make of the panel: what the widget allows,
+    /// in its own shape when it zooms; its settings keep their size.
+    private func applySizeLimits() {
+        if settingUp {
+            panel.contentMinSize = Self.setupSize
+            panel.contentMaxSize = Self.setupSize
+            return
+        }
+        let limits = widget.panelSizeLimits
+        panel.contentMinSize = limits.min
+        panel.contentMaxSize = limits.max
+        if widget.zooms {
+            panel.contentAspectRatio = NSSize(width: widget.width, height: widget.height)
+        } else {
+            // Clears the aspect ratio.
+            panel.contentResizeIncrements = NSSize(width: 1, height: 1)
+        }
+    }
+
+    /// The daemon's newest word on the widget: how it resizes, once Android said.
+    func update(_ widget: PlacedWidget) {
+        guard widget != self.widget else { return }
+        let rulesChanged = widget.resizing != self.widget.resizing, rulesWereUnknown = self.widget.resizing == nil
+        self.widget = widget
+        guard rulesChanged, !settingUp else { return }
+        applySizeLimits()
+        let fit = fitted(panelSize)
+        let fits = abs(fit.width - panelSize.width) < 1 && abs(fit.height - panelSize.height) < 1
+        // A size picked before the rules were known that they do not allow: the widget's own.
+        if rulesWereUnknown, !fits {
+            UserDefaults.standard.removeObject(forKey: resizedKey)
+            resize(to: Self.contentSize(widget))
+        } else {
+            resize(to: fit)
+        }
+    }
+
     /// What the display shows on top: the widget, or its settings while it is set up.
     func showing(top: String) {
         guard settingUp else { return }
@@ -279,43 +382,68 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
         settingUp = false
         UserDefaults.standard.set(true, forKey: setUpKey)
         bar.title = widget.label
+        if barShown { placeBar() }
+        applySizeLimits()
         resize(to: Self.contentSize(widget))
     }
 
-    /// The widget's part of the panel now, in whole 8-pixel steps wide.
-    private var widgetSize: NSSize {
-        let content = panel.contentLayoutRect.size
-        return Self.aligned(NSSize(width: content.width, height: max(content.height - Self.barHeight, 1)))
-    }
-
-    /// The panel takes `size` (points) for its widget, its top left staying.
+    /// The panel takes `size` (points), its top left staying.
     private func setPanelSize(_ size: NSSize, animate: Bool = false) {
         var frame = panel.frame
-        let height = size.height + Self.barHeight
-        frame.origin.y += frame.height - height
-        frame.size = NSSize(width: size.width, height: height)
+        frame.origin.y += frame.height - size.height
+        frame.size = size
         panel.setFrame(frame, display: true, animate: animate)
     }
 
     func windowDidEndLiveResize(_ notification: Notification) {
         guard !settingUp else { return }
         UserDefaults.standard.set(true, forKey: resizedKey)
-        resize(to: widgetSize)
+        resize(to: fitted(panelSize))
+    }
+
+    /// On a screen of another scale, the display takes that many pixels.
+    func windowDidChangeBackingProperties(_ notification: Notification) {
+        resize(to: settingUp ? Self.setupSize : panelSize)
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        if barShown, drag == nil { placeBar() }
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        if barShown { placeBar() }
+    }
+
+    /// The display for a panel `size` points large: that many pixels, at the
+    /// density that keeps a zoomed widget's layout (dp) as it is.
+    private func displayMode(_ size: NSSize) -> WidgetDisplayMode {
+        let scale = panel.backingScaleFactor
+        let zoom = settingUp ? 1 : widget.zoom(panelWidth: size.width)
+        return WidgetDisplayMode(width: UInt32((size.width * scale).rounded()), height: UInt32((size.height * scale).rounded()),
+                                 dpi: UInt32((160 * scale * zoom).rounded()))
     }
 
     /// The panel and its display take `size` (points), its top left staying.
     private func resize(to size: NSSize) {
         setPanelSize(size, animate: true)
-        guard let displayID else { return }
-        let scale = panel.backingScaleFactor
-        let width = UInt32((size.width * scale).rounded()), pixels = UInt32((size.height * scale).rounded())
-        displayView.setDisplaySize(CGSize(width: Int(width), height: Int(pixels)))
-        Task { [backend, logger] in
+        let mode = displayMode(size)
+        guard let displayID, mode != sentMode else { return }
+        sentMode = mode
+        displayView.setDisplaySize(CGSize(width: Int(mode.width), height: Int(mode.height)))
+        // The widget stays on screen until Android has it at the new size (a
+        // re-plug leaves the display empty meanwhile). HostAgent's alignment.
+        displayView.renderer.holdCurrentFrame(expecting: PixelSize(width: max(64, Int(mode.width) / 8 * 8), height: max(64, Int(mode.height))))
+        resizeGeneration += 1
+        let generation = resizeGeneration
+        Task { [weak self, backend, logger] in
             do {
-                try await backend.resizeDisplay(displayID, width, pixels, UInt32(160 * scale))
+                try await backend.resizeDisplay(displayID, mode.width, mode.height, mode.dpi)
             } catch {
                 logger.error("widget resize: \(error.localizedDescription, privacy: .public)")
             }
+            // Failed or not, the hold ends; an older reply leaves it to the newest resize.
+            guard let self, self.resizeGeneration == generation else { return }
+            self.displayView.renderer.releaseHold()
         }
     }
 
@@ -326,12 +454,24 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
 
     func close() {
         detach()
+        hidingBar?.cancel()
+        panel.removeChildWindow(barWindow)
+        barWindow.close()
         panel.close()
+    }
+
+    /// The widget was removed: nothing of its panel stays in the defaults.
+    func forget() {
+        panel.setFrameAutosaveName("")
+        for key in [setUpKey, resizedKey, onTopKey, barApartKey, "NSWindow Frame \(frameName)"] {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
     }
 
     private func applyLevel() {
         // Desktop widgets sit right above the desktop's icons, under every window.
         panel.level = onTop ? .floating : NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
+        barWindow.level = panel.level
         bar.pinned = onTop
     }
 
@@ -348,6 +488,85 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
             } catch {
                 logger.error("cannot remove widget: \(error.localizedDescription, privacy: .public)")
             }
+        }
+    }
+
+    // MARK: Bar
+
+    /// The bar shows while the pointer is over the widget or the bar, or the
+    /// bar is dragged, and fades a moment after (time to get from one to the other).
+    private func hoverChanged() {
+        hidingBar?.cancel()
+        hidingBar = nil
+        guard !overPanel, !overBar, drag == nil else {
+            showBar()
+            return
+        }
+        hidingBar = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            self?.hideBar()
+        }
+    }
+
+    private func showBar() {
+        guard panel.isVisible else { return }
+        if !barShown {
+            barShown = true
+            barWindow.alphaValue = 0
+            placeBar()
+            panel.addChildWindow(barWindow, ordered: .above)
+            barWindow.level = panel.level
+        }
+        NSAnimationContext.runAnimationGroup { $0.duration = 0.15; barWindow.animator().alphaValue = 1 }
+    }
+
+    private func hideBar() {
+        guard barShown else { return }
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.3
+            barWindow.animator().alphaValue = 0
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                // Shown again meanwhile: it stays.
+                guard let self, self.barShown, !self.overPanel, !self.overBar, self.drag == nil else { return }
+                self.barShown = false
+                self.panel.removeChildWindow(self.barWindow)
+                self.barWindow.orderOut(nil)
+            }
+        })
+    }
+
+    /// The bar over the widget's top edge, or under its bottom one when the
+    /// widget is at the top of the screen; within the screen's sides.
+    private func placeBar() {
+        let size = NSSize(width: ceil(bar.fittingSize.width), height: Self.barHeight)
+        let frame = panel.frame
+        let visible = (panel.screen ?? NSScreen.main)?.visibleFrame ?? frame
+        let x = min(max(frame.midX - size.width / 2, visible.minX), visible.maxX - size.width)
+        let above = frame.maxY + Self.barGap + size.height <= visible.maxY
+        let y = above ? frame.maxY + Self.barGap : frame.minY - Self.barGap - size.height
+        barWindow.setFrame(NSRect(x: x.rounded(), y: y.rounded(), width: size.width, height: size.height), display: true)
+    }
+
+    /// Dragging the bar moves the widget, up to the menu bar; the bar finds
+    /// its side once it is let go.
+    private func dragged(_ phase: WidgetBar.Drag) {
+        switch phase {
+        case .began:
+            drag = (NSEvent.mouseLocation, panel.frame.origin)
+        case .moved:
+            guard let drag else { return }
+            let pointer = NSEvent.mouseLocation
+            var origin = NSPoint(x: drag.origin.x + pointer.x - drag.pointer.x, y: drag.origin.y + pointer.y - drag.pointer.y)
+            if let screen = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? panel.screen {
+                origin.y = min(origin.y, screen.visibleFrame.maxY - panel.frame.height)
+            }
+            panel.setFrameOrigin(origin)
+        case .ended:
+            drag = nil
+            placeBar()
+            hoverChanged()
         }
     }
 
@@ -368,12 +587,10 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
         guard displayID == nil, !opening else { return }
         opening = true
         say(String(localized: "Loading \(widget.label)…", bundle: .windowHost))
-        let scale = panel.backingScaleFactor
-        let size = settingUp ? Self.setupSize : widgetSize
+        let mode = displayMode(settingUp ? Self.setupSize : Self.aligned(panelSize))
         openedAt = Date()
-        let request = OpenDisplayRequest(package: AndroidWidgets.package,
-                                         width: UInt32((size.width * scale).rounded()), height: UInt32((size.height * scale).rounded()),
-                                         dpi: UInt32(160 * scale), widget: widget.id)
+        let request = OpenDisplayRequest(package: AndroidWidgets.package, width: mode.width, height: mode.height,
+                                         dpi: mode.dpi, widget: widget.id)
         Task { [weak self, backend] in
             do {
                 let id = try await backend.openDisplay(request)
@@ -383,11 +600,20 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
                 }
                 self.opening = false
                 self.displayID = id
+                self.sentMode = mode
                 self.displayView.displayID = id
                 self.displayView.setDisplaySize(CGSize(width: Int(request.width), height: Int(request.height)))
                 self.frames.register(self.displayView, for: id)
-                // The first frame ends the placeholder (Android's ready may come before the id).
-                self.displayView.renderer.whenFrameShown { [weak self] in self?.frameShown() }
+                // The widget ends the placeholder: Android's display is empty (all
+                // black) until it draws it, and showing that would blink. One that
+                // draws nothing the check sees ends it with any frame, a moment later.
+                self.displayView.renderer.whenContentShown { [weak self] in self?.frameShown() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                    MainActor.assumeIsolated {
+                        guard let self, self.displayID == id else { return }
+                        self.displayView.renderer.whenFrameShown { [weak self] in self?.frameShown() }
+                    }
+                }
             } catch {
                 guard let self else { return }
                 self.opening = false
@@ -422,6 +648,7 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
     func displayClosed() {
         if let displayID { frames.unregister(displayID) }
         displayID = nil
+        sentMode = nil
         placeholder.isHidden = false
         say(String(localized: "\(widget.label) closed.", bundle: .windowHost))
         retryLater()
@@ -432,6 +659,7 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
         guard let displayID else { return }
         frames.unregister(displayID)
         self.displayID = nil
+        sentMode = nil
         Task { [backend] in await backend.closeDisplay(displayID) }
     }
 
@@ -449,14 +677,19 @@ private final class WidgetWindow: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-/// Shows the bar while the pointer is over the panel.
-private final class HoverView: NSView {
-    let bar: WidgetBar
+/// The bar's own panel, a child of the widget's: it never takes the typing.
+private final class BarWindow: NSPanel {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+}
 
-    init(bar: WidgetBar) {
-        self.bar = bar
+/// Tells while the pointer is over the panel.
+private final class HoverView: NSView {
+    let onHover: (Bool) -> Void
+
+    init(onHover: @escaping (Bool) -> Void) {
+        self.onHover = onHover
         super.init(frame: .zero)
-        bar.alphaValue = 0
     }
 
     @available(*, unavailable)
@@ -468,20 +701,19 @@ private final class HoverView: NSView {
         addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
     }
 
-    override func mouseEntered(with event: NSEvent) {
-        NSAnimationContext.runAnimationGroup { $0.duration = 0.15; bar.animator().alphaValue = 1 }
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        NSAnimationContext.runAnimationGroup { $0.duration = 0.3; bar.animator().alphaValue = 0 }
-    }
+    override func mouseEntered(with event: NSEvent) { onHover(true) }
+    override func mouseExited(with event: NSEvent) { onHover(false) }
 }
 
-/// The bar above a widget: its name (drag it to move the panel), keep on
-/// top and remove, on a plate in the haze look (QuickHaze).
+/// The bar of a widget: its name (drag it to move the widget), keep on top
+/// and remove, on a plate in the haze look (QuickHaze).
 private final class WidgetBar: NSView {
+    enum Drag { case began, moved, ended }
+
     var onTop: (() -> Void)?
     var onRemove: (() -> Void)?
+    var onHover: ((Bool) -> Void)?
+    var onDrag: ((Drag) -> Void)?
     var title = "" { didSet { label.stringValue = title } }
     var pinned = false {
         didSet {
@@ -526,8 +758,27 @@ private final class WidgetBar: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    // Dragging the bar (not its buttons) moves the panel.
-    override var mouseDownCanMoveWindow: Bool { true }
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+
+    override func mouseEntered(with event: NSEvent) { onHover?(true) }
+    override func mouseExited(with event: NSEvent) { onHover?(false) }
+
+    // The plate and the name move the widget (the bar's own panel stays
+    // with it); the buttons are buttons.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard let hit = super.hitTest(point) else { return nil }
+        return hit is NSButton ? hit : self
+    }
+
+    override var mouseDownCanMoveWindow: Bool { false }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func mouseDown(with event: NSEvent) { onDrag?(.began) }
+    override func mouseDragged(with event: NSEvent) { onDrag?(.moved) }
+    override func mouseUp(with event: NSEvent) { onDrag?(.ended) }
 
     private func button(_ symbol: String, _ label: String, _ action: Selector) -> NSButton {
         let image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)?
