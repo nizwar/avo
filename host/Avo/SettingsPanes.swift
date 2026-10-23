@@ -309,6 +309,19 @@ struct GraphicsPane: View {
                 }
                 RendererStatusRow()
                 LabeledContent {
+                    HazePicker("OpenGL ES", selection: Binding(get: { config.glesVersion }, set: { value in model.update { $0.glesVersion = value } })) {
+                        HazeOption("2.0", VMConfig.GLESVersion.v2_0)
+                        HazeOption("3.0", VMConfig.GLESVersion.v3_0)
+                        HazeOption("3.1", VMConfig.GLESVersion.v3_1)
+                        HazeOption("3.2", VMConfig.GLESVersion.v3_2)
+                    }
+                } label: {
+                    HelpTitle("OpenGL ES") {
+                        Text("The highest version of OpenGL ES apps get. 3.2 is everything this Mac’s GPU offers, short of geometry shaders, which it has no hardware for; pick a lower one to test an app against a weaker phone’s GPU.")
+                        Text("Applies after Android restarts, with the GPU renderer.")
+                    }
+                }
+                LabeledContent {
                     // 90 and 120 always, and a screen's own rate (75 Hz; FrameRates).
                     let rates = FrameRates.choices(for: ScreenRefresh.attached, keeping: config.fpsLimit)
                     HazeSegmented.inset(rates.map { ($0, Text(verbatim: "\($0)")) },

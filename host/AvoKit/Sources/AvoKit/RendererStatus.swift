@@ -11,6 +11,29 @@ extension VMConfig {
         /// Software rendering in Android on the CPU, always (today's engine).
         case software
     }
+
+    /// Settings › Graphics: the highest OpenGL ES version apps get, to test
+    /// an app against a weaker phone's GPU. 3.2 (the default) is everything
+    /// the Mac's GPU has, short of geometry shaders, which Metal lacks
+    /// (docs/engine.md, "GPU"); the lower ones are what the gfxstream sync
+    /// layer holds ANGLE to (debug.avo.gl.max, from the next GPU start).
+    public enum GLESVersion: String, Codable, CaseIterable, Sendable {
+        case v2_0 = "2.0"
+        case v3_0 = "3.0"
+        case v3_1 = "3.1"
+        case v3_2 = "3.2"
+
+        /// What `ro.opengles.version` says: major and minor in one number
+        /// (`0x30002` is 3.2).
+        public var androidVersion: Int {
+            switch self {
+            case .v2_0: return 0x2_0000
+            case .v3_0: return 0x3_0000
+            case .v3_1: return 0x3_0001
+            case .v3_2: return 0x3_0002
+            }
+        }
+    }
 }
 
 /// Why a GPU boot was given up; the fallback to software is kept until

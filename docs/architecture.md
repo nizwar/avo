@@ -815,8 +815,11 @@ in `~/Library/Application Support/Avo/keymaps/`, with community starters in
 `VMConfig` holds every Control Panel setting with validation (RAM 2–16 GB
 within what the Mac can spare, cores, Android's storage size, FPS cap
 30 or 60–120, graphics settings, window size) and the spec's restart table:
-Performance, renderer, device profile and GMS need a restart; the default
-window size applies to an app's first window. The FPS cap (60 by default)
+Performance, renderer, OpenGL ES version, device profile and GMS need a
+restart; the default
+window size applies to an app's first window. Graphics' "OpenGL ES" picks
+the highest version apps get on a GPU start — 3.2 by default, or a lower
+one to test an app against a weaker phone's GPU (docs/engine.md, "GPU"). The FPS cap (60 by default)
 picks the refresh rate every Android display has for a boot (`FrameRates`:
 the cap above 60, else 60; avo-vmm `--refresh-rate`), and within it
 Android's render rate (HostAgent: `peak_refresh_rate`, at once). Settings,

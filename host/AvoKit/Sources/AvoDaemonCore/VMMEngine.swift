@@ -185,11 +185,16 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     /// `vulkanWrapper` lets Android run Avo's Vulkan driver wrapper on a GPU
     /// start (GuestVulkanWrapper.switchProperty).
     static func identityProperties(profile: DeviceProfile?, plan: GPUPlan, emulateHardware: Bool = false,
-                                   vulkanWrapper: Bool = false,
+                                   vulkanWrapper: Bool = false, gles: VMConfig.GLESVersion = .v3_2,
                                    markers: (AvoIdentity.Renderer) -> AvoIdentity.Markers) -> String {
         AvoIdentity.propertyFile(profile: profile, markers: markers(plan.isGPU ? .gpu : .software),
                                  emulateHardware: emulateHardware)
             + (vulkanWrapper ? "\(GuestVulkanWrapper.switchProperty)=1\n" : "")
+            // Settings › Graphics' "OpenGL ES" below 3.2: the sync layer reads
+            // debug.avo.gl.max (guest/gfxsync) and Android reports the same
+            // choice (ro.opengles.version; 3.2 is the bootconfig's own).
+            // Software has no layer: its GLES is SwiftShader's, untouched.
+            + (plan.isGPU && gles != .v3_2 ? "debug.avo.gl.max=\(gles.rawValue)\nro.opengles.version=\(gles.androidVersion)\n" : "")
     }
 
     public func start(_ launch: EngineLaunch) async throws {
@@ -210,7 +215,9 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         let wrapper = GuestVulkanWrapper.allowed(paths: launch.paths)
         let wrapperRuns = wrapper && plan.isGPU && GuestVulkanWrapper.installed(paths: launch.paths)
         try Self.identityProperties(profile: launch.profile, plan: plan, emulateHardware: launch.config.emulateHardware,
-                                    vulkanWrapper: wrapper) { .current(version: version, renderer: $0) }
+                                    vulkanWrapper: wrapper, gles: launch.config.glesVersion) {
+            .current(version: version, renderer: $0)
+        }
             .write(to: Self.identityFile(launch.paths), atomically: true, encoding: .utf8)
         lock.withLock { vulkanWrapperRuns = wrapperRuns }
         lock.withLock {

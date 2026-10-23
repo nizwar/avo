@@ -77,6 +77,9 @@ public struct VMConfig: Codable, Equatable, Sendable {
     public var renderer: Renderer
     /// Graphics › Renderer for avo-vmm: GPU (gfxstream) or software.
     public var rendererMode: RendererMode
+    /// Graphics › OpenGL ES: the highest GLES version apps get
+    /// (`GLESVersion`; a GPU start's, from the next one).
+    public var glesVersion: GLESVersion
     public var fpsLimit: Int
     /// Resolution, interface size and scaling of app windows: the Apps,
     /// Games and Phone profiles (GraphicsSettings.swift).
@@ -150,7 +153,8 @@ public struct VMConfig: Codable, Equatable, Sendable {
 
     public init(memoryMiB: Int = 4096, cpuCount: Int = 4, balloonWhenIdle: Bool = true, autoPauseMinutes: Int = 15,
                 dataDiskGiB: Int = 32, imageLocation: String? = nil, shareFolder: Bool = false, sharedFolderPath: String? = nil,
-                renderer: Renderer = .vulkan, rendererMode: RendererMode = .auto, fpsLimit: Int = 60,
+                renderer: Renderer = .vulkan, rendererMode: RendererMode = .auto, glesVersion: GLESVersion = .v3_2,
+                fpsLimit: Int = 60,
                 appGraphics: GraphicsSettings = .appsDefault, gameGraphics: GraphicsSettings = .gamesDefault,
                 phoneGraphics: GraphicsSettings = .phoneDefault,
                 graphicsOverrides: [String: AppGraphicsOverride] = [:], performanceHUD: PerformanceHUDLevel = .off,
@@ -174,6 +178,7 @@ public struct VMConfig: Codable, Equatable, Sendable {
         self.sharedFolderPath = sharedFolderPath
         self.renderer = renderer
         self.rendererMode = rendererMode
+        self.glesVersion = glesVersion
         self.fpsLimit = fpsLimit
         self.appGraphics = appGraphics
         self.gameGraphics = gameGraphics
@@ -292,7 +297,7 @@ public struct VMConfig: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case memoryMiB, cpuCount, balloonWhenIdle, autoPauseMinutes, dataDiskGiB, imageLocation, shareFolder, sharedFolderPath
-        case renderer, rendererMode, fpsLimit
+        case renderer, rendererMode, glesVersion, fpsLimit
         case appGraphics, gameGraphics, phoneGraphics, graphicsOverrides, performanceHUD
         case defaultWindowSize, appBarStyle, rooted, deviceProfileID, emulateHardware, gms, adbEnabled, adbPort, shareLocation, dockBadges
         case wifiEnabled, networkSpeed, shareMacBluetooth, cellularEnabled, mobileNetworkType, cellularSignal
@@ -331,6 +336,9 @@ public struct VMConfig: Codable, Equatable, Sendable {
         // A new key: files from before it (with only `renderer`) use Automatic.
         rendererMode = (try? container.decodeIfPresent(String.self, forKey: .rendererMode)).flatMap(RendererMode.init(rawValue:))
             ?? defaults.rendererMode
+        // A version this Avo does not know becomes the default, 3.2.
+        glesVersion = (try? container.decodeIfPresent(String.self, forKey: .glesVersion)).flatMap(GLESVersion.init(rawValue:))
+            ?? defaults.glesVersion
         // A cap Android cannot run at (45, or 144 from a hand edit) becomes
         // the highest one it can under it (120 above that).
         fpsLimit = Self.supportedFPS(try value(.fpsLimit, defaults.fpsLimit))
@@ -535,6 +543,7 @@ extension VMConfig {
         // not, and open windows re-plug their displays for graphics changes.
         check(\.renderer, "renderer", .restartRequired)
         check(\.rendererMode, "rendererMode", .restartRequired)
+        check(\.glesVersion, "glesVersion", .restartRequired)
         check(\.fpsLimit, "fpsLimit", .immediate)
         check(\.appGraphics, "appGraphics", .immediate)
         check(\.gameGraphics, "gameGraphics", .immediate)

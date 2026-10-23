@@ -176,4 +176,24 @@ import Testing
         #expect(!off.contains("vkwrap"))
         #expect(on == off + "ro.boot.avo.vkwrap=1\n")
     }
+
+    /// Settings › Graphics' "OpenGL ES" below 3.2 rides in the identity file
+    /// of a GPU start (the sync layer reads debug.avo.gl.max; Android reports
+    /// the same choice). Software has no layer, and 3.2 is the bootconfig's.
+    @Test func aChosenGLESVersionRidesInTheIdentityFile() {
+        let markers: (AvoIdentity.Renderer) -> AvoIdentity.Markers = {
+            AvoIdentity.Markers(version: "0.2.0", hostOS: "macOS 27.0.1", hostChip: "Apple M4 Pro", renderer: $0)
+        }
+        let emulator = AndroidEmulator(directory: URL(filePath: "/emu"), version: "37.1.11", build: nil)
+        let gpu = VMMEngine.identityProperties(profile: .avo, plan: .gpu(emulator), gles: .v3_0, markers: markers)
+        #expect(gpu.contains("debug.avo.gl.max=3.0\n"))
+        #expect(gpu.contains("ro.opengles.version=196608\n"))
+        // The default writes nothing: the layer and the bootconfig say 3.2.
+        let def = VMMEngine.identityProperties(profile: .avo, plan: .gpu(emulator), markers: markers)
+        #expect(!def.contains("debug.avo.gl.max"))
+        // Software has no layer to read it.
+        let software = VMMEngine.identityProperties(profile: .avo, plan: .software(.chosen, nil), gles: .v3_0,
+                                                    markers: markers)
+        #expect(!software.contains("debug.avo.gl.max"))
+    }
 }
