@@ -238,18 +238,25 @@ GLES 3.1 and Vulkan 1.3.
   back before the restart, so the GPU start names it at once.
 - **Vulkan driver wrapper** (`guest/vkwrap`, `GuestVulkanWrapper`): where
   Android has the overlays of a `remount` (Google apps) and the known vendor
-  build, the same layer runs inside the Vulkan driver instead, so a GPU start
-  puts nothing of Avo's in `/data/local/debug` and FLUJO runs. HostAgent puts
-  a wrapping `vulkan.ranchu.so` on the vendor overlay, with a copy of the real
-  driver beside it (once Android is ready), and an init file bind-mounts that folder
-  over the APEX's `hw` folder at `post-fs-data` on a GPU start whose
-  identity.prop has `ro.boot.avo.vkwrap=1`. Below libvulkan the layer sees
-  presents as `QueueSignalReleaseImageANDROID`, one per image, and new
-  handles before libvulkan writes its dispatch pointer into them; it handles
-  both. Every process uses the wrapper from the start, so SurfaceFlinger and
-  SystemUI get ES 3.1 too. A GPU start that fails while the wrapper runs
-  turns it off for that build of it (`vkwrap-failed.json`), and the GPU gets
-  one more start without it before Avo falls back to software.
+  build, the sync layer and the GPU profile layer run inside the Vulkan
+  driver instead, so a GPU start puts nothing of Avo's in
+  `/data/local/debug` and FLUJO runs — and the profile spoof works on a
+  build that is not debuggable, where Android ignores that folder. HostAgent
+  puts a wrapping `vulkan.ranchu.so` on the vendor overlay, with a copy of
+  the real driver beside it (once Android is ready), and an init file
+  bind-mounts that folder over the APEX's `hw` folder at `post-fs-data` on a
+  GPU start whose identity.prop has `ro.boot.avo.vkwrap=1`. Inside, the app
+  faces the profile layer, which passes what it does not wrap to the sync
+  layer, which calls the real driver; the wrapper builds the chain's links
+  itself, for a HAL driver gets none, and the profile layer's loader entry
+  points are renamed in the one library (`avo_profile_*`). Below libvulkan
+  the sync layer sees presents as `QueueSignalReleaseImageANDROID`, one per
+  image, and new handles before libvulkan writes its dispatch pointer into
+  them; it handles both. Every process uses the wrapper from the start, so
+  SurfaceFlinger and SystemUI get ES 3.1 too. A GPU start that fails while
+  the wrapper runs turns it off for that build of it (`vkwrap-failed.json`),
+  and the GPU gets one more start without it before Avo falls back to
+  software.
 - **Native ASTC** (`engine/hvf/vmm/layer/native_astc.c`, `virtio/gpu/astc.rs`):
   gfxstream decompresses ASTC into RGBA8 itself unless the driver samples
   *linear-tiled* ASTC, which Metal never does, and an emulated ASTC texture
@@ -531,17 +538,22 @@ when "Emulate this phone's hardware" is on, the profile's SoC naming
 `ro.hardware.chipname`) and the GPU layers' values (`debug.avo.gl.*`,
 `debug.avo.vk.*`). Loading the layers is applied later, by `HostAgent` after
 Android is up, because doing it at first boot would break it: naming a Vulkan
-layer system-wide before its file exists stops the graphics services. So the
-daemon installs `libGLES_avo_profile.so` into `/data/local/debug/gles` and
-`libVkLayer_avo_profile.so` into `/data/local/debug/vulkan` on a boot that
-emulates the GPU, and sets `debug.gles.layers` and `debug.vulkan.layers`
-only on a boot that began with the files in place: a process that started
-before the install would fail to create a Vulkan instance
-(`GuestGPUProfile`). A boot that emulates no GPU removes the files, since
-libvulkan opens the Vulkan one in every app even unnamed (see the gfxstream
-sync layer above for the apps that refuse it), and turning emulation on, or
-picking a profile with a GPU, installs them before the restart that setting
-needs. The GLES
+layer system-wide before its file exists stops the graphics services. On a
+boot the Vulkan driver wrapper runs, the Vulkan layer rides inside it (see
+the wrapper above): the daemon installs only `libGLES_avo_profile.so` into
+`/data/local/debug/gles`, leaves `debug.vulkan.layers` unset, and takes the
+Vulkan layer file out of `/data/local/debug` — unnamed, libvulkan would
+still open it in every app. Any other boot (software rendering, another
+vendor build, a wrapper that failed a GPU start) installs
+`libVkLayer_avo_profile.so` into `/data/local/debug/vulkan` as well, a path
+Android honours only on a debuggable build, and sets `debug.gles.layers`
+and `debug.vulkan.layers` only on a boot that began with the files in
+place: a process that started before the install would fail to create a
+Vulkan instance (`GuestGPUProfile`). A boot that emulates no GPU removes
+the files, since libvulkan opens the Vulkan one in every app even unnamed
+(see the gfxstream sync layer above for the apps that refuse it), and
+turning emulation on, or picking a profile with a GPU, installs them before
+the restart that setting needs. The GLES
 layer answers an app's own `glGetString` with the profile's vendor, renderer
 and driver version instead of ANGLE's; the Vulkan layer reports the profile's
 GPU to an app's own Vulkan. Both leave SurfaceFlinger, HWUI, WebView and
