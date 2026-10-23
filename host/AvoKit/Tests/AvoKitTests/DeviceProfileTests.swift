@@ -90,7 +90,7 @@ import Testing
     /// Drivers, ABIs and Avo's own markers would break Android or hide Avo.
     @Test(arguments: ["ro.hardware", "ro.hardware.egl", "ro.hardware.vulkan", "ro.product.cpu.abilist",
                       "ro.product.first_api_level", "ro.product.vendor.cpu.abilist", "ro.boot.avo.version",
-                      "ro.avo.version", "ro.boot.hardware"])
+                      "ro.avo.version", "ro.boot.hardware", "ro.vendor.build.fingerprint", "ro.vendor.build.id"])
     func rejectsNonIdentityProperties(key: String) {
         var properties = Self.validProperties
         properties[key] = "x"
@@ -99,9 +99,20 @@ import Testing
     }
 
     @Test(arguments: ["ro.product.model", "ro.product.name", "ro.product.vendor.model", "ro.product.odm.device",
-                      "ro.product.bootimage.brand", "ro.build.fingerprint", "ro.build.id", "ro.soc.model"])
+                      "ro.product.bootimage.brand", "ro.build.fingerprint", "ro.build.id", "ro.soc.model",
+                      "ro.build.flavor", "ro.system.build.fingerprint", "ro.product.build.id", "ro.vendor_dlkm.build.version.incremental"])
     func acceptsIdentityProperties(key: String) {
         #expect(DeviceProfile.isIdentityProperty(key))
+    }
+
+    /// A partition's own fingerprint is checked like the build's.
+    @Test func partitionFingerprintsMustLookLikeOne() {
+        var properties = Self.validProperties
+        properties["ro.system.build.fingerprint"] = "Transsion/tssi/qssi_64:16/BP2A.250605.031.A3/301500049:user/release-keys"
+        #expect(DeviceProfile(id: "x", name: "X", properties: properties).validate().isEmpty)
+        properties["ro.system.build.fingerprint"] = "not one"
+        #expect(DeviceProfile(id: "x", name: "X", properties: properties).validate()
+            == ["ro.system.build.fingerprint must look like brand/product/device:release/id/incremental:type/tags"])
     }
 
     @Test func fingerprintFieldsHaveNoSeparators() {

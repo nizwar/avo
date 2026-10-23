@@ -131,7 +131,11 @@ Rules enforced by `DeviceProfile.validate()` (AvoKit) and CI:
   the same per partition (`ro.product.vendor.model`), `ro.build.fingerprint`,
   `ro.build.description`, `ro.build.product`, `ro.build.display.id`,
   `ro.build.id`, `ro.build.version.incremental`, `ro.build.tags`,
-  `ro.build.type`, `ro.soc.manufacturer` and `ro.soc.model`. Security state
+  `ro.build.type`, `ro.build.flavor`, `ro.soc.manufacturer` and
+  `ro.soc.model`, and a partition's own build names
+  (`ro.system.build.fingerprint`, `.id`, `.version.incremental`; every
+  partition but `vendor`), for a phone whose system image comes from
+  another build than its vendor one (Qualcomm's QSSI). Security state
   (`ro.debuggable`, `ro.secure`, verified boot), hardware (`ro.hardware*`,
   which picks drivers and init scripts), ABI lists, API levels and Avo's own
   `ro.boot.avo.*` markers are rejected.

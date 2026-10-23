@@ -69,9 +69,17 @@ public struct DeviceProfile: Codable, Identifiable, Equatable, Sendable {
     /// The build properties a template may set besides `ro.product.<field>`.
     public static let buildProperties: Set<String> = [
         "ro.build.fingerprint", "ro.build.description", "ro.build.product", "ro.build.display.id",
-        "ro.build.version.incremental", "ro.build.id", "ro.build.tags", "ro.build.type",
+        "ro.build.version.incremental", "ro.build.id", "ro.build.tags", "ro.build.type", "ro.build.flavor",
         "ro.soc.manufacturer", "ro.soc.model",
     ]
+
+    /// A partition's own build names, as a phone has them: its system image
+    /// often comes from another brand (Qualcomm's QSSI, "Transsion/tssi/...")
+    /// than its vendor one. Not the vendor partition's: Avo's guest patches
+    /// bind only on the image's `ro.vendor.build.fingerprint`.
+    public static let partitionBuildProperties: Set<String> = Set(buildPartitions.flatMap { partition in
+        ["fingerprint", "id", "version.incremental"].map { "ro.\(partition).build.\($0)" }
+    })
 
     /// Security state, debuggability and verified boot; the hardware
     /// (`ro.hardware*` picks init scripts, graphics and audio drivers) and
@@ -85,7 +93,7 @@ public struct DeviceProfile: Codable, Identifiable, Equatable, Sendable {
     /// strings only. ABI lists, API levels, hardware drivers and Avo's own
     /// `ro.boot.avo.*` markers are not identity.
     public static func isIdentityProperty(_ key: String) -> Bool {
-        if buildProperties.contains(key) { return true }
+        if buildProperties.contains(key) || partitionBuildProperties.contains(key) { return true }
         guard key.hasPrefix("ro.product.") else { return false }
         let parts = key.dropFirst("ro.product.".count).split(separator: ".", omittingEmptySubsequences: false)
         switch parts.count {
@@ -208,8 +216,9 @@ public struct DeviceProfile: Codable, Identifiable, Equatable, Sendable {
                 problems.append("\(key) is part of the build fingerprint: no spaces, '/' or ':'")
             }
         }
-        if let fingerprint = properties["ro.build.fingerprint"], !Self.isValidFingerprint(fingerprint) {
-            problems.append("ro.build.fingerprint must look like brand/product/device:release/id/incremental:type/tags")
+        for (key, fingerprint) in properties.sorted(by: { $0.key < $1.key })
+        where key.hasSuffix("build.fingerprint") && !Self.isValidFingerprint(fingerprint) {
+            problems.append("\(key) must look like brand/product/device:release/id/incremental:type/tags")
         }
         if let display {
             if display.width < 240 || display.height < 240 { problems.append("display is too small") }
