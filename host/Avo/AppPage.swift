@@ -338,29 +338,35 @@ private struct AppGraphicsCard: View {
                     }
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Resolution").font(.mona(12)).foregroundStyle(Haze.textTertiary)
-                        // The big steps; All Graphics Settings has every one.
-                        HazeSegmented(options: Self.resolutions.map { ($0, Text(verbatim: GraphicsSettings.resolutionName($0))) },
-                                      selection: Binding(get: { mode == .fixed ? settings.shortSide : 0 }, set: { value in
-                                          var changed = settings
-                                          changed.mode = .fixed
-                                          changed.shortSide = value
-                                          model.setAppGraphicsSettings(changed, for: app.package)
-                                      }),
-                                      height: 32, cornerRadius: 12, fill: Haze.inset, selectedFill: Haze.accent.opacity(0.2),
-                                      segmentPadding: 4, equalWidths: true)
-                        Group {
-                            switch mode {
-                            case .followWindow:
-                                Text("Window (\(settings.renderScale)% render scale)")
-                            case .deviceProfile:
-                                Text("Phone (\(model.deviceProfile?.name ?? ""))")
-                            case .fixed:
-                                if !Self.resolutions.contains(settings.shortSide) {
-                                    Text("Fixed at \(GraphicsSettings.resolutionName(settings.shortSide))")
-                                }
+                        // Adaptive, like All Graphics Settings. A fixed
+                        // resolution is the player's to pick (Games); the
+                        // phone's screen (Phone, from the device profile) and
+                        // the window's (Apps) are shown, not set here — those
+                        // change in All Graphics Settings.
+                        switch mode {
+                        case .fixed:
+                            // The big steps; All Graphics Settings has every one.
+                            HazeSegmented(options: Self.resolutions.map { ($0, Text(verbatim: GraphicsSettings.resolutionName($0))) },
+                                          selection: Binding(get: { settings.shortSide }, set: { value in
+                                              var changed = settings
+                                              changed.mode = .fixed
+                                              changed.shortSide = value
+                                              model.setAppGraphicsSettings(changed, for: app.package)
+                                          }),
+                                          height: 32, cornerRadius: 12, fill: Haze.inset, selectedFill: Haze.accent.opacity(0.2),
+                                          segmentPadding: 4, equalWidths: true)
+                            if !Self.resolutions.contains(settings.shortSide) {
+                                Text("Fixed at \(GraphicsSettings.resolutionName(settings.shortSide))")
+                                    .font(.mona(12)).foregroundStyle(Haze.textTertiary)
                             }
+                        case .deviceProfile:
+                            let phone = model.deviceProfile
+                            ResolutionReadout(value: phone?.display.map { "\($0.width) × \($0.height) · \($0.dpi) dpi" } ?? "—",
+                                              note: "Phone\(phone.map { " (\($0.name))" } ?? "") — from the device profile")
+                        case .followWindow:
+                            ResolutionReadout(value: "Follows the window",
+                                              note: "\(settings.renderScale)% render scale")
                         }
-                        .font(.mona(12)).foregroundStyle(Haze.textTertiary)
                     }
                     HStack(spacing: 4) {
                         Toggle(isOn: Binding(get: { settings.filter == .metalFXSpatial }, set: { on in
@@ -408,6 +414,27 @@ private struct AppGraphicsCard: View {
                 HazeSkeleton(bars: [(0.3, 10), (1, 32), (0.36, 10), (1, 32), (0.7, 16), (0.9, 16)])
                     .transition(.opacity)
             }
+        }
+    }
+}
+
+/// A read-only resolution in the quick card: the phone's screen, or the
+/// window's, shown as a filled box the height of the resolution picker it
+/// stands in for, with a note under it. (The editable picker is Games only.)
+private struct ResolutionReadout: View {
+    let value: String
+    let note: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(verbatim: value)
+                .font(.mona(13))
+                .foregroundStyle(Haze.text)
+                .monospacedDigit()
+                .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                .padding(.horizontal, 12)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Haze.inset))
+            Text(verbatim: note).font(.mona(12)).foregroundStyle(Haze.textTertiary)
         }
     }
 }
