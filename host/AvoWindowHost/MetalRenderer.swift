@@ -55,6 +55,8 @@ final class MetalRenderer: @unchecked Sendable {
     private(set) var lastSequence: UInt64 = 0
     /// Called once on the main queue after the next frame is shown.
     private var onFirstFrame: (@MainActor () -> Void)?
+    /// Called once on the main queue when a frame that is not all black is shown (`whenContentShown`).
+    private var onContent: (@MainActor () -> Void)?
     /// Whether this GPU has a MetalFX spatial scaler. Every Apple Silicon Mac
     /// does; the check stays so a missing one shows as a fallback in the HUD
     /// instead of a black window.
@@ -146,6 +148,45 @@ final class MetalRenderer: @unchecked Sendable {
             return false
         }
         if shown { DispatchQueue.main.async { MainActor.assumeIsolated { callback() } } }
+    }
+
+    /// Calls back on the main actor once a frame that is not all black is on
+    /// screen, the one there now included. A widget's display is all black
+    /// (keyed out: nothing) until Android draws the widget on it.
+    func whenContentShown(_ callback: @escaping @MainActor () -> Void) {
+        lock.withLock { onContent = callback }
+        renderQueue.async { [self] in checkContent(lock.withLock { current }) }
+    }
+
+    /// Calls back `onContent` if frame `index` has content (render queue).
+    private func checkContent(_ index: Int?) {
+        let surface = lock.withLock { () -> IOSurface? in
+            guard onContent != nil, let index, surfaces.indices.contains(index) else { return nil }
+            return surfaces[index]
+        }
+        guard let surface, Self.hasContent(surface) else { return }
+        let callback = lock.withLock { () -> (@MainActor () -> Void)? in
+            defer { onContent = nil }
+            return onContent
+        }
+        if let callback { DispatchQueue.main.async { MainActor.assumeIsolated { callback() } } }
+    }
+
+    /// Whether a pixel of a 32 × 32 grid over `surface` is brighter than
+    /// what `avo_keyed` keys out.
+    private static func hasContent(_ surface: IOSurface) -> Bool {
+        guard surface.bytesPerElement == 4, surface.lock(options: .readOnly, seed: nil) == KERN_SUCCESS else { return true }
+        defer { surface.unlock(options: .readOnly, seed: nil) }
+        let base = surface.baseAddress.assumingMemoryBound(to: UInt8.self)
+        let (width, height, row) = (surface.width, surface.height, surface.bytesPerRow)
+        for y in 0..<32 {
+            for x in 0..<32 {
+                // RGBA or BGRA: the first three bytes are the color.
+                let pixel = base + (2 * y + 1) * height / 64 * row + (2 * x + 1) * width / 64 * 4
+                if pixel[0] > 15 || pixel[1] > 15 || pixel[2] > 15 { return true }
+            }
+        }
+        return false
     }
 
     init?() {
@@ -280,6 +321,7 @@ final class MetalRenderer: @unchecked Sendable {
                 return onFirstFrame
             }
             if let callback { DispatchQueue.main.async { MainActor.assumeIsolated { callback() } } }
+            checkContent(index)
         }
     }
 

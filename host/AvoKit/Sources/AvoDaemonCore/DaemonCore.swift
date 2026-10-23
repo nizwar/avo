@@ -676,6 +676,7 @@ public actor DaemonCore {
             rootIfAsked()
             storageCheckedAt = nil
             _ = await dataDiskStatus()
+            Task { await refreshWidgetRules() }
         case .stopped, .failed, .notInstalled:
             bootedConfig = nil
             for display in displays.values { clients[display.owner]?.proxy.send(.displayClosed(displayID: display.id)) }

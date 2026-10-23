@@ -44,7 +44,28 @@ extension DaemonCore {
     /// The widgets Android's apps offer; Android has to be running.
     public func widgetProviders(client: ClientID) async throws -> [WidgetProvider] {
         try requireControlPanel(client)
-        return try await widgetsGuest().widgetProviders()
+        let providers = try await widgetsGuest().widgetProviders()
+        takeWidgetRules(from: providers)
+        return providers
+    }
+
+    /// Once Android runs: the placed widgets take how their widgets resize now.
+    func refreshWidgetRules() async {
+        guard !placedWidgets.isEmpty, let providers = try? await widgetsGuest().widgetProviders() else { return }
+        takeWidgetRules(from: providers)
+    }
+
+    /// Lists saved before had no rules, and an app's update may change them;
+    /// the panels follow (a widget that keeps its layout zooms instead).
+    private func takeWidgetRules(from providers: [WidgetProvider]) {
+        var changed = false
+        for index in placedWidgets.indices {
+            guard let provider = providers.first(where: { $0.provider == placedWidgets[index].provider }),
+                  placedWidgets[index].resizing != provider.resizeRules else { continue }
+            placedWidgets[index].resizing = provider.resizeRules
+            changed = true
+        }
+        if changed { widgetsChanged() }
     }
 
     public func placedWidgets(client: ClientID) async throws -> [PlacedWidget] {

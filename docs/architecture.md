@@ -1226,16 +1226,23 @@ they update and take clicks as on a phone.
   differs. `appwidget grantbind` (as root) lets it bind any app's widget
   without asking; QUERY_ALL_PACKAGES lets it see every app's.
   - `WidgetsProvider`: `content read --uri content://com.avodroid.widgets/providers`
-    lists the widgets as JSON (provider, labels, size in dp, a preview PNG);
+    lists the widgets as JSON (provider, labels, size in dp, how it resizes:
+    which ways and its resize limits, a preview PNG);
     `content call … --method delete --arg SLOT` lets go of a removed panel's
     widget. Only the shell and root may ask.
   - `WidgetActivity`: one widget filling a display of its own, started with
     `avo-widget://SLOT?provider=…` (`GuestWidgets.startCommand`, a task per
     panel). A slot keeps its Android widget id in the app's preferences, so a
     panel shows the same widget after a restart. One shared `AppWidgetHost`
-    listens while any activity shows a widget. It ends with its display.
+    listens while any activity shows a widget. It ends with its display; a
+    re-plug (a resize without Avo's composer) starts it again on the new
+    display (`HostAgent.bringBack`). It is translucent and starts with
+    NO_ANIMATION: no splash or opening animation that the panel would show
+    as a flash.
 - **The list:** the daemon keeps `widgets.json` (`PlacedWidget`: slot,
-  provider, size) and sends `DaemonEvent.widgets` to Control Panels.
+  provider, size, how it resizes) and sends `DaemonEvent.widgets` to Control
+  Panels and the panels. Each Android start (and each listing) refreshes
+  how placed widgets resize; lists saved before had none.
 - **The panels** (`WidgetPanels`, in AvoWindowHost) run in the daemon's own
   process, which is there whenever Android is. They are an in-process client
   (`DaemonCore.registerInProcess`, role `shim(com.avodroid.widgets)`), so they need
@@ -1244,7 +1251,12 @@ they update and take clicks as on a phone.
   launch. The renderer draws them with `avo_keyed`: Android's empty, pure
   black display around the widget becomes transparent, so a panel has the
   widget's own shape. The panel sits just above the desktop's icons, or on
-  top (hover bar: move, keep on top, remove).
+  top. It is the widget alone, so it goes as high as any window; its bar
+  (move, keep on top, remove) is a child panel of its own that shows on
+  hover over the widget's top edge, or under it at the top of the screen.
+  The placeholder stays until a frame that is not all black
+  (`MetalRenderer.whenContentShown`): Android's display is empty until the
+  widget draws.
 - **Taps:** widget views are made with `MainDisplayContext`, which starts
   a tapped widget's PendingIntent on Android's own screen
   (`setLaunchDisplayId(0)`), where an app Avo knows gets its window at the
@@ -1258,8 +1270,13 @@ they update and take clicks as on a phone.
 - **Size:** a new panel takes whole launcher cells (80 × 100 dp, as a 4 × 5
   home screen), as many as the widget wants or its minimum takes; widgets
   often draw past their minimum, and what they leave empty is transparent.
-  Dragging an edge resizes the panel; at the end of the drag its display
-  takes the new size (a re-plug) and the widget lays out again.
+  Dragging an edge resizes the panel as the widget allows
+  (`PlacedWidget.panelSizeLimits`): a widget that resizes lays out again
+  for the new size (a re-plug at the end of the drag), within its resize
+  limits and along the ways it resizes only; one that does not (many games')
+  zooms in its own shape, 0.5–2.5 × (its display gets more pixels at a
+  higher density, the same layout in dp). The panel keeps its last frame
+  until Android has the new size.
 - **Limits:** each panel takes one of the 15 scanouts, and an open panel
   keeps Android from pausing when idle. Pure black inside a widget shows
   through.
