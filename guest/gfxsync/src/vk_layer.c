@@ -141,10 +141,48 @@ static int gles_max(void) {
 // once, like the version below.
 static bool the_image_exposes_es32;
 
+// Whether `name` appears in the first `size` bytes of `bytes`.
+static bool bytes_hold(const char* bytes, size_t size, const char* name, size_t length) {
+    if (size < length) return false;
+    for (size_t i = 0; i + length <= size; i++) {
+        if (bytes[i] == name[0] && memcmp(bytes + i, name, length) == 0) return true;
+    }
+    return false;
+}
+
+// Whether the ANGLE this image runs knows exposeES32ForTesting: its name is
+// in the renderer's own library, which a plain read settles for any image —
+// no list of builds to keep right (an ANGLE without the feature would
+// ignore the name while Android promised 3.2 contexts it cannot make). An
+// unreadable library says nothing either way: the daemon's word stands.
+static bool angle_knows_the_feature(const char* path) {
+    static const char name[] = "exposeES32ForTesting";
+    enum { READ = 65536 };
+    FILE* file = fopen(path, "rb");
+    if (!file) return true;
+    char buffer[READ + sizeof name];  // the tail carried over, then a read
+    size_t carried = 0;
+    bool known = false;
+    for (;;) {
+        size_t read = fread(buffer + carried, 1, READ, file);
+        if (bytes_hold(buffer, carried + read, name, sizeof name - 1)) {
+            known = true;
+            break;
+        }
+        if (read < READ && feof(file)) break;
+        // A name can straddle two reads: carry enough of this one along.
+        size_t keep = sizeof name - 1;
+        memmove(buffer, buffer + carried + read - keep, keep);
+        carried = keep;
+    }
+    fclose(file);
+    return known;
+}
+
 static void read_image_exposes_es32(void) {
     char value[PROP_VALUE_MAX];
     __system_property_get("debug.avo.gl.es32", value);
-    the_image_exposes_es32 = strcmp(value, "1") == 0;
+    the_image_exposes_es32 = strcmp(value, "1") == 0 && angle_knows_the_feature("/system/lib64/libGLESv2_angle.so");
 }
 
 static bool image_exposes_es32(void) {
