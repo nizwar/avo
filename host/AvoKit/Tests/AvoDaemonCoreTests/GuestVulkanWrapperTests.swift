@@ -195,8 +195,9 @@ import Testing
     }
 
     /// 3.2 rides in the identity file only when the image's ANGLE has
-    /// exposeES32ForTesting (Android 17's does; the 16's predates it, and
-    /// its ANGLE would ignore the name while Android promised 3.2).
+    /// exposeES32ForTesting (every image Avo offers today does; the sync
+    /// layer still checks the renderer library for itself in the guest, so
+    /// an image without it caps contexts without the promise holding).
     @Test func es3_2FollowsTheImage() {
         let markers: (AvoIdentity.Renderer) -> AvoIdentity.Markers = {
             AvoIdentity.Markers(version: "0.2.0", hostOS: "macOS 27.0.1", hostChip: "Apple M4 Pro", renderer: $0)

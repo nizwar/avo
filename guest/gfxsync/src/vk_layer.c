@@ -59,9 +59,9 @@
 //   app gets an ES 3.2 context, and one that asks for them finds their
 //   limits at zero (the constructor at "ES 3.2" below). Only when the
 //   image's ANGLE has the feature does the layer turn it on — the daemon
-//   says so in debug.avo.gl.es32; an ANGLE without it would ignore the name
-//   and Android would promise what it cannot make (the Android 16 image's
-//   ANGLE predates the feature, the 17's has it).
+//   says so in debug.avo.gl.es32, and the layer settles it for itself by
+//   reading the image's renderer library; an ANGLE without it would ignore
+//   the name and Android would promise what it cannot make.
 // - VK_EXT_custom_border_color, which the driver has not (Metal's samplers
 //   take one of six fixed border colours): the layer offers the extension
 //   to ANGLE alone and answers its features, and when ANGLE makes a
@@ -135,10 +135,11 @@ static int gles_max(void) {
 // MARK: ES 3.2
 
 // Whether this image's ANGLE knows exposeES32ForTesting: the daemon says so
-// in debug.avo.gl.es32, for it knows the image (an ANGLE that does not know
-// the name merely ignores it — the Android 16 image's ANGLE predates the
-// feature — and Android would promise 3.2 contexts it cannot make). Read
-// once, like the version below.
+// in debug.avo.gl.es32, and the layer settles it for itself by reading the
+// renderer's own library for the name — lists of builds have been wrong
+// before, and an ANGLE without the feature would ignore the name while
+// Android promised 3.2 contexts it cannot make. Read once, like the version
+// below.
 static bool the_image_exposes_es32;
 
 // Whether `name` appears in the first `size` bytes of `bytes`.
@@ -162,27 +163,35 @@ static bool angle_knows_the_feature(const char* path) {
     if (!file) return true;
     char buffer[READ + sizeof name];  // the tail carried over, then a read
     size_t carried = 0;
-    bool known = false;
+    bool known = false, inconclusive = false;
     for (;;) {
         size_t read = fread(buffer + carried, 1, READ, file);
         if (bytes_hold(buffer, carried + read, name, sizeof name - 1)) {
             known = true;
             break;
         }
-        if (read < READ && feof(file)) break;
+        if (read < READ) {
+            // The end, or a read that failed: an error settles nothing
+            // either way, no more than a library that will not open.
+            if (ferror(file)) inconclusive = true;
+            break;
+        }
         // A name can straddle two reads: carry enough of this one along.
         size_t keep = sizeof name - 1;
         memmove(buffer, buffer + carried + read - keep, keep);
         carried = keep;
     }
     fclose(file);
-    return known;
+    return known || inconclusive;
 }
 
 static void read_image_exposes_es32(void) {
     char value[PROP_VALUE_MAX];
     __system_property_get("debug.avo.gl.es32", value);
     the_image_exposes_es32 = strcmp(value, "1") == 0 && angle_knows_the_feature("/system/lib64/libGLESv2_angle.so");
+    if (strcmp(value, "1") == 0 && !the_image_exposes_es32) {
+        LOG("the daemon named OpenGL ES 3.2, but this image's ANGLE has not the feature; contexts stay at their own cap");
+    }
 }
 
 static bool image_exposes_es32(void) {
@@ -1297,8 +1306,10 @@ static void physical_features2(VkPhysicalDevice physical, VkPhysicalDeviceFeatur
         border = unlink_struct(features, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT);
     }
     next(physical, features);
-    relink(provoking);
+    // Backwards: both may have been taken from after the same node, and a
+    // forward relink of the second would drop the first out of the chain.
     relink(border);
+    relink(provoking);
     if (provoking.taken) {
         VkPhysicalDeviceProvokingVertexFeaturesEXT* out = (VkPhysicalDeviceProvokingVertexFeaturesEXT*)provoking.taken;
         out->provokingVertexLast = VK_TRUE;
@@ -1627,8 +1638,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical, co
         }
     }
     VkResult result = create(physical, &copy, allocator, out);
-    relink(features[0]);
+    // Backwards: both may hang after the same node (see physical_features2).
     relink(features[1]);
+    relink(features[0]);
     free(names);
     if (result != VK_SUCCESS) return result;
 

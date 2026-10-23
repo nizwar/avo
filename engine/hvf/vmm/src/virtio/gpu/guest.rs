@@ -22,10 +22,10 @@ pub fn graphics_bootconfig(mode: &GpuMode) -> Vec<(&'static str, &'static str)> 
         // both over the virtio-gpu ASG ring to the Mac's GPU. With client
         // composition SurfaceFlinger composes on the GPU too and the composer
         // only flips its target through KMS. GLES stays at 3.1 (196609):
-        // whether a start's ANGLE can expose 3.2 (exposeES32ForTesting; the
-        // Android 17 image's ANGLE has it, the 16's has not) is the daemon's
-        // to know, and it says so in the identity file with
-        // ro.opengles.version (VMMEngine.exposesES32).
+        // whether a start's ANGLE can expose 3.2 (exposeES32ForTesting) is
+        // the daemon's to say in the identity file with
+        // ro.opengles.version (VMMEngine.exposesES32) — and the layer
+        // checks the image's ANGLE for itself before honouring it.
         GpuMode::Gfxstream { hwc, .. } => {
             let mut keys = vec![
                 ("androidboot.cpuvulkan.version", "0"),

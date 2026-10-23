@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Tests src/frag_outputs.c on the Mac, against the MoltenVK the Android
-# emulator ships (what gfxstream runs guest Vulkan on). For each shader in
-# shaders/:
+# Tests the layer on the Mac: src/frag_outputs.c against the MoltenVK the
+# Android emulator ships (what gfxstream runs guest Vulkan on), for each
+# shader in shaders/, and the ES 3.2 pieces of src/vk_layer.c (the version
+# selector, the feature-override merge, the border colours, the ANGLE
+# capability read) under the sanitizers, with the blocks extracted from the
+# source itself. For each shader in shaders/:
 # - "unsplit fails": as it is, the shader makes no pipeline with one colour
 #   attachment (the MoltenVK bug the layer works around);
 # - "unchanged": the layer leaves the module alone;
@@ -66,6 +69,25 @@ for shader in "$HERE"/shaders/*.frag; do
     done < <(sed -n 's|^// expect \([0-9]*\): \(.*\)|\1 \2|p' "$shader")
     [ "$failures" -eq "$before" ] && echo "ok   $name"
 done
+
+if [ "$failures" -gt 0 ]; then
+    echo "$failures failed"
+    exit 1
+fi
+
+# The ES 3.2 pieces — one contiguous span of the layer, from the version
+# selector's mark to the loader's link structures — extracted verbatim and
+# run under ASan/UBSan: what is tested is what ships.
+{ echo '// Extracted from guest/gfxsync/src/vk_layer.c by run.sh. Do not edit.'
+  awk '/MARK: The GLES version Avo offers/{f=1} /The loader.s link structures/{f=0} f' "$HERE/../src/vk_layer.c"
+  awk '/^static atomic_flag border_rounded_logged/{exit} /^static VkBorderColor nearest_border_color/{f=1} f{print}' "$HERE/../src/vk_layer.c"
+} > "$OUT/es32_blocks.inc"
+# The extraction brings the layer's own statics the harness does not call.
+clang -std=c11 -g -fsanitize=address,undefined -Wall -Wextra -Wno-unused-function -Werror \
+    -idirafter "$SYSROOT/usr/include" -I"$OUT" -o "$OUT/es32_test" "$HERE/es32_test.c"
+HARNESS_SCRATCH="$OUT" HARNESS_GL_MAX="3.1" \
+HARNESS_OVERRIDES="mapUnspecifiedColorSpaceToPassThrough:preferDrawClearOverVkCmdClearAttachments" \
+    "$OUT/es32_test" || failures=$((failures + 1))
 
 if [ "$failures" -gt 0 ]; then
     echo "$failures failed"
