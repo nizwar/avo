@@ -195,7 +195,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// buttons on the lights' middle (Run in Background's light in their
     /// row); the trailing side as wide as its buttons, with room kept for the
     /// fingerprint, which then shows without moving the rest; the leading
-    /// side, with the app's name, all the width left between them.
+    /// side, with the app's name, the width left between them, at most its
+    /// buttons and the whole name.
     private func fitTitlebar() {
         guard let window, let close = window.standardWindowButton(.closeButton), let bar = close.superview else { return }
         let middle = bar.isFlipped ? close.frame.midY - bar.bounds.midY : bar.bounds.midY - close.frame.midY
@@ -209,16 +210,20 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         titleLabel.isHidden = true
         let least = leadingButtons.fittingSize.width + 10
         titleLabel.isHidden = false
+        let most = leadingButtons.fittingSize.width + 10
         // The leading side starts where AppKit put it, after the green light:
-        // the side's own place, not its container's. In full screen the
-        // container starts at the bar's edge and the side 78 points in, so
-        // the side reached that far over the trailing one and took the
-        // clicks of its first button (Game Controls).
+        // the side's own place, not its container's. Entering full screen,
+        // this runs as the bar takes the screen's width, before AppKit moves
+        // the side in after the lights (78 points): stretched to the width
+        // left, the side then reached over the trailing one and its
+        // container took the clicks of the first button there (Game
+        // Controls). Past its buttons and the name it covers nothing.
         let leading = leadingTitlebarButtons.view
         let start = leading.window === bar.window ? leading.convert(leading.bounds, to: bar).minX
             : (window.standardWindowButton(.zoomButton) ?? close).frame.maxX + 9
         titlebarButtons.view.setFrameSize(NSSize(width: trailing, height: height))
-        leadingTitlebarButtons.view.setFrameSize(NSSize(width: max(least, bar.bounds.width - start - trailing - 8), height: height))
+        leadingTitlebarButtons.view.setFrameSize(NSSize(width: max(least, min(most, bar.bounds.width - start - trailing - 8)),
+                                                        height: height))
     }
 
     /// The app bar style changed (the Control Panel's, or this app's own):
@@ -290,6 +295,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     func showActivityTitle(_ title: String) {
         window?.subtitle = title
         titleLabel.show(title: window?.title ?? "", activity: title)
+        // The leading side is as wide as the name, at most.
+        fitTitlebar()
     }
 
     /// This app's page in the Control Panel, with everything Quick Settings
@@ -933,6 +940,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     private func showBars(_ shown: Bool) {
         guard let window, window.styleMask.contains(.fullScreen) else { return }
         barsShown = shown
+        // The bar's window has its full-screen layout by now.
+        if shown { fitTitlebar() }
         NSApp.presentationOptions = shown ? Self.barsShown : Self.barsHidden
         fullScreenTitlebar?.ignoresMouseEvents = !shown
         fullScreenTitlebar?.alphaValue = shown ? 1 : 0
@@ -990,6 +999,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
 
     func windowDidEnterFullScreen(_ notification: Notification) {
         fullScreenTransitionEnded()
+        fitTitlebar()
         showBars(false)
         watchFullScreenPointer(true)
     }
