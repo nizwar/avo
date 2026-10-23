@@ -48,17 +48,12 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<!-- Avo's own updates (Sparkle; Avo/AppUpdater.swift, docs/releasing.md).
-	     SUFeedURL: where the appcast is published. The .invalid placeholder
-	     can never resolve: until it is replaced with the real feed, Avo does
-	     not start its updater and Settings › About says this build has no
-	     update feed. SUPublicEDKey: the public half of the EdDSA key that
-	     signs every update (generate_keys keeps the private half in the
-	     release Mac's login Keychain). Never change or remove it: installed
-	     copies accept only updates signed with this key. -->
-	<key>SUFeedURL</key>
-	<string>https://updates.avo.invalid/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>W/SKL81r8nkZRC+f1CYNMK2uhNWWWbRmHhHFarxIG9M=</string>
+		     Avo reads its own GitHub releases and builds Sparkle's appcast from
+		     them, so there is no appcast to host and no feed in this file
+		     (AppUpdater provides it through feedURLString). The DMGs are
+		     notarized and Developer ID signed, which Sparkle checks a download
+		     against the running app with, in place of an EdDSA signature (none
+		     on GitHub's assets); updates run only in a Developer ID build. -->
 	<!-- On by default, without Sparkle's own question at the second launch;
 	     Settings › About turns it off. Once a day. -->
 	<key>SUEnableAutomaticChecks</key>
