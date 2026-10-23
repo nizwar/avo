@@ -7,11 +7,13 @@ import Foundation
 /// it does not pass hardware attestation; Avo still states what it is
 /// (`ro.boot.avo.*`, `com.avodroid.feature.MAC`), whichever profile is chosen.
 ///
-/// The parts reach Android three ways: SoC facts as read-only properties
+/// The parts reach Android four ways: SoC facts as read-only properties
 /// (`ro.soc.*`, `ro.board.platform`, `Build.BOARD`, vendor keys), the GPU
 /// through Avo's GLES and Vulkan layers (`debug.avo.gl.*` and
-/// `debug.avo.vk.*`, installed by `GuestGPUProfile`), and the CPU from the
-/// engine (MIDR and the cpufreq tables, so `/proc/cpuinfo` and `/sys` agree).
+/// `debug.avo.vk.*`, installed by `GuestGPUProfile`), the CPU and the
+/// hardware name from the engine (MIDR and the cpufreq tables, so
+/// `/proc/cpuinfo` and `/sys` agree; `Build.HARDWARE`), and the memory as
+/// the RAM Android gets (`VMConfig.androidMemoryMiB`).
 /// The names and IDs
 /// change; abilities (ABI, API level, extensions, limits) stay the real
 /// hardware's, because changing them would stop apps loading or break drivers.
@@ -19,11 +21,17 @@ public struct DeviceHardware: Codable, Equatable, Sendable {
     public var soc: SoC?
     public var cpu: CPU?
     public var gpu: GPU?
+    /// The phone's RAM in GB, as sold (e.g. 12). Android gets that much while
+    /// the hardware is emulated, as far as the Mac allows
+    /// (`VMConfig.androidMemoryMiB`), so `/proc/meminfo` and
+    /// `ActivityManager.MemoryInfo.totalMem` are the phone's size.
+    public var memoryGB: Int?
 
-    public init(soc: SoC? = nil, cpu: CPU? = nil, gpu: GPU? = nil) {
+    public init(soc: SoC? = nil, cpu: CPU? = nil, gpu: GPU? = nil, memoryGB: Int? = nil) {
         self.soc = soc
         self.cpu = cpu
         self.gpu = gpu
+        self.memoryGB = memoryGB
     }
 
     /// The system-on-chip an app reads from `Build` and `getprop`.
@@ -37,6 +45,11 @@ public struct DeviceHardware: Codable, Equatable, Sendable {
         public var platform: String?
         /// `ro.product.board` / `Build.BOARD` (e.g. "pineapple", "kalama").
         public var board: String?
+        /// `ro.hardware` / `Build.HARDWARE`, what `getprop ro.hardware`
+        /// says on the phone: "qcom" on every Snapdragon phone, the platform
+        /// on MediaTek and Exynos ones ("mt6789", "s5e8835"), the codename
+        /// on a Pixel ("husky"). Without it, `buildHardware` derives it.
+        public var hardware: String?
         /// Extra read-only properties a chipset is known by, for the long tail
         /// of vendor checks: `ro.vendor.*`, `ro.board.*`, `ro.mediatek.*`,
         /// `ro.chipname`, `ro.hardware.chipname` only (validated). Never driver
@@ -44,14 +57,33 @@ public struct DeviceHardware: Codable, Equatable, Sendable {
         public var properties: [String: String]?
 
         public init(manufacturer: String, model: String, platform: String? = nil,
-                    board: String? = nil, properties: [String: String]? = nil) {
+                    board: String? = nil, hardware: String? = nil, properties: [String: String]? = nil) {
             self.manufacturer = manufacturer
             self.model = model
             self.platform = platform
             self.board = board
+            self.hardware = hardware
             self.properties = properties
         }
+
+        /// The `Build.HARDWARE` avo-vmm presents (`--hardware`): `hardware`,
+        /// else "qcom" for a Qualcomm SoC, else the platform codename. Nil
+        /// when none of them is a name Android can boot with.
+        public var buildHardware: String? {
+            let name = hardware ?? (manufacturer == "QTI" ? "qcom" : platform)
+            return name.flatMap { DeviceHardware.isHardwareName($0) ? $0 : nil }
+        }
     }
+
+    /// A name `ro.hardware` can hold that avo-vmm accepts: 1-32 of a-z, 0-9,
+    /// `_` and `-` (init imports `init.${ro.hardware}.rc`).
+    public static func isHardwareName(_ name: String) -> Bool {
+        (1...32).contains(name.utf8.count)
+            && name.utf8.allSatisfy { (0x61...0x7a).contains($0) || (0x30...0x39).contains($0) || $0 == 0x5f || $0 == 0x2d }
+    }
+
+    /// The range a profile's `memoryGB` may say (phones sell 1 to 24 GB).
+    static let memoryGBRange = 1...64
 
     /// The CPU: each cluster's core model (an ARM MIDR) and count, and the
     /// per-cluster frequencies. The engine presents these (avo-vmm
@@ -284,6 +316,9 @@ public struct DeviceHardware: Codable, Equatable, Sendable {
         if let soc {
             if soc.manufacturer.trimmingCharacters(in: .whitespaces).isEmpty { problems.append("soc.manufacturer is empty") }
             if soc.model.trimmingCharacters(in: .whitespaces).isEmpty { problems.append("soc.model is empty") }
+            if let hardware = soc.hardware, !Self.isHardwareName(hardware) {
+                problems.append("soc.hardware must be 1-32 of a-z, 0-9, _ and -")
+            }
             for (key, value) in (soc.properties ?? [:]).sorted(by: { $0.key < $1.key }) {
                 let allowed = (Self.socPropertyKeys.contains(key) || Self.socPropertyPrefixes.contains(where: key.hasPrefix))
                     && !Self.socPropertyDeniedWords.contains(where: key.contains)
@@ -292,6 +327,9 @@ public struct DeviceHardware: Codable, Equatable, Sendable {
                 }
                 if value.contains(where: \.isNewline) { problems.append("soc.properties \(key) contains a newline") }
             }
+        }
+        if let memoryGB, !Self.memoryGBRange.contains(memoryGB) {
+            problems.append("memoryGB out of range")
         }
         if let cpu {
             if cpu.clusters.isEmpty { problems.append("cpu has no clusters") }

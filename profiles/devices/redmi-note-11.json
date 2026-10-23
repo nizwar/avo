@@ -59,7 +59,8 @@
       "vkDriverID": 8,
       "vkDriverName": "Qualcomm Technologies Inc. Adreno Vulkan Driver",
       "vkDriverInfo": "Driver Build: 0415.0"
-    }
+    },
+    "memoryGB": 4
   },
   "notes": "Community-maintained template. Values follow the device's stock build.prop and GPU driver strings; verify them against a current firmware dump before relying on them in a pull request. The hardware block is used only when \"Emulate this phone's hardware\" is on. The CPU block uses Qualcomm's own MIDRs for the Kryo 265 cores (Silver: implementer 0x51, part 0x801, r10p4; Gold: part 0x800, r10p2), as the Kryo 260 family reports them, not the Cortex-A53 and A73 they derive from."
 }

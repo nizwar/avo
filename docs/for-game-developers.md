@@ -166,7 +166,9 @@ adb shell pm list features | grep avo     # feature:com.avodroid.feature.MAC=1
 - `Build.BOARD` `cutf`, `Build.HARDWARE` `cutf_cvm` and `Build.SOC_MANUFACTURER`
   / `SOC_MODEL` `Google` / `vsoc_arm64_only` describe Cuttlefish's virtual
   hardware, which is what Android really runs on. The Mac's chip is in
-  `ro.boot.avo.host.chip`.
+  `ro.boot.avo.host.chip`. With "Emulate this phone's hardware" on, these,
+  the CPU, the GPU strings and the memory are the chosen phone's instead
+  (`profiles/devices/README.md`); the `ro.boot.avo.*` markers stay.
 - Avo ships no Google apps. Users may install a Google apps package
   themselves and register the device at Google's page for uncertified
   devices. Play Integrity's device integrity verdict fails on Avo, and keys

@@ -36,6 +36,25 @@ let macMini8 = HostInfo(physicalMemoryBytes: 8 << 30, performanceCores: 4, effic
         #expect(config.validate(previous: nil, host: macStudio64).contains { $0.field == "memoryMiB" && $0.severity == .error })
     }
 
+    /// "Emulate this phone's hardware": Android gets the phone's RAM, as far
+    /// as the Mac and Avo's range allow; otherwise the configured amount.
+    @Test func emulatedPhoneBringsItsMemory() {
+        func phone(_ gb: Int?) -> DeviceProfile {
+            DeviceProfile(id: "p", name: "P", properties: [:], hardware: DeviceHardware(memoryGB: gb))
+        }
+        var config = VMConfig()
+        config.memoryMiB = 8192
+        #expect(config.androidMemoryMiB(profile: phone(12), host: macStudio64) == 8192, "off: the setting")
+        config.emulateHardware = true
+        #expect(config.androidMemoryMiB(profile: phone(12), host: macStudio64) == 12288)
+        #expect(config.androidMemoryMiB(profile: phone(3), host: macStudio64) == 3072, "a small phone stays small")
+        #expect(config.androidMemoryMiB(profile: phone(12), host: macMini8) == 4096, "the Mac's limit")
+        #expect(config.androidMemoryMiB(profile: phone(24), host: macStudio64) == 16384, "Avo's limit")
+        #expect(config.androidMemoryMiB(profile: phone(1), host: macStudio64) == 2048, "Avo's floor")
+        #expect(config.androidMemoryMiB(profile: phone(nil), host: macStudio64) == 8192, "no memory in the profile")
+        #expect(config.androidMemoryMiB(profile: nil, host: macStudio64) == 8192)
+    }
+
     @Test func rejectsMoreMemoryThanTheMacCanSpare() {
         var config = VMConfig()
         config.memoryMiB = 8192

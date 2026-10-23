@@ -140,7 +140,8 @@ struct StatusPill: View {
             parts.append(renderer.mode == .gpu ? "GPU" : String(localized: "Software"))
             if renderer.mode == .gpu, let device = renderer.detail, !device.isEmpty { parts.append(device) }
         }
-        if let memory = model.config?.memoryMiB {
+        if let config = model.config {
+            let memory = config.androidMemoryMiB(profile: model.profiles.first { $0.id == config.deviceProfileID }, host: model.host)
             let gigabytes = (Double(memory) / 1024).formatted(.number.precision(.fractionLength(0...1)))
             parts.append(String(localized: "\(gigabytes) GB memory"))
         }

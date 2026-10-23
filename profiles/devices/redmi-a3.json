@@ -49,7 +49,8 @@
       "vkDriverID": 6,
       "vkDriverName": "Imagination proprietary driver",
       "vkDriverInfo": "1.17"
-    }
+    },
+    "memoryGB": 3
   },
   "notes": "Community-maintained template. Values follow the device's stock build.prop and GPU driver strings; verify them against a current firmware dump before relying on them in a pull request. The hardware block is used only when \"Emulate this phone's hardware\" is on."
 }

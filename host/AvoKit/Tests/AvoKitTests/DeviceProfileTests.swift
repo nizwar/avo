@@ -183,6 +183,42 @@ import Testing
         }
     }
 
+    /// `Build.HARDWARE` as on the phone: "qcom" on every Snapdragon, the
+    /// platform on MediaTek and Exynos, the codename a profile names (Pixels).
+    @Test func hardwareNameFollowsThePhone() {
+        typealias SoC = DeviceHardware.SoC
+        #expect(SoC(manufacturer: "QTI", model: "SM8650", platform: "pineapple").buildHardware == "qcom")
+        #expect(SoC(manufacturer: "Mediatek", model: "MT6789", platform: "mt6789").buildHardware == "mt6789")
+        #expect(SoC(manufacturer: "Google", model: "Tensor G3", platform: "zuma", hardware: "husky").buildHardware == "husky")
+        #expect(SoC(manufacturer: "Samsung", model: "s5e8835").buildHardware == nil, "no platform, nothing to say")
+        // Only names Android boots with (avo-vmm checks the same).
+        #expect(SoC(manufacturer: "X", model: "Y", platform: "Bad Name").buildHardware == nil)
+        #expect(DeviceHardware.isHardwareName("ums9230_4h10"))
+        for bad in ["", "QCOM", "../qcom", "qcom\"", String(repeating: "a", count: 33)] {
+            #expect(!DeviceHardware.isHardwareName(bad), "\(bad)")
+        }
+        let wrong = DeviceHardware(soc: SoC(manufacturer: "QTI", model: "SM8650", hardware: "Qcom"))
+        #expect(wrong.validate() == ["soc.hardware must be 1-32 of a-z, 0-9, _ and -"])
+        #expect(DeviceHardware(memoryGB: 0).validate() == ["memoryGB out of range"])
+        #expect(DeviceHardware(memoryGB: 12).validate().isEmpty)
+        #expect(DeviceProfile(id: "m", name: "M", properties: [:], hardware: DeviceHardware(memoryGB: 8)).hasHardware)
+    }
+
+    /// Every phone says its hardware name and memory, so emulation presents
+    /// both: no repository phone keeps the image's `cutf_cvm` or Avo's RAM.
+    @Test func everyRepositoryPhoneHasAHardwareNameAndMemory() throws {
+        let catalog = try DeviceProfileCatalog(directory: Self.repoProfiles)
+        for profile in catalog.profiles.filter(\.hasHardware) {
+            #expect(profile.hardware?.soc?.buildHardware != nil, "\(profile.id)")
+            #expect(profile.hardware?.memoryGB != nil, "\(profile.id)")
+        }
+        let rog = try #require(catalog.profile(id: "asus-rog-phone-8")?.hardware)
+        #expect(rog.soc?.buildHardware == "qcom")
+        #expect(rog.memoryGB == 12)
+        // The Snapdragon 8 Gen 3: 2× A520, 2× A720 at 2.96 GHz, 3× at 3.15, 1× X4.
+        #expect(rog.cpu?.fitted(to: 8).clusters.map(\.cores) == [2, 2, 3, 1])
+    }
+
     @Test func emulationAddsHardwarePropertiesButIdentityWins() {
         let gpu = DeviceHardware.GPU(glVendor: "Qualcomm", glRenderer: "Adreno (TM) 750",
                                      vkName: "Adreno (TM) 750", vkVendorID: 0x5143, vkDriverID: 8)

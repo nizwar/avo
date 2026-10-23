@@ -580,6 +580,19 @@ The daemon fits the phone to Android's cores
 clusters, more grow its slowest, and Android numbers them from the slowest,
 as phones do.
 
+The phone's hardware name (`hardware.soc.hardware`, else `qcom` for a
+Snapdragon and the platform otherwise) is the engine's too (`--hardware`):
+avo-vmm puts it in the bootconfig as `androidboot.hardware`, which init keeps
+as `ro.boot.hardware` and `ro.hardware` (`Build.HARDWARE`). Nothing of
+Cuttlefish's goes by that name: its vendor script is loaded from
+`/vendor/etc/init` whatever it is called, its drivers are named by their own
+keys (`androidboot.hardware.egl`, `.gralloc`, `.vulkan`, `.hwcomposer`) and
+the image has no HAL module named after the hardware; init only notes that
+`/init.qcom.rc` and `/vendor/etc/init/hw/init.qcom.rc` do not exist, as it
+did for `cutf_cvm`. A boot with `qcom` starts the same services as one
+without. The phone's memory (`hardware.memoryGB`) is `--mem`
+(`VMConfig.androidMemoryMiB`).
+
 A faked MIDR also selects the guest kernel's errata workarounds, which are
 pure cost on a Mac core. Most are for KVM, AArch32 or tracing, or cheap (the
 TLB invalidation on every return to user space for the Cortex-A510 and A520).

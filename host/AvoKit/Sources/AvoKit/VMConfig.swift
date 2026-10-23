@@ -235,6 +235,15 @@ public struct VMConfig: Codable, Equatable, Sendable {
 
     private static func roundDown(_ value: Int, to step: Int) -> Int { value / step * step }
 
+    /// The RAM Android gets: `memoryMiB`, or while "Emulate this phone's
+    /// hardware" is on, the phone's own (`DeviceHardware.memoryGB`), as far
+    /// as the Mac and Avo's range allow, so the phone's memory checks see its size.
+    public func androidMemoryMiB(profile: DeviceProfile?, host: HostInfo) -> Int {
+        guard emulateHardware, let gb = profile?.hardware?.memoryGB else { return memoryMiB }
+        let most = max(min(host.maxGuestMemoryMiB, Self.memoryRangeMiB.upperBound), Self.memoryRangeMiB.lowerBound)
+        return min(max(gb * 1024, Self.memoryRangeMiB.lowerBound), most)
+    }
+
     /// A cap Android can run at: 30, or a display rate from 60 to 120 Hz.
     public static func isSupportedFPS(_ fps: Int) -> Bool {
         fps == fpsChoices[0] || (FrameRates.standardRate...FrameRates.maximumRate).contains(fps)

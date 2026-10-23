@@ -29,4 +29,30 @@ import Testing
         config.cpuCount = 4
         #expect(arguments().suffix(2) == ["--cpu-clusters", "2x513f0011@384000-3532800,2x514f0011@1017600-4320000"])
     }
+
+    /// On, avo-vmm also gets the phone's hardware name (`Build.HARDWARE`)
+    /// and Android the phone's memory; off, the image's name and the setting.
+    @Test func emulationPresentsThePhonesNameAndMemory() {
+        let paths = AvoPaths(home: URL(filePath: "/Users/u"), temporaryDirectory: URL(filePath: "/tmp/T"))
+        let image = CuttlefishImage.androidImage(at: URL(filePath: "/img"))
+        let host = HostInfo(physicalMemoryBytes: 32 << 30, performanceCores: 8, efficiencyCores: 4, isAppleSilicon: true, macOSVersion: "27.0")
+        let soc = DeviceHardware.SoC(manufacturer: "QTI", model: "SM8650", platform: "pineapple")
+        let phone = DeviceProfile(id: "p", name: "P", properties: [:], hardware: DeviceHardware(soc: soc, memoryGB: 12))
+        var config = VMConfig()
+        config.memoryMiB = 8192
+        func arguments() -> [String] {
+            VMMEngine.arguments(images: URL(filePath: "/img"),
+                                launch: EngineLaunch(config: config, paths: paths, image: image, bootConfigDisk: URL(filePath: "/c"), profile: phone),
+                                host: host)
+        }
+        func value(_ flag: String) -> String? {
+            let args = arguments()
+            return args.firstIndex(of: flag).map { args[$0 + 1] }
+        }
+        #expect(value("--hardware") == nil)
+        #expect(value("--mem") == "8192")
+        config.emulateHardware = true
+        #expect(value("--hardware") == "qcom")
+        #expect(value("--mem") == "12288")
+    }
 }

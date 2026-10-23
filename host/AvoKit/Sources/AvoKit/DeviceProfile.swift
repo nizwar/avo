@@ -117,10 +117,10 @@ public struct DeviceProfile: Codable, Identifiable, Equatable, Sendable {
         self.notes = notes
     }
 
-    /// Whether this profile has hardware to emulate (any of SoC, CPU, GPU).
+    /// Whether this profile has hardware to emulate (any of SoC, CPU, GPU, memory).
     public var hasHardware: Bool {
         guard let hardware else { return false }
-        return hardware.soc != nil || hardware.cpu != nil || !(hardware.gpu?.isEmpty ?? true)
+        return hardware.soc != nil || hardware.cpu != nil || !(hardware.gpu?.isEmpty ?? true) || hardware.memoryGB != nil
     }
 
     /// The identity properties, plus the hardware ones when `emulateHardware`

@@ -71,6 +71,7 @@
       "vkDriverID": 8,
       "vkDriverName": "Qualcomm Technologies Inc. Adreno Vulkan Driver",
       "vkDriverInfo": "Driver Build: 512.762.11"
-    }
+    },
+    "memoryGB": 12
   }
 }

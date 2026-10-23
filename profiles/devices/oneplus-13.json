@@ -59,7 +59,8 @@
       "vkDriverID": 8,
       "vkDriverName": "Qualcomm Technologies Inc. Adreno Vulkan Driver",
       "vkDriverInfo": "Driver Build: 0831.4"
-    }
+    },
+    "memoryGB": 12
   },
   "notes": "Community-maintained template. Values follow the device's stock build.prop and GPU driver strings; verify them against a current firmware dump before relying on them in a pull request. The hardware block is used only when \"Emulate this phone's hardware\" is on. The CPU block is the Snapdragon 8 Elite's: six Oryon Phoenix M cores (policy0, 384 MHz to 3.53 GHz) and two Phoenix L (policy6, 1.02 to 4.32 GHz), as a OnePlus 13 reports its cpufreq policies. Oryon's MIDR part is 0x001 (implementer 0x51, as Linux's cpuinfo libraries read it); the variants 3 and 4 follow Qualcomm's Oryon device-tree compatibles (qcom,oryon-1-3 and -1-4) and were not read from a phone."
 }

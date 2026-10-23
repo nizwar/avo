@@ -120,7 +120,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     /// A reboot from inside Android (Restart, `adb reboot`) ends avo-vmm, and
     /// the daemon starts Android again: its start prepares every boot.
     public static func arguments(images: URL, launch: EngineLaunch, gpu: GPUPlan = .software(.chosen, nil),
-                                 bluetooth: URL? = nil, initBoot: URL? = nil) -> [String] {
+                                 bluetooth: URL? = nil, initBoot: URL? = nil, host: HostInfo = .current()) -> [String] {
         let config = launch.config
         let paths = launch.paths
         var gpuFlags: [String] = []
@@ -135,7 +135,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
                 "--runtime", paths.runtime.path,
                 "--userdata", paths.dataDisk.path] + disks + [
                 "--cpus", "\(config.cpuCount)",
-                "--mem", "\(config.memoryMiB)",
+                "--mem", "\(config.androidMemoryMiB(profile: launch.profile, host: host))",
                 "--display", "\(launch.androidScreen.width)x\(launch.androidScreen.height)",
                 "--density", "\(launch.androidScreen.dpi)",
                 "--properties", identityFile(paths).path,
@@ -144,7 +144,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
                 + (initBoot.map { ["--init-boot", $0.path] } ?? [])
                 + config.cameraFlags
                 + (config.microphoneEnabled ? [] : ["--no-microphone"])
-                + cpuFlags(launch)
+                + cpuFlags(launch) + hardwareFlags(launch)
     }
 
     /// "Emulate this phone's hardware": the profile's CPU for Android's
@@ -154,6 +154,13 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         guard launch.config.emulateHardware, let cpu = launch.profile?.hardware?.cpu,
               let clusters = cpu.engineClusters(vcpus: launch.config.cpuCount) else { return [] }
         return ["--cpu-clusters", clusters]
+    }
+
+    /// "Emulate this phone's hardware": the phone's `Build.HARDWARE` ("qcom"
+    /// on a Snapdragon) in place of the image's `cutf_cvm`. Otherwise none.
+    static func hardwareFlags(_ launch: EngineLaunch) -> [String] {
+        guard launch.config.emulateHardware, let name = launch.profile?.hardware?.soc?.buildHardware else { return [] }
+        return ["--hardware", name]
     }
 
     /// Display 0's refresh rate, which every app display gets too (HostAgent):

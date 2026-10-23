@@ -96,6 +96,14 @@ struct PerformancePane: View {
                     HelpTitle("Memory", help: "Applies after Android restarts. This Mac has \(host.performanceCores) performance cores and \(host.physicalMemoryBytes / 1_073_741_824) GB of memory.")
                 }
                 IssueText(field: "memoryMiB")
+                // The phone's own memory wins while its hardware is emulated.
+                if let profile = model.profiles.first(where: { $0.id == config.deviceProfileID }),
+                   config.emulateHardware, let phoneGB = profile.hardware?.memoryGB {
+                    let gigabytes = DeviceSpecCard.gigabytes(config.androidMemoryMiB(profile: profile, host: host))
+                    RestartNote(text: phoneGB * 1024 == config.androidMemoryMiB(profile: profile, host: host)
+                        ? "While “Emulate this phone’s hardware” is on, Android gets the \(profile.name)’s \(gigabytes) GB instead."
+                        : "While “Emulate this phone’s hardware” is on, Android gets \(gigabytes) GB, the most this Mac allows of the \(profile.name)’s \(phoneGB) GB.")
+                }
                 LabeledContent {
                     HazeStepper(value: Binding(get: { config.cpuCount }, set: { value in model.update { $0.cpuCount = value } }),
                                 range: 1...host.totalCores) {
@@ -460,12 +468,13 @@ struct SystemPane: View {
                     Toggle(isOn: Binding(get: { config.emulateHardware },
                                          set: { value in model.update { $0.emulateHardware = value } })) {
                         HelpTitle("Emulate this phone’s hardware") {
-                            Text("For development: apps read this phone’s SoC, CPU, GPU and screen, so a build’s per-device code paths (a chipset or brand check) run as they would on the real phone.")
+                            Text("For development: apps read this phone’s SoC, hardware name, CPU, GPU, memory and screen, so a build’s per-device code paths (a chipset or brand check) run as they would on the real phone. Android gets the phone’s memory while it is on.")
                             Text("Names and IDs change; abilities (ABI, API level, GPU features) stay this Mac’s. It does not pass hardware attestation, and Avo still identifies itself. Applies after Android restarts.")
                         }
                     }
                     if config.emulateHardware, let hardware = profile.hardware {
-                        DeviceSpecCard(hardware: hardware, display: profile.display, vcpus: config.cpuCount)
+                        DeviceSpecCard(hardware: hardware, display: profile.display, vcpus: config.cpuCount,
+                                       androidMemoryMiB: config.androidMemoryMiB(profile: profile, host: model.host))
                             .hazeRowNote()
                     }
                 }

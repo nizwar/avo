@@ -28,7 +28,7 @@ chosen, Avo still identifies itself to apps that check for it (the
   "hardware": {
     "soc": {
       "manufacturer": "QTI", "model": "SM8650",
-      "platform": "pineapple", "board": "pineapple",
+      "platform": "pineapple", "board": "pineapple", "hardware": "qcom",
       "properties": { "ro.vendor.qti.soc_model": "SM8650" }
     },
     "cpu": { "clusters": [
@@ -41,7 +41,8 @@ chosen, Avo still identifies itself to apps that check for it (the
       "glVendor": "Qualcomm", "glRenderer": "Adreno (TM) 750",
       "vkName": "Adreno (TM) 750", "vkVendorID": 20803, "vkDriverID": 8,
       "vkDriverName": "Qualcomm Technologies Inc. Adreno Vulkan Driver"
-    }
+    },
+    "memoryGB": 12
   }
 }
 ```
@@ -56,7 +57,7 @@ device. Like the identity, it does not pass hardware attestation, and Avo
 still identifies itself. Without the checkbox (and for Avo's honest identity,
 which has none), the profile changes only the device's name.
 
-It reaches apps three ways, covering how apps actually read the hardware:
+It reaches apps these ways, covering how apps actually read the hardware:
 
 - **SoC** — read-only properties applied at boot: `ro.soc.manufacturer` /
   `ro.soc.model` (`Build.SOC_MANUFACTURER` / `SOC_MODEL`), `ro.board.platform`
@@ -66,11 +67,25 @@ It reaches apps three ways, covering how apps actually read the hardware:
   `ro.mediatek.*` for Dimensity). `soc.properties` accepts only `ro.vendor.*`,
   `ro.board.*`, `ro.mediatek.*`, `ro.chipname` and `ro.hardware.chipname`, and
   never an API level, ABI or security key.
+- **Hardware name** — `soc.hardware` is `ro.hardware` / `Build.HARDWARE`, what
+  `getprop ro.hardware` says on the phone: `qcom` on every Snapdragon phone,
+  the platform on MediaTek and Exynos ones (`mt6789`, `s5e8835`), the
+  codename on a Pixel (`husky`). Left out, it is `qcom` for a `QTI` SoC and
+  `platform` otherwise. The engine boots Android with it
+  (`androidboot.hardware`, avo-vmm `--hardware`) in place of the image's
+  `cutf_cvm`; Cuttlefish's drivers are picked by their own keys
+  (`ro.hardware.egl`, `.gralloc`, `.vulkan`, ...), so they are unchanged.
+  1–32 of `a-z`, `0-9`, `_` and `-`.
 - **GPU** — Avo's GLES and Vulkan layers (`GuestGPUProfile`) answer an app's
   own `glGetString` and `vkGetPhysicalDeviceProperties(2)` with these values.
   `implementer`/`part` are decimal here (`65` = `0x41` ARM); `vkVendorID`,
   `vkDeviceID`, `vkDriverVersion` are numbers too (`20803` = `0x5143`
   Qualcomm). `vkDriverID` is a `VkDriverId` (`8` Qualcomm, `9` ARM).
+- **Memory** — `memoryGB` is the phone's RAM as sold (the base model's when
+  it comes in several sizes). Android gets that much while the checkbox is
+  on, in place of Settings › Performance › Memory, as far as the Mac allows
+  (2–16 GB, leaving macOS its share; the Control Panel says when it is
+  less), so `/proc/meminfo` and an app's memory checks see the phone.
 - **CPU** — each cluster's core model (an ARM MIDR: `implementer`, `part`,
   and optionally `variant` and `revision`) and count, and the per-cluster
   `maxFreqKHz` / `minFreqKHz` (300 MHz when left out). The engine presents
@@ -86,8 +101,9 @@ It reaches apps three ways, covering how apps actually read the hardware:
   (r0p0–r0p2) is presented as r0p4.
 
 What stays this Mac's, by design (changing it would break apps or drivers, and
-it is honest): `ro.hardware` and the HALs, the ABI list and API level, and the
-GPU's real abilities (extensions, limits, Vulkan version). An app that gates a
+it is honest): the HALs and driver keys (`ro.hardware.*`), the ABI list and
+API level, and the GPU's real abilities (extensions, limits, Vulkan version,
+and the GLES version in `GL_VERSION`). An app that gates a
 path on a Qualcomm-only `.so` or HAL therefore still takes the fallback path —
 which is itself the useful signal for a developer.
 
@@ -114,7 +130,8 @@ Rules enforced by `DeviceProfile.validate()` (AvoKit) and CI:
   branding.
 - `hardware` is optional and validated too: `soc.manufacturer`/`model` are
   required when `soc` is present, `soc.properties` is limited to the prefixes
-  above, and CPU core counts and frequencies must be sane.
+  above, `soc.hardware` to a hardware name, `memoryGB` to 1–64, and CPU core
+  counts and frequencies must be sane.
 
 The templates span the common chipset families, so a build can be tested
 against each GPU and SoC vendor: Qualcomm Snapdragon (Adreno), MediaTek
