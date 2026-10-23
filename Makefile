@@ -10,7 +10,7 @@ help:
 	@echo "make build    build Avo.app (Debug) into $(DERIVED)"
 	@echo "make strings  update the String Catalogs from the last build"
 	@echo "make agent    build the Bridge Agent APK (Android SDK + NDK)"
-	@echo "make helpers  rebuild the guest helpers embedded in the daemon (clipboard, links, macstate, fingerprint, gpuprofile, gfxsync)"
+	@echo "make helpers  rebuild the guest helpers embedded in the daemon (clipboard, links, macstate, fingerprint, gpuprofile, gfxsync, widgets)"
 	@echo "make gfxstream  build the GPU renderer Avo.app ships (gfxstream, Vulkan loader, MoltenVK) into build/gfxstream"
 	@echo "make proto    regenerate protocol bindings"
 	@echo "make icons    regenerate brand assets"
@@ -37,6 +37,7 @@ helpers:
 	guest/fingerprint/build.sh
 	guest/gpuprofile/build.sh
 	guest/gfxsync/build.sh
+	guest/widgets/build.sh
 
 gfxstream:
 	scripts/build-gfxstream.sh
