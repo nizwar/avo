@@ -1572,7 +1572,9 @@ q {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  /* Horizontal padding clears the corner radius, so the end icons (the Avo
+     app icon especially) sit on the dock's straight edge, not in the curve. */
+  padding: 12px 22px;
   border-radius: 22px;
   background: rgba(8, 13, 7, 0.55);
 }
@@ -2899,7 +2901,8 @@ html.has-lightbox {
 
   .mini-dock {
     gap: 8px;
-    padding: 10px 12px;
+    padding: 10px 16px;
+    border-radius: 18px;
   }
 
   .mini-dock img,
