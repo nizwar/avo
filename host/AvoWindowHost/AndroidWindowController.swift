@@ -1030,6 +1030,32 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         fullScreenTransitionEnded()
     }
 
+    // AppKit saves a full-screen window's presentation options when the app
+    // stops being active and restores them when it is active again, so the
+    // menu bar and Dock it auto-hid never linger over another app. Avo sets
+    // those options by hand to hide the bars over a game — the menu bar fully
+    // (`.hideMenuBar`), so it reveals it itself at the very top edge — which
+    // leaves AppKit's save and restore out, so Avo does it. Without this a
+    // shim left `.hideMenuBar` asserted while another app came to the front,
+    // and since the shim runs on with no window and outlives the Control
+    // Panel, the menu bar stayed out of other apps' full screen (a stuck bar,
+    // worst on a notched Mac) until the daemon was killed by hand (#11).
+
+    /// Another app is coming to the front: hand the bars back to the system
+    /// (AppKit's own full-screen options, which only auto-hide), so nothing
+    /// Avo hid lingers over it.
+    func releaseFullScreenBars() {
+        guard let window, window.styleMask.contains(.fullScreen) else { return }
+        NSApp.presentationOptions = Self.barsShown
+    }
+
+    /// Active again: take the bars back over the game, hidden or shown as
+    /// they were.
+    func reclaimFullScreenBars() {
+        guard let window, window.styleMask.contains(.fullScreen), !fullScreenTransition else { return }
+        NSApp.presentationOptions = barsShown ? Self.barsShown : Self.barsHidden
+    }
+
     private func fullScreenTransitionBegan() {
         fullScreenTransition = true
         displayView.renderer.setInteractiveResize(true)

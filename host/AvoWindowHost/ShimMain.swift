@@ -382,9 +382,18 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     /// Made active while it ran in the background (the menu bar item, a
-    /// notification): its windows come back.
+    /// notification): its windows come back, and a full-screen one takes the
+    /// bars back over the game (`reclaimFullScreenBars`).
     func applicationDidBecomeActive(_ notification: Notification) {
         bringBack()
+        for window in windows { window.reclaimFullScreenBars() }
+    }
+
+    /// Another app came to the front: a full-screen window hands the menu bar
+    /// and Dock back to the system, so what it hid does not linger over that
+    /// app even while this shim runs on in the background (#11).
+    func applicationDidResignActive(_ notification: Notification) {
+        for window in windows { window.releaseFullScreenBars() }
     }
 
     /// Quit (⌘Q, Dock › Quit) closes the app completely, like swiping it
