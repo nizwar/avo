@@ -12,6 +12,7 @@
 #     Contents/Frameworks/AvoWindowHost.framework   Window Host, loaded by every shim
 #     Contents/Resources/profiles/            device and keymap profiles
 #     Contents/Resources/gfxstream/           GPU renderer for avo-vmm (scripts/build-gfxstream.sh)
+#     Contents/Resources/bluetooth/           Bluetooth controller for avo-vmm (scripts/build-bluetooth.sh)
 #     Contents/MacOS/avo-vmm                  Engine VM (engine/hvf/vmm, Rust)
 
 name: Avo
@@ -161,6 +162,34 @@ targets:
           ditto "$RENDERER" "$OUT.new"
           find "$OUT.new" -name "*.dylib" -exec codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" {} \;
           # Replace, never overwrite: a running avo-vmm has the old libraries mapped.
+          rm -rf "$OUT"
+          mv "$OUT.new" "$OUT"
+          if codesign --display "$TARGET_BUILD_DIR/$WRAPPER_NAME" >/dev/null 2>&1; then
+            codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" \
+              --preserve-metadata=identifier,entitlements,requirements,flags,runtime "$TARGET_BUILD_DIR/$WRAPPER_NAME"
+          fi
+      # Avo.app/Contents/Resources/bluetooth: Android's Bluetooth controller
+      # avo-vmm starts (Root Canal, built from source by
+      # scripts/build-bluetooth.sh into build/bluetooth), so Bluetooth needs no
+      # Android Emulator.
+      - name: Embed the Bluetooth controller
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+          CONTROLLER="$SRCROOT/../build/bluetooth"
+          OUT="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/bluetooth"
+          if [ ! -f "$CONTROLLER/.stamp" ]; then
+            echo "warning: no Bluetooth controller in build/bluetooth (run scripts/build-bluetooth.sh); Avo.app then needs the Android Emulator for Bluetooth"
+            exit 0
+          fi
+          # Nothing to do when the controller did not change: Avo.app stays sealed.
+          if [ -f "$OUT/.stamp" ] && cmp -s "$CONTROLLER/.stamp" "$OUT/.stamp"; then
+            exit 0
+          fi
+          rm -rf "$OUT.new"
+          ditto "$CONTROLLER" "$OUT.new"
+          codesign --force --sign "${EXPANDED_CODE_SIGN_IDENTITY:--}" "$OUT.new/rootcanal"
+          # Replace, never overwrite: a running avo-vmm may have started it.
           rm -rf "$OUT"
           mv "$OUT.new" "$OUT"
           if codesign --display "$TARGET_BUILD_DIR/$WRAPPER_NAME" >/dev/null 2>&1; then

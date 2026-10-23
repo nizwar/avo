@@ -25,7 +25,7 @@ final class PictureInPictureWindow: NSObject, NSWindowDelegate {
 
     /// Back to Window (also a double-click on the controls).
     var onBack: () -> Void = {}
-    /// Close: the window closes as ⌘W closes it.
+    /// Close: the window closes as ⌘W closes it (a game asks first).
     var onClose: () -> Void = {}
     /// Whether anyone can see the panel (it is covered, or on a hidden Space's display).
     var onVisible: (Bool) -> Void = { _ in }
@@ -63,6 +63,9 @@ final class PictureInPictureWindow: NSObject, NSWindowDelegate {
         root.layer?.cornerRadius = 10
         root.layer?.masksToBounds = true
         root.layer?.backgroundColor = NSColor.black.cgColor
+        // Sized by its frame here: in the window it is laid out with
+        // constraints (WindowChrome), which would leave it as it was.
+        content.translatesAutoresizingMaskIntoConstraints = true
         content.frame = root.bounds
         content.autoresizingMask = [.width, .height]
         root.addSubview(content)
@@ -78,6 +81,11 @@ final class PictureInPictureWindow: NSObject, NSWindowDelegate {
         controls.onClose = { [weak self] in self?.onClose() }
         controls.onDragged = { [weak self] in self?.snapToCorner() }
         root.onHover = { [weak self] inside in self?.showControls(inside) }
+    }
+
+    /// What the ✕ says it does ("Quit PUBG MOBILE").
+    func setCloseLabel(_ label: String) {
+        controls.setCloseLabel(label)
     }
 
     /// Shows the panel (its controls for a moment, to say they are there) and makes it key.
@@ -195,6 +203,7 @@ final class PictureInPictureRoot: NSView {
 final class PictureInPictureControls: NSVisualEffectView {
     var onBack: () -> Void = {}
     var onClose: () -> Void = {}
+    private var closeButton = NSButton()
     /// A drag moved the panel.
     var onDragged: () -> Void = {}
 
@@ -208,7 +217,8 @@ final class PictureInPictureControls: NSVisualEffectView {
         layer?.masksToBounds = true
         let back = Self.button(symbol: "pip.exit", label: String(localized: "Back to Window", bundle: .windowHost),
                                action: #selector(back))
-        let close = Self.button(symbol: "xmark", label: String(localized: "Close", bundle: .windowHost), action: #selector(close))
+        closeButton = Self.button(symbol: "xmark", label: String(localized: "Close", bundle: .windowHost), action: #selector(close))
+        let close = closeButton
         for button in [back, close] { button.target = self }
         let stack = NSStackView(views: [back, close])
         stack.orientation = .horizontal
@@ -239,6 +249,11 @@ final class PictureInPictureControls: NSVisualEffectView {
         button.setAccessibilityLabel(label)
         button.refusesFirstResponder = true
         return button
+    }
+
+    func setCloseLabel(_ label: String) {
+        closeButton.toolTip = label
+        closeButton.setAccessibilityLabel(label)
     }
 
     @objc private func back() { onBack() }

@@ -45,7 +45,7 @@ actor HCIChip {
         guard connected == 0 else {
             let code = errno
             Darwin.close(fd)
-            throw IOError.posix(op: "connect to netsimd", code: code)
+            throw IOError.posix(op: "connect to the Bluetooth controller", code: code)
         }
         var on: Int32 = 1
         _ = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, socklen_t(MemoryLayout<Int32>.size))

@@ -91,24 +91,41 @@ func formatAgo(_ date: Date, now: Date = Date()) -> String {
 /// (AvoWindowHost's KeymapController and KeymapHints): whether a new window
 /// starts in Game Mode, and whether the key mapping shows over the game.
 /// The Control Panel is not sandboxed, so it reads and writes that domain;
-/// windows take a change when they next open (or redraw their hints).
+/// a running shim hears of a change (ShimRequest.preferencesChanged) and
+/// shows it at once, and a new window starts with it.
 struct ShimPreferences {
     private let defaults: UserDefaults?
 
     init(package: String) {
+        self.package = package
         defaults = UserDefaults(suiteName: AvoIdentifiers.shimBundleIdentifier(for: package))
     }
 
     /// AvoWindowHost: KeymapController's `AvoGameMode`.
     var gameModeAtStart: Bool {
         get { defaults?.bool(forKey: "AvoGameMode") ?? false }
-        nonmutating set { defaults?.set(newValue, forKey: "AvoGameMode") }
+        nonmutating set {
+            defaults?.set(newValue, forKey: "AvoGameMode")
+            changed()
+        }
     }
 
     /// AvoWindowHost: KeymapHints' `AvoKeymapHintsVisible` (shown unless turned off).
     var keyHintsVisible: Bool {
         get { defaults?.object(forKey: "AvoKeymapHintsVisible") as? Bool ?? true }
-        nonmutating set { defaults?.set(newValue, forKey: "AvoKeymapHintsVisible") }
+        nonmutating set {
+            defaults?.set(newValue, forKey: "AvoKeymapHintsVisible")
+            changed()
+        }
+    }
+
+    private let package: String
+
+    /// The app's running shim, if any, shows the change at once.
+    private func changed() {
+        defaults?.synchronize()
+        DistributedNotificationCenter.default().postNotificationName(ShimRequest.preferencesChanged, object: package, userInfo: nil,
+                                                                     deliverImmediately: true)
     }
 }
 

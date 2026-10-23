@@ -197,4 +197,22 @@ import Testing
         try await harness.core.uninstall("org.fdroid.fdroid", client: panel)
         #expect(await eventually { (try? await harness.core.appUsage(client: panel))?.isEmpty == true })
     }
+
+    /// A window out of sight is minimized; one run in the background (its
+    /// blue light) is in the background, as the menu bar and Library say.
+    @Test func runningInTheBackgroundIsNotMinimized() async throws {
+        let harness = try Harness(apps: [FakeBridgeAgent.app("org.fdroid.fdroid", label: "F-Droid")])
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        let (shim, _) = await harness.connect(.shim(package: "org.fdroid.fdroid"))
+        let display = try await harness.core.openDisplay(OpenDisplayRequest(package: "org.fdroid.fdroid", width: 824, height: 1784, dpi: 320),
+                                                         client: shim)
+        await harness.core.setDisplayVisible(display, visible: false, client: shim)
+        #expect(await harness.core.appActivity()["org.fdroid.fdroid"] == .minimized)
+        await harness.core.setDisplayInBackground(display, inBackground: true, client: shim)
+        #expect(await harness.core.appActivity()["org.fdroid.fdroid"] == .background)
+        await harness.core.setDisplayInBackground(display, inBackground: false, client: shim)
+        await harness.core.setDisplayVisible(display, visible: true, client: shim)
+        #expect(await harness.core.appActivity()["org.fdroid.fdroid"] == .open)
+    }
 }

@@ -200,9 +200,10 @@ final class FakeRemote: GATTRemote, Sendable {
     }
 }
 
-/// A proxy chip in a real netsim, seen and used by another chip playing
-/// Android: `AVO_NETSIMD=~/Library/Android/sdk/emulator/netsimd swift test --filter ProxyChipInNetsim`.
-@Suite(.serialized, .enabled(if: ProcessInfo.processInfo.environment["AVO_NETSIMD"] != nil), .timeLimit(.minutes(1)))
+/// A proxy chip in a real controller, seen and used by another chip playing
+/// Android: `AVO_BLUETOOTH_CONTROLLER=build/bluetooth/rootcanal swift test --filter ProxyChipInNetsim`
+/// (or the Android Emulator's netsimd).
+@Suite(.serialized, .enabled(if: ProcessInfo.processInfo.environment["AVO_BLUETOOTH_CONTROLLER"] != nil), .timeLimit(.minutes(1)))
 struct ProxyChipInNetsim {
     @Test func androidFindsConnectsAndReads() async throws {
         let (netsimd, port) = try startNetsimd()
@@ -278,15 +279,22 @@ struct ProxyChipInNetsim {
         return nil
     }
 
+    /// As avo-vmm starts it (bluetooth.rs): Root Canal, or netsimd.
     func startNetsimd() throws -> (Process, UInt16) {
         let port = UInt16.random(in: 20000...40000)
         let directory = FileManager.default.temporaryDirectory.appending(path: "avo-netsim-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let process = Process()
-        process.executableURL = URL(filePath: ProcessInfo.processInfo.environment["AVO_NETSIMD"]!)
-        process.arguments = ["--no-cli-ui", "--no-web-ui", "--logtostderr", "--instance", "1", "--hci-port", "\(port)",
-                             "--debug-no-network", "--debug-no-guest-to-host-mdns"]
-        process.environment = ["TMPDIR": directory.path]
+        let controller = URL(filePath: ProcessInfo.processInfo.environment["AVO_BLUETOOTH_CONTROLLER"]!)
+        process.executableURL = controller
+        if controller.lastPathComponent == "rootcanal" {
+            process.arguments = ["--hci_port=\(port)", "--test_port=\(port + 1)", "--link_port=\(port + 2)", "--link_ble_port=\(port + 3)"]
+            process.currentDirectoryURL = directory
+        } else {
+            process.arguments = ["--no-cli-ui", "--no-web-ui", "--logtostderr", "--instance", "1", "--hci-port", "\(port)",
+                                 "--debug-no-network", "--debug-no-guest-to-host-mdns"]
+            process.environment = ["TMPDIR": directory.path]
+        }
         process.standardError = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         try process.run()

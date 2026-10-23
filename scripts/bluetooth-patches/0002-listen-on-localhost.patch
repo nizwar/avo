@@ -1,0 +1,17 @@
+Avo: listen on this Mac only. Root Canal took connections on every network
+interface: anyone on the network could have put a device in Android's
+Bluetooth air or reached its HCI, and macOS's firewall asked about it.
+
+diff --git a/net/posix/posix_async_socket_server.cc b/net/posix/posix_async_socket_server.cc
+index 3f20e72..a8bfb96 100644
+--- a/net/posix/posix_async_socket_server.cc
++++ b/net/posix/posix_async_socket_server.cc
+@@ -51,7 +51,7 @@ PosixAsyncSocketServer::PosixAsyncSocketServer(int port, AsyncManager* am) : por
+ 
+   listen_address.sin_family = AF_INET;
+   listen_address.sin_port = htons(port_);
+-  listen_address.sin_addr.s_addr = htonl(INADDR_ANY);
++  listen_address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+ 
+   if (bind(listen_fd, reinterpret_cast<sockaddr*>(&listen_address), sockaddr_in_size) < 0) {
+     INFO("Error binding test channel listener socket to port: {}, {}", port, strerror(errno));

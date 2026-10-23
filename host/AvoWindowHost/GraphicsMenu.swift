@@ -32,17 +32,17 @@ final class GraphicsMenu: NSObject, NSMenuDelegate {
     func addItems(to menu: NSMenu) {
         menu.delegate = self
         if !menu.items.isEmpty { menu.addItem(.separator()) }
-        let profile = menu.addItem(withTitle: String(localized: "App Settings", bundle: .windowHost), action: nil, keyEquivalent: "")
+        let profile = menu.addItem(withTitle: String(localized: "Preset: Apps", bundle: .windowHost), action: nil, keyEquivalent: "")
         profile.identifier = Self.profileLine
         profile.isEnabled = false
-        menu.addItem(withTitle: String(localized: "Use Game Settings", bundle: .windowHost),
+        menu.addItem(withTitle: String(localized: "Use the Games Preset", bundle: .windowHost),
                      action: #selector(AndroidWindowController.toggleGameSettings(_:)), keyEquivalent: "")
         menu.addItem(.separator())
         // How Android's screen is sized, one of three (the window checks one).
         let modes: [(GraphicsSettings.Mode, String)] = [
-            (.followWindow, String(localized: "Follow Window", bundle: .windowHost)),
-            (.fixed, String(localized: "Fixed Resolution", bundle: .windowHost)),
-            (.deviceProfile, String(localized: "Phone’s Screen", bundle: .windowHost)),
+            (.followWindow, String(localized: "Screen Size: Window", bundle: .windowHost)),
+            (.fixed, String(localized: "Screen Size: Fixed", bundle: .windowHost)),
+            (.deviceProfile, String(localized: "Screen Size: Phone", bundle: .windowHost)),
         ]
         for (mode, title) in modes {
             menu.addItem(withTitle: title, action: #selector(AndroidWindowController.chooseResolutionMode(_:)), keyEquivalent: "")
@@ -85,12 +85,12 @@ final class GraphicsMenu: NSObject, NSMenuDelegate {
         }
         submenu(orientations, in: menu, id: nil)
 
-        let filters = NSMenu(title: String(localized: "Scaling Filter", bundle: .windowHost))
+        let filters = NSMenu(title: String(localized: "Upscaling", bundle: .windowHost))
         for filter in GraphicsSettings.Filter.allCases {
             let title = switch filter {
-            case .metalFXSpatial: String(localized: "MetalFX Spatial", bundle: .windowHost)
-            case .bilinear: String(localized: "Bilinear", bundle: .windowHost)
-            case .nearest: String(localized: "Nearest Neighbor", bundle: .windowHost)
+            case .metalFXSpatial: String(localized: "Sharp (MetalFX)", bundle: .windowHost)
+            case .bilinear: String(localized: "Smooth", bundle: .windowHost)
+            case .nearest: String(localized: "Pixel Art", bundle: .windowHost)
             }
             filters.addItem(withTitle: title, action: #selector(AndroidWindowController.chooseScalingFilter(_:)), keyEquivalent: "")
                 .representedObject = filter.rawValue
@@ -116,6 +116,9 @@ final class GraphicsMenu: NSObject, NSMenuDelegate {
                 .representedObject = level.rawValue
         }
         submenu(levels, in: menu, id: nil)
+        // This app's windows in the Phone app bar style (also Device › Phone Style in its windows).
+        menu.addItem(withTitle: String(localized: "Phone Style", bundle: .windowHost),
+                     action: #selector(AndroidWindowController.togglePhoneStyle(_:)), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: String(localized: "Use Default Graphics Settings", bundle: .windowHost),
                      action: #selector(AndroidWindowController.useDefaultGraphicsSettings(_:)), keyEquivalent: "")
@@ -169,7 +172,7 @@ final class GraphicsMenu: NSObject, NSMenuDelegate {
         for item in menu.items {
             switch item.identifier {
             case Self.profileLine?:
-                item.title = mode?.profileLine ?? String(localized: "App Settings", bundle: .windowHost)
+                item.title = mode?.profileLine ?? String(localized: "Preset: Apps", bundle: .windowHost)
             case Self.renderScaleItem?:
                 item.isHidden = mode.map { $0.mode != .followWindow } ?? false
             case Self.resolutionItem?:

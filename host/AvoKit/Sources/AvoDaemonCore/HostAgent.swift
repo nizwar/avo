@@ -54,6 +54,17 @@ actor HostAgent: DisplayResizing {
 
     private var adb: ADBConnection?
     private(set) var isReady = false
+    /// Android has Avo's Vulkan driver wrapper (GuestVulkanWrapper): it runs
+    /// this boot, or is installed for the next GPU start.
+    private(set) var hasVulkanWrapper = false
+    /// It runs at the next GPU start (this start's engine lets it), so that
+    /// start needs no gfxstream sync layer in /data/local/debug.
+    private var vulkanWrapperNextStart = false
+    /// What the boot's start found (`checkVulkanWrapper`), whether the engine
+    /// lets the wrapper run, and who keeps `hasVulkanWrapper` (VMMEngine).
+    private var vulkanWrapperState: GuestVulkanWrapper.State?
+    private var vulkanWrapperAllowed = false
+    private var vulkanWrapperNoted: (@Sendable (Bool) -> Void)?
     /// Android is paused (VMMEngine's pause): the watches skip their turns,
     /// which would only queue up commands for it ("Pause").
     private(set) var paused = false
@@ -185,6 +196,7 @@ actor HostAgent: DisplayResizing {
             await self?.noticeGPUDebugLayers()
             await self?.applyWiFi()
             await self?.showFourGForLTE()
+            await self?.installVulkanWrapper()
         }
         Task { [weak self] in await self?.sharedFolder?.start() }
         // Each watch ends with the agent too: one an engine crash left behind
@@ -395,28 +407,141 @@ actor HostAgent: DisplayResizing {
     /// apps started from now on (GuestGfxstreamSync). The property waits for
     /// the next boot when this one had no layer at its start: processes that
     /// began without the file would fail to create a Vulkan instance.
+    /// Software mode removes the layer: unnamed, libvulkan still opens it in
+    /// every app. So does a boot that runs Avo's Vulkan driver wrapper, which
+    /// runs the layer inside the driver (GuestVulkanWrapper).
     private func enableGfxstreamSync() async {
-        guard (try? await shell("getprop ro.hardware.vulkan"))?.trimmed == GuestGfxstreamSync.gpuModeDriver,
-              let layer = GuestGfxstreamSync.layer, let adb else { return }
-        let sums = (try? await shell("sha256sum \(GuestGfxstreamSync.path) 2>/dev/null")) ?? ""
-        let installed = GuestGfxstreamSync.installed(sumOutput: sums)
+        guard let driver = try? await shell("getprop ro.hardware.vulkan").trimmed else { return }
+        let wrapped = await checkVulkanWrapper()
+        guard driver == GuestGfxstreamSync.gpuModeDriver, !wrapped else {
+            await removeGfxstreamSync(because: wrapped ? "Avo's Vulkan driver runs it this start" : "this Android start has no GPU")
+            return
+        }
+        guard let installed = await installGfxstreamSync() else { return }
+        guard installed != .missing else {
+            logger.notice("gfxstream sync layer installed; Vulkan apps use it from the next Android start")
+            return
+        }
         do {
-            if installed != .current {
-                try await adb.push(AsyncStream { $0.yield(layer.data); $0.finish() }, to: GuestGfxstreamSync.staging)
-                let result = try await root(GuestGfxstreamSync.installScript())
-                guard result.succeeded else {
-                    logger.error("gfxstream sync layer did not install: \(result.errorOutput + result.output, privacy: .public)")
-                    return
-                }
-            }
-            guard installed != .missing else {
-                logger.notice("gfxstream sync layer installed; Vulkan apps use it from the next Android start")
-                return
-            }
             try await root(GuestGfxstreamSync.enableCommand)
             logger.notice("gfxstream sync layer active for Vulkan apps started from now on")
         } catch {
+            logger.error("gfxstream sync layer did not turn on: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    /// Puts this build's gfxstream sync layer in place, unnamed. What the
+    /// guest had before it (nil: the layer did not install).
+    private func installGfxstreamSync() async -> GuestGfxstreamSync.Installed? {
+        guard let layer = GuestGfxstreamSync.layer, let adb else { return nil }
+        let sums = (try? await shell("sha256sum \(GuestGfxstreamSync.path) 2>/dev/null")) ?? ""
+        let installed = GuestGfxstreamSync.installed(sumOutput: sums)
+        guard installed != .current else { return installed }
+        do {
+            try await adb.push(AsyncStream { $0.yield(layer.data); $0.finish() }, to: GuestGfxstreamSync.staging)
+            let result = try await root(GuestGfxstreamSync.installScript())
+            guard result.succeeded else {
+                logger.error("gfxstream sync layer did not install: \(result.errorOutput + result.output, privacy: .public)")
+                return nil
+            }
+            return installed
+        } catch {
             logger.error("gfxstream sync layer did not install: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
+    /// A start without the GPU, or with the layer inside the driver, names no
+    /// gfxstream sync layer, but libvulkan would still open it in every app
+    /// (GuestGfxstreamSync), so it goes.
+    private func removeGfxstreamSync(because reason: String) async {
+        guard let sums = try? await shell("sha256sum \(GuestGfxstreamSync.path) 2>/dev/null"),
+              GuestGfxstreamSync.installed(sumOutput: sums) != .missing else { return }
+        if let result = try? await root(GuestGfxstreamSync.removeScript()), result.succeeded {
+            logger.notice("gfxstream sync layer removed from /data/local/debug: \(reason, privacy: .public)")
+        } else {
+            logger.error("gfxstream sync layer could not be removed")
+        }
+    }
+
+    /// Before `prepare`: told whether Android has Avo's Vulkan driver
+    /// wrapper whenever the agent learns it (VMMEngine keeps it for the next start).
+    func noteVulkanWrapper(_ note: @escaping @Sendable (Bool) -> Void) {
+        vulkanWrapperNoted = note
+    }
+
+    /// Avo's Vulkan driver wrapper (GuestVulkanWrapper): whether it runs the
+    /// gfxstream sync layer this boot. Putting it in, or this build of it,
+    /// waits until Android is ready (`installVulkanWrapper`): it applies from
+    /// the next GPU start anyway.
+    private func checkVulkanWrapper() async -> Bool {
+        guard GuestVulkanWrapper.wrapper != nil, let output = try? await root(GuestVulkanWrapper.stateCommand).output else {
+            return false
+        }
+        vulkanWrapperAllowed = (try? await shell("getprop \(GuestVulkanWrapper.switchProperty)"))?.trimmed == "1"
+        let state = GuestVulkanWrapper.state(output: output)
+        vulkanWrapperState = state
+        switch state {
+        case .running:
+            setVulkanWrapper(true)
+            logger.notice("Vulkan driver: Avo's wrapper runs the gfxstream sync layer this start")
+            return true
+        case .pending:
+            setVulkanWrapper(true)
+            noteVulkanWrapperNextStart()
+        case .unknown:
+            setVulkanWrapper(false)
+            logger.notice("Vulkan driver: unknown vendor build; the gfxstream sync layer stays in /data/local/debug")
+        case .stock:
+            setVulkanWrapper(false)
+        }
+        return false
+    }
+
+    /// Once Android is ready: puts the wrapper in for the next GPU start, or
+    /// this build of it over an older one that runs, unless the wrapper
+    /// failed a GPU start (the engine then leaves it off).
+    private func installVulkanWrapper() async {
+        switch vulkanWrapperState {
+        case let .running(current: false, build?)?:
+            if await pushVulkanWrapper(), (try? await root(GuestVulkanWrapper.updateScript(build)))?.succeeded == true {
+                logger.notice("Vulkan driver: Avo's wrapper updated for the apps started from now on")
+            }
+        case let .stock(build)? where vulkanWrapperAllowed:
+            guard await pushVulkanWrapper(), (try? await root(GuestVulkanWrapper.installScript(build)))?.succeeded == true else {
+                logger.notice("Vulkan driver: Avo's wrapper not installed (no remount overlays?); the gfxstream sync layer stays in /data/local/debug")
+                return
+            }
+            setVulkanWrapper(true)
+            noteVulkanWrapperNextStart()
+        default:
+            break
+        }
+    }
+
+    private func setVulkanWrapper(_ installed: Bool) {
+        hasVulkanWrapper = installed
+        vulkanWrapperNextStart = installed && vulkanWrapperAllowed
+        vulkanWrapperNoted?(installed)
+    }
+
+    private func noteVulkanWrapperNextStart() {
+        if vulkanWrapperAllowed {
+            logger.notice("Vulkan driver: Avo's wrapper runs the gfxstream sync layer from the next GPU start")
+        } else {
+            logger.notice("Vulkan driver: Avo's wrapper stays off (it failed a GPU start); the gfxstream sync layer stays in /data/local/debug")
+        }
+    }
+
+    /// This build's wrapper to `GuestVulkanWrapper.staged`.
+    private func pushVulkanWrapper() async -> Bool {
+        guard let wrapper = GuestVulkanWrapper.wrapper, let adb else { return false }
+        do {
+            try await adb.push(AsyncStream { $0.yield(wrapper.data); $0.finish() }, to: GuestVulkanWrapper.staged)
+            return true
+        } catch {
+            logger.error("Vulkan driver: Avo's wrapper did not copy: \(String(describing: error), privacy: .public)")
+            return false
         }
     }
 
@@ -555,40 +680,93 @@ actor HostAgent: DisplayResizing {
     /// `debug.vulkan.layers` load the layers — naming a missing Vulkan layer
     /// system-wide at boot stops graphics services from starting, which is
     /// why the engine does not. The files go under `/data/local/debug`
-    /// (GuestGPUProfile) at every boot that lacks this build of them, emulated
-    /// or not; a layer is named only on a boot that began with its file
-    /// there, so a process started before the install cannot fail to create
-    /// a Vulkan instance for it. The properties are set every boot (they
-    /// reset). An app started after this reads the profile's GPU from its own
-    /// `glGetString` and Vulkan.
+    /// (GuestGPUProfile) only on a boot that emulates a GPU, and a boot that
+    /// emulates none removes them: unnamed, libvulkan still opens the Vulkan
+    /// one in every app. A layer is named only on a boot that began with its
+    /// file there, so a process started before the install cannot fail to
+    /// create a Vulkan instance for it (`stageGPULayers` puts the files in
+    /// before the restart a setting needs). The properties are set every boot
+    /// (they reset). An app started after this reads the profile's GPU from
+    /// its own `glGetString` and Vulkan.
     private func installGPUProfileLayers() async {
-        guard !GuestGPUProfile.layers.isEmpty, let adb else { return }
-        let installed = GuestGPUProfile.layers.map { "\($0.dir)/\($0.name)" }.joined(separator: " ")
-        let sums = (try? await shell("sha256sum \(installed) 2>/dev/null")) ?? ""
-        let check = (try? await shell(GuestGPUProfile.checkCommand)) ?? ""
+        guard !GuestGPUProfile.layers.isEmpty, let check = try? await shell(GuestGPUProfile.checkCommand) else { return }
+        let sums = await gpuProfileSums()
         let enable = GuestGPUProfile.enableCommands(checkOutput: check, present: GuestGPUProfile.present(sumOutput: sums))
         let wanted = GuestGPUProfile.enableCommands(checkOutput: check, present: GuestGPUProfile.names)
+        guard !wanted.isEmpty else {
+            await removeGPUProfileLayers(present: GuestGPUProfile.present(sumOutput: sums))
+            return
+        }
+        guard await installGPUProfileFiles(sumOutput: sums) else { return }
+        if enable.count < wanted.count {
+            logger.notice("Avo GPU layers installed; apps read the profile's GPU from the next Android start")
+        }
+        guard !enable.isEmpty else { return }
         do {
-            if !GuestGPUProfile.upToDate(sumOutput: sums) {
-                _ = try await shell("mkdir -p \(GuestGPUProfile.staging)")
-                for layer in GuestGPUProfile.layers {
-                    try await adb.push(AsyncStream { $0.yield(layer.data); $0.finish() },
-                                       to: "\(GuestGPUProfile.staging)/\(layer.name)")
-                }
-                let result = try await root(GuestGPUProfile.installScript())
-                guard result.succeeded else {
-                    logger.error("Avo GPU layers did not install: \(result.errorOutput + result.output, privacy: .public)")
-                    return
-                }
-            }
-            if enable.count < wanted.count {
-                logger.notice("Avo GPU layers installed; apps read the profile's GPU from the next Android start")
-            }
-            guard !enable.isEmpty else { return }
             _ = try await root(enable.joined(separator: "; "))
             logger.notice("Avo GPU layers active; apps read the profile's GPU this boot")
         } catch {
+            logger.error("Avo GPU layers did not turn on: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    /// `sha256sum` of the guest's GPU layers (GuestGPUProfile), empty when it has none.
+    private func gpuProfileSums() async -> String {
+        let installed = GuestGPUProfile.layers.map { "\($0.dir)/\($0.name)" }.joined(separator: " ")
+        return (try? await shell("sha256sum \(installed) 2>/dev/null")) ?? ""
+    }
+
+    /// Puts this build's GPU layers in place, unnamed, unless `sums` shows
+    /// the guest has them. False when they did not install.
+    private func installGPUProfileFiles(sumOutput sums: String) async -> Bool {
+        guard !GuestGPUProfile.upToDate(sumOutput: sums) else { return true }
+        guard let adb else { return false }
+        do {
+            _ = try await shell("mkdir -p \(GuestGPUProfile.staging)")
+            for layer in GuestGPUProfile.layers {
+                try await adb.push(AsyncStream { $0.yield(layer.data); $0.finish() },
+                                   to: "\(GuestGPUProfile.staging)/\(layer.name)")
+            }
+            let result = try await root(GuestGPUProfile.installScript())
+            guard result.succeeded else {
+                logger.error("Avo GPU layers did not install: \(result.errorOutput + result.output, privacy: .public)")
+                return false
+            }
+            return true
+        } catch {
             logger.error("Avo GPU layers did not install: \(String(describing: error), privacy: .public)")
+            return false
+        }
+    }
+
+    /// A boot that emulates no GPU names neither layer, but libvulkan would
+    /// still open the Vulkan one in every app (GuestGPUProfile), so they go.
+    private func removeGPUProfileLayers(present: Set<String>) async {
+        guard !present.isEmpty else { return }
+        if let result = try? await root(GuestGPUProfile.removeScript()), result.succeeded {
+            logger.notice("Avo GPU layers removed: this Android start emulates no GPU")
+        } else {
+            logger.error("Avo GPU layers could not be removed")
+        }
+    }
+
+    /// Settings ask the next start for the profile's GPU (`profile`) or for
+    /// the GPU itself (`gfxstreamSync`): their layers go in now, unnamed, so
+    /// that start begins with them and names them at once. What a setting
+    /// turns off goes at that start (`installGPUProfileLayers`,
+    /// `enableGfxstreamSync`): a layer this boot named stays while its
+    /// processes run. A GPU start that runs Avo's Vulkan driver wrapper needs
+    /// no gfxstream sync layer there.
+    func stageGPULayers(profile: Bool, gfxstreamSync: Bool) async {
+        guard isReady else { return }
+        if profile, !GuestGPUProfile.layers.isEmpty {
+            let sums = await gpuProfileSums()
+            if !GuestGPUProfile.upToDate(sumOutput: sums), await installGPUProfileFiles(sumOutput: sums) {
+                logger.notice("Avo GPU layers installed for the next Android start")
+            }
+        }
+        if gfxstreamSync, !vulkanWrapperNextStart, let before = await installGfxstreamSync(), before != .current {
+            logger.notice("gfxstream sync layer installed for the next Android start")
         }
     }
 
@@ -1958,6 +2136,10 @@ actor HostAgent: DisplayResizing {
         var backgroundPng: Data?
         var backgroundColor: UInt32?
         var foregroundPng: Data?
+        /// The app says it is a game (absent from an older helper).
+        var game: Bool?
+        /// "portrait" or "landscape": what its activities ask for (absent when they let the screen turn).
+        var orientation: String?
         /// Android could not describe the package (not installed, not visible).
         var error: String?
     }
@@ -2043,6 +2225,14 @@ actor HostAgent: DisplayResizing {
         if let bytes = report.sizeBytes, bytes > 0 { info.sizeBytes = bytes }
         if let time = report.firstInstallTime, time > 0 { info.firstInstallTimeMs = time }
         if let time = report.lastUpdateTime, time > 0 { info.lastUpdateTimeMs = time }
+        if let game = report.game {
+            info.game = game
+            info.orientation = switch report.orientation {
+            case "portrait": .portrait
+            case "landscape": .landscape
+            default: .unspecified
+            }
+        }
         let backgroundImage = report.backgroundPng.flatMap(MacIconRenderer.image(from:))
         let foregroundImage = report.foregroundPng.flatMap(MacIconRenderer.image(from:))
         let background = report.backgroundColor.map { MacIconRenderer.Layer.color(MacIconRenderer.color(argb: $0)) }

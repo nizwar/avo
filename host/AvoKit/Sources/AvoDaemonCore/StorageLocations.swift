@@ -557,9 +557,11 @@ actor StorageLocations {
         }
     }
 
-    /// Removes Android's data from `folder` (every portable item).
+    /// Removes Android's data from `folder` (every portable item), and the
+    /// checkpoints of that data (CheckpointStore): a move does not carry
+    /// them, and a copy of each would take as much space as the data.
     private func removeData(in folder: URL) throws {
-        for item in AvoPaths.portableDataItems {
+        for item in AvoPaths.portableDataItems + [CheckpointStore.folderName] {
             let url = folder.appending(path: item)
             guard FileManager.default.fileExists(atPath: url.path) else { continue }
             try FileManager.default.removeItem(at: url)

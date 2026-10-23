@@ -13,6 +13,11 @@
 //! which ANGLE's multisampled render-to-texture images asked for and MoltenVK
 //! refuses them (the images got no memory and drew garbage).
 //!
+//! Two of the guest layer's jobs, so a guest can do without it: fragment
+//! output arrays split for MoltenVK, and VK_EXT_provoking_vertex for ANGLE's
+//! OpenGL ES 3.1. The manifest names that extension as the layer's, or the
+//! loader would refuse a device that enables it (MoltenVK lacks it).
+//!
 //! The engine writes the layer and its manifest into a folder of its own in
 //! the temporary folder, named after the layer's bytes so builds never share
 //! one, and names it to the Vulkan loader (`VK_ADD_LAYER_PATH`,
@@ -28,7 +33,7 @@ static DYLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/libVkLayer_avo_n
 
 fn manifest() -> String {
     format!(
-        r#"{{"file_format_version": "1.1.2", "layer": {{"name": "{LAYER}", "type": "GLOBAL", "library_path": "./{LIBRARY}", "api_version": "1.4.0", "implementation_version": "1", "description": "Avo: native ASTC and no memoryless memory for gfxstream"}}}}"#
+        r#"{{"file_format_version": "1.1.2", "layer": {{"name": "{LAYER}", "type": "GLOBAL", "library_path": "./{LIBRARY}", "api_version": "1.4.0", "implementation_version": "2", "description": "Avo: native ASTC, no memoryless memory, split fragment output arrays and VK_EXT_provoking_vertex for gfxstream", "device_extensions": [{{"name": "VK_EXT_provoking_vertex", "spec_version": "1", "entrypoints": []}}]}}}}"#
     )
 }
 
@@ -107,6 +112,8 @@ mod tests {
         assert_eq!(std::fs::read(dir.join(LIBRARY)).unwrap(), DYLIB);
         let manifest_text = std::fs::read_to_string(dir.join(MANIFEST)).unwrap();
         assert!(manifest_text.contains(LAYER) && manifest_text.contains(&format!("./{LIBRARY}")));
+        // The loader takes a device extension from a layer only when its manifest names it.
+        assert!(manifest_text.contains(r#""device_extensions": [{"name": "VK_EXT_provoking_vertex""#));
         std::fs::write(dir.join(LIBRARY), b"not the layer").unwrap();
         assert_eq!(install(&parent).unwrap(), dir);
         assert_eq!(std::fs::read(dir.join(LIBRARY)).unwrap(), DYLIB);

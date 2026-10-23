@@ -6,7 +6,7 @@
 //!                       [--disks DIR] [--cpus N] [--mem MiB] [--display WxH] [--density DPI]
 //!                       [--timeout SECONDS] [--properties FILE] [--verbose]
 //!                       [--gpu 2d|gfxstream] [--gfxstream-dir DIR] [--hwc client|host]
-//!                       [--shared-dir DIR] [--refresh-rate HZ] [--bluetooth NETSIMD]
+//!                       [--shared-dir DIR] [--refresh-rate HZ] [--bluetooth CONTROLLER]
 //!                       [--init-boot FILE] [--cellular TYPE:BARS] [--cameras LIST]
 //!                       [--no-microphone] [--cpu-clusters LIST]
 //!
@@ -30,8 +30,9 @@
 //! --init-boot boots another init_boot.img than the image's: the daemon's
 //! Magisk-patched copy when root is on (MagiskRoot.swift).
 //!
-//! --bluetooth starts that netsimd (the Android Emulator's, Root Canal inside)
-//! as Android's Bluetooth controller (bluetooth.rs); without it Android's
+//! --bluetooth starts that controller as Android's Bluetooth controller
+//! (bluetooth.rs): Avo's own `rootcanal` (scripts/build-bluetooth.sh), or the
+//! Android Emulator's netsimd (Root Canal inside); without it Android's
 //! Bluetooth has no controller and stays off.
 //!
 //! --cellular gives the modem a SIM from the start, registered on a network
@@ -96,7 +97,7 @@ use std::time::Duration;
 use virtio::gpu::{GpuMode, Hwc};
 
 const USAGE: &str = "usage: avo-vmm cuttlefish <image dir> [--instance DIR] [--runtime DIR] [--userdata FILE] [--disks DIR] [--cpus N] [--mem MiB] \
-[--display WxH] [--density DPI] [--timeout S] [--properties FILE] [--verbose] [--gpu 2d|gfxstream] [--gfxstream-dir DIR] [--bluetooth NETSIMD] [--init-boot FILE] \
+[--display WxH] [--density DPI] [--timeout S] [--properties FILE] [--verbose] [--gpu 2d|gfxstream] [--gfxstream-dir DIR] [--bluetooth CONTROLLER] [--init-boot FILE] \
 [--hwc client|host] [--shared-dir DIR] [--refresh-rate HZ] [--cellular TYPE:BARS] [--cameras LIST] [--no-microphone] [--cpu-clusters LIST] \
 [--exit-on-reboot]";
 

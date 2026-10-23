@@ -9,7 +9,7 @@ struct AvoApp: App {
     var body: some Scene {
         // The Library: Home, Games, Apps, Notifications and each app's page
         // (LibraryWindow.swift), with the status pill below it.
-        Window("Avo", id: "library") {
+        Window("Avo", id: LibraryRouter.windowID) {
             LibraryView()
                 .environment(appDelegate.model)
                 .environment(appDelegate.images)
@@ -134,6 +134,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Settings pane (the Library opens the Settings window for it).
         if let name = urls.lazy.compactMap(ControlPanelLink.pane(in:)).first, let pane = SettingsPane.named(name) {
             library.requestedSettingsPane = pane
+            NSApp.activate()
+        }
+        // An app window's All Settings…: that app's page in the Library.
+        if let package = urls.lazy.compactMap(ControlPanelLink.appPage(in:)).first {
+            library.requestedAppPage = package
             NSApp.activate()
         }
         // One confirmation sheet at a time; extra files wait for the next drop.

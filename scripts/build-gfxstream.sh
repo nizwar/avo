@@ -10,6 +10,25 @@
 #   source.properties                   what this is (Pkg.Desc), its revision
 #   licenses/                           the licences of what it contains
 #
+# gfxstream gets Avo's patches (scripts/gfxstream-patches, in name order):
+#
+#   0001-sequence-gate                  a guest process's commands keep their
+#                                       order; with AVO_GFXSTREAM_SEQNO_SKIP_MS
+#                                       set, numbers guest threads took and
+#                                       never sent (the guest driver's lock)
+#                                       no longer stop the process. Off by
+#                                       default: Avo's guest layer keeps that
+#                                       deadlock away, and a host too busy to
+#                                       pick a sent number up in time would
+#                                       run commands out of order
+#   0002-hide-linear-astc-sampling      the guest no longer sees the linear
+#                                       ASTC sampling Avo's Mac layer reports
+#
+# With them and avo-vmm's Vulkan layer (engine/hvf/vmm/layer), a guest could
+# run without Avo's guest layer; source.properties says so
+# (Avo.HostGfxsync=1). The daemon does not read it yet and still gives the
+# guest its layer (in its Vulkan driver, or in /data/local/debug).
+#
 # All of it is Apache 2.0 (headers it compiles in: MIT and alike), unlike the
 # emulator's prebuilt libraries, which the Android SDK licence keeps Avo from
 # shipping. Users need no Android Studio for the GPU.
@@ -17,14 +36,17 @@
 #   scripts/build-gfxstream.sh [--force]
 #
 # Sources and builds are kept in build/gfxstream-src; nothing happens when
-# build/gfxstream is already this version. The Xcode build copies it into
-# Avo.app/Contents/Resources/gfxstream; scripts/build-dmg.sh runs this first.
+# build/gfxstream is already this version. GFXSTREAM_SRC and GFXSTREAM_OUT
+# name other folders for both (a build beside the one Xcode copies). The
+# Xcode build copies build/gfxstream into Avo.app/Contents/Resources/gfxstream;
+# scripts/build-dmg.sh runs this first.
 # Needs git, cmake, ninja and Xcode's command line tools.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/build/gfxstream"
-SRC="$ROOT/build/gfxstream-src"
+OUT="${GFXSTREAM_OUT:-$ROOT/build/gfxstream}"
+SRC="${GFXSTREAM_SRC:-$ROOT/build/gfxstream-src}"
+PATCHES="$ROOT/scripts/gfxstream-patches"
 
 # gfxstream, emu-main-dev: "Snap for 15813814 ... to emu-37-1-release".
 GFXSTREAM_COMMIT=ec3143b4ac345af198b3f5690bfc79c728128704
@@ -32,11 +54,12 @@ VULKAN_VERSION=v1.4.365
 MOLTENVK_VERSION=v1.4.0
 MOLTENVK_SHA256=f4feaf6a4988352de8e6d49874ccc1cd6a45021e3cb476e8531bef7ecc73e93a
 # Bump with any change above or below: it keys avo-vmm's GPU shader cache.
-REVISION=avo.1
+REVISION=avo.2
 
-STAMP="$REVISION $GFXSTREAM_COMMIT $VULKAN_VERSION $MOLTENVK_VERSION"
+PATCH_SUM="$(cat "$PATCHES"/*.patch | shasum -a 256 | cut -c 1-12)"
+STAMP="$REVISION $GFXSTREAM_COMMIT $VULKAN_VERSION $MOLTENVK_VERSION $PATCH_SUM"
 if [[ "${1:-}" != "--force" && -f "$OUT/.stamp" && "$(cat "$OUT/.stamp")" == "$STAMP" ]]; then
-  echo "build/gfxstream is up to date ($REVISION)"
+  echo "${OUT#"$ROOT"/} is up to date ($REVISION)"
   exit 0
 fi
 for tool in git cmake ninja; do
@@ -58,6 +81,11 @@ fetch() {
 
 echo "== gfxstream ${GFXSTREAM_COMMIT:0:12}"
 fetch "$SRC/gfxstream" https://android.googlesource.com/platform/hardware/google/gfxstream "$GFXSTREAM_COMMIT"
+# The checkout is the commit's again; files a patch added last time go first.
+git -C "$SRC/gfxstream" clean -fdq
+for patch in "$PATCHES"/*.patch; do
+  git -C "$SRC/gfxstream" apply --whitespace=nowarn "$patch" || { echo "$patch does not apply" >&2; exit 1; }
+done
 # Its Cocoa window code uses NSOpenGLView, deprecated: not an error here.
 cmake -S "$SRC/gfxstream" -B "$SRC/gfxstream-build" "${CMAKE_COMMON[@]}" \
   -DBUILD_STANDALONE=ON -DDEPENDENCY_RESOLUTION=AOSP \
@@ -88,7 +116,7 @@ mkdir -p "$SRC/moltenvk"
 tar -xf "$TAR" -C "$SRC/moltenvk"
 MVK="$SRC/moltenvk/MoltenVK/MoltenVK/dynamic/dylib/macOS"
 
-echo "== build/gfxstream"
+echo "== ${OUT#"$ROOT"/}"
 rm -rf "$OUT.new"
 mkdir -p "$OUT.new/lib64/vulkan" "$OUT.new/licenses/gfxstream"
 cp "$SRC/gfxstream-build/libgfxstream_backend.dylib" "$OUT.new/lib64/"
@@ -110,9 +138,10 @@ cp "$SRC/moltenvk/MoltenVK/LICENSE" "$OUT.new/licenses/MoltenVK-LICENSE"
 cat > "$OUT.new/source.properties" <<EOF
 Pkg.Desc=Avo GPU renderer: gfxstream, the Vulkan loader and MoltenVK, built from source
 Pkg.Revision=$REVISION
-Pkg.BuildId=gfxstream-${GFXSTREAM_COMMIT:0:12}.vulkan-loader-$VULKAN_VERSION.moltenvk-$MOLTENVK_VERSION
+Pkg.BuildId=gfxstream-${GFXSTREAM_COMMIT:0:12}.vulkan-loader-$VULKAN_VERSION.moltenvk-$MOLTENVK_VERSION.avo-patches-$PATCH_SUM
+Avo.HostGfxsync=1
 EOF
 echo "$STAMP" > "$OUT.new/.stamp"
 rm -rf "$OUT"
 mv "$OUT.new" "$OUT"
-du -sh "$OUT" | awk '{print "done: build/gfxstream (" $1 ")"}'
+du -sh "$OUT" | awk -v out="${OUT#"$ROOT"/}" '{print "done: " out " (" $1 ")"}'

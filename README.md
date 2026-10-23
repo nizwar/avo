@@ -92,11 +92,9 @@ your Mac's GPU through gfxstream and Metal.
 - At least 10 GB of free disk space: the Android image, and a data disk that
   grows as you use it.
 
-GPU rendering is built in: Avo ships its own gfxstream renderer, the Vulkan
-loader and MoltenVK, built from source, so you need no Android Studio for it.
-Only Android's Bluetooth still needs Google's
-[Android Emulator](https://developer.android.com/studio/run/emulator)
-(installed with Android Studio or the SDK command-line tools).
+Everything Avo needs is built in: its own gfxstream GPU renderer, the
+Vulkan loader and MoltenVK, and Root Canal, Android's Bluetooth controller,
+all built from source. You need no Android Studio or Android Emulator.
 
 ## Installing a preview build
 
@@ -188,10 +186,10 @@ website/    The project website (static, English and Indonesian)
 
 - Android's back and front cameras are emulated, or show one of the Mac's
   cameras (Settings › Devices › Cameras); they have no flash, zoom or
-  manual controls. Bluetooth turns on when the Android Emulator
-  is installed (a virtual controller, netsimd) and reaches the Bluetooth LE
-  devices the Mac sees, like watches, sensors and beacons; classic Bluetooth
-  (headsets) and pairing do not work yet.
+  manual controls. Android's Bluetooth runs on a virtual controller Avo
+  brings (Root Canal) and reaches the Bluetooth LE devices the Mac sees,
+  like watches, sensors and beacons; classic Bluetooth (headsets) and
+  pairing do not work yet.
 - Apps that rely on hardware attestation (most banking and some DRM apps)
   generally do not run, and some online games refuse to run in a virtual
   machine. Avo does not try to get around that.
@@ -234,8 +232,8 @@ Thank you to everyone who has made Avo better:
 ## Acknowledgements
 
 Avo is developed with the help of Claude, Anthropic's AI model, as a coding
-assistant. It builds on AOSP and Cuttlefish, gfxstream and MoltenVK (through
-the Android Emulator), Sparkle, SwiftProtobuf and smoltcp; see
+assistant. It builds on AOSP and Cuttlefish, gfxstream, MoltenVK and the
+Vulkan loader, Root Canal, Sparkle, SwiftProtobuf and smoltcp; see
 [NOTICE](NOTICE).
 
 ## License

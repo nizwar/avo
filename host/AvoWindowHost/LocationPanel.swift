@@ -6,7 +6,7 @@ import os
 import SwiftUI
 import UniformTypeIdentifiers
 
-// The Location panel (Controls › Location…, ⌥⌘L, or Quick Settings ›
+// The Location panel (Game Controls › Location…, ⌥⌘L, or Quick Settings ›
 // Location; in the Control Panel, Settings › Devices › Location › Choose…,
 // for every app): where Android's GPS says it is, on an Apple Maps map, and
 // what it should say instead: a place (a click on the map, a search, or
@@ -178,6 +178,8 @@ final class LocationPanel: NSObject, NSWindowDelegate {
         window.titlebarAppearsTransparent = true
         window.appearance = NSAppearance(named: .darkAqua)
         window.contentMinSize = NSSize(width: 780, height: 540)
+        // Over a game in full screen (⌥⌘L there), instead of a switch to the desktop's Space.
+        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         window.contentViewController = host
         window.isReleasedWhenClosed = false
         window.delegate = self
@@ -969,7 +971,7 @@ private struct AndroidLocationCard: View {
                     model.send(.mac)
                 }
                 if status?.macSharing == false {
-                    QuickCaption(L("Sharing this Mac’s location is off in Settings › Privacy & Security, so Android will have no location."))
+                    QuickCaption(L("Sharing this Mac’s location is off in Avo’s Settings › Devices › Location, so Android will have no location."))
                 }
             }
         }
@@ -999,7 +1001,7 @@ enum LocationSummary {
 
     static func noFix(_ status: LocationStatus?) -> String {
         guard status?.macSharing != false else {
-            return L("Sharing this Mac’s location is off in Settings › Privacy & Security.")
+            return L("Sharing this Mac’s location is off in Avo’s Settings › Devices › Location.")
         }
         return L("No location yet. Android gets this Mac’s location while it runs, once macOS knows it.")
     }
@@ -1169,7 +1171,8 @@ private struct PlaybackControls: View {
     }
 }
 
-private struct LocationButton: View {
+/// Also Quick Settings' All Settings.
+struct LocationButton: View {
     enum Style { case primary, secondary }
     let title: String
     let symbol: String

@@ -243,4 +243,33 @@ private func decode(_ json: String) throws -> VMConfig {
         #expect((chosen.profile, chosen.reason, chosen.settings) == (.apps, .chosen, .appsDefault))
         #expect(chosen.changes.isEmpty)
     }
+
+    /// An app Android lists as a game gets the Games profile, after the
+    /// user's choice and a key mapping.
+    @Test func androidsGamesUseTheGamesProfile() {
+        var config = VMConfig()
+        let game = config.graphics(for: "com.x", hasKeyMapping: false, isGame: true)
+        #expect((game.profile, game.reason, game.settings) == (.games, .androidGame, .gamesDefault))
+        #expect(config.graphics(for: "com.x", hasKeyMapping: true, isGame: true).reason == .keyMapping)
+        config.graphicsOverrides["com.x"] = AppGraphicsOverride(profile: .apps)
+        let chosen = config.graphics(for: "com.x", hasKeyMapping: false, isGame: true)
+        #expect((chosen.profile, chosen.reason) == (.apps, .chosen))
+    }
+
+    /// Such a game keeps the Games profile's performance settings but opens
+    /// in the orientation it asks for; one that lets the screen turn takes
+    /// the profile's, and the app's own changes still come last.
+    @Test func androidsGamesKeepTheirOrientation() {
+        var config = VMConfig()
+        let portrait = config.graphics(for: "com.x", hasKeyMapping: false, isGame: true, orientation: .portrait)
+        var expected = GraphicsSettings.gamesDefault
+        expected.orientation = .portrait
+        #expect((portrait.profile, portrait.reason, portrait.settings, portrait.base) == (.games, .androidGame, expected, expected))
+        #expect(config.graphics(for: "com.x", hasKeyMapping: false, isGame: true).settings.orientation == .landscape)
+        // A key mapping or the user's choice is not Android's word.
+        #expect(config.graphics(for: "com.x", hasKeyMapping: true, isGame: true, orientation: .portrait).settings.orientation == .landscape)
+        #expect(config.graphics(for: "com.x", hasKeyMapping: false, isGame: false, orientation: .landscape).settings.orientation == .portrait)
+        config.graphicsOverrides["com.x"] = AppGraphicsOverride(changes: .difference(.gamesDefault, from: expected))
+        #expect(config.graphics(for: "com.x", hasKeyMapping: false, isGame: true, orientation: .portrait).settings.orientation == .landscape)
+    }
 }

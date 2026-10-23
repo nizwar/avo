@@ -4,6 +4,119 @@ All notable changes to Avo are listed here. Versions follow
 [Semantic Versioning](https://semver.org); preview builds carry a build
 number (`CFBundleVersion`) that only goes up.
 
+## 0.3.0 Preview 1 (build 79)
+
+Bluetooth without the Android Emulator, checkpoints of Android's apps and
+data, Run in Background, phone-style app windows, games recognized from
+Android, a question before a game quits, and a key mapping editor that
+leaves the game its whole window. Signed ad hoc and not notarized like the
+earlier previews: macOS asks you to confirm the first launch (System
+Settings › Privacy & Security › Open Anyway). Install it over 0.2.0
+Preview 3; your Android data stays.
+
+### New
+
+- **Bluetooth built in.** Android's Bluetooth runs on Root Canal, the
+  virtual controller Android's own emulators use, which Avo now ships (built
+  from source): no Android Studio or Android Emulator needed. Android finds
+  the Bluetooth LE devices your Mac sees, such as watches, sensors and
+  beacons (Settings › Devices › Bluetooth).
+- **Run in Background.** A blue light beside the window's own three (also
+  Window › Run in Background) closes the app's windows and its Dock icon
+  while the app keeps running in Android. Open it again from the Library,
+  the menu bar item or a notification; both say it runs in the background.
+- **Phone style.** An app window can show the app's screen alone, with a
+  phone's rounded corners; its title bar grows out above it when the pointer
+  leaves the screen at the top. Choose it for every app in Settings ›
+  Graphics › App windows, or for one app with Phone Style in its Device or
+  View menu, or in Quick Settings. Thanks to Gabriel Momoh (@TheGemDev).
+- **A question before a game quits.** The red button, Close Window (⌘W) and
+  Picture in Picture's ✕ end the game in Android, so Avo asks first: Quit,
+  Run in Background or Cancel, with Don't Ask Again (Settings › Graphics ›
+  App windows › Ask before quitting a game).
+- **Create Key Mapping from the app's page.** The Library's Create Key
+  Mapping… (or Edit) opens the game with the key mapping editor over it.
+- **Reply from notifications, and Now Playing.** Android's notifications
+  bring their buttons to Notification Center: Reply is a text field with
+  Send, and the others do what tapping them in Android does. What Android
+  plays shows in Control Center and answers the media keys and AirPods.
+  Thanks to Gabriel Momoh (@TheGemDev).
+- **Checkpoints.** Settings › Android › Checkpoints keeps restore points of
+  Android's apps and data: made in a moment, also while a game runs, and
+  taking space only as Android changes its data afterwards. Avo makes one by
+  itself before turning on root, installing or removing Google apps,
+  another device profile, and the first start of a newer Android. Restoring
+  one puts back its apps, data and those settings, and keeps what Android
+  had as a checkpoint too. Android's data must be on an APFS drive. Thanks to
+  Gabriel Momoh (@TheGemDev).
+- **Games recognized from Android.** An app whose manifest says it is a
+  game uses the Games preset without a key mapping, and opens in the
+  orientation it asks for, so portrait puzzle and card games stay upright.
+  Thanks to Gabriel Momoh (@TheGemDev).
+
+### Improved
+
+- **The key mapping editor's panel** stands beside the window, so the game
+  keeps its whole size while you place controls (in full screen it stays
+  inside). Cancel asks before throwing changes away, and Done explains a
+  problem in plain words.
+- **The title bar** shows the app's name in full after Back, and the blue
+  light looks just like the window's own lights.
+- **One name for each setting** in Quick Settings, the menus and Settings:
+  Preset, Screen size (Window, Fixed, Phone), Upscaling (Sharp, Smooth,
+  Pixel art), Show keys on game and Game controls.
+- **Every app's settings are in Settings too:** Translate into (General ›
+  Translate Screen), Record Android's sound (Devices › Sound) and the
+  scrolling default (Devices › Mouse and trackpad). Settings search also
+  finds Max FPS, Smooth edges, Preset and more.
+- **Quick Settings** has an App bar style card, and a Create Key Mapping
+  card for a game without one.
+- **Menus** have an icon on every item, and submenus open smoothly in place.
+- **The status pill** under the Library always shows Android's state, also
+  on an app's page.
+
+### Fixed
+
+- **Recording through Android's audio** (voice recorders, voice chat in
+  games such as Call of Duty: Mobile) lost about an eighth of the sound in
+  short holes: teammates heard little or nothing. Thanks to Gabriel Momoh
+  (@TheGemDev).
+- **Some games got only OpenGL ES 2.0** (fewer effects, or none of their
+  newer graphics) when Android's own interface or the game's Vulkan started
+  before its OpenGL. Every app now gets OpenGL ES 3.1.
+- **Apps with strong anti-tamper protection** that closed as they opened in
+  GPU mode now start: Avo's graphics helpers left Android's /data/local
+  folder.
+- **Picture in Picture** showed a black screen.
+- **App window titles** were cut short ("F…") while there was room.
+- **The status pill** disappeared after the Library window was closed and
+  opened again.
+- **The menu bar item** offered Start while Android was starting or
+  stopping, and Quit Avo did not stick while the Control Panel was open.
+- **A game you made a key mapping for** stayed under Apps in the Library
+  until Avo restarted.
+- **⌥⌘L in a full-screen game** switched to the desktop to show the
+  Location window.
+
+### Known issues
+
+- Bluetooth headsets and other classic Bluetooth devices, Bluetooth pairing
+  with the Mac's devices, and calls or SMS on the SIM don't work yet.
+- Some apps with anti-tamper protection close right after opening while
+  Settings › Privacy & Security › Emulate this phone's hardware is on; turn
+  it off for them.
+- Root access may not start Android once Google apps are installed in it;
+  Avo then turns root back off.
+- Delta Force draws its terrain flat at the Ultimate and MAX presets; at
+  High and below it is textured (restart the game after changing the
+  preset). With software rendering its 3D scenes show wrong colors.
+- With Android's data on an external drive, macOS asks again after an update
+  whether Avo may use the drive, and Android starts only once you allow it.
+- Apps that need hardware attestation (most banking apps, some DRM and
+  anti-cheat systems) generally do not run.
+- Each game loads more slowly the first time after the update: the Mac
+  compiles its shaders again for Avo's updated GPU renderer.
+
 ## 0.2.0 Preview 3 (build 72)
 
 GPU rendering without Android Studio, modes and running for key mapping,

@@ -60,16 +60,16 @@ struct GraphicsSettingsEditor: View {
         }
 
         LabeledContent {
-            HazePicker("Scaling filter", selection: $settings.filter) {
-                HazeOption("MetalFX Spatial", GraphicsSettings.Filter.metalFXSpatial)
-                HazeOption("Bilinear (smooth)", GraphicsSettings.Filter.bilinear)
-                HazeOption("Nearest neighbor (pixel art)", GraphicsSettings.Filter.nearest)
+            HazePicker("Upscaling", selection: $settings.filter) {
+                HazeOption("Sharp (MetalFX)", GraphicsSettings.Filter.metalFXSpatial)
+                HazeOption("Smooth", GraphicsSettings.Filter.bilinear)
+                HazeOption("Pixel art", GraphicsSettings.Filter.nearest)
             }
         } label: {
-            HelpTitle("Scaling filter") {
-                HelpTerm("MetalFX Spatial", "Apple's upscaler keeps edges and text sharp when the picture is enlarged. Best for most games.")
-                HelpTerm("Bilinear (smooth)", "Slightly soft, uses the least power.")
-                HelpTerm("Nearest neighbor (pixel art)", "Keeps pixels square and crisp. Cleanest at 2×, 3× and so on.")
+            HelpTitle("Upscaling") {
+                HelpTerm("Sharp (MetalFX)", "Apple's MetalFX keeps edges and text sharp when the picture is enlarged. Best for most games.")
+                HelpTerm("Smooth", "Slightly soft, uses the least power.")
+                HelpTerm("Pixel art", "Keeps pixels square and crisp. Cleanest at 2×, 3× and so on.")
                 // Why Result says "Shrunk" with MetalFX chosen.
                 if settings.filter == .metalFXSpatial, previews.contains(where: { $0.preview.shrinks }) {
                     Text("MetalFX only enlarges. When Android's picture is larger than the window, Avo shrinks it smoothly instead.")
@@ -109,24 +109,24 @@ struct GraphicsSettingsEditor: View {
 
     @ViewBuilder private var modeRow: some View {
         LabeledContent {
-            HazePicker("Android’s screen", selection: Binding(get: { mode }, set: { settings.mode = $0 })) {
-                HazeOption("Follow window", GraphicsSettings.Mode.followWindow)
-                HazeOption("Fixed resolution", GraphicsSettings.Mode.fixed)
+            HazePicker("Screen size", selection: Binding(get: { mode }, set: { settings.mode = $0 })) {
+                HazeOption("Window", GraphicsSettings.Mode.followWindow)
+                HazeOption("Fixed", GraphicsSettings.Mode.fixed)
                 if let phone, device != nil {
-                    HazeOption("Phone’s screen (\(phone.name))", GraphicsSettings.Mode.deviceProfile)
+                    HazeOption("Phone (\(phone.name))", GraphicsSettings.Mode.deviceProfile)
                 } else {
-                    HazeOption("Phone’s screen", GraphicsSettings.Mode.deviceProfile, isEnabled: false)
+                    HazeOption("Phone", GraphicsSettings.Mode.deviceProfile, isEnabled: false)
                 }
             }
         } label: {
-            HelpTitle("Android’s screen") {
-                HelpTerm("Follow window", "Android renders at the window's size, so text stays sharp. Resizing the window changes Android's resolution.")
-                HelpTerm("Fixed resolution", "Android keeps the resolution below when you resize the window or enter full screen. Enlarging the window enlarges the picture; it doesn't give the app more room.")
-                HelpTerm("Phone’s screen", "Android gets the screen of the phone chosen as device profile, its resolution and density, so apps lay out exactly as on that phone. The window keeps the phone's shape, and Interface size doesn't apply.")
+            HelpTitle("Screen size") {
+                HelpTerm("Window", "Android renders at the window's size, so text stays sharp. Resizing the window changes Android's resolution.")
+                HelpTerm("Fixed", "Android keeps the resolution below when you resize the window or enter full screen. Enlarging the window enlarges the picture; it doesn't give the app more room.")
+                HelpTerm("Phone", "Android gets the screen of the phone chosen as device profile, its resolution and density, so apps lay out exactly as on that phone. The window keeps the phone's shape, and Interface size doesn't apply.")
             }
         }
         if device == nil {
-            caption("Phone’s screen needs a phone: choose one in Settings › Privacy & Security › Device profile.")
+            caption("To use Phone, choose a phone in Settings › Privacy & Security › Device profile.")
         }
     }
 
@@ -360,7 +360,7 @@ struct GraphicsSettingsEditor: View {
     @ViewBuilder private var warnings: some View {
         if let window = previews.first?.preview {
             if settings.filter == .nearest, case .nearest = window.path, abs(window.ratio - window.ratio.rounded()) > 0.01 {
-                warning("Nearest neighbor looks uneven at \(window.ratio.formatted(.number.precision(.fractionLength(2))))×; it is cleanest at 2× or 3×.")
+                warning("Pixel art looks uneven at \(window.ratio.formatted(.number.precision(.fractionLength(2))))×; it is cleanest at 2× or 3×.")
             }
             if mode == .fixed, window.ratio < 0.8 {
                 warning("The window shows fewer pixels than Android renders. A lower resolution looks the same and runs faster.")

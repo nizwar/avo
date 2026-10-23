@@ -623,16 +623,18 @@ final class Flag: @unchecked Sendable {
                 await Task.detached { try? await Task.sleep(for: .seconds(5)) }.value
             }
         }
-        #expect(ContinuousClock.now - started < .seconds(2))
+        // Well before the step's own 5 s, even with the suite's heavy tests beside it.
+        #expect(ContinuousClock.now - started < .seconds(4))
     }
 
     @Test func countsFromTheLastHeartbeat() async throws {
         let heartbeat = Heartbeat()
-        // 2 s of work against a 1 s deadline: only the beats keep it going
-        // (wide margins: the suite runs this beside heavy tests).
-        try await Deadline.run(.seconds(1), what: "push", heartbeat: heartbeat) {
-            for _ in 0..<8 {
-                try await Task.sleep(for: .milliseconds(250))
+        // 2.4 s of work against a 2 s deadline: only the beats keep it going.
+        // A beat every 200 ms leaves wide margins: the suite runs this beside
+        // heavy tests, which can stretch a short sleep past a second.
+        try await Deadline.run(.seconds(2), what: "push", heartbeat: heartbeat) {
+            for _ in 0..<12 {
+                try await Task.sleep(for: .milliseconds(200))
                 heartbeat.beat()
             }
         }

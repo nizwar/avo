@@ -91,6 +91,8 @@ public struct VMConfig: Codable, Equatable, Sendable {
     /// The size of an app's first window, turned to its graphics'
     /// orientation (`GraphicsSettings.orientation`, once `defaultOrientation`).
     public var defaultWindowSize: WindowSize
+    /// Every app's title bar (WindowModes.swift); an app may have its own.
+    public var appBarStyle: AppBarStyle
 
     // Sistem
     public var rooted: Bool
@@ -150,7 +152,7 @@ public struct VMConfig: Codable, Equatable, Sendable {
                 renderer: Renderer = .vulkan, rendererMode: RendererMode = .auto, fpsLimit: Int = 60,
                 appGraphics: GraphicsSettings = .appsDefault, gameGraphics: GraphicsSettings = .gamesDefault,
                 graphicsOverrides: [String: AppGraphicsOverride] = [:], performanceHUD: PerformanceHUDLevel = .off,
-                defaultWindowSize: WindowSize = WindowSize(width: 412, height: 892),
+                defaultWindowSize: WindowSize = WindowSize(width: 412, height: 892), appBarStyle: AppBarStyle = .standard,
                 rooted: Bool = false, deviceProfileID: String = DeviceProfile.defaultID, emulateHardware: Bool = false,
                 gms: GMSMode = .none, adbEnabled: Bool = false, adbPort: Int = VMConfig.defaultADBPort, shareLocation: Bool = true, dockBadges: Bool = true,
                 wifiEnabled: Bool = true, networkSpeed: NetworkSpeed = .full, shareMacBluetooth: Bool = true,
@@ -176,6 +178,7 @@ public struct VMConfig: Codable, Equatable, Sendable {
         self.graphicsOverrides = graphicsOverrides
         self.performanceHUD = performanceHUD
         self.defaultWindowSize = defaultWindowSize
+        self.appBarStyle = appBarStyle
         self.rooted = rooted
         self.deviceProfileID = deviceProfileID
         self.emulateHardware = emulateHardware
@@ -279,7 +282,7 @@ public struct VMConfig: Codable, Equatable, Sendable {
         case memoryMiB, cpuCount, balloonWhenIdle, autoPauseMinutes, dataDiskGiB, imageLocation, shareFolder, sharedFolderPath
         case renderer, rendererMode, fpsLimit
         case appGraphics, gameGraphics, graphicsOverrides, performanceHUD
-        case defaultWindowSize, rooted, deviceProfileID, emulateHardware, gms, adbEnabled, adbPort, shareLocation, dockBadges
+        case defaultWindowSize, appBarStyle, rooted, deviceProfileID, emulateHardware, gms, adbEnabled, adbPort, shareLocation, dockBadges
         case wifiEnabled, networkSpeed, shareMacBluetooth, cellularEnabled, mobileNetworkType, cellularSignal
         case backCamera, frontCamera, camerasEnabled, microphoneEnabled, bluetoothEnabled, shareClipboard
         case translationAtStartup
@@ -338,6 +341,9 @@ public struct VMConfig: Codable, Equatable, Sendable {
         performanceHUD = (try? container.decodeIfPresent(String.self, forKey: .performanceHUD)).flatMap(PerformanceHUDLevel.init(rawValue:))
             ?? defaults.performanceHUD
         defaultWindowSize = try value(.defaultWindowSize, defaults.defaultWindowSize)
+        // A style a newer Avo added reads as the default.
+        appBarStyle = (try? container.decodeIfPresent(String.self, forKey: .appBarStyle)).flatMap(AppBarStyle.init(rawValue:))
+            ?? defaults.appBarStyle
         rooted = try value(.rooted, defaults.rooted)
         deviceProfileID = try value(.deviceProfileID, defaults.deviceProfileID)
         emulateHardware = try value(.emulateHardware, defaults.emulateHardware)
@@ -522,6 +528,7 @@ extension VMConfig {
         check(\.performanceHUD, "performanceHUD", .immediate)
         // App windows: never needs a restart.
         check(\.defaultWindowSize, "defaultWindowSize", .newWindows)
+        check(\.appBarStyle, "appBarStyle", .immediate)
         // Sistem: root, device profile and GMS are applied at boot.
         check(\.rooted, "rooted", .restartRequired)
         check(\.deviceProfileID, "deviceProfileID", .restartRequired)

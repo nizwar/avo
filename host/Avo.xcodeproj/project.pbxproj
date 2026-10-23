@@ -114,6 +114,7 @@
 		C3063BC429B958855A6D5DA3 /* SharedFolderViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5BB420CEAC500F8BF5AB0C3 /* SharedFolderViews.swift */; };
 		C3748A7453DFEE28D23D9314 /* GraphicsSettingsEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E0802A87AF6B465008CA944 /* GraphicsSettingsEditor.swift */; };
 		C58D74218817BA514A70A572 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2D9DA4A74ED2CAFCD7573F60 /* Metal.framework */; };
+		C604772F7C31527C5492DA07 /* CheckpointViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16EB0C6D06F2B4934D2B9DD6 /* CheckpointViews.swift */; };
 		C8AFDD75D978DCB7FBEDF4EC /* ControlPanelModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA39192F6A11BA3E0270D69A /* ControlPanelModel.swift */; };
 		C9D28C1206FD10929949D950 /* KeymapOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AF48808B5AC365FE6115F6B /* KeymapOverlay.swift */; };
 		CD3C82E42A842708624C7225 /* RecordingAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF7F1029C48A58A05962B422 /* RecordingAudio.swift */; };
@@ -137,6 +138,7 @@
 		F240F02DAB0D7C254BD606D6 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 20EE5C5D0BA49AF0A56C43A9 /* Localizable.xcstrings */; };
 		F2C61EA7D38664A42D4CF16B /* FingerprintsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F288F116C105C8008B31139 /* FingerprintsPane.swift */; };
 		F691FF3BEFFD48314FC84EC7 /* PictureInPictureWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D936C74814C5B26B85DE5863 /* PictureInPictureWindow.swift */; };
+		F74B91D0AAD65DD61BD9BB00 /* WindowChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 830E78F375BA121F14BD1E70 /* WindowChrome.swift */; };
 		FBAA61DF267ED3B773BEB75B /* GraphicsMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB753E2158DC17A4E034C9B1 /* GraphicsMenu.swift */; };
 		FCE84B743F1B4CCB9BED05E5 /* LibrarySidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2BC11CE910091D745949D83 /* LibrarySidebar.swift */; };
 		FD59002EC07344DEA7B5FDAA /* ReportProblem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65F7E2A3C00C21BDBF58BE20 /* ReportProblem.swift */; };
@@ -184,6 +186,17 @@
 		1D53782E6B5857E8BE21FBDA /* Embed Dependencies */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				3B17A894C265E7F52B64E424 /* avoctl in Embed Dependencies */,
+			);
+			name = "Embed Dependencies";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9B5483BA2FEF5F7A9BECF5F2 /* Embed Dependencies */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
 			dstPath = Contents/Library/Shim;
 			dstSubfolderSpec = 1;
 			files = (
@@ -192,24 +205,13 @@
 			name = "Embed Dependencies";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		9B5483BA2FEF5F7A9BECF5F2 /* Embed Dependencies */ = {
+		C7672177C149A74FB486AFCE /* Embed Dependencies */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = Contents/Library/Helpers;
 			dstSubfolderSpec = 1;
 			files = (
 				47016DFED92044DBDCC83456 /* AvoDaemon.app in Embed Dependencies */,
-			);
-			name = "Embed Dependencies";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		C7672177C149A74FB486AFCE /* Embed Dependencies */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 6;
-			files = (
-				3B17A894C265E7F52B64E424 /* avoctl in Embed Dependencies */,
 			);
 			name = "Embed Dependencies";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -255,6 +257,7 @@
 		133C04954F11344B77B5022D /* AppUsageCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUsageCard.swift; sourceTree = "<group>"; };
 		1516A4C094E91BB02631FF77 /* SystemStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemStatusView.swift; sourceTree = "<group>"; };
 		169AFA72B5D4B196DA73B69A /* dev.avo.daemon.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = dev.avo.daemon.plist; sourceTree = "<group>"; };
+		16EB0C6D06F2B4934D2B9DD6 /* CheckpointViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckpointViews.swift; sourceTree = "<group>"; };
 		1986CB9B7D4C96CDD6360302 /* LibraryOnboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryOnboarding.swift; sourceTree = "<group>"; };
 		1DBB8F69EF7F6FF2FD5D076F /* HazeMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HazeMenu.swift; sourceTree = "<group>"; };
 		1EE603498A6803B96C622035 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -301,6 +304,7 @@
 		8013D3F2A040EAA894360D64 /* CoreHaptics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreHaptics.framework; path = System/Library/Frameworks/CoreHaptics.framework; sourceTree = SDKROOT; };
 		801D5BA6131483549457E5CD /* LibraryWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryWindow.swift; sourceTree = "<group>"; };
 		80402279174CF43A99B84FE9 /* SetupCarriedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupCarriedData.swift; sourceTree = "<group>"; };
+		830E78F375BA121F14BD1E70 /* WindowChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowChrome.swift; sourceTree = "<group>"; };
 		86BC0FB987CE432E759E1499 /* OFL-MonaSans.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "OFL-MonaSans.txt"; sourceTree = "<group>"; };
 		8B51354EC56633B01822C753 /* mona-sans.woff2 */ = {isa = PBXFileReference; path = "mona-sans.woff2"; sourceTree = "<group>"; };
 		8BC81EDA9B2997933033B2D0 /* FrameRateHint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameRateHint.swift; sourceTree = "<group>"; };
@@ -496,6 +500,7 @@
 				F64C8E34E5447E3EB40D0D3F /* Assets.xcassets */,
 				D06BF8BFE54A40E75F1AA198 /* Avo.entitlements */,
 				A444BBF9A53642B1FE34256B /* AvoApp.swift */,
+				16EB0C6D06F2B4934D2B9DD6 /* CheckpointViews.swift */,
 				8BEACB0E1606E0C9E8530E4F /* ContentView.swift */,
 				FA39192F6A11BA3E0270D69A /* ControlPanelModel.swift */,
 				303350F925C8F3106A16A510 /* DaemonAgent.swift */,
@@ -629,6 +634,7 @@
 				4BD8108EF46DAE00801D9C67 /* SpatialUpscaler.swift */,
 				BF22EB11A4CB702484B63BA7 /* WheelScrolling.swift */,
 				757FE7FE5E8552F4983486D2 /* WidgetPanels.swift */,
+				830E78F375BA121F14BD1E70 /* WindowChrome.swift */,
 			);
 			path = AvoWindowHost;
 			sourceTree = "<group>";
@@ -658,6 +664,7 @@
 				9B5483BA2FEF5F7A9BECF5F2 /* Embed Dependencies */,
 				0DF9162A1C0539A6B7AA1B4F /* Build avo-vmm */,
 				4985470071A358EF376C36F2 /* Embed the GPU renderer */,
+				074121D49DF3337DB2103F1A /* Embed the Bluetooth controller */,
 			);
 			buildRules = (
 			);
@@ -865,6 +872,25 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		074121D49DF3337DB2103F1A /* Embed the Bluetooth controller */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Embed the Bluetooth controller";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\nCONTROLLER=\"$SRCROOT/../build/bluetooth\"\nOUT=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/bluetooth\"\nif [ ! -f \"$CONTROLLER/.stamp\" ]; then\n  echo \"warning: no Bluetooth controller in build/bluetooth (run scripts/build-bluetooth.sh); Avo.app then needs the Android Emulator for Bluetooth\"\n  exit 0\nfi\n# Nothing to do when the controller did not change: Avo.app stays sealed.\nif [ -f \"$OUT/.stamp\" ] && cmp -s \"$CONTROLLER/.stamp\" \"$OUT/.stamp\"; then\n  exit 0\nfi\nrm -rf \"$OUT.new\"\nditto \"$CONTROLLER\" \"$OUT.new\"\ncodesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" \"$OUT.new/rootcanal\"\n# Replace, never overwrite: a running avo-vmm may have started it.\nrm -rf \"$OUT\"\nmv \"$OUT.new\" \"$OUT\"\nif codesign --display \"$TARGET_BUILD_DIR/$WRAPPER_NAME\" >/dev/null 2>&1; then\n  codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" \\\n    --preserve-metadata=identifier,entitlements,requirements,flags,runtime \"$TARGET_BUILD_DIR/$WRAPPER_NAME\"\nfi\n";
+		};
 		0DF9162A1C0539A6B7AA1B4F /* Build avo-vmm */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -946,6 +972,7 @@
 				503949AFD1AAE5E77994DA66 /* SpatialUpscaler.swift in Sources */,
 				12B4999A17C07FA0376DF28D /* WheelScrolling.swift in Sources */,
 				18D8B4E25D143F13C679325F /* WidgetPanels.swift in Sources */,
+				F74B91D0AAD65DD61BD9BB00 /* WindowChrome.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -963,6 +990,7 @@
 				A3E94E28A8A33351A9FC58CC /* AppUsageCard.swift in Sources */,
 				06EF44144268EDA889E46D1C /* AppsView.swift in Sources */,
 				95568F6EAC87B4A342D6471D /* AvoApp.swift in Sources */,
+				C604772F7C31527C5492DA07 /* CheckpointViews.swift in Sources */,
 				ECB289C356315F65BD9872C6 /* ContentView.swift in Sources */,
 				C8AFDD75D978DCB7FBEDF4EC /* ControlPanelModel.swift in Sources */,
 				6755F96AA82D28645EF428A5 /* DaemonAgent.swift in Sources */,

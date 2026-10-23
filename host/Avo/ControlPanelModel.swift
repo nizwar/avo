@@ -129,6 +129,10 @@ final class ControlPanelModel {
     }
     /// A change of where Android's data is, as the daemon reports it.
     private(set) var storageProgress: StorageChangeProgress?
+    /// Settings › Android › Checkpoints (CheckpointViews.swift), nil until asked.
+    private(set) var checkpoints: CheckpointStatus?
+    /// A checkpoint is being made or restored (the buttons wait).
+    private(set) var checkpointWork: CheckpointWork?
     /// A Google apps install runs (Reset and Save Snapshot wait).
     var isInstallingGoogleApps: Bool { googleAppsProgress.map { !$0.isDone } ?? false }
     /// It is changing Android, which Avo restarts by itself meanwhile:
@@ -142,6 +146,7 @@ final class ControlPanelModel {
     // MARK: Connection
 
     func start() {
+        refreshKeyMappingsWhenActive()
         // Development: run the daemon with launchctl instead (see host/README.md).
         if ProcessInfo.processInfo.arguments.contains("-AvoSkipDaemonRegistration") {
             connect()
@@ -424,6 +429,8 @@ final class ControlPanelModel {
             Task { await refreshConfiguration() }
         case .storageProgress(let progress):
             storageProgress = progress
+        case .checkpoints(let status):
+            checkpoints = status
         case .systemActivity(let activity):
             systemStatus.receive(activity)
         default:
@@ -536,6 +543,50 @@ final class ControlPanelModel {
             } catch {
                 lastError = error.localizedDescription
             }
+            await refreshConfiguration()
+        }
+    }
+
+    // MARK: Checkpoints (Settings › Android › Checkpoints)
+
+    enum CheckpointWork { case creating, restoring }
+
+    func refreshCheckpoints() async {
+        if let status = try? await client?.checkpoints() { checkpoints = status }
+    }
+
+    func createCheckpoint(named name: String) {
+        performCheckpointWork(.creating) { _ = try await $0.createCheckpoint(named: name) }
+    }
+
+    /// Android restarts with the checkpoint's data when it runs; its apps follow then.
+    func restoreCheckpoint(_ checkpoint: Checkpoint) {
+        performCheckpointWork(.restoring) { try await $0.restoreCheckpoint(checkpoint.id) }
+    }
+
+    func deleteCheckpoint(_ checkpoint: Checkpoint) {
+        guard let client else { return }
+        Task {
+            do {
+                try await client.deleteCheckpoint(checkpoint.id)
+            } catch {
+                lastError = error.localizedDescription
+            }
+            await refreshCheckpoints()
+        }
+    }
+
+    private func performCheckpointWork(_ work: CheckpointWork, _ action: @escaping @Sendable (DaemonClient) async throws -> Void) {
+        guard let client, checkpointWork == nil else { return }
+        checkpointWork = work
+        Task {
+            do {
+                try await action(client)
+            } catch {
+                lastError = error.localizedDescription
+            }
+            checkpointWork = nil
+            await refreshCheckpoints()
             await refreshConfiguration()
         }
     }
@@ -656,10 +707,30 @@ final class ControlPanelModel {
     }
 
     @ObservationIgnored private var keyMappingGeneration = 0
+    @ObservationIgnored private var activationObserver: (any NSObjectProtocol)?
+
+    /// A key mapping made (or removed) in an app's window counts once Avo
+    /// is in front again: the Library's Games and Apps, and the preset an
+    /// app's page starts its graphics from, as the window has them.
+    private func refreshKeyMappingsWhenActive() {
+        guard activationObserver == nil else { return }
+        activationObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
+                                                                    queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshKeyMappings() }
+        }
+    }
 
     /// The settings `package`'s windows use now.
     func graphics(for package: String) -> ResolvedGraphics? {
-        config?.graphics(for: package, hasKeyMapping: hasKeyMapping(package))
+        let app = apps.first { $0.package == package }
+        return config?.graphics(for: package, hasKeyMapping: hasKeyMapping(package), isGame: app?.isGame == true,
+                                orientation: app?.orientation)
+    }
+
+    /// Android lists the app as a game (its manifest says so). The Library's
+    /// `isGame(_:)` asks more: whether the app uses the Games preset.
+    func listedAsGame(_ package: String) -> Bool {
+        apps.first { $0.package == package }?.isGame == true
     }
 
     // MARK: Apps
@@ -670,6 +741,28 @@ final class ControlPanelModel {
             return
         }
         NSWorkspace.shared.openApplication(at: URL(filePath: shim), configuration: NSWorkspace.OpenConfiguration())
+    }
+
+    /// Opens the app with its key mapping editor over the game (its page's
+    /// Create Key Mapping…): a running app is asked, one that starts is
+    /// told by its launch (ShimRequest).
+    func editKeyMapping(_ app: AppRecord) {
+        guard let shim = app.shortcuts.shimPath else {
+            lastError = String(localized: "\(app.displayName) has no shortcut yet. Use “Recreate Shortcuts” in Settings › General.")
+            return
+        }
+        let identifier = AvoIdentifiers.shimBundleIdentifier(for: app.package)
+        if let running = NSRunningApplication.runningApplications(withBundleIdentifier: identifier).first(where: \.isFinishedLaunching) {
+            // Asked and brought forward, not reopened: a reopen opens another
+            // window when none shows (a minimized one), as a Dock click does.
+            DistributedNotificationCenter.default().postNotificationName(ShimRequest.editKeyMapping, object: app.package, userInfo: nil,
+                                                                         deliverImmediately: true)
+            _ = running.activate(from: .current)
+            return
+        }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.arguments = [ShimRequest.editKeyMappingArgument]
+        NSWorkspace.shared.openApplication(at: URL(filePath: shim), configuration: configuration)
     }
 
     // MARK: Notifications

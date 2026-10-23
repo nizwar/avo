@@ -18,7 +18,8 @@ public func AvoShimMain(_ argc: Int32, _ argv: UnsafeMutablePointer<UnsafeMutabl
             arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil
         }
         let app = NSApplication.shared
-        let delegate = ShimAppDelegate(package: package, label: label, notificationKey: notificationKey)
+        let delegate = ShimAppDelegate(package: package, label: label, notificationKey: notificationKey,
+                                       editKeyMapping: arguments.contains(ShimRequest.editKeyMappingArgument))
         ShimAppDelegate.retained = delegate
         app.delegate = delegate
         // No setActivationPolicy(.regular): the bundle is a regular app
@@ -38,6 +39,9 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     let package: String
     let label: String
     private var pendingNotificationKey: String?
+    /// The Control Panel asked for the key mapping editor before the daemon
+    /// answered (ShimRequest): the first window opens it.
+    private var pendingEditKeyMapping: Bool
     private let frames = FrameRouter()
     private var client: DaemonClient?
     /// The daemon answered `hello`: a window may open its display. Until
@@ -47,6 +51,10 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     /// shim, and refused ("The caller is not allowed…").
     private var connected = false
     private(set) var config = VMConfig()
+    /// Android lists this app as a game: its windows use the Games profile by default.
+    private(set) var isGame = false
+    /// The orientation such a game asks for, which its windows open in.
+    private(set) var orientation: VMConfig.Orientation?
     /// The device profiles (they never change while the daemon runs): the
     /// chosen one's screen is what "Phone's screen" gives Android.
     private(set) var profiles: [DeviceProfile] = []
@@ -64,14 +72,19 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     private var notificationCount = 0
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "Shim")
 
-    init(package: String, label: String, notificationKey: String?) {
+    init(package: String, label: String, notificationKey: String?, editKeyMapping: Bool) {
         self.package = package
         self.label = label
         self.pendingNotificationKey = notificationKey
+        pendingEditKeyMapping = editKeyMapping
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMenu()
+        // What the Control Panel asks of this app while it runs (ShimRequest).
+        let distributed = DistributedNotificationCenter.default()
+        distributed.addObserver(self, selector: #selector(editKeyMappingRequested), name: ShimRequest.editKeyMapping, object: package)
+        distributed.addObserver(self, selector: #selector(preferencesChanged), name: ShimRequest.preferencesChanged, object: package)
         let version = Bundle(for: ShimAppDelegate.self).object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
         let client = DaemonClient(role: .shim(package: package), version: "avo-shim \(version)", frameReceiver: frames)
         self.client = client
@@ -81,12 +94,18 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
                 if let snapshot = try? await client.configuration() {
                     config = snapshot.config
                     profiles = snapshot.profiles
+                    isGame = snapshot.games?.contains(package) == true
+                    orientation = snapshot.gameOrientations?[package]
                 }
                 ShimFingerprints.shared.connect(client)
                 LocationModel.shared.connect(client)
                 connected = true
-                openWindow(notificationKey: pendingNotificationKey)
+                let window = openWindow(notificationKey: pendingNotificationKey)
                 pendingNotificationKey = nil
+                if pendingEditKeyMapping {
+                    pendingEditKeyMapping = false
+                    window.editKeyMappingWhenReady()
+                }
                 for await event in client.events { handle(event) }
                 notificationCount = 0
                 updateDockBadge()
@@ -197,7 +216,7 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
             // The Android task finished (e.g. the app called finish()).
             window.closeFromGuest()
         case let .displayTitle(_, title):
-            window.window?.subtitle = title
+            window.showActivityTitle(title)
         case let .orientationRequest(_, orientation):
             window.applyOrientation(orientation)
         default:
@@ -256,9 +275,12 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
             target?.showNotice(failure(problem))
             guard let snapshot = try? await client?.configuration() else { return }
             let before = config
+            let wasGame = (isGame: isGame, orientation: orientation)
             config = snapshot.config
             profiles = snapshot.profiles
-            for window in windows { window.configurationChanged(from: before, immediate: true) }
+            isGame = snapshot.games?.contains(package) == true
+            orientation = snapshot.gameOrientations?[package]
+            for window in windows { window.configurationChanged(from: before, immediate: true, wasGame: wasGame) }
         }
     }
 
@@ -278,6 +300,58 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
         for window in windows { window.applyWindowLevel() }
     }
 
+    /// Run in Background (a window's blue light): every window goes, and the
+    /// Dock icon and menu bar with them (an accessory app), while the app runs
+    /// on in Android: its displays stay open, so Android neither stops it nor
+    /// pauses, and draws nothing nobody sees. Opening the app again (the
+    /// Library, the menu bar item, a notification, a tile kept in the Dock)
+    /// brings them back as they were.
+    private(set) var inBackground = false
+
+    func runInBackground() {
+        guard !inBackground, !windows.isEmpty else { return }
+        inBackground = true
+        for window in windows { window.sendToBackground() }
+        NSApp.setActivationPolicy(.accessory)
+        if NSApp.isActive { Self.activateWindowBehind() }
+    }
+
+    private func bringBack() {
+        guard inBackground else { return }
+        inBackground = false
+        NSApp.setActivationPolicy(.regular)
+        for window in windows { window.returnFromBackground() }
+        NSApp.activate()
+    }
+
+    /// The app page's Create Key Mapping… while the app runs: the editor
+    /// over the game in its front window (one opens if none is).
+    @objc private func editKeyMappingRequested() {
+        guard connected else {
+            pendingEditKeyMapping = true
+            return
+        }
+        if inBackground { bringBack() }
+        let window = windows.first { $0.window?.isKeyWindow == true }
+            ?? windows.first { $0.window?.isVisible == true || $0.isInPictureInPicture }
+            ?? windows.first ?? openWindow(notificationKey: nil)
+        // A minimized one comes back first: the editor goes over the game.
+        if window.window?.isMiniaturized == true { window.window?.deminiaturize(nil) }
+        window.editKeyMappingWhenReady()
+        NSApp.activate()
+    }
+
+    /// The Control Panel changed this app's settings in its defaults (Show
+    /// key hints on its page): the windows show them now.
+    @objc private func preferencesChanged() {
+        NotificationCenter.default.post(name: KeymapHints.changed, object: nil)
+    }
+
+    /// This app's own app bar style changed (a window's menu): every window takes it.
+    func appBarStyleChanged() {
+        for window in windows { window.applyAppBarStyle() }
+    }
+
     /// Called by a window once `openDisplay` returned its display id.
     func displayAttached(_ window: AndroidWindowController, displayID: UInt32) {
         for event in earlyEvents.removeValue(forKey: displayID) ?? [] { deliver(event, to: window) }
@@ -290,6 +364,11 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     // MARK: App behaviour
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // Opened again while it ran in the background: its windows come back.
+        if inBackground {
+            bringBack()
+            return true
+        }
         // The Dock icon brings windows back from Picture in Picture.
         let pictures = windows.filter(\.isInPictureInPicture)
         if !pictures.isEmpty {
@@ -301,6 +380,12 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// Made active while it ran in the background (the menu bar item, a
+    /// notification): its windows come back.
+    func applicationDidBecomeActive(_ notification: Notification) {
+        bringBack()
+    }
 
     /// Quit (⌘Q, Dock › Quit) closes the app completely, like swiping it
     /// away on a phone: its windows and its Android process.
@@ -393,13 +478,13 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
         main.addItem(viewItem)
 
         let gameItem = NSMenuItem()
-        let gameMenu = NSMenu(title: String(localized: "Controls", bundle: .windowHost))
+        let gameMenu = NSMenu(title: String(localized: "Game Controls", bundle: .windowHost))
         let editor = gameMenu.addItem(withTitle: String(localized: "Edit Key Mapping…", bundle: .windowHost), action: #selector(AndroidWindowController.toggleKeymapEditor),
                                       keyEquivalent: "k")
         editor.keyEquivalentModifierMask = [.command, .shift]
         gameMenu.addItem(withTitle: String(localized: "Game Mode", bundle: .windowHost), action: #selector(AndroidWindowController.toggleGameMode),
                          keyEquivalent: "g")
-        gameMenu.addItem(withTitle: String(localized: "Show Key Mapping on Game", bundle: .windowHost), action: #selector(toggleKeymapHints(_:)),
+        gameMenu.addItem(withTitle: String(localized: "Show Keys on Game", bundle: .windowHost), action: #selector(toggleKeymapHints(_:)),
                          keyEquivalent: "").target = self
         gameMenu.addItem(KeymapHintsMenu.shared.makeItem())
         // How the mouse wheel scrolls this app (WheelScrolling.swift).
@@ -420,6 +505,9 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
         let windowItem = NSMenuItem()
         let windowMenu = NSMenu(title: String(localized: "Window", bundle: .windowHost))
         windowMenu.addItem(withTitle: String(localized: "Minimize", bundle: .windowHost), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        // The blue light: the windows go, the app runs on in Android.
+        windowMenu.addItem(withTitle: String(localized: "Run in Background", bundle: .windowHost),
+                           action: #selector(AndroidWindowController.runInBackground), keyEquivalent: "")
         windowMenu.addItem(withTitle: String(localized: "Rotate", bundle: .windowHost), action: #selector(AndroidWindowController.rotateWindow), keyEquivalent: "r")
         windowItem.submenu = windowMenu
         main.addItem(windowItem)

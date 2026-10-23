@@ -17,7 +17,7 @@ struct KeymapPainter {
     let displayRect: CGRect
     /// Editor: how solid the objects' fills are (Editor Opacity); outlines
     /// and keys stay readable, so a lower value shows the game through them.
-    /// Hints: the player's Key Mapping Visibility; the keys stay readable
+    /// Hints: the player's Key Visibility; the keys stay readable
     /// at any value, only their plates fade.
     var opacity: CGFloat = 1
     /// Names under the objects (editor only).
@@ -575,7 +575,7 @@ struct KeymapPainter {
     // MARK: Hints over the game
 
     /// How much of the game a key cap's plate covers, and how solid its
-    /// outline and text are, at the player's Key Mapping Visibility. The
+    /// outline and text are, at the player's Key Visibility. The
     /// text never fades far: it is the point of the hint.
     private var capPlate: CGFloat { 0.3 + 0.5 * opacity }
     private var capOutline: CGFloat { 0.3 + 0.45 * opacity }
@@ -767,7 +767,7 @@ enum KeymapHints {
         }
     }
 
-    /// Key Mapping Visibility's steps (menus); the editor's slider moves in 5% steps.
+    /// Key Visibility's steps (menus); the editor's slider moves in 5% steps.
     static var steps: [(opacity: Double, title: String)] {
         let low = 25, medium = 50, high = 75, full = 100
         return [(0.25, String(localized: "Low (\(low)%)", bundle: .windowHost)),
@@ -777,8 +777,8 @@ enum KeymapHints {
     }
 }
 
-/// Key Mapping Visibility, under Show Key Mapping on Game in the title
-/// bar's game controller menu and in Controls: steps of KeymapHints.opacity
+/// Key Visibility, under Show Keys on Game in the title bar's game
+/// controller menu and in Game Controls: steps of KeymapHints.opacity
 /// (the editor has a slider), and the value in use when it is none of
 /// them ("Custom (18%)"). Choosing one also shows the key mapping.
 @MainActor
@@ -788,7 +788,7 @@ final class KeymapHintsMenu: NSObject, NSMenuItemValidation, NSMenuDelegate {
 
     /// A new item with the submenu (each menu needs its own).
     func makeItem() -> NSMenuItem {
-        let submenu = NSMenu(title: String(localized: "Key Mapping Visibility", bundle: .windowHost))
+        let submenu = NSMenu(title: String(localized: "Key Visibility", bundle: .windowHost))
         submenu.delegate = self
         for step in KeymapHints.steps {
             let item = submenu.addItem(withTitle: step.title, action: #selector(choose(_:)), keyEquivalent: "")
@@ -801,6 +801,7 @@ final class KeymapHintsMenu: NSObject, NSMenuItemValidation, NSMenuDelegate {
         menuNeedsUpdate(submenu)
         let item = NSMenuItem(title: submenu.title, action: nil, keyEquivalent: "")
         item.submenu = submenu
+        item.symbol("circle.lefthalf.filled")
         return item
     }
 

@@ -410,7 +410,7 @@ fn clear_recovery_request(misc: &Path) -> Result<(), String> {
 /// a clean power-off, so the process then leaves without running them.
 static GPU_LOADED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-/// netsimd, when it runs: it ends with the process.
+/// The Bluetooth controller, when it runs: it ends with the process.
 static BLUETOOTH: Mutex<Option<Arc<Bluetooth>>> = Mutex::new(None);
 
 /// Ends the process (with `_exit` once gfxstream is loaded).
@@ -450,7 +450,7 @@ pub fn run(options: Options) -> Result<(), String> {
     };
     // Bluetooth's controller, like the renderer, lives through guest reboots.
     let bluetooth = match &options.bluetooth {
-        Some(netsimd) => match Bluetooth::start(netsimd, &options.runtime, &options.instance) {
+        Some(controller) => match Bluetooth::start(controller, &options.runtime, &options.instance) {
             Ok(bluetooth) => {
                 *BLUETOOTH.lock().unwrap() = Some(bluetooth.clone());
                 Some(bluetooth)

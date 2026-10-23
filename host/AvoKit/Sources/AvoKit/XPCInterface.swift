@@ -29,6 +29,17 @@ import IOSurface
     /// Wipes the user data disk (Sistem → Reset Android).
     func resetAndroid(reply: @escaping @Sendable (NSError?) -> Void)
 
+    // MARK: Checkpoints (Settings › Android › Checkpoints; Control Panel only)
+    /// Reply: JSON `CheckpointStatus`; changes follow as `DaemonEvent.checkpoints`.
+    func checkpoints(reply: @escaping @Sendable (Data?, NSError?) -> Void)
+    /// Makes a checkpoint of Android's apps and data now (`name` may be
+    /// empty), also while Android runs. Reply: JSON `Checkpoint`.
+    func createCheckpoint(_ name: String, reply: @escaping @Sendable (Data?, NSError?) -> Void)
+    /// Puts the checkpoint `id` (a UUID string) back: Android stops, its data
+    /// now is kept as a checkpoint first, and it starts again when it ran.
+    func restoreCheckpoint(_ id: String, reply: @escaping @Sendable (NSError?) -> Void)
+    func deleteCheckpoint(_ id: String, reply: @escaping @Sendable (NSError?) -> Void)
+
     // MARK: Where Android's data is (Settings › Storage › Location)
     /// Reply: JSON `StorageLocationStatus`.
     func storageLocation(reply: @escaping @Sendable (Data?, NSError?) -> Void)
@@ -203,6 +214,9 @@ import IOSurface
     func resizeDisplay(_ displayID: UInt32, width: UInt32, height: UInt32, dpi: UInt32, reply: @escaping @Sendable (NSError?) -> Void)
     func closeDisplay(_ displayID: UInt32)
     func setDisplayVisible(_ displayID: UInt32, visible: Bool)
+    /// The app runs in the background (its window's blue light): out of
+    /// sight on purpose, not minimized (AppActivity.background).
+    func setDisplayInBackground(_ displayID: UInt32, inBackground: Bool)
     /// The display's window became the Mac's key window: its app takes
     /// Android's input focus (games pause their sound without it).
     func focusDisplay(_ displayID: UInt32)
@@ -337,9 +351,16 @@ public struct ConfigurationSnapshot: Codable, Sendable {
     public var storageLocation: StorageLocationStatus?
     /// The folder shared with Android (nil from an older daemon).
     public var sharedFolder: SharedFolderStatus?
+    /// The apps Android lists as games (AppRecord.isGame), for the App
+    /// Shims' graphics (nil from an older daemon).
+    public var games: Set<String>?
+    /// The orientation each of `games` asks for (AppRecord.orientation),
+    /// when it asks for one.
+    public var gameOrientations: [String: VMConfig.Orientation]?
 
     public init(config: VMConfig, host: HostInfo, profiles: [DeviceProfile], pendingRestart: Bool, adb: ADBStatus? = nil,
-                dataDisk: DataDiskStatus? = nil, storageLocation: StorageLocationStatus? = nil, sharedFolder: SharedFolderStatus? = nil) {
+                dataDisk: DataDiskStatus? = nil, storageLocation: StorageLocationStatus? = nil, sharedFolder: SharedFolderStatus? = nil,
+                games: Set<String>? = nil, gameOrientations: [String: VMConfig.Orientation]? = nil) {
         self.config = config
         self.host = host
         self.profiles = profiles
@@ -348,6 +369,8 @@ public struct ConfigurationSnapshot: Codable, Sendable {
         self.dataDisk = dataDisk
         self.storageLocation = storageLocation
         self.sharedFolder = sharedFolder
+        self.games = games
+        self.gameOrientations = gameOrientations
     }
 }
 
@@ -543,6 +566,9 @@ public enum DaemonEvent: Codable, Sendable, Equatable {
     case storageLocation(StorageLocationStatus)
     /// A change of where Android's data is, as it goes (sent to Control Panels).
     case storageProgress(StorageChangeProgress)
+    /// Settings › Android › Checkpoints, when one is made, restored or
+    /// deleted (sent to Control Panels).
+    case checkpoints(CheckpointStatus)
     /// Where the engine keeps what Android plays, for screen recordings
     /// (CaptureAudio.swift): when it starts and when an App Shim connects
     /// (sent to App Shims).

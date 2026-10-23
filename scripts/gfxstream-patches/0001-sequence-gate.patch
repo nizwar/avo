@@ -1,0 +1,305 @@
+diff --git a/host/common/include/gfxstream/host/process_resources.h b/host/common/include/gfxstream/host/process_resources.h
+index 7964db0..d45cd0e 100644
+--- a/host/common/include/gfxstream/host/process_resources.h
++++ b/host/common/include/gfxstream/host/process_resources.h
+@@ -19,6 +19,7 @@
+ #include <atomic>
+ #include <memory>
+ #include "gfxstream/Compiler.h"
++#include "gfxstream/host/sequence_gate.h"
+ 
+ namespace gfxstream {
+ namespace host {
+@@ -34,10 +35,13 @@ class ProcessResources {
+ 
+     ~ProcessResources() = default;
+     std::atomic<uint32_t>* getSequenceNumberPtr() const { return &mSequenceNumber; }
++    // Avo: the order in which the process's Vulkan commands run (sequence_gate.h).
++    SequenceGate* getSequenceGate() const { return &mSequenceGate; }
+ 
+    private:
+-    ProcessResources() : mSequenceNumber(0) {}
++    ProcessResources() : mSequenceNumber(0), mSequenceGate(&mSequenceNumber) {}
+     mutable std::atomic<uint32_t> mSequenceNumber;
++    mutable SequenceGate mSequenceGate;
+ };
+ 
+ }  // namespace host
+diff --git a/host/common/include/gfxstream/host/sequence_gate.h b/host/common/include/gfxstream/host/sequence_gate.h
+new file mode 100644
+index 0000000..f6ec162
+--- /dev/null
++++ b/host/common/include/gfxstream/host/sequence_gate.h
+@@ -0,0 +1,214 @@
++/*
++ * Copyright (C) 2026 Avo
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++#ifndef _SEQUENCE_GATE_H
++#define _SEQUENCE_GATE_H
++
++// Avo: the order in which a guest process's Vulkan commands run.
++//
++// With VulkanQueueSubmitWithCommands every command carries a process-wide
++// sequence number, taken by the guest thread that encodes it, and the host
++// runs a process's commands one at a time in that order. The guest driver
++// (vulkan.ranchu, Mesa's gfxstream) takes the number of a vkDestroy*(),
++// vkFree*() or vkResetDescriptorPool() before its one lock, and a queue
++// submission that signals a sync-fd semaphore keeps that lock while it waits
++// for the host to answer vkQueueWaitIdle(): every present does. A destroy
++// that took its number just before such a submission took the lock never
++// sends it, so the host never reaches the submission's wait, and every thread
++// of the process that needs the lock stops for good (an ANR).
++//
++// The guest flushes each command before the call returns (encoder.py), so a
++// number the host has not received is one whose call has not returned yet:
++// no other guest thread can depend on that command. When the next number
++// has not arrived for `skipAfter`, nothing of the process runs, and every
++// decoder of the process can be seen, the gate lets the numbers that are
++// missing go: later commands run, and a missing one runs as soon as it
++// arrives (late). Numbers a decoder holds are never skipped, and commands
++// still run one at a time.
++//
++// AVO_GFXSTREAM_SEQNO_SKIP_MS: how long a gap may stay before it is skipped
++// (default 0: never, gfxstream's own behaviour; Avo's guest layer keeps the deadlock away).
++
++#include <atomic>
++#include <chrono>
++#include <cstdint>
++#include <cstdlib>
++#include <functional>
++#include <mutex>
++#include <thread>
++
++namespace gfxstream {
++namespace host {
++
++class SequenceGate {
++   public:
++    using Clock = std::chrono::steady_clock;
++
++    // What one command holds while it waits and runs: a place among the
++    // process's decoders, then the process's turn to run.
++    class Ticket {
++       public:
++        Ticket() = default;
++        Ticket(const Ticket&) = delete;
++        Ticket& operator=(const Ticket&) = delete;
++        ~Ticket() { release(); }
++
++        // The command's number arrived after later ones ran: it ran out of order.
++        bool late = false;
++        // This command let numbers [skippedFirst, skippedLast] go.
++        bool skipped = false;
++        uint32_t skippedFirst = 0;
++        uint32_t skippedLast = 0;
++
++        void release() {
++            if (mGate && mSlot >= 0) mGate->mHeads[mSlot].store(0, std::memory_order_release);
++            if (mGate && mSlot < 0 && mRegistered) mGate->mUnseen.fetch_sub(1, std::memory_order_acq_rel);
++            mGate = nullptr;
++            mSlot = -1;
++            mRegistered = false;
++            if (mTurn.owns_lock()) mTurn.unlock();
++        }
++
++       private:
++        friend class SequenceGate;
++        SequenceGate* mGate = nullptr;
++        int mSlot = -1;
++        bool mRegistered = false;
++        std::unique_lock<std::mutex> mTurn;
++    };
++
++    explicit SequenceGate(std::atomic<uint32_t>* counter) : mCounter(counter), mSkipAfter(skipAfterFromEnvironment()) {}
++    SequenceGate(const SequenceGate&) = delete;
++    SequenceGate& operator=(const SequenceGate&) = delete;
++
++    void setSkipAfter(Clock::duration skipAfter) { mSkipAfter = skipAfter; }
++
++    // Waits until the command numbered `seqno` may run, then holds the
++    // process's turn in `ticket` until the ticket is released. The counter
++    // then still says the command before it ran: the caller adds 1 once the
++    // command has run, late or not (a late command's 1 is taken off here
++    // first). False when `shouldExit` stopped the wait.
++    bool enter(uint32_t seqno, const std::atomic<bool>& shouldExit, Ticket* ticket) {
++        ticket->release();
++        ticket->mGate = this;
++        ticket->mRegistered = true;
++        ticket->mSlot = claimSlot(seqno);
++        if (ticket->mSlot < 0) mUnseen.fetch_add(1, std::memory_order_acq_rel);
++
++        uint32_t lastSeen = mCounter->load(std::memory_order_acquire);
++        Clock::time_point stuckSince = Clock::now();
++        for (uint32_t spins = 0;; spins++) {
++            uint32_t ran = mCounter->load(std::memory_order_acquire);
++            int32_t ahead = static_cast<int32_t>(seqno - ran);
++            if (ahead <= 1) {
++                std::unique_lock<std::mutex> turn(mTurn);
++                ran = mCounter->load(std::memory_order_acquire);
++                ahead = static_cast<int32_t>(seqno - ran);
++                if (ahead <= 1) {
++                    ticket->late = ahead <= 0;
++                    // The caller's 1 after the command puts the counter back.
++                    if (ticket->late) mCounter->fetch_sub(1, std::memory_order_acq_rel);
++                    ticket->mTurn = std::move(turn);
++                    return true;
++                }
++                continue;
++            }
++            if ((spins & 1023) != 0) {
++                cpuRelax();
++                continue;
++            }
++            if (shouldExit.load(std::memory_order_relaxed)) {
++                ticket->release();
++                return false;
++            }
++            Clock::time_point now = Clock::now();
++            if (ran != lastSeen) {
++                lastSeen = ran;
++                stuckSince = now;
++            } else if (mSkipAfter > Clock::duration::zero() && now - stuckSince >= mSkipAfter) {
++                skipMissing(ran, seqno, ticket);
++                stuckSince = now;
++            }
++        }
++    }
++
++   private:
++    static constexpr int kSlots = 64;
++
++    // gfxstream's own wait spins too.
++    static void cpuRelax() {
++#if defined(__aarch64__) || defined(__arm__)
++        __asm__ __volatile__("yield");
++#elif defined(__i386__) || defined(__x86_64__)
++        __asm__ __volatile__("pause");
++#endif
++    }
++
++    static Clock::duration skipAfterFromEnvironment() {
++        const char* value = std::getenv("AVO_GFXSTREAM_SEQNO_SKIP_MS");
++        long ms = value && *value ? std::strtol(value, nullptr, 10) : 0;
++        return std::chrono::milliseconds(ms > 0 ? ms : 0);
++    }
++
++    // A slot naming `seqno` as held, or -1 when all are taken.
++    int claimSlot(uint32_t seqno) {
++        const uint64_t held = (uint64_t{1} << 32) | seqno;
++        const int start = static_cast<int>(std::hash<std::thread::id>()(std::this_thread::get_id()) % kSlots);
++        for (int i = 0; i < kSlots; i++) {
++            int slot = (start + i) % kSlots;
++            uint64_t empty = 0;
++            if (mHeads[slot].compare_exchange_strong(empty, held, std::memory_order_acq_rel)) return slot;
++        }
++        return -1;
++    }
++
++    // Nothing ran since `ran`: lets the numbers after it that no decoder
++    // holds go, up to the lowest one a decoder holds (the caller's own, at
++    // most). Only while no command runs, and only when every decoder that
++    // waits could be seen.
++    void skipMissing(uint32_t ran, uint32_t seqno, Ticket* ticket) {
++        std::unique_lock<std::mutex> turn(mTurn, std::try_to_lock);
++        if (!turn.owns_lock()) return;
++        if (mCounter->load(std::memory_order_acquire) != ran) return;
++        if (mUnseen.load(std::memory_order_acquire) > 0) return;
++        uint32_t lowest = seqno;
++        for (int i = 0; i < kSlots; i++) {
++            uint64_t held = mHeads[i].load(std::memory_order_acquire);
++            if (!(held >> 32)) continue;
++            uint32_t number = static_cast<uint32_t>(held);
++            int32_t after = static_cast<int32_t>(number - ran);
++            if (after > 0 && after < static_cast<int32_t>(lowest - ran)) lowest = number;
++        }
++        uint32_t last = lowest - 1;
++        if (static_cast<int32_t>(last - ran) <= 0) return;
++        mCounter->store(last, std::memory_order_release);
++        ticket->skipped = true;
++        ticket->skippedFirst = ran + 1;
++        ticket->skippedLast = last;
++    }
++
++    std::atomic<uint32_t>* mCounter;
++    Clock::duration mSkipAfter;
++    // One command of the process runs at a time.
++    std::mutex mTurn;
++    // The numbers decoders hold (waiting or running): (1 << 32) | number, 0 free.
++    std::atomic<uint64_t> mHeads[kSlots] = {};
++    // Decoders that found no free slot: while there are any, nothing is skipped.
++    std::atomic<int> mUnseen{0};
++};
++
++}  // namespace host
++}  // namespace gfxstream
++#endif
+diff --git a/host/vulkan/vk_decoder.cpp b/host/vulkan/vk_decoder.cpp
+index 3174d32..c095f03 100644
+--- a/host/vulkan/vk_decoder.cpp
++++ b/host/vulkan/vk_decoder.cpp
+@@ -148,6 +148,9 @@ size_t VkDecoder::Impl::decode(void* buf, size_t len, IOStream* ioStream,
+ 
+         std::atomic<uint32_t>* seqnoPtr =
+             processResources ? processResources->getSequenceNumberPtr() : nullptr;
++        // Avo: the process's turn while this command runs (sequence_gate.h),
++        // released after the command added 1 to *seqnoPtr.
++        SequenceGate::Ticket seqnoTicket;
+ 
+         if (m_queueSubmitWithCommandsEnabled &&
+             ((opcode >= OP_vkFirst && opcode < OP_vkLast) ||
+@@ -162,23 +165,26 @@ size_t VkDecoder::Impl::decode(void* buf, size_t len, IOStream* ioStream,
+                     seqno, gfxstream::base::getCurrentThreadId());
+             }
+             if (seqnoPtr && !m_forSnapshotLoad) {
+-                {
+-                    while ((seqno - seqnoPtr->load(std::memory_order_seq_cst) != 1)) {
+-                        if (shouldExit.load(std::memory_order_relaxed)) {
+-                            GFXSTREAM_WARNING(
+-                                "Process=%s is exitting. Skip processing seqno=%d on thread=0x%x.",
+-                                processName ? processName : "null", seqno,
+-                                gfxstream::base::getCurrentThreadId());
+-                            return 0;
+-                        }
+-#if (defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64)))
+-                        _mm_pause();
+-#elif (defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__)))
+-                        __asm__ __volatile__("pause;");
+-#endif
+-                    }
+-                    m_prevSeqno = seqno;
+-                }
++                if (!processResources->getSequenceGate()->enter(seqno, shouldExit, &seqnoTicket)) {
++                    GFXSTREAM_WARNING(
++                        "Process=%s is exitting. Skip processing seqno=%d on thread=0x%x.",
++                        processName ? processName : "null", seqno,
++                        gfxstream::base::getCurrentThreadId());
++                    return 0;
++                }
++                if (seqnoTicket.skipped) {
++                    GFXSTREAM_WARNING(
++                        "Process=%s: seqno %u..%u taken by guest threads that have not sent them "
++                        "(the guest driver's lock): seqno %u and later go first, those run when "
++                        "they arrive.",
++                        processName ? processName : "null", seqnoTicket.skippedFirst,
++                        seqnoTicket.skippedLast, seqno);
++                }
++                if (seqnoTicket.late) {
++                    GFXSTREAM_WARNING("Process=%s: seqno %u arrived after later ones ran.",
++                                      processName ? processName : "null", seqno);
++                }
++                m_prevSeqno = seqno;
+             }
+         }
+ 

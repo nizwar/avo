@@ -217,6 +217,29 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
     func takeSnapshot(reply: @escaping @Sendable (NSError?) -> Void) { run(reply) { [self] in try await core.takeSnapshot(client: id) } }
     func resetAndroid(reply: @escaping @Sendable (NSError?) -> Void) { run(reply) { [self] in try await core.resetAndroid(client: id) } }
 
+    // MARK: Checkpoints
+
+    func checkpoints(reply: @escaping @Sendable (Data?, NSError?) -> Void) {
+        run(reply) { [self] in AvoXPC.encode(try await core.checkpoints(client: id)) }
+    }
+
+    func createCheckpoint(_ name: String, reply: @escaping @Sendable (Data?, NSError?) -> Void) {
+        run(reply) { [self] in AvoXPC.encode(try await core.createCheckpoint(named: name, client: id)) }
+    }
+
+    func restoreCheckpoint(_ checkpoint: String, reply: @escaping @Sendable (NSError?) -> Void) {
+        run(reply) { [self] in try await core.restoreCheckpoint(try Self.checkpointID(checkpoint), client: id) }
+    }
+
+    func deleteCheckpoint(_ checkpoint: String, reply: @escaping @Sendable (NSError?) -> Void) {
+        run(reply) { [self] in try await core.deleteCheckpoint(try Self.checkpointID(checkpoint), client: id) }
+    }
+
+    private static func checkpointID(_ text: String) throws -> UUID {
+        guard let id = UUID(uuidString: text) else { throw CheckpointStore.missing }
+        return id
+    }
+
     // MARK: Where Android's data is
 
     func storageLocation(reply: @escaping @Sendable (Data?, NSError?) -> Void) {
@@ -483,6 +506,10 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
 
     func setDisplayVisible(_ displayID: UInt32, visible: Bool) {
         Task { [self] in await core.setDisplayVisible(displayID, visible: visible, client: id) }
+    }
+
+    func setDisplayInBackground(_ displayID: UInt32, inBackground: Bool) {
+        Task { [self] in await core.setDisplayInBackground(displayID, inBackground: inBackground, client: id) }
     }
 
     func focusDisplay(_ displayID: UInt32) {

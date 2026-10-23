@@ -291,10 +291,10 @@ import Testing
         let emu = AndroidEmulator(directory: URL(filePath: "/Users/u/Library/Android/sdk/emulator"), version: "37.1.11", build: nil)
         #expect(VMMEngine.arguments(images: images, launch: launch, gpu: .gpu(emu))
             == software + ["--gpu", "gfxstream", "--gfxstream-dir", "/Users/u/Library/Android/sdk/emulator"])
-        // Bluetooth comes with netsimd, in software mode too.
-        let netsimd = URL(filePath: "/Users/u/Library/Android/sdk/emulator/netsimd")
-        #expect(VMMEngine.arguments(images: images, launch: launch, netsimd: netsimd)
-            == software + ["--bluetooth", "/Users/u/Library/Android/sdk/emulator/netsimd"])
+        // Bluetooth comes with its controller, in software mode too.
+        let rootcanal = URL(filePath: "/Applications/Avo.app/Contents/Resources/bluetooth/rootcanal")
+        #expect(VMMEngine.arguments(images: images, launch: launch, bluetooth: rootcanal)
+            == software + ["--bluetooth", "/Applications/Avo.app/Contents/Resources/bluetooth/rootcanal"])
     }
 
     @Test func findsTheEmulatorsNetsimd() throws {
@@ -310,6 +310,26 @@ import Testing
         #expect(AndroidEmulator.netsimd(home: home, override: nil)?.path == netsimd.path)
         // `AvoAndroidEmulator` names another emulator.
         #expect(AndroidEmulator.netsimd(home: URL(filePath: "/nowhere"), override: emulator.path)?.path == netsimd.path)
+    }
+
+    /// Avo's own Root Canal, next to avo-vmm in Avo.app, comes first; the
+    /// emulator's netsimd only for a build without it.
+    @Test func bluetoothIsAvosOwnControllerFirst() throws {
+        let home = FileManager.default.temporaryDirectory.appending(path: "avo-home-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let emulator = home.appending(path: "Library/Android/sdk/emulator")
+        try FileManager.default.createDirectory(at: emulator, withIntermediateDirectories: true)
+        let netsimd = emulator.appending(path: "netsimd")
+        FileManager.default.createFile(atPath: netsimd.path, contents: Data("#!/bin/sh\n".utf8), attributes: [.posixPermissions: 0o755])
+        let app = home.appending(path: "Avo.app/Contents")
+        let engine = app.appending(path: "MacOS/avo-vmm")
+        #expect(AndroidEmulator.bluetoothController(engine: engine, home: home, override: nil)?.path == netsimd.path, "no Root Canal yet")
+        let rootcanal = app.appending(path: "Resources/bluetooth/rootcanal")
+        try FileManager.default.createDirectory(at: rootcanal.deletingLastPathComponent(), withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: rootcanal.path, contents: Data("#!/bin/sh\n".utf8), attributes: [.posixPermissions: 0o755])
+        #expect(AndroidEmulator.bluetoothController(engine: engine, home: home, override: nil)?.path == rootcanal.path)
+        try FileManager.default.removeItem(at: emulator)
+        #expect(AndroidEmulator.bluetoothController(engine: engine, home: home, override: nil)?.path == rootcanal.path, "no emulator needed")
     }
 
     @Test func readsTheEnginesGPUError() throws {

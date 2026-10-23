@@ -248,13 +248,16 @@ public enum FingerprintName {
 
 /// Opens the Control Panel at one of its panes from another Avo process (an
 /// app window's Manage Fingerprints…): `avo-control-panel://fingerprints`,
-/// opened with Avo.app itself, which registers the scheme.
+/// opened with Avo.app itself, which registers the scheme. An app's page in
+/// the Library (an app window's All Settings…) is `avo-control-panel://app/<package>`.
 public enum ControlPanelLink {
     public static let scheme = "avo-control-panel"
     /// Settings › Fingerprints.
     public static let fingerprintsPane = "fingerprints"
     /// Not a pane: Check for Updates… from the menu bar item.
     public static let checkForUpdates = "check-for-updates"
+    /// Not a pane: an app's page, its package the path.
+    public static let appPageHost = "app"
 
     public static func url(pane: String) -> URL {
         var components = URLComponents()
@@ -267,5 +270,21 @@ public enum ControlPanelLink {
     public static func pane(in url: URL) -> String? {
         guard url.scheme?.lowercased() == scheme, let host = url.host(), !host.isEmpty else { return nil }
         return host.lowercased()
+    }
+
+    public static func url(appPage package: String) -> URL {
+        var components = URLComponents()
+        components.scheme = scheme
+        components.host = appPageHost
+        components.path = "/" + package
+        return components.url!
+    }
+
+    /// The package whose page a link names; nil for any other URL. Package
+    /// names keep their case.
+    public static func appPage(in url: URL) -> String? {
+        guard pane(in: url) == appPageHost else { return nil }
+        let package = url.path(percentEncoded: false).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return package.isEmpty || package.contains("/") ? nil : package
     }
 }

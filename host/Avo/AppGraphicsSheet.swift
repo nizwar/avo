@@ -47,14 +47,14 @@ struct AppGraphicsForm: View {
 
     private var override: AppGraphicsOverride? { model.config?.graphicsOverrides[app.package] }
     /// The profile Avo picks when the app chose none.
-    private var automatic: GraphicsProfile { model.hasKeyMapping(app.package) ? .games : .apps }
+    private var automatic: GraphicsProfile { model.hasKeyMapping(app.package) || model.listedAsGame(app.package) ? .games : .apps }
 
     var body: some View {
         if let config = model.config, let resolved = model.graphics(for: app.package) {
             Form {
                 Section {
                     LabeledContent {
-                        HazePicker("Based on", selection: Binding(get: { resolved.profile }, set: { choice in
+                        HazePicker("Preset", selection: Binding(get: { resolved.profile }, set: { choice in
                             // The app keeps what it changed, minus what the new
                             // profile already has: such a field would only pin
                             // it against later edits of that profile.
@@ -68,7 +68,7 @@ struct AppGraphicsForm: View {
                         }
                     } label: {
                         // The menu says "(automatic)"; why is the help.
-                        HelpTitle("Based on", help: reason(resolved.reason))
+                        HelpTitle("Preset", help: reason(resolved.reason))
                     }
                 }
                 Section {
@@ -104,6 +104,7 @@ struct AppGraphicsForm: View {
     private func reason(_ reason: ResolvedGraphics.Reason) -> LocalizedStringKey {
         switch reason {
         case .keyMapping: "Avo uses game settings because this app has a key mapping."
+        case .androidGame: "Avo uses game settings because the app says it is a game."
         case .none: "Avo uses the same settings as other apps."
         case .chosen: "You chose this for this app."
         }
@@ -112,7 +113,7 @@ struct AppGraphicsForm: View {
 
 extension ControlPanelModel {
     /// The device profile chosen in Settings › Privacy & Security; its
-    /// screen is what "Phone’s screen" gives Android (none for Avo's own).
+    /// screen is what Screen size "Phone" gives Android (none for Avo's own).
     var deviceProfile: DeviceProfile? {
         config.flatMap { config in profiles.first { $0.id == config.deviceProfileID } }
     }
@@ -122,9 +123,8 @@ extension ControlPanelModel {
     /// Library's graphics card both write through here).
     func setAppGraphicsSettings(_ settings: GraphicsSettings, for package: String) {
         guard let config, let resolved = graphics(for: package) else { return }
-        let base = config.settings(for: resolved.profile)
         setAppGraphics(AppGraphicsOverride(profile: config.graphicsOverrides[package]?.profile,
-                                           changes: .difference(settings, from: base)), for: package)
+                                           changes: .difference(settings, from: resolved.base)), for: package)
     }
 }
 

@@ -107,4 +107,17 @@ import Testing
         #expect(ControlPanelLink.pane(in: URL(filePath: "/tmp/app.apk")) == nil)
         #expect(ControlPanelLink.pane(in: URL(string: "avo-control-panel:")!) == nil)
     }
+
+    @Test func aLinkOpensAnAppsPage() {
+        let url = ControlPanelLink.url(appPage: "com.Example.Game")
+        #expect(url.absoluteString == "avo-control-panel://app/com.Example.Game")
+        #expect(ControlPanelLink.appPage(in: url) == "com.Example.Game")
+        #expect(ControlPanelLink.appPage(in: URL(string: "AVO-CONTROL-PANEL://App/com.example.game")!) == "com.example.game")
+        #expect(ControlPanelLink.appPage(in: URL(string: "avo-control-panel://app")!) == nil)
+        #expect(ControlPanelLink.appPage(in: URL(string: "avo-control-panel://app/a/b")!) == nil)
+        #expect(ControlPanelLink.appPage(in: ControlPanelLink.url(pane: ControlPanelLink.fingerprintsPane)) == nil)
+        #expect(ControlPanelLink.appPage(in: URL(string: "https://app/com.example.game")!) == nil)
+        // Not a Settings pane.
+        #expect(ControlPanelLink.pane(in: url) == ControlPanelLink.appPageHost)
+    }
 }

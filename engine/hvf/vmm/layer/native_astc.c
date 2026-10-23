@@ -12,9 +12,10 @@
 //
 // This layer adds SAMPLED_IMAGE and SAMPLED_IMAGE_FILTER_LINEAR to the linear
 // tiling features of ASTC LDR formats wherever optimal tiling has them, so
-// gfxstream passes ASTC straight to MoltenVK. Avo's guest layer
-// (guest/gfxsync) takes the two bits away again, so apps never try a linear
-// ASTC image. AVO_NATIVE_ASTC=0 leaves them out, to compare.
+// gfxstream passes ASTC straight to MoltenVK. Avo's own gfxstream build
+// (scripts/gfxstream-patches) or Avo's guest layer (guest/gfxsync) takes the
+// two bits away again, so apps never try a linear ASTC image.
+// AVO_NATIVE_ASTC=0 leaves them out, to compare.
 //
 // It also hides MoltenVK's lazily allocated memory type (Metal's memoryless
 // storage, the last type) from gfxstream and so from the guest. MoltenVK
@@ -23,8 +24,31 @@
 // are both whenever a lazily allocated type exists: each such color image
 // found no memory (VK_ERROR_FEATURE_NOT_PRESENT from ANGLE's allocator) and
 // the game drew garbage there (PUBG's WebView pages, its end screen). Without
-// the type ANGLE gives them ordinary device memory. Everything else passes
-// straight through.
+// the type ANGLE gives them ordinary device memory.
+//
+// Two jobs of Avo's guest layer happen here too, so that a guest without that
+// layer gets them (apps that kill themselves when a library from /data/local
+// loads into them need that):
+// - vkCreateShaderModule, and vkCreateGraphicsPipelines for a fragment stage
+//   with inline SPIR-V, give each element of a fragment output array its own
+//   output (guest/gfxsync/src/frag_outputs.c, compiled in): MoltenVK cannot
+//   make a pipeline from ANGLE's gl_FragData[8] when the subpass has fewer
+//   colour attachments.
+// - VK_EXT_provoking_vertex (provokingVertexLast), which MoltenVK lacks and
+//   the image's ANGLE needs for anything above OpenGL ES 2.0: the layer
+//   reports the extension and the feature, and takes the extension, its
+//   feature structure and the pipelines' provoking-vertex state out again
+//   before MoltenVK sees them, so flat varyings keep coming from the first
+//   vertex. Every instance is offered it, not only ANGLE's: the guest driver
+//   keeps the first extension list it gets in a process, so where an app's
+//   own instance (or HWUI's) asked first, ANGLE got that list and the app's
+//   GL stayed at ES 2.0. An app's own Vulkan that turns provokingVertexLast
+//   on gets flat varyings from the first vertex too, as ANGLE does; few do
+//   (console emulators, mostly), and the picture differs only in the colour
+//   of flat-shaded faces. The loader accepts the extension because the
+//   layer's manifest names it (astc.rs).
+// Both stand aside where the driver has what they add. Everything else
+// passes straight through.
 //
 // With AVO_VK_TRACE=1 or ~/Library/Logs/Avo/vk-trace.on at the start, it also
 // writes to the engine's log, each kind once with the time, what the guest's
@@ -45,6 +69,8 @@
 #include <stdarg.h>
 #include <time.h>
 #include <unistd.h>
+
+#include "../../../../guest/gfxsync/src/frag_outputs.h"
 
 // The few Vulkan types the layer needs (vulkan_core.h, vk_layer.h), so it
 // builds with nothing but the Mac's clang.
@@ -301,7 +327,104 @@ typedef void (*PFN_vkGetImageMemoryRequirements)(VkDevice, VkImage, VkMemoryRequ
 typedef void (*PFN_vkGetMemoryRequirements2)(VkDevice, const void*, VkMemoryRequirements2*);
 typedef VkResult (*PFN_vkGetMemoryMetalHandleProperties)(VkDevice, int32_t, const void*, VkMemoryMetalHandleProperties*);
 
+// For the fragment output arrays and VK_EXT_provoking_vertex.
+typedef struct VkShaderModule_T* VkShaderModule;
+
+enum {
+    VK_INCOMPLETE = 5,
+    VK_ERROR_LAYER_NOT_PRESENT = -6,
+    VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO = 16,
+    VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT = 1000128000,
+    VK_STRUCTURE_TYPE_PIPELINE_ROBUSTNESS_CREATE_INFO_EXT = 1000068000,
+    VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO = 1000225001,
+    VK_STRUCTURE_TYPE_SHADER_MODULE_VALIDATION_CACHE_CREATE_INFO_EXT = 1000160001,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROVOKING_VERTEX_FEATURES_EXT = 1000254000,
+    VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_PROVOKING_VERTEX_STATE_CREATE_INFO_EXT = 1000254001,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROVOKING_VERTEX_PROPERTIES_EXT = 1000254002,
+    VK_SHADER_STAGE_FRAGMENT_BIT = 0x10,
+    VK_EXT_PROVOKING_VERTEX_SPEC_VERSION = 1,
+};
+#define VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME "VK_EXT_provoking_vertex"
+
+typedef struct VkBaseOutStructure {
+    VkStructureType sType;
+    struct VkBaseOutStructure* pNext;
+} VkBaseOutStructure;
+
+typedef struct {
+    char extensionName[256];
+    uint32_t specVersion;
+} VkExtensionProperties;
+
+typedef struct {
+    VkStructureType sType;
+    const void* pNext;
+    VkFlags flags;
+    size_t codeSize;
+    const uint32_t* pCode;
+} VkShaderModuleCreateInfo;
+
+typedef struct {
+    VkStructureType sType;
+    const void* pNext;
+    VkFlags flags;
+    VkFlags stage;
+    VkShaderModule module;
+    const char* pName;
+    const void* pSpecializationInfo;
+} VkPipelineShaderStageCreateInfo;
+
+typedef struct {
+    VkStructureType sType;
+    const void* pNext;
+    VkFlags flags;
+    uint32_t stageCount;
+    const VkPipelineShaderStageCreateInfo* pStages;
+    const void* pVertexInputState;
+    const void* pInputAssemblyState;
+    const void* pTessellationState;
+    const void* pViewportState;
+    const VkBaseStructure* pRasterizationState;
+    const void* pMultisampleState;
+    const void* pDepthStencilState;
+    const void* pColorBlendState;
+    const void* pDynamicState;
+    VkPipelineLayout layout;
+    void* renderPass;
+    uint32_t subpass;
+    VkPipeline basePipelineHandle;
+    int32_t basePipelineIndex;
+} VkGraphicsPipelineCreateInfo;
+
+typedef struct {
+    VkStructureType sType;
+    const void* pNext;
+    VkFlags flags;
+    uint32_t queueCreateInfoCount;
+    const void* pQueueCreateInfos;
+    uint32_t enabledLayerCount;
+    const char* const* ppEnabledLayerNames;
+    uint32_t enabledExtensionCount;
+    const char* const* ppEnabledExtensionNames;
+    const void* pEnabledFeatures;
+} VkDeviceCreateInfo;
+
+// VkPhysicalDeviceProvokingVertexFeaturesEXT and ...PropertiesEXT: two
+// VkBool32 after the header each.
+typedef struct {
+    VkStructureType sType;
+    void* pNext;
+    VkBool32 first;
+    VkBool32 second;
+} VkTwoBools;
+
+typedef VkResult (*PFN_vkCreateShaderModule)(VkDevice, const VkShaderModuleCreateInfo*, const void*, VkShaderModule*);
+typedef VkResult (*PFN_vkEnumerateDeviceExtensionProperties)(VkPhysicalDevice, const char*, uint32_t*, VkExtensionProperties*);
+// vkGetPhysicalDeviceFeatures2 and vkGetPhysicalDeviceProperties2: a chain to fill.
+typedef void (*PFN_vkGetPhysicalDeviceChain2)(VkPhysicalDevice, void*);
+
 #define EXPORT __attribute__((visibility("default")))
+#define LAYER_NAME "VK_LAYER_AVO_native_astc"
 
 // The first word of an instance, physical device or device handle: the
 // loader's dispatch table, the same for an instance and its physical devices.
@@ -324,6 +447,11 @@ typedef struct Instance {
     PFN_vkGetPhysicalDeviceMemoryProperties memory_properties;
     PFN_vkGetPhysicalDeviceMemoryProperties2 memory_properties2;
     PFN_vkGetPhysicalDeviceMemoryProperties2 memory_properties2_khr;
+    PFN_vkEnumerateDeviceExtensionProperties enumerate_extensions;
+    PFN_vkGetPhysicalDeviceChain2 features2;
+    PFN_vkGetPhysicalDeviceChain2 features2_khr;
+    PFN_vkGetPhysicalDeviceChain2 properties2;
+    PFN_vkGetPhysicalDeviceChain2 properties2_khr;
 } Instance;
 
 typedef struct Device {
@@ -352,6 +480,11 @@ typedef struct Device {
     PFN_vkGetMemoryRequirements2 device_image_requirements;
     PFN_vkGetMemoryRequirements2 device_image_requirements_khr;
     PFN_vkGetMemoryMetalHandleProperties metal_handle_properties;
+    // The driver's, for the fragment output arrays.
+    PFN_vkCreateShaderModule create_shader_module;
+    // The layer's VK_EXT_provoking_vertex is on: pipelines lose their
+    // provoking-vertex state.
+    int provoking_vertex;
 } Device;
 
 static pthread_mutex_t lists_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -739,14 +872,6 @@ static VkResult CreatePipelineLayout(VkDevice handle, const VkPipelineLayoutCrea
     return result;
 }
 
-static VkResult CreateGraphicsPipelines(VkDevice handle, VkPipelineCache cache, uint32_t count, const void* infos, const void* allocator,
-                                        VkPipeline* out) {
-    Device* device = device_of(handle);
-    VkResult result = device->create_graphics_pipelines(handle, cache, count, infos, allocator, out);
-    if (result != VK_SUCCESS) trace("graphics pipelines FAILED with %d", result);
-    return result;
-}
-
 static VkResult CreateComputePipelines(VkDevice handle, VkPipelineCache cache, uint32_t count, const void* infos, const void* allocator,
                                        VkPipeline* out) {
     Device* device = device_of(handle);
@@ -844,12 +969,339 @@ static PFN_vkVoidFunction traced_device_function(const Device* device, const cha
     if (strcmp(name, "vkCreateSampler") == 0 && device->create_sampler) return (PFN_vkVoidFunction)CreateSampler;
     if (strcmp(name, "vkCreateDescriptorSetLayout") == 0 && device->create_set_layout) return (PFN_vkVoidFunction)CreateDescriptorSetLayout;
     if (strcmp(name, "vkCreatePipelineLayout") == 0 && device->create_pipeline_layout) return (PFN_vkVoidFunction)CreatePipelineLayout;
-    if (strcmp(name, "vkCreateGraphicsPipelines") == 0 && device->create_graphics_pipelines) return (PFN_vkVoidFunction)CreateGraphicsPipelines;
     if (strcmp(name, "vkCreateComputePipelines") == 0 && device->create_compute_pipelines) return (PFN_vkVoidFunction)CreateComputePipelines;
     if (strcmp(name, "vkAllocateMemory") == 0 && device->allocate_memory) return (PFN_vkVoidFunction)AllocateMemory;
     if (strcmp(name, "vkBindImageMemory") == 0 && device->bind_image_memory) return (PFN_vkVoidFunction)BindImageMemory;
     if (strcmp(name, "vkBindImageMemory2") == 0 && device->bind_image_memory2) return (PFN_vkVoidFunction)BindImageMemory2;
     if (strcmp(name, "vkBindImageMemory2KHR") == 0 && device->bind_image_memory2_khr) return (PFN_vkVoidFunction)BindImageMemory2KHR;
+    return NULL;
+}
+
+// MARK: Fragment output arrays
+
+static atomic_flag split_logged = ATOMIC_FLAG_INIT;
+
+static VkResult CreateShaderModule(VkDevice handle, const VkShaderModuleCreateInfo* info, const void* allocator, VkShaderModule* out) {
+    Device* device = device_of(handle);
+    size_t words = 0;
+    uint32_t* split = avo_split_output_arrays(info->pCode, info->codeSize / 4, &words);
+    if (!split) return device->create_shader_module(handle, info, allocator, out);
+    VkShaderModuleCreateInfo copy = *info;
+    copy.codeSize = words * sizeof *split;
+    copy.pCode = split;
+    VkResult result = device->create_shader_module(handle, &copy, allocator, out);
+    free(split);
+    if (!atomic_flag_test_and_set(&split_logged)) {
+        fprintf(stderr, "[gpu] split a fragment output array into separate outputs for MoltenVK (first: %zu words, %d)\n", words, result);
+    }
+    return result;
+}
+
+// Memory for one call's copies, freed together after it.
+typedef struct Kept {
+    struct Kept* next;
+    max_align_t data[];
+} Kept;
+
+static void* keep(Kept** kept, size_t size) {
+    Kept* block = malloc(sizeof *block + size);
+    if (!block) return NULL;
+    block->next = *kept;
+    *kept = block;
+    return block->data;
+}
+
+static void release(Kept* kept) {
+    while (kept) {
+        Kept* next = kept->next;
+        free(kept);
+        kept = next;
+    }
+}
+
+// The structures Vulkan allows beside VkShaderModuleCreateInfo in a stage's
+// chain, by size (vulkan_core.h), so that those ahead of it can be copied; 0
+// for any other.
+static size_t stage_struct_size(VkStructureType type) {
+    switch (type) {
+    case VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT:
+        return 40;
+    case VK_STRUCTURE_TYPE_PIPELINE_ROBUSTNESS_CREATE_INFO_EXT:
+        return 32;
+    case VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO:
+        return 24;
+    case VK_STRUCTURE_TYPE_SHADER_MODULE_VALIDATION_CACHE_CREATE_INFO_EXT:
+        return 24;
+    default:
+        return 0;
+    }
+}
+
+// A fragment stage that brings its SPIR-V inline (a VkShaderModuleCreateInfo
+// in its chain, no module) with an output array to split: `*out` becomes a
+// copy of the stage whose chain runs through copies of the structures ahead
+// of that info to a copy of it with the split code, then on into the
+// caller's chain. False leaves the stage as it is.
+static int split_inline_stage(const VkPipelineShaderStageCreateInfo* stage, VkPipelineShaderStageCreateInfo* out, Kept** kept) {
+    if (stage->stage != VK_SHADER_STAGE_FRAGMENT_BIT || stage->module != NULL) return 0;
+    size_t ahead = 0;
+    const VkBaseStructure* at = stage->pNext;
+    for (; at && at->sType != VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO; at = at->pNext) {
+        size_t size = stage_struct_size(at->sType);
+        if (!size) return 0;
+        ahead += size;
+    }
+    if (!at) return 0;
+    const VkShaderModuleCreateInfo* info = (const VkShaderModuleCreateInfo*)at;
+    size_t words = 0;
+    uint32_t* split = avo_split_output_arrays(info->pCode, info->codeSize / 4, &words);
+    if (!split) return 0;
+    // The structures, the info, then the code: every structure holds
+    // pointers, so its size keeps the next one aligned.
+    unsigned char* place = keep(kept, ahead + sizeof *info + words * sizeof *split);
+    if (!place) {
+        free(split);
+        return 0;
+    }
+    *out = *stage;
+    VkBaseOutStructure* last = (VkBaseOutStructure*)out;
+    for (const VkBaseStructure* s = stage->pNext; s != at; s = s->pNext) {
+        size_t size = stage_struct_size(s->sType);
+        memcpy(place, s, size);
+        last->pNext = (VkBaseOutStructure*)place;
+        last = last->pNext;
+        place += size;
+    }
+    VkShaderModuleCreateInfo* copy = (VkShaderModuleCreateInfo*)place;
+    *copy = *info;
+    copy->codeSize = words * sizeof *split;
+    copy->pCode = memcpy(place + sizeof *copy, split, copy->codeSize);
+    last->pNext = (VkBaseOutStructure*)copy;
+    free(split);
+    return 1;
+}
+
+// The pipelines as the driver gets them: copies where a fragment stage's
+// inline SPIR-V was split, `infos` itself where none was. Short of memory a
+// pipeline keeps its shaders as they are, as vkCreateShaderModule does.
+static const VkGraphicsPipelineCreateInfo* split_inline_shaders(const VkGraphicsPipelineCreateInfo* infos, uint32_t count, Kept** kept) {
+    VkGraphicsPipelineCreateInfo* copies = NULL;
+    for (uint32_t i = 0; i < count; i++) {
+        VkPipelineShaderStageCreateInfo* stages = NULL;
+        for (uint32_t j = 0; infos[i].pStages && j < infos[i].stageCount; j++) {
+            VkPipelineShaderStageCreateInfo stage;
+            if (!split_inline_stage(&infos[i].pStages[j], &stage, kept)) continue;
+            if (!copies && (copies = keep(kept, count * sizeof *copies))) memcpy(copies, infos, count * sizeof *copies);
+            if (!stages && copies && (stages = keep(kept, infos[i].stageCount * sizeof *stages))) {
+                memcpy(stages, infos[i].pStages, infos[i].stageCount * sizeof *stages);
+                copies[i].pStages = stages;
+            }
+            if (stages) stages[j] = stage;
+        }
+    }
+    return copies ? copies : infos;
+}
+
+// MARK: Provoking vertex
+
+// A structure taken out of a pNext chain for the length of one call: the
+// caller's chain is whole again once it is put back.
+typedef struct {
+    VkBaseOutStructure* before;
+    VkBaseOutStructure* taken;
+} Unlinked;
+
+static Unlinked unlink_struct(const void* head, VkStructureType type) {
+    for (VkBaseOutStructure* at = (VkBaseOutStructure*)head; at && at->pNext; at = at->pNext) {
+        if (at->pNext->sType == type) {
+            Unlinked unlinked = {at, at->pNext};
+            at->pNext = unlinked.taken->pNext;
+            return unlinked;
+        }
+    }
+    return (Unlinked){NULL, NULL};
+}
+
+static void relink(Unlinked unlinked) {
+    if (unlinked.taken) unlinked.before->pNext = unlinked.taken;
+}
+
+// The driver's own device extensions, with room for one more; NULL on failure.
+static VkExtensionProperties* driver_extensions(const Instance* instance, VkPhysicalDevice physical, uint32_t* count, VkResult* result) {
+    *count = 0;
+    *result = instance->enumerate_extensions(physical, NULL, count, NULL);
+    if (*result != VK_SUCCESS) return NULL;
+    VkExtensionProperties* all = calloc(*count + 1, sizeof *all);
+    if (!all) {
+        *result = VK_ERROR_OUT_OF_HOST_MEMORY;
+        return NULL;
+    }
+    *result = instance->enumerate_extensions(physical, NULL, count, all);
+    if (*result == VK_INCOMPLETE) *result = VK_SUCCESS;
+    if (*result != VK_SUCCESS) {
+        free(all);
+        return NULL;
+    }
+    return all;
+}
+
+static int has_extension(const VkExtensionProperties* all, uint32_t count, const char* name) {
+    for (uint32_t i = 0; i < count; i++) {
+        if (strcmp(all[i].extensionName, name) == 0) return 1;
+    }
+    return 0;
+}
+
+// Whether the layer stands in for VK_EXT_provoking_vertex on this physical
+// device: the driver lacks it. (Unknown means no.)
+static int stands_in_for_provoking_vertex(const Instance* instance, VkPhysicalDevice physical) {
+    if (!instance || !instance->enumerate_extensions) return 0;
+    uint32_t count;
+    VkResult result;
+    VkExtensionProperties* all = driver_extensions(instance, physical, &count, &result);
+    if (!all) return 0;
+    int native = has_extension(all, count, VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME);
+    free(all);
+    return !native;
+}
+
+// The layer's own device extensions, which its manifest names too.
+static VkResult own_extensions(uint32_t* count, VkExtensionProperties* properties) {
+    if (!properties) {
+        *count = 1;
+        return VK_SUCCESS;
+    }
+    if (*count < 1) return VK_INCOMPLETE;
+    memset(&properties[0], 0, sizeof properties[0]);
+    snprintf(properties[0].extensionName, sizeof properties[0].extensionName, "%s", VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME);
+    properties[0].specVersion = VK_EXT_PROVOKING_VERTEX_SPEC_VERSION;
+    *count = 1;
+    return VK_SUCCESS;
+}
+
+static VkResult EnumerateDeviceExtensionProperties(VkPhysicalDevice physical, const char* layer, uint32_t* count,
+                                                   VkExtensionProperties* properties) {
+    if (layer && strcmp(layer, LAYER_NAME) == 0) return own_extensions(count, properties);
+    Instance* instance = find_instance(key_of(physical));
+    if (!instance || !instance->enumerate_extensions) return VK_ERROR_LAYER_NOT_PRESENT;
+    if (layer) return instance->enumerate_extensions(physical, layer, count, properties);
+    uint32_t have;
+    VkResult result;
+    VkExtensionProperties* all = driver_extensions(instance, physical, &have, &result);
+    if (!all) return result;
+    if (!has_extension(all, have, VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME)) {
+        snprintf(all[have].extensionName, sizeof all[have].extensionName, "%s", VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME);
+        all[have++].specVersion = VK_EXT_PROVOKING_VERTEX_SPEC_VERSION;
+    }
+    if (!properties) {
+        *count = have;
+        free(all);
+        return VK_SUCCESS;
+    }
+    uint32_t written = *count < have ? *count : have;
+    memcpy(properties, all, written * sizeof *all);
+    *count = written;
+    free(all);
+    return written < have ? VK_INCOMPLETE : VK_SUCCESS;
+}
+
+// vkGetPhysicalDeviceFeatures2 and vkGetPhysicalDeviceProperties2: the
+// driver fills the chain without the provoking-vertex structure, the layer
+// fills that (features: provokingVertexLast only; properties: neither).
+static void physical_chain2(const Instance* instance, PFN_vkGetPhysicalDeviceChain2 next, VkPhysicalDevice physical, void* chain,
+                            VkStructureType type, VkBool32 first) {
+    Unlinked unlinked = unlink_struct(chain, type);
+    if (unlinked.taken && !stands_in_for_provoking_vertex(instance, physical)) {
+        relink(unlinked);
+        unlinked.taken = NULL;
+    }
+    next(physical, chain);
+    if (!unlinked.taken) return;
+    relink(unlinked);
+    VkTwoBools* values = (VkTwoBools*)unlinked.taken;
+    values->first = first;
+    values->second = 0;
+}
+
+static void GetPhysicalDeviceFeatures2(VkPhysicalDevice physical, void* features) {
+    Instance* instance = find_instance(key_of(physical));
+    if (!instance || !instance->features2) return;
+    physical_chain2(instance, instance->features2, physical, features, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROVOKING_VERTEX_FEATURES_EXT, 1);
+}
+
+static void GetPhysicalDeviceFeatures2KHR(VkPhysicalDevice physical, void* features) {
+    Instance* instance = find_instance(key_of(physical));
+    if (!instance || !instance->features2_khr) return;
+    physical_chain2(instance, instance->features2_khr, physical, features, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROVOKING_VERTEX_FEATURES_EXT,
+                    1);
+}
+
+static void GetPhysicalDeviceProperties2(VkPhysicalDevice physical, void* properties) {
+    Instance* instance = find_instance(key_of(physical));
+    if (!instance || !instance->properties2) return;
+    physical_chain2(instance, instance->properties2, physical, properties,
+                    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROVOKING_VERTEX_PROPERTIES_EXT, 0);
+}
+
+static void GetPhysicalDeviceProperties2KHR(VkPhysicalDevice physical, void* properties) {
+    Instance* instance = find_instance(key_of(physical));
+    if (!instance || !instance->properties2_khr) return;
+    physical_chain2(instance, instance->properties2_khr, physical, properties,
+                    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROVOKING_VERTEX_PROPERTIES_EXT, 0);
+}
+
+static atomic_flag inline_split_logged = ATOMIC_FLAG_INIT;
+static atomic_flag provoking_logged = ATOMIC_FLAG_INIT;
+static atomic_flag provoking_device_logged = ATOMIC_FLAG_INIT;
+
+// Fragment stages with inline SPIR-V get their output arrays split, and with
+// the layer's VK_EXT_provoking_vertex on, pipelines lose their
+// provoking-vertex state.
+static VkResult CreateGraphicsPipelines(VkDevice handle, VkPipelineCache cache, uint32_t count, const VkGraphicsPipelineCreateInfo* infos,
+                                        const void* allocator, VkPipeline* out) {
+    Device* device = device_of(handle);
+    Kept* kept = NULL;
+    const VkGraphicsPipelineCreateInfo* made = split_inline_shaders(infos, count, &kept);
+    Unlinked on_stack[8];
+    Unlinked* unlinked = on_stack;
+    int any = 0;
+    if (device->provoking_vertex) {
+        if (count > 8 && !(unlinked = malloc(count * sizeof *unlinked))) {
+            release(kept);
+            return VK_ERROR_OUT_OF_HOST_MEMORY;
+        }
+        for (uint32_t i = 0; i < count; i++) {
+            unlinked[i] = made[i].pRasterizationState
+                ? unlink_struct(made[i].pRasterizationState, VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_PROVOKING_VERTEX_STATE_CREATE_INFO_EXT)
+                : (Unlinked){NULL, NULL};
+            any = any || unlinked[i].taken;
+        }
+    }
+    VkResult result = device->create_graphics_pipelines(handle, cache, count, made, allocator, out);
+    if (device->provoking_vertex) {
+        // Backwards, in case two pipelines share a rasterization state.
+        for (uint32_t i = count; i-- > 0;) relink(unlinked[i]);
+        if (unlinked != on_stack) free(unlinked);
+    }
+    if (any && !atomic_flag_test_and_set(&provoking_logged)) {
+        fprintf(stderr, "[gpu] pipelines draw flat varyings from the first vertex (VK_EXT_provoking_vertex is Avo's layer's)\n");
+    }
+    if (kept && !atomic_flag_test_and_set(&inline_split_logged)) {
+        fprintf(stderr, "[gpu] split a fragment output array in a pipeline's inline SPIR-V for MoltenVK (first: %d)\n", result);
+    }
+    release(kept);
+    if (result != VK_SUCCESS && tracing()) trace("graphics pipelines FAILED with %d", result);
+    return result;
+}
+
+// The function for `name` that rewrites shaders and pipelines, when the
+// driver has it, or NULL.
+static PFN_vkVoidFunction shader_device_function(const Device* device, const char* name) {
+    if (!device) return NULL;
+    if (strcmp(name, "vkCreateShaderModule") == 0 && device->create_shader_module) return (PFN_vkVoidFunction)CreateShaderModule;
+    if (strcmp(name, "vkCreateGraphicsPipelines") == 0 && device->create_graphics_pipelines) {
+        return (PFN_vkVoidFunction)CreateGraphicsPipelines;
+    }
     return NULL;
 }
 
@@ -887,6 +1339,11 @@ static VkResult CreateInstance(const VkBaseStructure* info, const void* allocato
     instance->memory_properties = (PFN_vkGetPhysicalDeviceMemoryProperties)gipa(*out, "vkGetPhysicalDeviceMemoryProperties");
     instance->memory_properties2 = (PFN_vkGetPhysicalDeviceMemoryProperties2)gipa(*out, "vkGetPhysicalDeviceMemoryProperties2");
     instance->memory_properties2_khr = (PFN_vkGetPhysicalDeviceMemoryProperties2)gipa(*out, "vkGetPhysicalDeviceMemoryProperties2KHR");
+    instance->enumerate_extensions = (PFN_vkEnumerateDeviceExtensionProperties)gipa(*out, "vkEnumerateDeviceExtensionProperties");
+    instance->features2 = (PFN_vkGetPhysicalDeviceChain2)gipa(*out, "vkGetPhysicalDeviceFeatures2");
+    instance->features2_khr = (PFN_vkGetPhysicalDeviceChain2)gipa(*out, "vkGetPhysicalDeviceFeatures2KHR");
+    instance->properties2 = (PFN_vkGetPhysicalDeviceChain2)gipa(*out, "vkGetPhysicalDeviceProperties2");
+    instance->properties2_khr = (PFN_vkGetPhysicalDeviceChain2)gipa(*out, "vkGetPhysicalDeviceProperties2KHR");
     pthread_mutex_lock(&lists_lock);
     instance->next = instances;
     instances = instance;
@@ -920,7 +1377,32 @@ static VkResult CreateDevice(VkPhysicalDevice physical, const VkBaseStructure* i
     Instance* instance = find_instance(key_of(physical));
     PFN_vkCreateDevice create = (PFN_vkCreateDevice)gipa(instance ? instance->handle : NULL, "vkCreateDevice");
     if (!create) return VK_ERROR_INITIALIZATION_FAILED;
-    VkResult result = create(physical, info, allocator, out);
+
+    // The layer's VK_EXT_provoking_vertex goes no further: not the extension,
+    // nor its feature structure.
+    const VkDeviceCreateInfo* asked = (const VkDeviceCreateInfo*)info;
+    VkDeviceCreateInfo copy = *asked;
+    const char** names = NULL;
+    Unlinked feature = {NULL, NULL};
+    int provoking_vertex = 0;
+    for (uint32_t i = 0; i < asked->enabledExtensionCount; i++) {
+        if (strcmp(asked->ppEnabledExtensionNames[i], VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME) == 0) provoking_vertex = 1;
+    }
+    provoking_vertex = provoking_vertex && stands_in_for_provoking_vertex(instance, physical);
+    if (provoking_vertex) {
+        if (!(names = malloc(asked->enabledExtensionCount * sizeof *names))) return VK_ERROR_OUT_OF_HOST_MEMORY;
+        copy.enabledExtensionCount = 0;
+        for (uint32_t i = 0; i < asked->enabledExtensionCount; i++) {
+            if (strcmp(asked->ppEnabledExtensionNames[i], VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME) != 0) {
+                names[copy.enabledExtensionCount++] = asked->ppEnabledExtensionNames[i];
+            }
+        }
+        copy.ppEnabledExtensionNames = names;
+        feature = unlink_struct(&copy, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROVOKING_VERTEX_FEATURES_EXT);
+    }
+    VkResult result = create(physical, &copy, allocator, out);
+    relink(feature);
+    free(names);
     if (result != VK_SUCCESS) return result;
 
     Device* device = calloc(1, sizeof *device);
@@ -949,6 +1431,11 @@ static VkResult CreateDevice(VkPhysicalDevice physical, const VkBaseStructure* i
     device->device_image_requirements = (PFN_vkGetMemoryRequirements2)gdpa(*out, "vkGetDeviceImageMemoryRequirements");
     device->device_image_requirements_khr = (PFN_vkGetMemoryRequirements2)gdpa(*out, "vkGetDeviceImageMemoryRequirementsKHR");
     device->metal_handle_properties = (PFN_vkGetMemoryMetalHandleProperties)gdpa(*out, "vkGetMemoryMetalHandlePropertiesEXT");
+    device->create_shader_module = (PFN_vkCreateShaderModule)gdpa(*out, "vkCreateShaderModule");
+    device->provoking_vertex = provoking_vertex;
+    if (provoking_vertex && !atomic_flag_test_and_set(&provoking_device_logged)) {
+        fprintf(stderr, "[gpu] a device took Avo's VK_EXT_provoking_vertex (first in this engine; flat varyings come from the first vertex)\n");
+    }
     // The driver's memory types (0x10 lazily allocated, Metal's memoryless):
     // which to hide, and for the trace, each one's property flags and heap.
     if (instance && instance->memory_properties) {
@@ -994,6 +1481,7 @@ EXPORT PFN_vkVoidFunction vkGetDeviceProcAddr(VkDevice handle, const char* name)
     if (strcmp(name, "vkDestroyDevice") == 0) return (PFN_vkVoidFunction)DestroyDevice;
     Device* device = handle ? find_device(key_of(handle)) : NULL;
     PFN_vkVoidFunction ours = memory_device_function(device, name);
+    if (!ours) ours = shader_device_function(device, name);
     if (!ours) ours = traced_device_function(device, name);
     if (ours) return ours;
     return device ? device->gdpa(handle, name) : NULL;
@@ -1026,6 +1514,21 @@ EXPORT PFN_vkVoidFunction vkGetInstanceProcAddr(VkInstance handle, const char* n
     }
     if (strcmp(name, "vkGetPhysicalDeviceMemoryProperties2KHR") == 0) {
         return instance->memory_properties2_khr ? (PFN_vkVoidFunction)GetPhysicalDeviceMemoryProperties2KHR : NULL;
+    }
+    if (strcmp(name, "vkEnumerateDeviceExtensionProperties") == 0) {
+        return instance->enumerate_extensions ? (PFN_vkVoidFunction)EnumerateDeviceExtensionProperties : NULL;
+    }
+    if (strcmp(name, "vkGetPhysicalDeviceFeatures2") == 0) {
+        return instance->features2 ? (PFN_vkVoidFunction)GetPhysicalDeviceFeatures2 : NULL;
+    }
+    if (strcmp(name, "vkGetPhysicalDeviceFeatures2KHR") == 0) {
+        return instance->features2_khr ? (PFN_vkVoidFunction)GetPhysicalDeviceFeatures2KHR : NULL;
+    }
+    if (strcmp(name, "vkGetPhysicalDeviceProperties2") == 0) {
+        return instance->properties2 ? (PFN_vkVoidFunction)GetPhysicalDeviceProperties2 : NULL;
+    }
+    if (strcmp(name, "vkGetPhysicalDeviceProperties2KHR") == 0) {
+        return instance->properties2_khr ? (PFN_vkVoidFunction)GetPhysicalDeviceProperties2KHR : NULL;
     }
     if (tracing() && strcmp(name, "vkGetPhysicalDeviceImageFormatProperties") == 0 && instance->image_format_properties) {
         return (PFN_vkVoidFunction)GetPhysicalDeviceImageFormatProperties;

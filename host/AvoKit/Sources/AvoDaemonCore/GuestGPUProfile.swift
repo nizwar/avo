@@ -21,9 +21,18 @@ import Foundation
 ///
 /// libvulkan looks for layers once, as a process starts, and a named layer it
 /// did not find then makes vkCreateInstance fail (as GuestGfxstreamSync
-/// says). So the files go in at every boot, emulated or not (they do nothing
-/// until named), and a layer is named only on a boot that began with its file
-/// in place, of any build: only Avo's very first boot waits for the next.
+/// says). So a layer is named only on a boot that began with its file in
+/// place, of any build.
+///
+/// The files are there only for a boot that emulates a GPU, though. On a
+/// userdebug image libvulkan opens every `libVkLayer*.so` in
+/// `/data/local/debug/vulkan` to list its layers, named or not, and apps whose
+/// packer refuses libraries from `/data/local` kill themselves when one turns
+/// up (FLUJO's ijiami: SIGKILL from its RenderThread, then Android restarts
+/// it in a loop). A boot that emulates none removes them (`removeScript`),
+/// and Settings that ask the next start for a GPU put them in at once
+/// (HostAgent.stageGPULayers), so the restart they need already begins with
+/// them. Only a setting changed while Android was off waits a boot more.
 enum GuestGPUProfile {
     static let debugDir = "/data/local/debug"
     static let glesDir = "\(debugDir)/gles"
@@ -70,6 +79,24 @@ enum GuestGPUProfile {
         }
         lines.append("rm -rf \(staging)")
         return lines.joined(separator: "\n")
+    }
+
+    /// Removes the layers, and the folders that leaves empty, for a boot that
+    /// emulates no GPU: `rmdir` keeps a folder another layer is in (the
+    /// gfxstream sync layer's).
+    static func removeScript() -> String {
+        let files = layers.flatMap { ["\($0.dir)/\($0.name)", "\($0.dir)/.avo-gpuprofile.new"] }
+        return [
+            "set -e",
+            "rm -f " + files.joined(separator: " "),
+            "rmdir \(glesDir) \(vulkanDir) \(debugDir) 2>/dev/null || true",
+        ].joined(separator: "\n")
+    }
+
+    /// Whether a start with `profile` emulates its GPU: the engine then sets
+    /// the `debug.avo.gl.*` / `debug.avo.vk.*` values that name the layers.
+    static func emulatesGPU(_ profile: DeviceProfile?, emulateHardware: Bool) -> Bool {
+        emulateHardware && !(profile?.hardware?.gpuProperties().isEmpty ?? true)
     }
 
     /// Prints the values that turn the layers on, one line each (empty when

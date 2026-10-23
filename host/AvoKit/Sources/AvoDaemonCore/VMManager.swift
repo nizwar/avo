@@ -425,6 +425,33 @@ public actor VMManager {
         logger.notice("Android resumed after \(pausedFor, privacy: .public)")
     }
 
+    /// Runs `body` while Android's disks hold still: at once while Android is
+    /// stopped or paused; while it runs, its vCPUs stop for that moment (the
+    /// engine handles every disk request on a vCPU, so none is half done)
+    /// and go on afterwards, its clock as if nothing happened. The status
+    /// does not change: it is a checkpoint's clone, over in a moment.
+    public func holdingStill(_ body: @escaping @Sendable () throws -> Void) async throws {
+        try await serialized { try await self.performHold(body) }
+    }
+
+    private func performHold(_ body: @Sendable () throws -> Void) async throws {
+        switch status.state {
+        case .stopped, .notInstalled, .suspended:
+            try body()
+        case .running:
+            guard let engine = engine as? any PausableEngine else {
+                throw AvoError.internalError(String(localized: "This engine cannot hold Android still. Stop Android first.", bundle: .avoKit))
+            }
+            let start = ContinuousClock.now
+            try await engine.pause()
+            let result = Result { try body() }
+            try await engine.resume(pausedFor: ContinuousClock.now - start)
+            try result.get()
+        default:
+            throw AvoError.internalError(String(localized: "Android is starting or stopping. Try again in a moment.", bundle: .avoKit))
+        }
+    }
+
     /// Pausing keeps everything else of the status (windows, renderer, lock).
     private func setPause(_ state: VMState, _ pause: VMPause?) {
         status.state = state

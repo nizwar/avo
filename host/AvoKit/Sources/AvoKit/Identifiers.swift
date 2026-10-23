@@ -50,3 +50,16 @@ public enum AvoIdentifiers {
         return rest.isEmpty ? nil : String(rest)
     }
 }
+
+/// What the Control Panel asks an App Shim: distributed notifications to a
+/// running one (their object: the app's package), or an argument as it
+/// launches.
+public enum ShimRequest {
+    /// The key mapping editor over the game (the app page's Create Key Mapping…).
+    public static let editKeyMapping = Notification.Name("\(AvoIdentifiers.prefix).shim.editKeyMapping")
+    /// The same, for a shim that is not running yet.
+    public static let editKeyMappingArgument = "--edit-key-mapping"
+    /// The app's settings in its shim's defaults changed (Show keys on game on
+    /// its page): its windows show them at once.
+    public static let preferencesChanged = Notification.Name("\(AvoIdentifiers.prefix).shim.preferencesChanged")
+}

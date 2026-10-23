@@ -59,4 +59,33 @@ import Testing
         again.longSide = nil
         #expect(store.object(forKey: WindowModeSettings.keepOnTopKey) == nil && store.object(forKey: WindowModeSettings.longSideKey) == nil)
     }
+
+    /// An app follows the Control Panel's app bar style until it has its own.
+    @Test func anAppMayHaveItsOwnAppBarStyle() throws {
+        let suite = "dev.avo.tests.appbar.\(UUID().uuidString)"
+        let store = try #require(UserDefaults(suiteName: suite))
+        defer { store.removePersistentDomain(forName: suite) }
+        let settings = WindowModeSettings(store: store)
+        #expect(settings.appBarStyle == nil)
+        settings.appBarStyle = .phone
+        #expect(WindowModeSettings(store: store).appBarStyle == .phone)
+        // One a newer Avo wrote (or an older test build's Minimal) reads as none of its own.
+        store.set("minimal", forKey: WindowModeSettings.appBarStyleKey)
+        #expect(settings.appBarStyle == nil)
+        settings.appBarStyle = nil
+        #expect(store.object(forKey: WindowModeSettings.appBarStyleKey) == nil)
+    }
+
+    /// Closing a game's window asks first until Don't Ask Again (or Settings) turns it off.
+    @Test func quittingAGameAsksUntilToldNotTo() throws {
+        let suite = "dev.avo.tests.quit.\(UUID().uuidString)"
+        let store = try #require(UserDefaults(suiteName: suite))
+        defer { store.removePersistentDomain(forName: suite) }
+        let settings = QuitSettings(store: store)
+        #expect(settings.asksBeforeQuittingGames)
+        settings.asksBeforeQuittingGames = false
+        #expect(!QuitSettings(store: store).asksBeforeQuittingGames)
+        settings.asksBeforeQuittingGames = true
+        #expect(store.object(forKey: QuitSettings.askKey) == nil)
+    }
 }

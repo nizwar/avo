@@ -506,6 +506,7 @@ final class ScrollModeMenu: NSObject, NSMenuDelegate, NSMenuItemValidation {
         menuNeedsUpdate(menu)
         let item = NSMenuItem(title: menu.title, action: nil, keyEquivalent: "")
         item.submenu = menu
+        item.symbol("scroll")
         return item
     }
 
@@ -557,5 +558,25 @@ final class ScrollModeMenu: NSObject, NSMenuDelegate, NSMenuItemValidation {
         case .mouseWheel: String(localized: "Mouse wheel scrolling only, from the trackpad too", bundle: .windowHost)
         case .swipe: String(localized: "Swiping like a finger, from the mouse wheel too", bundle: .windowHost)
         }
+    }
+}
+
+/// The scrolling every app starts with, for the Control Panel's Settings
+/// (Avo.app): the same choice as Game Controls › Scrolling › Default for All
+/// Apps in an app window. Apps with a choice of their own keep it.
+@MainActor
+public enum ScrollingDefaultChoice {
+    public static func name(of mode: ScrollMode) -> String { ScrollModeMenu.name(of: mode) }
+
+    /// What `mode` does (Automatic as it starts in an app).
+    public static func explanation(of mode: ScrollMode) -> String { ScrollModeMenu.explanation(of: mode) }
+
+    public static var mode: ScrollMode {
+        get { settings.defaultMode }
+        set { settings.setDefaultMode(newValue) }
+    }
+
+    private static var settings: ScrollModeSettings {
+        ScrollModeSettings(app: .standard, shared: UserDefaults(suiteName: AvoIdentifiers.windowHost) ?? .standard)
     }
 }

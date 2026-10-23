@@ -60,7 +60,12 @@
 // Other drivers, and everything else, pass straight through.
 //
 // HostAgent installs it in /data/local/debug/vulkan and lists it in
-// debug.vulkan.layer.9 (GuestGfxstreamSync in AvoDaemonCore).
+// debug.vulkan.layer.9 (GuestGfxstreamSync in AvoDaemonCore), or Avo's
+// driver wrapper (guest/vkwrap) runs it inside the Vulkan driver, below
+// libvulkan. There presents arrive as libvulkan's swapchain code makes them,
+// QueueSignalReleaseImageANDROID per image, and a new handle still holds the
+// driver's loader magic when the layer sees it: libvulkan writes its dispatch
+// pointer there only after the create call returns (`instance_for_key`).
 #include <android/log.h>
 #include <pthread.h>
 #include <stdatomic.h>
@@ -176,6 +181,7 @@ enum {
     F_QueueSubmit2,
     F_QueueSubmit2KHR,
     F_QueuePresentKHR,
+    F_QueueSignalReleaseImageANDROID,
     F_QueueWaitIdle,
     F_CreateSemaphore,
     F_ImportSemaphoreFdKHR,
@@ -249,18 +255,48 @@ static pthread_mutex_t lists_lock = PTHREAD_MUTEX_INITIALIZER;
 static Instance* instances;
 static Device* devices;
 
+// The record for `key`, with lists_lock held. A record keeps the key its
+// handle had when the layer made it; below libvulkan that is the driver's
+// loader magic, the same for every handle, until libvulkan puts its own
+// dispatch pointer there. A lookup that misses takes the record whose handle
+// carries `key` by now, and keys it so.
+static Instance* instance_for_key(void* key) {
+    for (Instance* instance = instances; instance; instance = instance->next) {
+        if (instance->key == key) return instance;
+    }
+    for (Instance* instance = instances; instance; instance = instance->next) {
+        if (key_of(instance->handle) == key) {
+            instance->key = key;
+            return instance;
+        }
+    }
+    return NULL;
+}
+
+// The same for devices (their queues and command buffers carry the device's key).
+static Device* device_for_key(void* key) {
+    for (Device* device = devices; device; device = device->next) {
+        if (device->key == key) return device;
+    }
+    for (Device* device = devices; device; device = device->next) {
+        if (key_of(device->handle) == key) {
+            device->key = key;
+            return device;
+        }
+    }
+    return NULL;
+}
+
 static Instance* find_instance(void* key) {
     pthread_mutex_lock(&lists_lock);
-    Instance* found = instances;
-    while (found && found->key != key) found = found->next;
+    Instance* found = instance_for_key(key);
     pthread_mutex_unlock(&lists_lock);
     return found;
 }
 
 static Device* find_device(void* key) {
     pthread_mutex_lock(&lists_lock);
-    Device* found = devices;
-    while (found && found->key != key) found = found->next;
+    Device* found = device_for_key(key);
     pthread_mutex_unlock(&lists_lock);
     return found;
 }
@@ -327,7 +363,32 @@ static bool has_sync_fd(Device* device, VkSemaphore semaphore) {
 
 #define NEXT(device, name) ((PFN_vk##name)(device)->fn[F_##name])
 
+// VK_ANDROID_native_buffer (Android's vk_android_native_buffer.h, not in the NDK).
+typedef VkResult(VKAPI_PTR* PFN_vkQueueSignalReleaseImageANDROID)(VkQueue queue, uint32_t waitSemaphoreCount,
+                                                                   const VkSemaphore* pWaitSemaphores, VkImage image,
+                                                                   int* pNativeFenceFd);
+
 // MARK: Presents and submissions
+
+// Waits for a present's semaphores, then for the queue: vkQueueSubmit and
+// vkQueueWaitIdle hold no lock in the driver. The caller holds a read hold of
+// the gate.
+static VkResult wait_outside_lock(Device* device, VkQueue queue, uint32_t count, const VkSemaphore* semaphores) {
+    VkPipelineStageFlags stages_on_stack[16];
+    VkPipelineStageFlags* stages = stages_on_stack;
+    if (count > 16 && !(stages = malloc(count * sizeof *stages))) return VK_ERROR_OUT_OF_HOST_MEMORY;
+    for (uint32_t i = 0; i < count; i++) stages[i] = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+    const VkSubmitInfo wait = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = count,
+        .pWaitSemaphores = semaphores,
+        .pWaitDstStageMask = stages,
+    };
+    VkResult result = NEXT(device, QueueSubmit)(queue, 1, &wait, VK_NULL_HANDLE);
+    if (result == VK_SUCCESS) result = NEXT(device, QueueWaitIdle)(queue);
+    if (stages != stages_on_stack) free(stages);
+    return result;
+}
 
 static VKAPI_ATTR VkResult VKAPI_CALL QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* info) {
     Device* device = find_device(key_of(queue));
@@ -338,27 +399,40 @@ static VKAPI_ATTR VkResult VKAPI_CALL QueuePresentKHR(VkQueue queue, const VkPre
         read_end();
         return result;
     }
-    VkPipelineStageFlags stages_on_stack[16];
-    VkPipelineStageFlags* stages = stages_on_stack;
-    if (info->waitSemaphoreCount > 16 && !(stages = malloc(info->waitSemaphoreCount * sizeof *stages))) {
-        return VK_ERROR_OUT_OF_HOST_MEMORY;
-    }
-    for (uint32_t i = 0; i < info->waitSemaphoreCount; i++) stages[i] = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-    const VkSubmitInfo wait = {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .waitSemaphoreCount = info->waitSemaphoreCount,
-        .pWaitSemaphores = info->pWaitSemaphores,
-        .pWaitDstStageMask = stages,
-    };
     VkPresentInfoKHR present = *info;
     present.waitSemaphoreCount = 0;
     present.pWaitSemaphores = NULL;
     read_begin();
-    VkResult result = NEXT(device, QueueSubmit)(queue, 1, &wait, VK_NULL_HANDLE);
-    if (result == VK_SUCCESS) result = NEXT(device, QueueWaitIdle)(queue);
+    VkResult result = wait_outside_lock(device, queue, info->waitSemaphoreCount, info->pWaitSemaphores);
     if (result == VK_SUCCESS) result = NEXT(device, QueuePresentKHR)(queue, &present);
     read_end();
-    if (stages != stages_on_stack) free(stages);
+    return result;
+}
+
+// Below libvulkan (Avo's driver wrapper, guest/vkwrap) no vkQueuePresentKHR
+// arrives: libvulkan's swapchain code releases each presented image to the
+// driver with the present's semaphores. The same as QueuePresentKHR above:
+// the wait happens outside the driver's lock, and the driver gets no
+// semaphores, so it has nothing to submit or wait for (the image is finished).
+static atomic_flag release_logged = ATOMIC_FLAG_INIT;
+
+static VKAPI_ATTR VkResult VKAPI_CALL QueueSignalReleaseImageANDROID(VkQueue queue, uint32_t count,
+                                                                     const VkSemaphore* semaphores, VkImage image,
+                                                                     int* fence) {
+    Device* device = find_device(key_of(queue));
+    if (!device) return VK_ERROR_DEVICE_LOST;
+    VkResult result = VK_SUCCESS;
+    read_begin();
+    if (device->gfxstream && device->fn[F_QueueWaitIdle] && count > 0) {
+        if (!atomic_flag_test_and_set(&release_logged)) {
+            LOG("presents reach the driver as image releases: their semaphores are waited for outside its lock");
+        }
+        result = wait_outside_lock(device, queue, count, semaphores);
+        count = 0;
+        semaphores = NULL;
+    }
+    if (result == VK_SUCCESS) result = NEXT(device, QueueSignalReleaseImageANDROID)(queue, count, semaphores, image, fence);
+    read_end();
     return result;
 }
 
@@ -1132,6 +1206,7 @@ static const struct {
     W(QueueSubmit2),
     W(QueueSubmit2KHR),
     W(QueuePresentKHR),
+    W(QueueSignalReleaseImageANDROID),
     [F_QueueWaitIdle] = {"vkQueueWaitIdle", NULL},
     W(CreateSemaphore),
     W(ImportSemaphoreFdKHR),
@@ -1262,7 +1337,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical, co
         LOG("gfxstream device %p: %sdestroys are kept apart from submissions that signal sync fds, fragment output "
             "arrays are split for MoltenVK",
             (void*)*out,
-            device->fn[F_QueuePresentKHR] && device->fn[F_QueueWaitIdle] ? "presents wait outside the driver lock, " : "");
+            (device->fn[F_QueuePresentKHR] || device->fn[F_QueueSignalReleaseImageANDROID]) && device->fn[F_QueueWaitIdle]
+                ? "presents wait outside the driver lock, "
+                : "");
     } else if (device->moltenvk) {
         LOG("gfxstream device %p: fragment output arrays are split for MoltenVK", (void*)*out);
     }
@@ -1278,12 +1355,15 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical, co
 }
 
 static VKAPI_ATTR void VKAPI_CALL DestroyDevice(VkDevice handle, const VkAllocationCallbacks* allocator) {
-    void* key = key_of(handle);
+    if (!handle) return;
     pthread_mutex_lock(&lists_lock);
-    Device** link = &devices;
-    while (*link && (*link)->key != key) link = &(*link)->next;
-    Device* device = *link;
-    if (device) *link = device->next;
+    Device* device = device_for_key(key_of(handle));
+    for (Device** link = &devices; device && *link; link = &(*link)->next) {
+        if (*link == device) {
+            *link = device->next;
+            break;
+        }
+    }
     pthread_mutex_unlock(&lists_lock);
     if (!device) return;
     if (device->gfxstream) read_begin();
@@ -1347,12 +1427,15 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo*
 }
 
 static VKAPI_ATTR void VKAPI_CALL DestroyInstance(VkInstance handle, const VkAllocationCallbacks* allocator) {
-    void* key = key_of(handle);
+    if (!handle) return;
     pthread_mutex_lock(&lists_lock);
-    Instance** link = &instances;
-    while (*link && (*link)->key != key) link = &(*link)->next;
-    Instance* instance = *link;
-    if (instance) *link = instance->next;
+    Instance* instance = instance_for_key(key_of(handle));
+    for (Instance** link = &instances; instance && *link; link = &(*link)->next) {
+        if (*link == instance) {
+            *link = instance->next;
+            break;
+        }
+    }
     pthread_mutex_unlock(&lists_lock);
     if (!instance) return;
     if (instance->gfxstream) read_begin();

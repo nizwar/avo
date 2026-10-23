@@ -34,7 +34,8 @@ import org.json.JSONObject;
  * prints one JSON object per package and line:
  *
  * <pre>
- *   {"package", "label", "versionName", "versionCode", "sizeBytes", "firstInstallTime", "lastUpdateTime", "system",
+ *   {"package", "label", "versionName", "versionCode", "sizeBytes", "firstInstallTime", "lastUpdateTime", "system", "game",
+ *    "orientation"                                            ("portrait" | "landscape", when its activities ask for one)
  *    "backgroundPng" | "backgroundColor", "foregroundPng"     (an AdaptiveIconDrawable's full-bleed 108 dp layers)
  *    "iconPng"                                                (any other launcher icon)}
  *   {"package", "error"}                                      (not installed, not readable)
@@ -109,6 +110,11 @@ final class AppInfo {
         json.put("firstInstallTime", info.firstInstallTime);
         json.put("lastUpdateTime", info.lastUpdateTime);
         json.put("system", (app.flags & ApplicationInfo.FLAG_SYSTEM) != 0);
+        // A game by its own account: its manifest's appCategory, or the older isGame.
+        @SuppressWarnings("deprecation") boolean flaggedGame = (app.flags & ApplicationInfo.FLAG_IS_GAME) != 0;
+        json.put("game", app.category == ApplicationInfo.CATEGORY_GAME || flaggedGame);
+        String orientation = orientation(pm, name, activity);
+        if (orientation != null) json.put("orientation", orientation);
         JSONObject icon;
         try {
             icon = iconKeys(icon(pm, activity, app));
@@ -140,6 +146,48 @@ final class AppInfo {
             if (own != null && !own.toString().trim().isEmpty()) text = own.toString().trim();
         }
         return text.isEmpty() ? null : text;
+    }
+
+    /**
+     * The orientation the app asks for: its launcher activity's
+     * screenOrientation, else the one its other activities agree on; null
+     * when they let the screen turn (or disagree).
+     */
+    private static String orientation(PackageManager pm, String name, ActivityInfo launcher) {
+        String own = launcher != null ? orientation(launcher.screenOrientation) : null;
+        if (own != null || launcher == null) return own;
+        ActivityInfo[] activities;
+        try {
+            activities = pm.getPackageInfo(name, PackageManager.GET_ACTIVITIES).activities;
+        } catch (Throwable error) {
+            return null;
+        }
+        String agreed = null;
+        for (ActivityInfo activity : activities != null ? activities : new ActivityInfo[0]) {
+            String asked = orientation(activity.screenOrientation);
+            if (asked == null) continue;
+            if (agreed != null && !agreed.equals(asked)) return null;
+            agreed = asked;
+        }
+        return agreed;
+    }
+
+    /** "portrait" or "landscape" for a screenOrientation that keeps to one; null for any other. */
+    private static String orientation(int screenOrientation) {
+        switch (screenOrientation) {
+            case ActivityInfo.SCREEN_ORIENTATION_PORTRAIT:
+            case ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT:
+            case ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT:
+            case ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT:
+                return "portrait";
+            case ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE:
+            case ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE:
+            case ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE:
+            case ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE:
+                return "landscape";
+            default:
+                return null;
+        }
     }
 
     /** The base APK and every split (density, ABI and language configs, feature splits). */

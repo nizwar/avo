@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import AvoKeymap
 import AvoKit
 import AvoWindowHost
 import SwiftUI
@@ -310,9 +311,9 @@ struct GraphicsPane: View {
                     HazeSegmented.inset([(GraphicsProfile.apps, Text("Apps")), (GraphicsProfile.games, Text("Games"))], selection: $profile)
                         .fixedSize()
                         .accessibilityElement(children: .contain)
-                        .accessibilityLabel(Text("Preset"))
+                        .accessibilityLabel(Text("Edit preset"))
                 } label: {
-                    HelpTitle("Preset", help: "The settings below are the Apps preset’s or the Games preset’s. Games are apps with a key mapping, or apps you set to the Games preset on their page.")
+                    HelpTitle("Edit preset", help: "The settings below are the Apps preset’s or the Games preset’s. Games are apps with a key mapping, or apps you set to the Games preset on their page.")
                 }
                 GraphicsSettingsEditor(settings: Binding(get: { config.settings(for: profile) }, set: { value in
                     let profile = profile
@@ -330,7 +331,7 @@ struct GraphicsPane: View {
                     }
                 }
             } header: {
-                HelpTitle("Resolution and Scaling", help: "Open windows adjust right away. Some apps reload their screen for a moment. Filter and sharpness change instantly.")
+                HelpTitle("Resolution and Scaling", help: "Open windows adjust right away. Some apps reload their screen for a moment. Upscaling and sharpness change instantly.")
             }
             Section {
                 LabeledContent {
@@ -346,6 +347,19 @@ struct GraphicsPane: View {
                     HelpTitle("Default window size", help: "The size of an app’s first window, turned to the orientation under Resolution and Scaling; no restart needed. After that, each app’s window opens where and as big as you left it.")
                 }
                 IssueText(field: "defaultWindowSize")
+                LabeledContent {
+                    HazePicker("App bar style", selection: Binding(get: { config.appBarStyle }, set: { value in model.update { $0.appBarStyle = value } })) {
+                        HazeOption("Standard", AppBarStyle.standard)
+                        HazeOption("Phone style", AppBarStyle.phone)
+                    }
+                } label: {
+                    HelpTitle("App bar style") {
+                        HelpTerm("Standard", "A Mac window: Back, game controls, Translate Screen, Device and Quick Settings always show in its title bar.")
+                        HelpTerm("Phone style", "The app’s screen alone, with a phone’s rounded corners. Its title bar shows when the pointer leaves the screen at the top.")
+                        Text("Open windows change right away. An app can have its own: Phone Style in its window’s Device menu, or App bar style in its Quick Settings.")
+                    }
+                }
+                AskBeforeQuittingRow()
             } header: {
                 Text("App windows")
             }
@@ -511,7 +525,7 @@ struct SystemPane: View {
             Section("Bluetooth") {
                 Toggle(isOn: Binding(get: { config.bluetoothEnabled }, set: { value in model.update { $0.bluetoothEnabled = value } })) {
                     HelpTitle("Bluetooth") {
-                        Text("Android has Bluetooth: its apps scan, connect and pair as on a phone. It needs the Android Emulator (Android Studio’s SDK Manager installs it).")
+                        Text("Android has Bluetooth: its apps can turn it on, scan and connect, as on a phone. The devices it finds are the ones this Mac shares, below.")
                         Text("Off, Android has no Bluetooth, and Avo never uses the Mac’s. Applies when Android restarts.")
                     }
                 }
@@ -522,7 +536,6 @@ struct SystemPane: View {
                             Text("Headsets and other classic Bluetooth devices, and pairing, are not supported yet.")
                         }
                     }
-                    RestartNote(text: "Android’s Bluetooth needs the Android Emulator (Android Studio’s SDK Manager installs it); without it, Bluetooth stays off in Android.")
                 }
             }
             .shown(sections.contains(.bluetooth))
@@ -545,6 +558,7 @@ struct SystemPane: View {
             .shown(sections.contains(.cameras))
             Section("Sound") {
                 AndroidVolumeRow()
+                RecordAndroidSoundRow()
             }
             .shown(sections.contains(.sound))
             Section("Microphone") {
@@ -584,7 +598,7 @@ struct SystemPane: View {
                     }
                 }
                 // The Location window (AvoWindowHost/LocationPanel.swift), here or in an app window.
-                RestartNote(text: "To give one app a location of its own, choose Controls › Location… in its window (⌥⌘L), then This App. Android reports it while that app’s window is in front.")
+                RestartNote(text: "To give one app a location of its own, choose Game Controls › Location… in its window (⌥⌘L), then This App. Android reports it while that app’s window is in front.")
             }
             .shown(sections.contains(.location))
             .onAppear { model.watchLocation(true) }
@@ -598,6 +612,10 @@ struct SystemPane: View {
                 }
             }
             .shown(sections.contains(.clipboard))
+            Section("Mouse and trackpad") {
+                ScrollingDefaultRow()
+            }
+            .shown(sections.contains(.scrolling))
             MacNotificationsSection()
                 .shown(sections.contains(.notifications))
             Section("Developer") {
@@ -649,12 +667,15 @@ struct SystemPane: View {
                 // One engine in the daemon for every app (ScreenTextEngine).
                 Toggle(isOn: Binding(get: { config.translationAtStartup }, set: { value in model.update { $0.translationAtStartup = value } })) {
                     HelpTitle("Start the translation engine with Avo") {
-                        Text("Translate Screen (⌘⇧T in an app window) reads the text on screen and translates it on this Mac. One engine does it for every app.")
+                        Text("Translate Screen (⇧⌘T in an app window) reads the text on screen and translates it on this Mac. One engine does it for every app.")
                         Text("On, the engine gets ready as Avo starts, so the first translation in any app shows at once. Off, it starts when an app first translates, and the apps after it use the same engine.")
                     }
                 }
+                TranslateIntoRow()
             }
             .shown(sections.contains(.translation))
+            CheckpointsSection()
+                .shown(sections.contains(.checkpoints))
             Section("Maintenance") {
                 Button("Reset Android…", role: .destructive) { confirmReset = true }
                     .disabled(model.isInstallingGoogleApps)
@@ -728,6 +749,9 @@ struct SystemPane: View {
         if model.fingerprints?.fingers.contains(where: \.enrolled) ?? false {
             text = text + Text(verbatim: " ") + Text("Android forgets its fingerprints; your fingers stay in Settings › Fingerprints, to add again.")
         }
+        if !(model.checkpoints?.checkpoints.isEmpty ?? true) {
+            text = text + Text(verbatim: " ") + Text("Its checkpoints are erased too.")
+        }
         return text
     }
 }
@@ -752,7 +776,9 @@ struct SystemSections: OptionSet {
     static let clipboard = SystemSections(rawValue: 1 << 14)
     static let translation = SystemSections(rawValue: 1 << 15)
     static let sound = SystemSections(rawValue: 1 << 16)
-    static let all = SystemSections(rawValue: (1 << 17) - 1)
+    static let scrolling = SystemSections(rawValue: 1 << 17)
+    static let checkpoints = SystemSections(rawValue: 1 << 18)
+    static let all = SystemSections(rawValue: (1 << 19) - 1)
 }
 
 /// Android's media volume, every app's: a slider while Android runs (also
@@ -781,6 +807,88 @@ private struct AndroidVolumeRow: View {
             HelpTitle("Android volume", help: "How loud Android plays, in every app, under your Mac’s volume. At 100%, your Mac’s volume alone sets how loud Android is, as with other Mac apps.")
         }
         .task(id: model.status.state) { await model.loadAndroidVolume() }
+    }
+}
+
+// Every app's settings that app windows also change (File › Record Android’s
+// Sound, Translate Into, Game Controls › Scrolling › Default for All Apps): kept in
+// the Window Host's defaults, which every App Shim reads.
+
+/// Whether screen recordings take Android's sound (CaptureSettings).
+private struct RecordAndroidSoundRow: View {
+    @AppStorage(CaptureSettings.recordSoundKey, store: UserDefaults(suiteName: AvoIdentifiers.windowHost))
+    private var recordsSound = true
+
+    var body: some View {
+        Toggle(isOn: $recordsSound) {
+            HelpTitle("Record Android’s sound", help: "Screen recordings made in app windows (⇧⌘R) include what Android plays. Off, they have no sound. File › Record Android’s Sound in an app window changes it too.")
+        }
+    }
+}
+
+/// Whether closing a game's window asks first (QuitSettings; its Don't Ask
+/// Again turns this off).
+private struct AskBeforeQuittingRow: View {
+    @AppStorage(QuitSettings.askKey, store: UserDefaults(suiteName: AvoIdentifiers.windowHost))
+    private var asks = true
+
+    var body: some View {
+        Toggle(isOn: $asks) {
+            HelpTitle("Ask before quitting a game", help: "The red button and Picture in Picture’s ✕ end the game in Android. Avo asks first, so one wrong click doesn’t end a match, and offers Run in Background instead.")
+        }
+    }
+}
+
+/// The language Translate Screen translates into, in every app.
+private struct TranslateIntoRow: View {
+    @State private var languages: [TranslateIntoChoice.Language] = []
+    @State private var chosen = TranslateIntoChoice.chosen
+    @State private var systemLanguage = TranslateIntoChoice.systemLanguageName
+
+    var body: some View {
+        LabeledContent {
+            HazePicker("Translate into", selection: Binding(get: { chosen }, set: { value in
+                chosen = value
+                TranslateIntoChoice.chosen = value
+            })) {
+                HazeOption(verbatim: String(localized: "System Language (\(systemLanguage))"), String?.none)
+                for language in languages { HazeOption(verbatim: language.name, Optional(language.identifier)) }
+                // A choice macOS no longer lists still shows as chosen.
+                if let chosen, !languages.contains(where: { $0.identifier == chosen }) {
+                    HazeOption(verbatim: Locale.current.localizedString(forIdentifier: chosen) ?? chosen, Optional(chosen))
+                }
+            }
+        } label: {
+            HelpTitle("Translate into", help: "The language Translate Screen shows the text in, in every app. View › Translate Into and Quick Settings in an app window change it too.")
+        }
+        .task {
+            // Every language, once macOS has said which it has.
+            languages = await TranslateIntoChoice.languages()
+            chosen = TranslateIntoChoice.chosen
+            systemLanguage = TranslateIntoChoice.systemLanguageName
+        }
+    }
+}
+
+/// How the mouse wheel and the trackpad scroll apps without a choice of their own.
+private struct ScrollingDefaultRow: View {
+    @AppStorage(ScrollModeSettings.defaultKey, store: UserDefaults(suiteName: AvoIdentifiers.windowHost))
+    private var stored = ScrollMode.automatic.rawValue
+
+    var body: some View {
+        LabeledContent {
+            HazePicker("Scrolling", selection: Binding(get: { ScrollMode(rawValue: stored) ?? .automatic },
+                                                      set: { ScrollingDefaultChoice.mode = $0 })) {
+                for mode in ScrollMode.allCases { HazeOption(verbatim: ScrollingDefaultChoice.name(of: mode), mode) }
+            }
+        } label: {
+            HelpTitle("Scrolling") {
+                ForEach(ScrollMode.allCases, id: \.self) { mode in
+                    Text(verbatim: "\(ScrollingDefaultChoice.name(of: mode)): \(ScrollingDefaultChoice.explanation(of: mode)).")
+                }
+                Text("Every app scrolls this way unless it has its own choice: Scrolling in its window’s Quick Settings or Game Controls menu.")
+            }
+        }
     }
 }
 

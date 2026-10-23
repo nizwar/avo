@@ -72,6 +72,8 @@ final class KeymapEditorView: NSView {
             refreshBar()
         }
     }
+    /// The layout as the editor opened with it: Cancel asks before changes go.
+    private let original: KeymapProfile
     private var selected: String? {
         didSet {
             refreshPanel()
@@ -107,6 +109,11 @@ final class KeymapEditorView: NSView {
     /// What the panel beside the game shows and asks (KeymapEditorPanel.swift).
     private let barModel: KeymapEditorModel
     private let panel: NSHostingView<KeymapEditorPanel>
+    /// The panel stands in a window of its own beside the game's
+    /// (KeymapOverlay puts it there): the game keeps its whole size.
+    private(set) var panelOutside = false
+    /// The panel's place inside this view, at its trailing edge.
+    private var panelInside: [NSLayoutConstraint] = []
     /// Editor Opacity: how solid the objects and the dimming are.
     private var seeThrough = KeymapEditorView.savedOpacity
     private var hintsObserver: (any NSObjectProtocol)?
@@ -141,6 +148,7 @@ final class KeymapEditorView: NSView {
     init(displayRect: @escaping () -> CGRect, profile: KeymapProfile, onSave: @escaping (KeymapProfile) -> String?) {
         self.displayRect = displayRect
         self.profile = profile
+        original = profile
         self.onSave = onSave
         editingMode = profile.firstMode
         let model = KeymapEditorModel(), controller = ControllerPanelModel()
@@ -157,7 +165,7 @@ final class KeymapEditorView: NSView {
         if let warning = Self.newerControlsWarning(profile) { setStatus(warning, problem: true) }
     }
 
-    /// While open, Show Key Mapping on Game and its visibility can also
+    /// While open, Show Keys on Game and Key Visibility can also
     /// change from the menus: the panel follows them.
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -191,6 +199,9 @@ final class KeymapEditorView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 
+    // After typing in the panel's own window, the first click on the game places or picks.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         for area in trackingAreas { removeTrackingArea(area) }
@@ -200,8 +211,8 @@ final class KeymapEditorView: NSView {
 
     // MARK: The panel beside the game (KeymapEditorPanel.swift)
 
-    /// The panel's width: the game's picture moves over for it while the
-    /// editor is open (AndroidWindowController).
+    /// The panel's width: inside the window, the game's picture moves over
+    /// for it (AndroidWindowController).
     static let panelWidth: CGFloat = 348
 
     private func buildPanel() {
@@ -209,16 +220,51 @@ final class KeymapEditorView: NSView {
         panel.sizingOptions = []
         panel.translatesAutoresizingMaskIntoConstraints = false
         addSubview(panel)
-        NSLayoutConstraint.activate([
+        panelInside = [
             panel.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
             panel.bottomAnchor.constraint(equalTo: bottomAnchor),
             panel.trailingAnchor.constraint(equalTo: trailingAnchor),
             panel.widthAnchor.constraint(equalToConstant: Self.panelWidth),
-        ])
+        ]
+        NSLayoutConstraint.activate(panelInside)
         showHintSettings()
         showEditorOpacity()
         showHelp()
         refreshBar()
+    }
+
+    /// Moves the panel into `host`, the content of its own window beside the
+    /// game's, or back inside this view, at its edge, for nil.
+    func movePanel(into host: NSView?) {
+        let outside = host != nil
+        guard outside != panelOutside || panel.superview == nil else { return }
+        NSLayoutConstraint.deactivate(panelInside)
+        panel.removeFromSuperview()
+        panelOutside = outside
+        barModel.outside = outside
+        if let host {
+            panel.translatesAutoresizingMaskIntoConstraints = true
+            panel.frame = host.bounds
+            panel.autoresizingMask = [.width, .height]
+            host.addSubview(panel)
+        } else {
+            panel.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(panel)
+            NSLayoutConstraint.activate(panelInside)
+        }
+        needsDisplay = true
+        refocus()
+    }
+
+    /// Where the panel covers this view: nowhere while it is outside.
+    private var panelFrame: CGRect { panelOutside ? .zero : panel.frame }
+
+    /// A point in the panel's coordinates, in this view's: by way of the
+    /// screen while the panel is in its own window.
+    private func pointFromPanel(_ location: CGPoint) -> CGPoint {
+        guard panelOutside, let panelWindow = panel.window, let window else { return convert(location, from: panel) }
+        let onScreen = panelWindow.convertPoint(toScreen: panel.convert(location, to: nil))
+        return convert(window.convertPoint(fromScreen: onScreen), from: nil)
     }
 
     /// What the panel asks. After a click there, keys come here again: the
@@ -260,7 +306,7 @@ final class KeymapEditorView: NSView {
             self?.refocus()
         }
         model.setHintOpacity = { [weak self] value in
-            // 5% steps, which include the menus' Key Mapping Visibility steps.
+            // 5% steps, which include the menus' Key Visibility steps.
             KeymapHints.opacity = (value * 20).rounded() / 20
             self?.showHintSettings()
         }
@@ -270,7 +316,7 @@ final class KeymapEditorView: NSView {
             Self.savedOpacity = seeThrough
             showEditorOpacity()
         }
-        model.cancel = { [weak self] in self?.close() }
+        model.cancel = { [weak self] in self?.cancel() }
         model.done = { [weak self] in
             self?.saveAndClose()
             self?.refocus()
@@ -309,13 +355,15 @@ final class KeymapEditorView: NSView {
     /// Keys come to the editor again after a click in the panel (not while
     /// a mode's name is typed there).
     private func refocus() {
-        guard let window, window.firstResponder !== self, !typingInPanel else { return }
-        window.makeFirstResponder(self)
+        guard let window, !typingInPanel else { return }
+        // The panel's own window took the keyboard for a field: the game's has it again.
+        if panelOutside, panel.window?.isKeyWindow == true { window.makeKey() }
+        if window.firstResponder !== self { window.makeFirstResponder(self) }
     }
 
     /// A mode's name has the keyboard in the panel.
     private var typingInPanel: Bool {
-        (window?.firstResponder as? NSView)?.isDescendant(of: panel) == true
+        (panel.window?.firstResponder as? NSView)?.isDescendant(of: panel) == true
     }
 
     /// A mode's tab that waits for a name it never got the keyboard for
@@ -834,7 +882,7 @@ final class KeymapEditorView: NSView {
 
     private func updateCursor(at p: CGPoint) {
         // Over the panel: its own.
-        if panel.frame.contains(p) {
+        if panelFrame.contains(p) {
             if hovered != nil {
                 hovered = nil
                 needsDisplay = true
@@ -893,27 +941,20 @@ final class KeymapEditorView: NSView {
         select(id)
         needsDisplay = true
         let menu = NSMenu()
-        let choices: [(String, Trigger)] = [
-            (String(localized: "Left Click", bundle: .windowHost), .mouse(.left)),
-            (String(localized: "Right Click", bundle: .windowHost), .mouse(.right)),
-            (String(localized: "Middle Click", bundle: .windowHost), .mouse(.middle)),
-            (String(localized: "Mouse Button 4", bundle: .windowHost), .mouse(.button4)),
-            (String(localized: "Mouse Button 5", bundle: .windowHost), .mouse(.button5)),
-            (String(localized: "Wheel Up", bundle: .windowHost), .scrollUp),
-            (String(localized: "Wheel Down", bundle: .windowHost), .scrollDown),
-        ]
-        for (title, trigger) in choices {
+        for (title, trigger, symbol) in Self.mouseChoices {
             let item = NSMenuItem(title: title, action: #selector(assignFromMenu(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = trigger.description
+            item.symbol(symbol)
             menu.addItem(item)
         }
         if let control = profile.controls.first(where: { $0.id == id }) {
             let items = areaChoices(for: control)
             if !items.isEmpty { menu.addItem(.separator()) }
-            for (title, action) in items {
+            for (title, action, symbol) in items {
                 let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
                 item.target = self
+                item.symbol(symbol)
                 menu.addItem(item)
             }
             for item in modeItems(for: control) { menu.addItem(item) }
@@ -921,8 +962,22 @@ final class KeymapEditorView: NSView {
         menu.addItem(.separator())
         let remove = NSMenuItem(title: String(localized: "Remove", bundle: .windowHost), action: #selector(removeSelected), keyEquivalent: "")
         remove.target = self
+        remove.symbol("trash")
         menu.addItem(remove)
         HazeMenuPresenter.shared.popUpContextMenu(menu, with: event, for: self)
+    }
+
+    /// A mouse button or the wheel for a control, as the menus list them.
+    static var mouseChoices: [(title: String, trigger: Trigger, symbol: String)] {
+        [
+            (String(localized: "Left Click", bundle: .windowHost), .mouse(.left), "cursorarrow.click"),
+            (String(localized: "Right Click", bundle: .windowHost), .mouse(.right), "contextualmenu.and.cursorarrow"),
+            (String(localized: "Middle Click", bundle: .windowHost), .mouse(.middle), "computermouse"),
+            (String(localized: "Mouse Button 4", bundle: .windowHost), .mouse(.button4), "arrow.backward.circle"),
+            (String(localized: "Mouse Button 5", bundle: .windowHost), .mouse(.button5), "arrow.forward.circle"),
+            (String(localized: "Wheel Up", bundle: .windowHost), .scrollUp, "arrow.up.circle"),
+            (String(localized: "Wheel Down", bundle: .windowHost), .scrollDown, "arrow.down.circle"),
+        ]
     }
 
     /// A control's menu items for modes: the modes it acts in, a switch's
@@ -950,17 +1005,19 @@ final class KeymapEditorView: NSView {
         if !profile.modes.isEmpty {
             let modes = [(String(localized: "Every Mode", bundle: .windowHost), "*", control.modes == nil), ("", "", false)]
                 + profile.modes.map { ($0.name, $0.id, control.modes?.contains($0.id) == true) }
-            items.append(submenu(String(localized: "Acts In", bundle: .windowHost), modes, #selector(setControlModes(_:))))
+            items.append(submenu(String(localized: "Works In", bundle: .windowHost), modes, #selector(setControlModes(_:))).symbol("square.stack.3d.up"))
         }
         if case .switchMode(let target, _) = control.kind, profile.modes.count > 1 {
             let targets = profile.modes.map { ($0.name, $0.id, $0.id == target) }
-            items.append(submenu(String(localized: "Switches To", bundle: .windowHost), targets, #selector(setSwitchTarget(_:))))
+            items.append(submenu(String(localized: "Switches To", bundle: .windowHost), targets, #selector(setSwitchTarget(_:)))
+                .symbol("arrow.triangle.2.circlepath"))
         }
         if case .mouseLook(let lock, _) = control.kind {
             let flip = NSMenuItem(title: lock ? String(localized: "Free the Mouse Instead", bundle: .windowHost)
                                               : String(localized: "Lock the Mouse Instead", bundle: .windowHost),
                                   action: #selector(flipMouseLook), keyEquivalent: "")
             flip.target = self
+            flip.symbol(lock ? "lock.open" : "lock")
             items.append(flip)
         }
         return items.isEmpty ? [] : [.separator()] + items
@@ -1090,7 +1147,7 @@ final class KeymapEditorView: NSView {
             }))
         }
         if profile.fps != nil {
-            entries.append(.item(HazeMenuItem(title: String(localized: "Mouse on Entering", bundle: .windowHost), symbol: "computermouse",
+            entries.append(.item(HazeMenuItem(title: String(localized: "Mouse When Switching Here", bundle: .windowHost), symbol: "computermouse",
                                               submenu: { [weak self] in self?.mouseChoices(for: id) ?? [] })))
         }
         entries.append(.separator())
@@ -1222,19 +1279,20 @@ final class KeymapEditorView: NSView {
 
     /// One-click areas: an eye's at full height or the default one (the
     /// right side), its point back at the centre, an anchor tap's whole screen.
-    private func areaChoices(for control: Control) -> [(String, Selector)] {
+    private func areaChoices(for control: Control) -> [(String, Selector, String)] {
         switch control.kind {
         case let .aim(_, _, _, _, _, _, _, origin):
-            var choices = [(String(localized: "Full-Height Swipe Area", bundle: .windowHost), #selector(useFullHeightArea)),
-                           (String(localized: "Default Swipe Area (Right Side)", bundle: .windowHost), #selector(useDefaultArea))]
+            var choices = [(String(localized: "Full-Height Swipe Area", bundle: .windowHost), #selector(useFullHeightArea), "arrow.up.and.down"),
+                           (String(localized: "Default Swipe Area (Right Side)", bundle: .windowHost), #selector(useDefaultArea),
+                            "rectangle.righthalf.inset.filled")]
             if origin != nil {
-                choices.append((String(localized: "Touch Down at the Area’s Centre", bundle: .windowHost), #selector(touchDownAtCentre)))
+                choices.append((String(localized: "Touch in the Middle", bundle: .windowHost), #selector(touchDownAtCentre), "scope"))
             }
             return choices
         case .anchor(_, nil):
-            return [(String(localized: "Reach a Circle Around It", bundle: .windowHost), #selector(useCircleReach))]
+            return [(String(localized: "Reach a Circle Around It", bundle: .windowHost), #selector(useCircleReach), "circle.dashed")]
         case .anchor:
-            return [(String(localized: "Let the Finger Use the Whole Screen", bundle: .windowHost), #selector(useWholeScreen))]
+            return [(String(localized: "Let the Finger Use the Whole Screen", bundle: .windowHost), #selector(useWholeScreen), "rectangle.dashed")]
         default:
             return []
         }
@@ -1390,7 +1448,7 @@ final class KeymapEditorView: NSView {
     /// A control dragged from the bar: drawn under the pointer as it moves,
     /// placed where it is let go on the game.
     private func paletteDragged(_ item: KeymapPaletteItem, _ phase: KeymapEditorModel.DragPhase, _ location: CGPoint) {
-        let p = convert(location, from: panel)
+        let p = pointFromPanel(location)
         switch phase {
         case .moved:
             paletteDrag = (item, p)
@@ -1404,7 +1462,7 @@ final class KeymapEditorView: NSView {
 
     /// On the game, not on the panel.
     private func takesDrop(at p: CGPoint) -> Bool {
-        displayRect().contains(p) && !panel.frame.contains(p)
+        displayRect().contains(p) && !panelFrame.contains(p)
     }
 
     /// Adds a control in the mode being edited, selected; `exactly`: where
@@ -1502,17 +1560,8 @@ final class KeymapEditorView: NSView {
     /// Mouse buttons and the wheel, as the trigger of the selected control
     /// or of the waiting tap.
     private func mouseEntries() -> [HazeMenuEntry] {
-        let choices: [(String, Trigger)] = [
-            (String(localized: "Left Click", bundle: .windowHost), .mouse(.left)),
-            (String(localized: "Right Click", bundle: .windowHost), .mouse(.right)),
-            (String(localized: "Middle Click", bundle: .windowHost), .mouse(.middle)),
-            (String(localized: "Mouse Button 4", bundle: .windowHost), .mouse(.button4)),
-            (String(localized: "Mouse Button 5", bundle: .windowHost), .mouse(.button5)),
-            (String(localized: "Wheel Up", bundle: .windowHost), .scrollUp),
-            (String(localized: "Wheel Down", bundle: .windowHost), .scrollDown),
-        ]
-        return choices.map { title, trigger in
-            .item(HazeMenuItem(title: title) { [weak self] in
+        Self.mouseChoices.map { title, trigger, symbol in
+            .item(HazeMenuItem(title: title, symbol: symbol) { [weak self] in
                 self?.assign(trigger)
                 self?.refocus()
             })
@@ -1539,7 +1588,7 @@ final class KeymapEditorView: NSView {
         bounds.fill()
         var painter = self.painter
         painter.opacity = CGFloat(seeThrough)
-        painter.obstacles = [panel.frame]
+        painter.obstacles = panelOutside ? [] : [panel.frame]
         painter.modeNames = Dictionary(profile.modes.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
         let eyeKey = profile.fps?.cursorToggle.shortLabel
         // Only the mode being edited (all of the layout without modes).
@@ -1694,7 +1743,7 @@ final class KeymapEditorView: NSView {
     // A part dragged from the panel and let go over the game.
 
     private func panelDragged(_ element: GamepadElement, _ phase: ControllerPanelModel.DragPhase, _ location: CGPoint) {
-        let p = convert(location, from: panel)
+        let p = pointFromPanel(location)
         switch phase {
         case .moved:
             padDrag = (element, p)
@@ -2043,7 +2092,7 @@ final class KeymapEditorView: NSView {
         case .anchor: String(localized: "Anchor Tap", bundle: .windowHost)
         case .ads: String(localized: "Aim Down Sights", bundle: .windowHost)
         case .joystick: String(localized: "Joystick", bundle: .windowHost)
-        case .camera: String(localized: "Eye (Camera)", bundle: .windowHost)
+        case .camera: String(localized: "Eye", bundle: .windowHost)
         }
     }
 
@@ -2205,13 +2254,20 @@ final class KeymapEditorView: NSView {
     @objc private func saveAndClose() {
         let problems = profile.validate()
         guard problems.isEmpty else {
+            var message = problems.first ?? String(localized: "This profile has problems.", bundle: .windowHost)
             // The control it is about, shown in a mode it acts in.
             if let first = problems.first, let control = profile.controls.first(where: { first.hasPrefix("\($0.id):") }) {
                 if !control.belongs(to: editingMode), let mode = control.modes?.first { editingMode = mode }
                 select(control.id)
                 needsDisplay = true
+                // Selected, it needs no name ("tap-3: …"); one still without
+                // its key takes the next key pressed.
+                message = Self.needsKey(control)
+                    ? String(localized: "This control has no key yet. Press its key or controller button, or right-click for a mouse button.",
+                             bundle: .windowHost)
+                    : Self.sentence(first.dropFirst("\(control.id):".count))
             }
-            setStatus(problems.first ?? String(localized: "This profile has problems.", bundle: .windowHost), problem: true)
+            setStatus(message, problem: true)
             return
         }
         if let error = onSave(profile) {
@@ -2219,6 +2275,21 @@ final class KeymapEditorView: NSView {
         } else {
             close()
         }
+    }
+
+    /// A control that acts on its own key (not a joystick's four, nor the
+    /// eye's lock key) and has none yet.
+    private static func needsKey(_ control: Control) -> Bool {
+        switch control.kind {
+        case .dpad, .aim: false
+        default: control.triggers.isEmpty
+        }
+    }
+
+    /// A problem's text without its control's id, as a sentence.
+    private static func sentence(_ text: Substring) -> String {
+        let text = text.trimmingCharacters(in: .whitespaces)
+        return text.prefix(1).uppercased() + text.dropFirst()
     }
 
     @objc private func exportProfile() {
@@ -2252,11 +2323,31 @@ final class KeymapEditorView: NSView {
                 setStatus(text)
             }
         } catch {
-            setStatus(String(localized: "Not a keymap profile: \(error.localizedDescription)", bundle: .windowHost), problem: true)
+            setStatus(String(localized: "This file isn’t an Avo key mapping.", bundle: .windowHost), problem: true)
         }
     }
 
     @objc private func close() { onClose?() }
+
+    /// Cancel, and ⇧⌘K again: the changes go only once the player says so
+    /// (none, and it just closes).
+    func cancel() {
+        guard profile != original, let window else {
+            close()
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Discard your key mapping changes?", bundle: .windowHost)
+        alert.informativeText = String(localized: "To save them, choose Keep Editing, then Done.", bundle: .windowHost)
+        // Keep Editing takes Return and Esc: a stray key never throws the work away.
+        alert.addButton(withTitle: String(localized: "Keep Editing", bundle: .windowHost))
+        alert.addButton(withTitle: String(localized: "Discard", bundle: .windowHost)).hasDestructiveAction = true
+        alert.buttons.first?.keyEquivalent = "\r"
+        alert.buttons.last?.keyEquivalent = ""
+        alert.beginSheetModal(for: window) { [weak self] response in
+            if response == .alertSecondButtonReturn { self?.close() } else { self?.refocus() }
+        }
+    }
 }
 
 /// A control the placement menu would place: for which part of the

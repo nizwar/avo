@@ -338,16 +338,6 @@
         }
       }
     },
-    "Open Control Panel…" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Buka Control Panel…"
-          }
-        }
-      }
-    },
     "Opening an app resumes it." : {
       "localizations" : {
         "id" : {

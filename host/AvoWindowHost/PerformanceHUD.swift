@@ -179,11 +179,11 @@ final class PerformanceHUDView: NSView {
             text = "1:1"
         case let .metalFX(output):
             text = String(localized: "MetalFX ×\(ratio(source, output))", bundle: .windowHost)
-            if output != presented { text += " + " + String(localized: "Bilinear ×\(ratio(output, presented))", bundle: .windowHost) }
+            if output != presented { text += " + " + String(localized: "Smooth ×\(ratio(output, presented))", bundle: .windowHost) }
         case .bilinear:
-            text = String(localized: "Bilinear ×\(ratio(source, presented))", bundle: .windowHost)
+            text = String(localized: "Smooth ×\(ratio(source, presented))", bundle: .windowHost)
         case .nearest:
-            text = String(localized: "Nearest ×\(ratio(source, presented))", bundle: .windowHost)
+            text = String(localized: "Pixel art ×\(ratio(source, presented))", bundle: .windowHost)
         case .downsample:
             text = String(localized: "Shrunk ×\(ratio(source, presented))", bundle: .windowHost)
         }

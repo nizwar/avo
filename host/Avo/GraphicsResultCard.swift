@@ -188,12 +188,12 @@ private struct ScalingConnector: View {
         case .native: (Text("1:1 sharp"), .neutral)
         case .metalFX:
             if let capped = preview.cappedMetalFXRatio {
-                (Text("MetalFX ×\(GraphicsResultCard.factor(capped)) + Bilinear"), .accent)
+                (Text("MetalFX ×\(GraphicsResultCard.factor(capped)) + Smooth"), .accent)
             } else {
                 (Text("MetalFX ×\(ratio)"), .accent)
             }
-        case .bilinear: (Text("Bilinear ×\(ratio)"), .neutral)
-        case .nearest: (Text("Nearest ×\(ratio)"), .neutral)
+        case .bilinear: (Text("Smooth ×\(ratio)"), .neutral)
+        case .nearest: (Text("Pixel art ×\(ratio)"), .neutral)
         case .downsample: (Text("Shrunk ×\(ratio)"), .warning)
         }
     }

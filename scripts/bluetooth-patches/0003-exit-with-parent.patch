@@ -1,0 +1,32 @@
+Avo: end with the process that started it. avo-vmm killed (a start that
+times out, SIGTERM then SIGKILL) or crashed left Root Canal to launchd,
+where it ran on for good, holding its four ports; netsimd shut itself down.
+
+diff --git a/desktop/root_canal_main.cc b/desktop/root_canal_main.cc
+index f6366c9..aecdf71 100644
+--- a/desktop/root_canal_main.cc
++++ b/desktop/root_canal_main.cc
+@@ -26,6 +26,9 @@
+ #include <future>
+ #include <optional>
+ #include <cstdio>
++#include <chrono>
++#include <thread>
++#include <unistd.h>
+ 
+ #include "model/setup/async_manager.h"
+ #include "net/posix/posix_async_socket_connector.h"
+@@ -60,6 +63,13 @@ int main(int argc, char** argv) {
+   gflags::ParseCommandLineFlags(&argc, &argv, true);
+   rootcanal::log::SetLogColorEnable(FLAGS_enable_log_color);
+ 
++  // Avo: end with the process that started it (avo-vmm). Killed or crashed,
++  // that leaves this to launchd, and it would run on, holding its ports.
++  std::thread([parent = getppid()] {
++    while (getppid() == parent) std::this_thread::sleep_for(std::chrono::seconds(1));
++    _exit(0);
++  }).detach();
++
+   INFO("starting rootcanal");
+ 
+   if (FLAGS_test_port > UINT16_MAX) {

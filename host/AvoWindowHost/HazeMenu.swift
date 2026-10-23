@@ -274,32 +274,52 @@ public final class HazeMenuPresenter {
     }
 
     /// Puts the menu (`menu`: its size without the room for its shadow) with
-    /// its top-left corner at `x`, `top`, kept on the screen.
-    private func place(menu: NSSize, x: CGFloat, top: CGFloat) {
+    /// its top-left corner at `x`, `top`, kept on the screen. `glides`: kept
+    /// on the screen by moving, it moves there smoothly.
+    private func place(menu: NSSize, x wantedX: CGFloat, top wantedTop: CGFloat, glides: Bool = false) {
         guard let panel else { return }
         let margin = HazeMenuView.margin
-        let x = min(max(x, visible.minX + 4), max(visible.minX + 4, visible.maxX - menu.width - 4))
-        let top = max(min(top, visible.maxY - 4), min(visible.maxY - 4, visible.minY + 4 + menu.height))
-        panel.setFrame(NSRect(x: x - margin, y: top - menu.height - margin, width: menu.width + margin * 2,
-                              height: menu.height + margin * 2), display: true)
+        let x = min(max(wantedX, visible.minX + 4), max(visible.minX + 4, visible.maxX - menu.width - 4))
+        let top = max(min(wantedTop, visible.maxY - 4), min(visible.maxY - 4, visible.minY + 4 + menu.height))
+        let frame = NSRect(x: x - margin, y: top - menu.height - margin, width: menu.width + margin * 2, height: menu.height + margin * 2)
+        let moves = abs(x - wantedX) > 0.5 || abs(top - wantedTop) > 0.5
+        guard glides, moves, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            panel.setFrame(frame, display: true)
+            return
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.24
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.9, 0.3, 1)
+            panel.animator().setFrame(frame, display: true)
+        }
     }
 
     /// A submenu opened or closed: the panel takes the menu's new size,
-    /// keeping the corner it opened from. Smaller only once the closing
-    /// submenu's rows have gone.
+    /// keeping the corner it opened from. Opening, the room is there at
+    /// once, before the submenu's rows spring open inside the menu (made
+    /// later, they ran past its edge and showed only once the panel caught
+    /// up); closing, it shrinks once their rows have gone.
     private func resize(grew: Bool) {
         resizes += 1
         let resize = resizes
+        guard !grew else { return fit() }
         Task { @MainActor [weak self] in
-            if !grew { try? await Task.sleep(for: .milliseconds(320)) }
-            guard let self, resize == self.resizes, let panel = self.panel, let host = self.host, let state = self.state else { return }
-            let scrolled = scrollSize
-            let menu = measure()
-            if scrollSize != scrolled { host.rootView = view() }
-            let current = panel.frame.insetBy(dx: HazeMenuView.margin, dy: HazeMenuView.margin)
-            place(menu: menu, x: state.anchor.x == 0 ? current.minX : current.maxX - menu.width,
-                  top: state.anchor.y == 0 ? current.maxY : current.minY + menu.height)
+            try? await Task.sleep(for: .milliseconds(320))
+            guard let self, resize == self.resizes else { return }
+            self.fit()
         }
+    }
+
+    /// The panel at the menu's size now, the corner it opened from where it
+    /// was: a menu that must move to stay on its screen glides there.
+    private func fit() {
+        guard let panel, let host, let state else { return }
+        let scrolled = scrollSize
+        let menu = measure()
+        if scrollSize != scrolled { host.rootView = view() }
+        let current = panel.frame.insetBy(dx: HazeMenuView.margin, dy: HazeMenuView.margin)
+        place(menu: menu, x: state.anchor.x == 0 ? current.minX : current.maxX - menu.width,
+              top: state.anchor.y == 0 ? current.maxY : current.minY + menu.height, glides: true)
     }
 
     public func close(animated: Bool = true) {
@@ -366,6 +386,16 @@ public final class HazeMenuPresenter {
 }
 
 // MARK: - NSMenu in the haze
+
+extension NSMenuItem {
+    /// An illustration before the title (an SF Symbol), in a haze menu's
+    /// top level and in macOS's menus.
+    @discardableResult
+    public func symbol(_ name: String) -> NSMenuItem {
+        image = NSImage(systemSymbolName: name, accessibilityDescription: nil)
+        return self
+    }
+}
 
 extension HazeMenuEntry {
     /// The items `menu` shows now: its delegate updates it and its items
@@ -740,7 +770,8 @@ struct HazeMenuView: View {
         let rows = state.rows
         let items = rows.compactMap(\.entry.menuItem)
         let marks = items.contains { $0.state != .off }
-        let icons = items.contains { $0.symbol != nil || $0.image != nil }
+        // Illustrations are the top level's; a submenu's rows keep their room.
+        let icons = rows.contains { row in row.depth == 0 && (row.entry.menuItem.map { $0.symbol != nil || $0.image != nil } ?? false) }
         VStack(alignment: .leading, spacing: 1) {
             if let header {
                 HStack(spacing: 8) {
@@ -763,6 +794,9 @@ struct HazeMenuView: View {
             let list = VStack(alignment: .leading, spacing: 1) {
                 ForEach(rows) { row in
                     self.row(row, marks: marks, icons: icons)
+                        // A submenu's rows come out from under their item.
+                        .transition(row.depth > 0 ? .asymmetric(insertion: .opacity.combined(with: .offset(y: -6)), removal: .opacity)
+                                                  : .identity)
                 }
             }
             if let scrollSize {
@@ -827,7 +861,9 @@ struct HazeMenuView: View {
         let indent = CGFloat(row.depth) * 14
         switch row.entry {
         case .item(let item):
-            self.item(item, indent: indent, marks: marks, icons: icons)
+            // In a submenu only a real picture shows (an app's icon), no illustration.
+            self.item(item, indent: indent, marks: marks, icons: icons,
+                      showsIcon: row.depth == 0 || (item.symbol == nil && item.image?.isTemplate == false))
         case .separator:
             divider.padding(.leading, indent)
         case .section(let title, _):
@@ -851,7 +887,7 @@ struct HazeMenuView: View {
         }
     }
 
-    private func item(_ item: HazeMenuItem, indent: CGFloat, marks: Bool, icons: Bool) -> some View {
+    private func item(_ item: HazeMenuItem, indent: CGFloat, marks: Bool, icons: Bool, showsIcon: Bool) -> some View {
         let lit = state.highlighted == item.id && item.isEnabled
         let destructive = item.role == .destructive
         let open = state.expanded[item.id] != nil
@@ -872,7 +908,9 @@ struct HazeMenuView: View {
                 }
                 if icons {
                     Group {
-                        if let symbol = item.symbol {
+                        if !showsIcon {
+                            EmptyView()
+                        } else if let symbol = item.symbol {
                             Image(systemName: symbol)
                                 .font(.system(size: 13, weight: .medium))
                                 .symbolEffect(.bounce, value: state.chosen == item.id)

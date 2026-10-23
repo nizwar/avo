@@ -70,9 +70,22 @@ public struct AndroidEmulator: Equatable, Sendable {
             .appending(path: "Resources/gfxstream", directoryHint: .isDirectory)
     }
 
-    /// The emulator's netsimd (Root Canal inside), Android's Bluetooth
-    /// controller (`--bluetooth`, engine/hvf/vmm/src/bluetooth.rs). Any
-    /// version will do: avo-vmm only uses its HCI port.
+    /// Android's Bluetooth controller (`--bluetooth`,
+    /// engine/hvf/vmm/src/bluetooth.rs): Avo's own Root Canal, in Avo.app
+    /// next to avo-vmm (`engine`), Contents/Resources/bluetooth/rootcanal
+    /// (scripts/build-bluetooth.sh); else, for a build without it, the
+    /// emulator's netsimd (Root Canal inside). avo-vmm only uses its HCI port.
+    public static func bluetoothController(engine: URL?, home: URL,
+                                           override: String? = UserDefaults.standard.string(forKey: "AvoAndroidEmulator")) -> URL? {
+        if let engine {
+            let rootcanal = engine.deletingLastPathComponent().deletingLastPathComponent()
+                .appending(path: "Resources/bluetooth/rootcanal")
+            if FileManager.default.isExecutableFile(atPath: rootcanal.path) { return rootcanal }
+        }
+        return netsimd(home: home, override: override)
+    }
+
+    /// The emulator's netsimd (Root Canal inside). Any version will do.
     public static func netsimd(home: URL,
                                override: String? = UserDefaults.standard.string(forKey: "AvoAndroidEmulator")) -> URL? {
         let directory = override.flatMap { $0.isEmpty ? nil : URL(filePath: $0, directoryHint: .isDirectory) }
@@ -282,6 +295,13 @@ public struct GPUCrashHistory: Sendable {
 /// crash is a first one again.
 public protocol GPUFallbackEngine: VMEngine {
     func forgetGPUCrashes()
+}
+
+/// An engine whose running Android can take the GPU layers the next start
+/// names before that start (VMMEngine, HostAgent.stageGPULayers): the
+/// profile's GPU layers, the gfxstream sync layer, or both.
+public protocol GPULayerEngine: VMEngine {
+    func stageGPULayers(profile: Bool, gfxstreamSync: Bool) async
 }
 
 /// One GPU launch of avo-vmm, fed by the event pump, a once-a-second check

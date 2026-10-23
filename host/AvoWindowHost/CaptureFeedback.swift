@@ -71,9 +71,11 @@ final class RecordingIndicator: NSView {
     private let time = NSTextField(labelWithString: "")
     private var started = Date.now
     private var timer: Timer?
+    /// In the title bar: wide enough for hours.
+    private var fixedSize: NSSize?
 
     /// `plate`: on a dark plate, sized to its content by Auto Layout (over
-    /// the game); otherwise a fixed frame for the title bar.
+    /// the game); otherwise a fixed size for the title bar's buttons.
     init(plate: Bool) {
         super.init(frame: .zero)
         dot.image = NSImage(systemSymbolName: "record.circle.fill", accessibilityDescription: nil)?
@@ -104,10 +106,10 @@ final class RecordingIndicator: NSView {
                 stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
                 stack.centerYAnchor.constraint(equalTo: centerYAnchor),
             ])
-            // Title bar accessories are laid out by their frame: wide enough for hours.
             time.stringValue = Self.format(36_000 - 1)
             let size = stack.fittingSize
-            setFrameSize(NSSize(width: size.width + 12, height: max(size.height, 28)))
+            fixedSize = NSSize(width: size.width + 12, height: max(size.height, 28))
+            setFrameSize(fixedSize ?? .zero)
         }
         setAccessibilityElement(true)
         setAccessibilityRole(.staticText)
@@ -116,6 +118,8 @@ final class RecordingIndicator: NSView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override var intrinsicContentSize: NSSize { fixedSize ?? super.intrinsicContentSize }
 
     // It only shows: clicks go on to the title bar or the game beneath.
     override func hitTest(_ point: NSPoint) -> NSView? { nil }

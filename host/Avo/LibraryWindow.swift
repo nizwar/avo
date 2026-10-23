@@ -61,9 +61,13 @@ final class LibraryRouter {
     /// A pane the Settings window should show when it next appears (a link
     /// from an app window, the Setup Assistant).
     var requestedSettingsPane: SettingsPane?
+    /// An app whose page the Library should show (an app window's All
+    /// Settings…); the Library brings itself forward for it.
+    var requestedAppPage: String?
     /// Clear Data… or Uninstall… from an app's menu (AppTileInteraction.swift), to confirm.
     var confirmation: AppConfirmation?
 
+    static let windowID = "library"
     static let sectionKey = "AvoLibrarySection"
     static let tabKey = "AvoLibraryTab"
     static let gamesListKey = "AvoLibraryGamesAsList"
@@ -166,7 +170,15 @@ struct LibraryView: View {
         .onChange(of: router.requestedSettingsPane, initial: true) { _, pane in
             if pane != nil { openWindow(id: SettingsWindow.id) }
         }
-        .background { LibraryWindowAccessor(pillHidden: router.page != nil, pointer: pointer) }
+        // An app's page asked for (All Settings… in its window): over the
+        // Library, which comes forward.
+        .onChange(of: router.requestedAppPage, initial: true) { _, package in
+            guard let package else { return }
+            router.requestedAppPage = nil
+            router.page = package
+            openWindow(id: LibraryRouter.windowID)
+        }
+        .background { LibraryWindowAccessor(pointer: pointer) }
     }
 
     /// Spec §3: dragging a package onto the window installs it.
@@ -474,15 +486,12 @@ private struct HazeDropOverlay: View {
 /// size, and the status pill as a child panel below it.
 private struct LibraryWindowAccessor: NSViewRepresentable {
     @Environment(ControlPanelModel.self) private var model
-    /// An app's page covers the window: the pill steps aside.
-    let pillHidden: Bool
     let pointer: HazePointer
 
     func makeNSView(context: Context) -> WindowAccessorView {
         let view = WindowAccessorView()
         let model = self.model
         let openWindow = context.environment.openWindow
-        let hidden = pillHidden
         let pointer = self.pointer
         view.onWindow = { window in
             pointer.attach(to: window)
@@ -493,14 +502,11 @@ private struct LibraryWindowAccessor: NSViewRepresentable {
             window.styleMask.insert(.fullSizeContentView)
             window.minSize = NSSize(width: 980, height: 640)
             StatusPillController.attach(to: window, model: model) { openWindow(id: SettingsWindow.id) }
-            StatusPillController.setHidden(hidden, for: window)
         }
         return view
     }
 
-    func updateNSView(_ nsView: WindowAccessorView, context: Context) {
-        StatusPillController.setHidden(pillHidden, for: nsView.window)
-    }
+    func updateNSView(_ nsView: WindowAccessorView, context: Context) {}
 }
 
 /// Hands its window to `onWindow` once it is in one.

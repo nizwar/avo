@@ -1,0 +1,14 @@
+Avo: build with Apple's C++ toolchain (apple_support), first, so Xcode's SDK
+paths count as the toolchain's own: Bazel's default one rejects the
+SDKSettings.json newer Xcodes' clang reads as an absolute include.
+
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -5,6 +5,7 @@ module(
+     repo_name = "com_github_google_rootcanal",
+ )
+ 
++bazel_dep(name = "apple_support", version = "2.10.1", repo_name = "build_bazel_apple_support")
+ bazel_dep(name = "rules_cc", version = "0.2.14")
+ bazel_dep(name = "rules_rust", version = "0.68.1")
+ bazel_dep(name = "rules_proto", version = "7.1.0")

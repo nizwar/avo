@@ -44,6 +44,9 @@ final class KeymapController {
     var onProfile: ((KeymapProfile?) -> Void)?
     /// The editor opened (true) or closed (false).
     var onEditing: ((Bool) -> Void)?
+    /// The editor's panel went inside the window (true: the game moves over
+    /// for it) or beside it, outside (false). KeymapOverlay decides.
+    var onPanelInside: ((Bool) -> Void)?
     /// Game Mode turned on or off.
     var onGameMode: ((Bool) -> Void)?
 
@@ -59,7 +62,11 @@ final class KeymapController {
         if !on { focusLost() }
         updateTicking()
         onGameMode?(on)
-        guard profile != nil else { return }
+        guard profile != nil else {
+            // Nothing to map yet: the button alone would light up and do nothing.
+            if on { onNotice?(String(localized: "This app has no key mapping yet. Press ⇧⌘K to set one up.", bundle: .windowHost)) }
+            return
+        }
         onNotice?(on ? String(localized: "Game Mode on: the key mapping is active. ⌘G turns it off.", bundle: .windowHost)
                      : String(localized: "Game Mode off: keys and clicks go to the app. ⌘G turns it on.", bundle: .windowHost))
     }
@@ -401,7 +408,7 @@ final class KeymapController {
     func toggleEditor(over window: NSWindow?) {
         guard let window, let view else { return }
         if let overlay, overlay.isEditing {
-            overlay.close()
+            overlay.cancel()
             return
         }
         focusLost()
@@ -418,9 +425,10 @@ final class KeymapController {
             self?.onEditing?(false)
             GamepadForwarder.shared.update()
         }
+        overlay.onPanelInside = { [weak self] inside in self?.onPanelInside?(inside) }
         self.overlay = overlay
-        overlay.show()
         onEditing?(true)
+        overlay.show()
         // The controller is the editor's now, not Android's.
         GamepadForwarder.shared.update()
     }

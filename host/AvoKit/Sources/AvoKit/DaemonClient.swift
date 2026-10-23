@@ -90,6 +90,32 @@ public final class DaemonClient: @unchecked Sendable {
     public func takeSnapshot() async throws { try await voidCall { $0.takeSnapshot(reply: $1) } }
     public func resetAndroid() async throws { try await voidCall { $0.resetAndroid(reply: $1) } }
 
+    // MARK: Checkpoints (Settings › Android › Checkpoints)
+
+    public func checkpoints() async throws -> CheckpointStatus {
+        let data: Data = try await call { proxy, done in
+            proxy.checkpoints { data, error in done(Self.result(data, error)) }
+        }
+        return try AvoXPC.decode(CheckpointStatus.self, from: data)
+    }
+
+    /// Returns once the checkpoint is made (Android holds still for a moment while it runs).
+    public func createCheckpoint(named name: String?) async throws -> Checkpoint {
+        let data: Data = try await call { proxy, done in
+            proxy.createCheckpoint(name ?? "") { data, error in done(Self.result(data, error)) }
+        }
+        return try AvoXPC.decode(Checkpoint.self, from: data)
+    }
+
+    /// Returns once the checkpoint's data is in place (and Android started again, when it ran).
+    public func restoreCheckpoint(_ id: UUID) async throws {
+        try await voidCall { $0.restoreCheckpoint(id.uuidString, reply: $1) }
+    }
+
+    public func deleteCheckpoint(_ id: UUID) async throws {
+        try await voidCall { $0.deleteCheckpoint(id.uuidString, reply: $1) }
+    }
+
     // MARK: Where Android's data is (Settings › Storage › Location)
 
     public func storageLocation() async throws -> StorageLocationStatus {
@@ -461,6 +487,10 @@ public final class DaemonClient: @unchecked Sendable {
 
     public func setDisplayVisible(_ displayID: UInt32, visible: Bool) {
         proxy()?.setDisplayVisible(displayID, visible: visible)
+    }
+
+    public func setDisplayInBackground(_ displayID: UInt32, inBackground: Bool) {
+        proxy()?.setDisplayInBackground(displayID, inBackground: inBackground)
     }
 
     public func focusDisplay(_ displayID: UInt32) {

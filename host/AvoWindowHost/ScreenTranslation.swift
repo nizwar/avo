@@ -227,8 +227,8 @@ final class ScreenTranslationController {
     }
 
     private func showState() {
-        let label = isActive ? String(localized: "Hide Translation (⌘⇧T)", bundle: .windowHost)
-                             : String(localized: "Translate Screen (⌘⇧T)", bundle: .windowHost)
+        let label = isActive ? String(localized: "Hide Translation (⇧⌘T)", bundle: .windowHost)
+                             : String(localized: "Translate Screen (⇧⌘T)", bundle: .windowHost)
         button.state = isActive ? .on : .off
         button.contentTintColor = isActive ? .controlAccentColor : nil
         button.toolTip = label
@@ -466,9 +466,9 @@ final class ScreenTranslationController {
             showNotice(String(localized: "The text on screen is already in \(language). To translate it into another language, choose one under Translate Into.",
                               bundle: .windowHost))
         } else if keysBelongToGame() {
-            showNotice(String(localized: "Translating into \(language) as the screen changes. ⌘⇧T stops.", bundle: .windowHost))
+            showNotice(String(localized: "Translating into \(language) as the screen changes. ⇧⌘T stops.", bundle: .windowHost))
         } else {
-            showNotice(String(localized: "Translating into \(language) as the screen changes. Esc or ⌘⇧T stops.", bundle: .windowHost))
+            showNotice(String(localized: "Translating into \(language) as the screen changes. Esc or ⇧⌘T stops.", bundle: .windowHost))
         }
     }
 
@@ -923,6 +923,34 @@ enum ScreenTranslationSettings {
     }
 }
 
+/// Translate Into for the Control Panel's Settings (Avo.app), the same
+/// choice as in every app window: every app's, so it is set there too.
+/// Windows translate into a new choice from their next look at the screen.
+@MainActor
+public enum TranslateIntoChoice {
+    /// A language to translate into: what `chosen` takes, and its name.
+    public struct Language: Hashable, Sendable {
+        public let identifier: String
+        public let name: String
+    }
+
+    /// Each language once, sorted by name, once macOS has said which it
+    /// has (empty when it could not say yet).
+    public static func languages() async -> [Language] {
+        _ = await TranslationLanguages.supported()
+        return TranslationLanguages.menu.map { Language(identifier: $0.identifier, name: $0.name) }
+    }
+
+    /// The Mac's language, for "System Language (English)".
+    public static var systemLanguageName: String { TranslationLanguages.name(of: TranslationLanguages.systemLanguage) }
+
+    /// One of `languages()`' identifiers; nil follows the Mac's language.
+    public static var chosen: String? {
+        get { TranslationLanguages.chosenMenuIdentifier }
+        set { ScreenTranslationSettings.target = newValue }
+    }
+}
+
 // MARK: Menu
 
 /// The View menu of every App Shim: Translate Screen (⌘⇧T, kept from
@@ -933,13 +961,15 @@ final class ScreenTranslationMenu: NSObject, NSMenuDelegate {
 
     func makeViewMenuItem() -> NSMenuItem {
         let menu = NSMenu(title: String(localized: "View", bundle: .windowHost))
-        menu.addItem(withTitle: String(localized: "Translate Screen", bundle: .windowHost),
-                     action: #selector(AndroidWindowController.toggleScreenTranslation), keyEquivalent: "t")
-            .keyEquivalentModifierMask = [.command, .shift]
+        let translate = menu.addItem(withTitle: String(localized: "Translate Screen", bundle: .windowHost),
+                                     action: #selector(AndroidWindowController.toggleScreenTranslation), keyEquivalent: "t")
+        translate.keyEquivalentModifierMask = [.command, .shift]
+        translate.symbol("translate")
         let languages = NSMenu(title: String(localized: "Translate Into", bundle: .windowHost))
         languages.delegate = self
-        menu.addItem(withTitle: String(localized: "Translate Into", bundle: .windowHost), action: nil, keyEquivalent: "")
-            .submenu = languages
+        let into = menu.addItem(withTitle: String(localized: "Translate Into", bundle: .windowHost), action: nil, keyEquivalent: "")
+        into.submenu = languages
+        into.symbol("globe")
         let item = NSMenuItem()
         item.submenu = menu
         // Listed by the time the menu opens.

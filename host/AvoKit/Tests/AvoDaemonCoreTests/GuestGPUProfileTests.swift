@@ -68,6 +68,33 @@ import Testing
         #expect(GuestGPUProfile.present(sumOutput: "sha256sum: \(gles.dir)/\(gles.name): No such file or directory\n").isEmpty)
     }
 
+    /// Unnamed, libvulkan still opens the Vulkan layer in every app, and apps
+    /// that refuse libraries from /data/local (FLUJO) kill themselves over it.
+    @Test func aBootThatEmulatesNoGPURemovesBothLayers() {
+        let lines = GuestGPUProfile.removeScript().split(separator: "\n").map(String.init)
+        #expect(lines.first == "set -e")
+        let remove = lines.first { $0.hasPrefix("rm -f ") } ?? ""
+        for layer in GuestGPUProfile.layers {
+            #expect(remove.contains(" \(layer.dir)/\(layer.name)"), "\(layer.name)")
+            #expect(remove.contains(" \(layer.dir)/.avo-gpuprofile.new"), "\(layer.name)")
+        }
+        // Only folders left empty go: the gfxstream sync layer may still be in vulkan/.
+        #expect(lines.last == "rmdir /data/local/debug/gles /data/local/debug/vulkan /data/local/debug 2>/dev/null || true")
+        #expect(!lines.contains { $0.contains("rm -rf") })
+    }
+
+    @Test func onlyAProfileWithAGPUEmulatesOne() {
+        let phone = DeviceProfile(id: "phone", name: "Phone", properties: [:],
+                                  hardware: DeviceHardware(gpu: .init(glVendor: "Qualcomm", glRenderer: "Adreno (TM) 750")))
+        let socOnly = DeviceProfile(id: "soc", name: "SoC", properties: [:],
+                                    hardware: DeviceHardware(soc: .init(manufacturer: "Qualcomm", model: "SM8650")))
+        #expect(GuestGPUProfile.emulatesGPU(phone, emulateHardware: true))
+        #expect(!GuestGPUProfile.emulatesGPU(phone, emulateHardware: false))
+        #expect(!GuestGPUProfile.emulatesGPU(socOnly, emulateHardware: true))
+        #expect(!GuestGPUProfile.emulatesGPU(DeviceProfile.avo, emulateHardware: true))
+        #expect(!GuestGPUProfile.emulatesGPU(nil, emulateHardware: true))
+    }
+
     @Test func theGuestCopiesAreComparedByHash() throws {
         let output = GuestGPUProfile.layers.map { "\($0.sha256)  \($0.dir)/\($0.name)" }.joined(separator: "\n")
         #expect(GuestGPUProfile.upToDate(sumOutput: output))

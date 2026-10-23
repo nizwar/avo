@@ -9,12 +9,14 @@
 #     --identity   code signing identity (default: "-", ad hoc)
 #
 # Steps:
-#   1. the GPU renderer, scripts/build-gfxstream.sh (only when its pinned
-#      versions changed: build/gfxstream);
+#   1. the GPU renderer, scripts/build-gfxstream.sh, and Android's Bluetooth
+#      controller, scripts/build-bluetooth.sh (each only when its pinned
+#      versions changed: build/gfxstream, build/bluetooth);
 #   2. xcodebuild, Release, into build/DerivedData-release (needs the
 #      generated project, `make project`, and Rust for avo-vmm);
 #   3. a staged copy re-signed inside out, each item with its own
-#      entitlements (the renderer's libraries too); avo-vmm keeps the
+#      entitlements (the renderer's libraries and the Bluetooth controller
+#      too); avo-vmm keeps the
 #      signature its build phase gave it (hardened runtime and the
 #      hypervisor entitlement);
 #   4. dmgbuild with scripts/dmg/settings.py (a virtual environment with
@@ -54,6 +56,10 @@ echo "== GPU renderer"
 # Built once, then only when its pinned versions change (build/gfxstream).
 "$ROOT/scripts/build-gfxstream.sh"
 
+echo "== Bluetooth controller"
+# The same (build/bluetooth).
+"$ROOT/scripts/build-bluetooth.sh"
+
 echo "== build $VERSION ($BUILD)"
 xcodebuild -project "$ROOT/host/Avo.xcodeproj" -scheme Avo -configuration Release \
   -derivedDataPath "$DERIVED" CURRENT_PROJECT_VERSION="$BUILD" MARKETING_VERSION="$VERSION" \
@@ -79,6 +85,9 @@ for framework in "$APP"/Contents/Frameworks/*.framework; do sign "$framework" "$
 for lib in "$APP"/Contents/Resources/gfxstream/lib64/*.dylib "$APP"/Contents/Resources/gfxstream/lib64/vulkan/*.dylib; do
   sign "$lib" "gfxstream-$(basename "$lib")"
 done
+# Android's Bluetooth controller (build-bluetooth.sh): no release without it either.
+[[ -x "$APP/Contents/Resources/bluetooth/rootcanal" ]] || { echo "Avo.app has no Bluetooth controller (Resources/bluetooth)"; exit 1; }
+sign "$APP/Contents/Resources/bluetooth/rootcanal" rootcanal
 [[ -d "$APP/Contents/Library/Shim/AvoShim.app" ]] && sign "$APP/Contents/Library/Shim/AvoShim.app" shim
 sign "$APP/Contents/Library/Helpers/AvoDaemon.app" daemon
 sign "$APP/Contents/MacOS/avoctl" avoctl

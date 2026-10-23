@@ -19,9 +19,9 @@ export default {
   // not released yet and points to building from source and to GitHub.
   release: {
     available: true,
-    version: '0.2.0 Preview 3',
+    version: '0.3.0 Preview 1',
     // The disk image itself, so the button downloads at once. Update with each release.
-    downloadUrl: 'https://github.com/nizwar/avo/releases/download/v0.2.0-preview.3/Avo-0.2.0-b72.dmg',
+    downloadUrl: 'https://github.com/nizwar/avo/releases/download/v0.3.0-preview.1/Avo-0.3.0-b79.dmg',
   },
 
   // Typefaces, one switch for the whole site (only the chosen set is published):

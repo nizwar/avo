@@ -16,6 +16,7 @@ import Foundation
 //   avoctl app-graphics <package> [profile=apps|games|auto] [field=value ...] | reset
 //   avoctl fingerprints [add <name> | rename <id> <name> | remove <id> | touch <id>|unregistered]
 //   avoctl storage [status | location [<folder>|internal [move [--keep-old] | use | fresh <GB>]] | cancel | remove-internal-copy]
+//   avoctl checkpoints [create [name] | restore <id> | delete <id>]
 
 let usage = """
 usage: avoctl <command> [arguments]
@@ -64,6 +65,12 @@ commands:
   storage cancel         Stop a move that is still copying
   storage remove-internal-copy
                          Erase the copy of Android's data kept in Avo's own storage
+  checkpoints            List the checkpoints of Android's apps and data (Settings › Android)
+  checkpoints create [name]
+                         Make a checkpoint now (Android holds still for a moment while it runs)
+  checkpoints restore <id> | delete <id>
+                         Put a checkpoint back (Android's data now is kept as a checkpoint
+                         first; Android restarts when it runs), or delete one
 """
 
 func fail(_ message: String) -> Never {
@@ -315,6 +322,25 @@ do {
             let result = try await client.setAppGraphics(override, for: package)
             for issue in result.issues { print("\(issue.severity.rawValue): \(issue)") }
             print("effect: \(result.effect.rawValue)")
+        }
+    case "checkpoints":
+        let usage = "usage: avoctl checkpoints [create [name] | restore <id> | delete <id>]"
+        let rest = Array(arguments.dropFirst())
+        func checkpoint(_ text: String) -> UUID {
+            guard let id = UUID(uuidString: text) else { fail(usage) }
+            return id
+        }
+        switch rest.first {
+        case nil:
+            printJSON(try await client.checkpoints())
+        case "create" where rest.count <= 2:
+            printJSON(try await client.createCheckpoint(named: rest.count == 2 ? rest[1] : nil))
+        case "restore" where rest.count == 2:
+            try await client.restoreCheckpoint(checkpoint(rest[1]))
+        case "delete" where rest.count == 2:
+            try await client.deleteCheckpoint(checkpoint(rest[1]))
+        default:
+            fail(usage)
         }
     case "fingerprints":
         let usage = "usage: avoctl fingerprints [add <name> | rename <id> <name> | remove <id> | touch <id>|unregistered]"

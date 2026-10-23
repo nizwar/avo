@@ -163,8 +163,9 @@ final class StatusPillHost {
     var windowActive = false
 }
 
-/// Keeps the status pill's panel under its Library window: centred on the
-/// window's bottom edge, resized with its content, closed with the window.
+/// Keeps the status pill's panel under its Library window, always: centred
+/// on the window's bottom edge, resized with its content, away while the
+/// window is closed and back when SwiftUI shows the same window again.
 /// While the capsule morphs to a new width the panel keeps room for its
 /// widest moment (the rest of the panel is clear), and its shadow follows
 /// the capsule frame by frame.
@@ -175,26 +176,25 @@ final class StatusPillController {
     private let panel: NSPanel
     private let hosting: NSHostingView<AnyView>
     private var observers: [NSObjectProtocol] = []
-    private var hidden = false
     private let host = StatusPillHost()
     /// The capsule's own size (SwiftUI's), zero before its first layout.
     private var contentSize = CGSize.zero
     /// Until then the capsule is easing to a new size.
     private var morphingUntil: CFTimeInterval = 0
     private let clock = HazeFrameClock()
-    private var fadingOut = false
 
     static func attach(to window: NSWindow, model: ControlPanelModel, openSettings: @escaping () -> Void) {
+        // The pills of windows that are gone (one could share the new window's identifier).
+        for (key, controller) in controllers where controller.window == nil {
+            controller.detach()
+            controllers[key] = nil
+        }
         let key = ObjectIdentifier(window)
-        guard controllers[key] == nil else { return }
+        if let existing = controllers[key] {
+            existing.update()
+            return
+        }
         controllers[key] = StatusPillController(window: window, model: model, openSettings: openSettings)
-    }
-
-    /// Hidden while an app's page covers the window (the page has its own Open).
-    static func setHidden(_ hidden: Bool, for window: NSWindow?) {
-        guard let window, let controller = controllers[ObjectIdentifier(window)] else { return }
-        controller.hidden = hidden
-        controller.update()
     }
 
     private init(window: NSWindow, model: ControlPanelModel, openSettings: @escaping () -> Void) {
@@ -238,7 +238,7 @@ final class StatusPillController {
             })
         }
         observers.append(center.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.detach() }
+            MainActor.assumeIsolated { self?.windowClosed() }
         })
         update()
     }
@@ -280,54 +280,36 @@ final class StatusPillController {
         let y = fullScreen ? frame.minY + 24 : frame.minY - size.height / 2
         panel.setFrame(NSRect(x: (frame.midX - width / 2).rounded(), y: y.rounded(), width: width, height: size.height), display: true)
         panel.invalidateShadow()
-        let active = window.isKeyWindow && window.occlusionState.contains(.visible) && !hidden
+        let active = window.isKeyWindow && window.occlusionState.contains(.visible)
         if host.windowActive != active { host.windowActive = active }
-        if hidden {
-            fadeOut()
-        } else if window.isVisible {
-            // Not on screen yet: the next show calls this again.
-            if panel.parent == nil { window.addChildWindow(panel, ordered: .above) }
-            fadeIn()
-        }
+        // Not on screen yet, or closed: the next show calls this again.
+        guard window.isVisible else { return }
+        if panel.parent == nil { window.addChildWindow(panel, ordered: .above) }
+        fadeIn()
     }
 
-    /// The pill fades in as it appears or comes back.
+    /// The pill fades in as it appears or comes back with its window.
     private func fadeIn() {
-        guard !panel.isVisible || fadingOut || panel.alphaValue < 1 else { return }
-        if !panel.isVisible {
-            panel.alphaValue = 0
-            panel.orderFront(nil)
-        }
-        fadingOut = false
+        guard !panel.isVisible else { return }
+        panel.alphaValue = 0
+        panel.orderFront(nil)
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
             panel.animator().alphaValue = 1
         }
     }
 
-    /// And fades out as it steps aside (an app's page).
-    private func fadeOut() {
-        guard panel.isVisible, !fadingOut else { return }
-        fadingOut = true
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.15
-            panel.animator().alphaValue = 0
-        } completionHandler: { [weak self] in
-            MainActor.assumeIsolated {
-                guard let self, self.fadingOut else { return }
-                self.fadingOut = false
-                if self.hidden { self.panel.orderOut(nil) }
-                self.panel.alphaValue = 1
-            }
-        }
+    /// The window closed: the pill goes with it, until the window shows again.
+    private func windowClosed() {
+        window?.removeChildWindow(panel)
+        panel.orderOut(nil)
     }
 
+    /// For good: its window is gone.
     private func detach() {
         for observer in observers { NotificationCenter.default.removeObserver(observer) }
         observers = []
         clock.invalidate()
-        window?.removeChildWindow(panel)
         panel.close()
-        if let window { Self.controllers[ObjectIdentifier(window)] = nil }
     }
 }

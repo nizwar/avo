@@ -37,6 +37,16 @@ import Testing
         // debug.vulkan.layers belongs to the device profile's GPU layer.
         #expect(GuestGfxstreamSync.enableCommand == "setprop debug.vulkan.layer.9 VK_LAYER_AVO_gfxstream_sync")
     }
+
+    @Test func aStartWithoutTheGPURemovesTheLayer() {
+        let lines = GuestGfxstreamSync.removeScript().split(separator: "\n").map(String.init)
+        #expect(lines == [
+            "set -e",
+            "rm -f /data/local/debug/vulkan/libVkLayer_avo_gfxstream_sync.so /data/local/debug/vulkan/.avo-gfxsync.new",
+            // The profile's layers may still be there: only empty folders go.
+            "rmdir /data/local/debug/vulkan /data/local/debug 2>/dev/null || true",
+        ])
+    }
 }
 
 @Suite struct GuestGPUDebugLayersTests {

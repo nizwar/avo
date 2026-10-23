@@ -155,6 +155,7 @@ final class FingerprintMenu: NSObject {
                 let item = menu.addItem(withTitle: finger.name, action: #selector(touchFinger(_:)), keyEquivalent: "")
                 item.target = self
                 item.tag = finger.id
+                item.symbol("touchid")
                 if status.enrolling {
                     // Settings adds the finger that touches it: the ones Android has are done.
                     item.isEnabled = status.canTouch && !finger.enrolled
@@ -175,6 +176,7 @@ final class FingerprintMenu: NSObject {
                 let unknown = menu.addItem(withTitle: String(localized: "Unregistered Finger", bundle: .windowHost),
                                            action: #selector(touchUnregistered), keyEquivalent: "")
                 unknown.target = self
+                unknown.symbol("questionmark.circle")
                 unknown.isEnabled = status.canTouch
                 unknown.toolTip = String(localized: "A finger Android does not know: the app or lock screen does not recognize it.", bundle: .windowHost)
             }
@@ -182,11 +184,13 @@ final class FingerprintMenu: NSObject {
                 let cancel = menu.addItem(withTitle: String(localized: "Cancel Fingerprint Request", bundle: .windowHost),
                                           action: #selector(cancelRequest), keyEquivalent: "")
                 cancel.target = self
+                cancel.symbol("xmark.circle")
             }
             if status.lockout == .permanent {
                 let lock = menu.addItem(withTitle: String(localized: "Use Screen Lock Instead…", bundle: .windowHost),
                                         action: #selector(useScreenLock), keyEquivalent: "")
                 lock.target = self
+                lock.symbol("lock")
                 lock.toolTip = String(localized: "Locks Android; entering its PIN, pattern or password lets fingerprints work again.",
                                       bundle: .windowHost)
             }
@@ -195,6 +199,7 @@ final class FingerprintMenu: NSObject {
         let manage = menu.addItem(withTitle: String(localized: "Manage Fingerprints…", bundle: .windowHost),
                                   action: #selector(manageFingerprints), keyEquivalent: "")
         manage.target = self
+        manage.symbol("gearshape")
         return menu
     }
 
@@ -287,13 +292,6 @@ final class FingerprintMenu: NSObject {
 
     /// Settings › Fingerprints in the Control Panel (Avo.app takes the link).
     @objc private func manageFingerprints() {
-        let link = ControlPanelLink.url(pane: ControlPanelLink.fingerprintsPane)
-        guard let avo = AndroidWindowController.hostApplication ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: AvoIdentifiers.app) else {
-            NSWorkspace.shared.open(link)
-            return
-        }
-        NSWorkspace.shared.open([link], withApplicationAt: avo, configuration: NSWorkspace.OpenConfiguration()) { [logger] _, error in
-            if let error { logger.error("cannot open the Control Panel: \(error.localizedDescription, privacy: .public)") }
-        }
+        AndroidWindowController.openControlPanel(ControlPanelLink.url(pane: ControlPanelLink.fingerprintsPane))
     }
 }

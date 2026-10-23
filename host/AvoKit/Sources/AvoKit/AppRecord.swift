@@ -15,6 +15,13 @@ public struct AppRecord: Codable, Identifiable, Hashable, Sendable {
     public var systemApp: Bool
     public var launchable: Bool
     public var installer: String?
+    /// The app says it is a game (AppInfo.game): its windows use the Games
+    /// profile unless the user chose otherwise. Nil until Android said.
+    public var isGame: Bool?
+    /// The orientation its activities ask for (AppInfo.orientation), which
+    /// the Games profile takes when Android's word made it a game; nil when
+    /// they let the screen turn, or until Android said.
+    public var orientation: VMConfig.Orientation?
     /// SHA-256 of the icon PNG, used to skip regenerating unchanged shim icons.
     public var iconDigest: String?
     /// Host-side shortcuts created for this app.
@@ -39,7 +46,8 @@ public struct AppRecord: Codable, Identifiable, Hashable, Sendable {
 
     public init(package: String, label: String, versionName: String = "", versionCode: Int64 = 0,
                 sizeBytes: Int64? = nil, installedAt: Date? = nil, updatedAt: Date? = nil,
-                systemApp: Bool = false, launchable: Bool = true, installer: String? = nil,
+                systemApp: Bool = false, launchable: Bool = true, installer: String? = nil, isGame: Bool? = nil,
+                orientation: VMConfig.Orientation? = nil,
                 iconDigest: String? = nil, shortcuts: Shortcuts = Shortcuts()) {
         self.package = package
         self.label = label
@@ -51,6 +59,8 @@ public struct AppRecord: Codable, Identifiable, Hashable, Sendable {
         self.systemApp = systemApp
         self.launchable = launchable
         self.installer = installer
+        self.isGame = isGame
+        self.orientation = orientation
         self.iconDigest = iconDigest
         self.shortcuts = shortcuts
     }

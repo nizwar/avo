@@ -41,6 +41,10 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
         item.button?.action = #selector(clicked(_:))
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         menu.delegate = self
+        // Its items say themselves whether they can be chosen (Start while
+        // Android starts, Resume while it pauses): validating would enable
+        // every item whose target answers its action.
+        menu.autoenablesItems = false
         popover.behavior = .transient
         popover.animates = true
         popover.appearance = NSAppearance(named: .darkAqua)
@@ -143,19 +147,23 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
         switch status.state {
         case .running:
             if core.vm.canPause {
-                menu.addItem(withTitle: String(localized: "Pause Android"), action: #selector(pauseVM), keyEquivalent: "").target = self
+                menu.addItem(withTitle: String(localized: "Pause Android"), action: #selector(pauseVM), keyEquivalent: "").symbol("pause.circle")
+                    .target = self
             }
-            menu.addItem(withTitle: String(localized: "Stop Android"), action: #selector(stopVM), keyEquivalent: "").target = self
+            menu.addItem(withTitle: String(localized: "Stop Android"), action: #selector(stopVM), keyEquivalent: "").symbol("stop.circle").target = self
         case .suspended, .suspending:
             let resume = menu.addItem(withTitle: String(localized: "Resume Android"), action: #selector(resumeVM), keyEquivalent: "")
             resume.target = self
+            resume.symbol("play.circle")
             resume.isEnabled = status.state == .suspended
-            menu.addItem(withTitle: String(localized: "Stop Android"), action: #selector(stopVM), keyEquivalent: "").target = self
+            menu.addItem(withTitle: String(localized: "Stop Android"), action: #selector(stopVM), keyEquivalent: "").symbol("stop.circle").target = self
         default:
             let start = menu.addItem(withTitle: String(localized: "Start Android"), action: #selector(startVM), keyEquivalent: "")
             start.target = self
-            // The installer starts Android itself (and may be repairing it).
-            start.isEnabled = ![.starting, .stopping].contains(status.state) && googleAppsWork == nil
+            start.symbol("play.circle")
+            // The installer starts Android itself (and may be repairing it);
+            // without an Android image there is nothing to start (as in the panel).
+            start.isEnabled = ![.starting, .stopping, .notInstalled].contains(status.state) && googleAppsWork == nil
         }
         menu.addItem(.separator())
 
@@ -173,17 +181,20 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
                 }
             }
             appsItem.submenu = submenu
+            appsItem.symbol("square.grid.2x2")
             menu.addItem(appsItem)
         }
-        menu.addItem(withTitle: String(localized: "Open Control Panel…"), action: #selector(openControlPanel), keyEquivalent: ",").target = self
+        menu.addItem(withTitle: String(localized: "Open Avo"), action: #selector(openControlPanel), keyEquivalent: ",")
+            .symbol("slider.horizontal.3").target = self
         // Sparkle runs in the Control Panel (Avo.app's AppUpdater): it opens and checks.
-        menu.addItem(withTitle: String(localized: "Check for Updates…"), action: #selector(checkForUpdates), keyEquivalent: "").target = self
+        menu.addItem(withTitle: String(localized: "Check for Updates…"), action: #selector(checkForUpdates), keyEquivalent: "")
+            .symbol("arrow.down.circle").target = self
         if updatePending() {
             menu.addItem(withTitle: String(localized: "Restart Android to Finish Updating Avo"), action: #selector(restartForUpdateNow),
-                         keyEquivalent: "").target = self
+                         keyEquivalent: "").symbol("arrow.clockwise.circle").target = self
         }
         menu.addItem(.separator())
-        menu.addItem(withTitle: String(localized: "Quit Avo"), action: #selector(quit), keyEquivalent: "q").target = self
+        menu.addItem(withTitle: String(localized: "Quit Avo"), action: #selector(quit), keyEquivalent: "q").symbol("power").target = self
 
         Task { [weak self] in
             guard let self else { return }
@@ -257,6 +268,10 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
                 guard confirmForce(error, action: String(localized: "Quit Anyway")) else { return }
                 try? await core.quitFromMenuBar(force: true)
             }
+            // Avo quits as a whole: an open Control Panel, reconnecting,
+            // would have launchd start the daemon (and this item) again.
+            let controlPanel = Bundle(url: avoApp)?.bundleIdentifier ?? AvoIdentifiers.app
+            for app in NSRunningApplication.runningApplications(withBundleIdentifier: controlPanel) { app.terminate() }
             exit(0)
         }
     }

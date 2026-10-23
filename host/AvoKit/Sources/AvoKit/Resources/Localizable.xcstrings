@@ -614,6 +614,16 @@
         }
       }
     },
+    "Android has no apps or data yet, so there is nothing to keep." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android belum punya aplikasi atau data, jadi belum ada yang bisa disimpan."
+          }
+        }
+      }
+    },
     "Android is already being changed; the install can no longer stop." : {
       "localizations" : {
         "id" : {
@@ -680,6 +690,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Android sedang berjalan. Hentikan Android untuk mengubah tempat datanya."
+          }
+        }
+      }
+    },
+    "Android is starting or stopping. Try again in a moment." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android sedang dimulai atau dihentikan. Coba lagi sebentar lagi."
           }
         }
       }
@@ -1240,6 +1260,76 @@
         }
       }
     },
+    "Before turning on root" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sebelum mengaktifkan root"
+          }
+        }
+      }
+    },
+    "Before starting another Android version" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sebelum memulai versi Android lain"
+          }
+        }
+      }
+    },
+    "Before starting %@" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sebelum memulai %@"
+          }
+        }
+      }
+    },
+    "Before restoring a checkpoint" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sebelum memulihkan checkpoint"
+          }
+        }
+      }
+    },
+    "Before removing Google apps" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sebelum menghapus aplikasi Google"
+          }
+        }
+      }
+    },
+    "Before installing Google apps" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sebelum menginstal aplikasi Google"
+          }
+        }
+      }
+    },
+    "Before changing the device profile" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sebelum mengganti profil perangkat"
+          }
+        }
+      }
+    },
     "Build %@ has no Android image to download." : {
       "localizations" : {
         "id" : {
@@ -1266,6 +1356,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tidak bisa membuat %@."
+          }
+        }
+      }
+    },
+    "Checkpoints need Android’s data on an APFS drive; it is on a drive formatted as %@. Move it in Settings › Storage › Location to use checkpoints." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checkpoint memerlukan data Android di drive APFS; saat ini data ada di drive berformat %@. Pindahkan di Pengaturan › Storage › Lokasi untuk memakai checkpoint."
+          }
+        }
+      }
+    },
+    "Checkpoint" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checkpoint"
           }
         }
       }
@@ -1995,6 +2105,16 @@
         }
       }
     },
+    "That checkpoint is no longer there." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checkpoint itu sudah tidak ada."
+          }
+        }
+      }
+    },
     "That finger is no longer registered." : {
       "localizations" : {
         "id" : {
@@ -2273,12 +2393,12 @@
         }
       }
     },
-    "The engine’s log and the end of Android’s kernel log" : {
+    "The engine’s logs (the Bluetooth controller’s too) and the end of Android’s kernel log" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Log mesin VM dan bagian akhir log kernel Android"
+            "value" : "Log mesin VM (termasuk pengendali Bluetooth) dan bagian akhir log kernel Android"
           }
         }
       }
@@ -2751,6 +2871,32 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aplikasi ini hanya berisi kode %@. Avo menjalankan Android ARM 64-bit, jadi aplikasi ini tidak bisa berjalan."
+          }
+        }
+      }
+    },
+    "This engine cannot hold Android still. Stop Android first." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Engine ini tidak bisa menghentikan Android sejenak. Hentikan Android terlebih dahulu."
+          }
+        }
+      }
+    },
+    "This checkpoint’s data is from %@, newer than the Android that starts now (%@). Choose %@ under Android version first." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This checkpoint’s data is from %1$@, newer than the Android that starts now (%2$@). Choose %3$@ under Android version first."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data checkpoint ini dari %1$@, lebih baru daripada Android yang dimulai sekarang (%2$@). Pilih dulu %3$@ di Versi Android."
           }
         }
       }

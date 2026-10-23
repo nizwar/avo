@@ -7,16 +7,19 @@ import SwiftUI
 // Quick Settings: the title bar's slider button opens, under itself, the
 // settings of this window whose effect shows at once, in the Library's haze
 // look: Android's volume, this app's graphics (as on its page in the Control Panel) with
-// Android's frame rate cap, the performance HUD, the key mapping, scrolling
-// and Translate Screen. What needs Android to restart or applies elsewhere
+// Android's frame rate cap, the performance HUD, the app bar style, the key
+// mapping, scrolling and Translate Screen. What needs Android to restart or applies elsewhere
 // (CPU, memory, renderer, device identity, Android version) stays in the
-// Control Panel. Last, where Android's GPS says it is, with the Location
-// panel a click away. A click outside the overlay or Esc closes it.
+// Control Panel, a click away at the bottom (All Settings for the app).
+// Last but that, where Android's GPS says it is, with the Location panel a
+// click away. A click outside the overlay or Esc closes it.
 
 // MARK: - What it shows and changes
 
 /// The overlay's settings as its window has them now.
 struct QuickSettingsState: Equatable {
+    /// The app's name, for All Settings.
+    var appName = ""
     struct KeyMapping: Equatable {
         var gameMode: Bool
         var hintsVisible: Bool
@@ -42,8 +45,12 @@ struct QuickSettingsState: Equatable {
     /// What the Mac's screens make of the cap, when none shows it evenly (FrameRates.screenNote).
     var fpsNote: String?
     var hudLevel = PerformanceHUDLevel.off
+    /// The app's windows' style: their own, else the Control Panel's.
+    var appBarStyle = AppBarStyle.standard
     /// nil while the app has no key mapping.
     var keyMapping: KeyMapping?
+    /// The key mapping editor can open (the display has).
+    var canEditKeyMapping = false
     var scrollMode = ScrollMode.automatic
     var translating = false
     /// Translate Screen reads the display's frames: none before it opens.
@@ -68,12 +75,19 @@ protocol QuickSettingsTarget: AnyObject {
     func quickSettingsSetFrameRateLimit(_ fps: Int)
     /// This window's, as ⌥⌘P.
     func quickSettingsSetHUDLevel(_ level: PerformanceHUDLevel)
+    /// This app's own, as Phone Style in its windows' menus; the Control
+    /// Panel's one leaves it following the Control Panel.
+    func quickSettingsSetAppBarStyle(_ style: AppBarStyle)
     func quickSettingsSetGameMode(_ on: Bool)
     func quickSettingsSetTranslating(_ on: Bool)
     /// Android's media volume, every app's; nil while Android is not running.
     func quickSettingsAndroidVolume() async -> AndroidVolume?
     /// Sets it; the volume Android has afterwards.
     func quickSettingsSetAndroidVolume(_ level: Int) async -> AndroidVolume?
+    /// The app's page in the Control Panel.
+    func quickSettingsOpenAppSettings()
+    /// The key mapping editor, over the game (⇧⌘K).
+    func quickSettingsEditKeyMapping()
 }
 
 @MainActor
@@ -313,7 +327,29 @@ struct QuickSettingsView: View {
                         model.change { $0.quickSettingsSetHUDLevel(level) }
                     }
                 }
-                if let keys = state.keyMapping { keyMappingCard(keys) }
+                QuickCard(title: L("App bar style"), scope: L("This app")) {
+                    QuickSegmented(label: L("App bar style"), options: [(AppBarStyle.standard, L("Standard")), (.phone, L("Phone style"))],
+                                   selection: state.appBarStyle, fill: true, help: { style in
+                                       style == .phone
+                                           ? L("The app’s screen alone, with a phone’s rounded corners. Its title bar shows when the pointer leaves the screen at the top.")
+                                           : L("A Mac window, its title bar always shown.")
+                                   }) { style in
+                        model.change { $0.quickSettingsSetAppBarStyle(style) }
+                    }
+                }
+                if let keys = state.keyMapping {
+                    keyMappingCard(keys)
+                } else if state.canEditKeyMapping {
+                    // Without one, the way to make one.
+                    QuickCard(title: L("Game controls"), scope: L("This app")) {
+                        QuickRow(label: L("No key mapping yet"),
+                                 help: L("Put keys, mouse buttons and the controller on the game’s buttons, then turn on Game Mode (⌘G) to play with them.")) {
+                            LocationButton(title: L("Create Key Mapping…"), symbol: "keyboard", style: .secondary) {
+                                model.change { $0.quickSettingsEditKeyMapping() }
+                            }
+                        }
+                    }
+                }
                 QuickCard(title: L("Scrolling"), scope: L("This app")) {
                     QuickSegmented(label: L("Scrolling"), options: ScrollMode.allCases.map { ($0, ScrollModeMenu.name(of: $0)) },
                                    selection: state.scrollMode, fill: true, help: { ScrollModeMenu.explanation(of: $0) }) { mode in
@@ -323,6 +359,11 @@ struct QuickSettingsView: View {
                 translationCard(state)
                 // Android's GPS: this Mac, a place or a route (LocationPanel.swift).
                 QuickLocationCard()
+                // What applies elsewhere or needs Android to restart: the app's page.
+                LocationButton(title: L("All Settings for \(state.appName)…"), symbol: "gearshape", style: .secondary) {
+                    model.change { $0.quickSettingsOpenAppSettings() }
+                }
+                .frame(maxWidth: .infinity)
             }
             .padding(12)
         }
@@ -348,12 +389,12 @@ struct QuickSettingsView: View {
 
     private func keyMappingCard(_ keys: QuickSettingsState.KeyMapping) -> some View {
         let percent = Text(keys.hintsOpacity, format: .percent.precision(.fractionLength(0)))
-        return QuickCard(title: L("Key mapping"), scope: L("This app")) {
+        return QuickCard(title: L("Game controls"), scope: L("This app")) {
             QuickToggle(label: L("Game Mode"), shortcut: "⌘G", caption: L("Keys and clicks become touches"), isOn: keys.gameMode) { on in
                 model.change { $0.quickSettingsSetGameMode(on) }
             }
             VStack(alignment: .leading, spacing: 9) {
-                QuickToggle(label: L("Show keys on the game"), isOn: keys.hintsVisible) { model.setHintsVisible($0) }
+                QuickToggle(label: L("Show keys on game"), isOn: keys.hintsVisible) { model.setHintsVisible($0) }
                 QuickSliderRow(label: L("Key visibility"), value: percent) {
                     QuickSlider(label: L("Key visibility"), value: Binding(get: { keys.hintsOpacity }, set: { model.setHintsOpacity($0) }),
                                 range: KeymapHints.opacityRange, step: 0.05, valueText: percent)
@@ -378,7 +419,7 @@ struct QuickSettingsView: View {
 
     private func translationCard(_ state: QuickSettingsState) -> some View {
         QuickCard(title: L("Translation"), scope: L("This window")) {
-            QuickToggle(label: L("Translate screen"), shortcut: "⌘⇧T", isOn: state.translating) { on in
+            QuickToggle(label: L("Translate screen"), shortcut: "⇧⌘T", isOn: state.translating) { on in
                 model.change { $0.quickSettingsSetTranslating(on) }
             }
             .disabled(!state.canTranslate && !state.translating)

@@ -15,13 +15,19 @@ Third-party components included in Avo.app:
   Open Source Project, with headers under MIT-style licences), the Vulkan
   loader (Apache License 2.0, Khronos) and MoltenVK (Apache License 2.0,
   Khronos); their licences are in that folder's licenses/.
+- Android's Bluetooth controller in Contents/Resources/bluetooth, built from
+  source by scripts/build-bluetooth.sh: Root Canal (Apache License 2.0, the
+  Android Open Source Project, github.com/google/rootcanal) with fmt (MIT),
+  pdl (Apache License 2.0), protobuf (BSD 3-Clause), abseil (Apache License
+  2.0), gflags (BSD 3-Clause), OpenSSL (Apache License 2.0) and Rust crates
+  under MIT or Apache License 2.0; their licences are in that folder's
+  licenses/.
 
 Used at run time, not included:
 - AOSP Cuttlefish images (Apache License 2.0, with the Linux kernel under
   GPL-2.0), downloaded by the user from Google's public build server.
-- netsimd from the Android Emulator, for Android's Bluetooth, installed by
-  the user; and the Android Emulator's own gfxstream and MoltenVK, only when
-  a developer points Avo at them instead of its own renderer.
+- The Android Emulator's netsimd, gfxstream and MoltenVK, only when a
+  developer's build lacks Avo's own or points Avo at them.
 - MindTheGapps (Google apps), downloaded only when the user asks for them.
 
 Android is a trademark of Google LLC. Device names in profiles/devices are used

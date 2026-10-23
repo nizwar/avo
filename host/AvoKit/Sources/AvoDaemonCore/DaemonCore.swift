@@ -96,6 +96,8 @@ public actor DaemonCore {
         var ready = false
         /// False while the window is minimized or hidden.
         var visible = true
+        /// Its app runs in the background (the blue light): hidden on purpose.
+        var inBackground = false
     }
 
     let deps: Dependencies
@@ -114,7 +116,7 @@ public actor DaemonCore {
 
     private(set) var config: VMConfig
     /// Configuration the running VM booted with (for "restart needed").
-    private var bootedConfig: VMConfig?
+    var bootedConfig: VMConfig?
     /// Android's display rate that boot (FrameRates.androidRate).
     private var bootedDisplayRate = FrameRates.standardRate
     private var clients: [ClientID: Client] = [:]
@@ -145,11 +147,11 @@ public actor DaemonCore {
     private var lastActivity: [String: AppActivity] = [:]
     private var started = false
     /// When Android was last asked about its storage (`dataDiskStatus`).
-    private var storageCheckedAt: ContinuousClock.Instant?
+    var storageCheckedAt: ContinuousClock.Instant?
     /// The Google apps install (or the recovery of an interrupted one)
     /// running now, one at a time; its latest progress, and whether it can
     /// still stop (nothing in Android changed yet).
-    private var googleAppsRun: Task<URL?, any Error>? { didSet { publishGoogleAppsBusy() } }
+    private(set) var googleAppsRun: Task<URL?, any Error>? { didSet { publishGoogleAppsBusy() } }
     /// Root being prepared (Magisk; `rootIfAsked`).
     private var rootRun: Task<Void, Never>?
     /// The first start with Magisk is under way: Android rebooting before it
@@ -174,7 +176,7 @@ public actor DaemonCore {
     /// How much each app is used, from its windows (AppUsageRecorder.swift).
     var usage: AppUsageRecorder
     /// A change of where Android's data is runs (starts wait for it).
-    private var storageChanging = false
+    private(set) var storageChanging = false
     /// A storage status for the Control Panels is on its way (volumes change in bursts).
     private var storagePublishPending = false
     /// Pause When Idle and what it waits for (AutoPause.swift).
@@ -295,6 +297,9 @@ public actor DaemonCore {
         for display in displays.values {
             if display.visible {
                 result[display.package] = .open
+            } else if display.inBackground {
+                // Sent to the background on purpose (a window's blue light): not minimized.
+                if result[display.package] == nil { result[display.package] = .background }
             } else if result[display.package] != .open {
                 result[display.package] = .minimized
             }
@@ -391,7 +396,7 @@ public actor DaemonCore {
     /// The Library's usage statistics (AppUsageRecorder.swift), for Control Panels.
     func publishUsage(_ usage: [AppUsage]) { broadcast(.appUsage(usage), to: isControlPanel) }
 
-    private func isControlPanel(_ role: ClientHello.Role) -> Bool { role == .controlPanel }
+    func isControlPanel(_ role: ClientHello.Role) -> Bool { role == .controlPanel }
 
     /// Who hears `configurationChanged`: the Control Panel, and App Shims,
     /// whose windows follow graphics changes (the engine has no use for it).
@@ -430,6 +435,8 @@ public actor DaemonCore {
         try await clearForVMChange(.restart)
         GPUFallbackRecord.remove(paths: deps.paths)
         (deps.engine as? any GPUFallbackEngine)?.forgetGPUCrashes()
+        // A software start removed the gfxstream sync layer the GPU start names.
+        await (deps.engine as? any GPULayerEngine)?.stageGPULayers(profile: false, gfxstreamSync: true)
         await vm.stop()
         try await ensureRunning()
     }
@@ -492,6 +499,9 @@ public actor DaemonCore {
         await vm.stop()
         try? FileManager.default.removeItem(at: deps.paths.dataDisk)
         try? FileManager.default.removeItem(at: deps.paths.snapshots)
+        // Its checkpoints are of the data that went (Reset Android says so).
+        CheckpointStore(paths: deps.paths).removeAll()
+        publishCheckpoints()
         DataDiskStore(paths: deps.paths).forget()
         GoogleAppsJournal.remove(deps.paths)
         GoogleAppsRecord.remove(deps.paths)
@@ -563,7 +573,7 @@ public actor DaemonCore {
     }
 
     /// Stop, restart, snapshot and reset while Google apps install (GoogleAppsGuard).
-    private func clearForVMChange(_ action: GoogleAppsGuard.Action, force: Bool = false) async throws {
+    func clearForVMChange(_ action: GoogleAppsGuard.Action, force: Bool = false) async throws {
         switch GoogleAppsGuard.decide(action, installing: googleAppsRun != nil, cancellable: googleAppsCancellable, force: force) {
         case .allow:
             if googleAppsBusy {
@@ -579,7 +589,7 @@ public actor DaemonCore {
         }
     }
 
-    private func ensureRunning() async throws {
+    func ensureRunning() async throws {
         if storageChanging { throw AvoError.storage(.changing) }
         // A commit Avo did not see to its end (it quit, or Android was
         // stopped by force): finished or taken out before anything else.
@@ -600,6 +610,7 @@ public actor DaemonCore {
     }
 
     private func bootVM() async throws {
+        await checkpointBeforeNewerAndroid()
         let settings = self.settings
         try await vm.ensureRunning(settings)
         if bootedConfig == nil {
@@ -706,11 +717,16 @@ public actor DaemonCore {
         case .listening(let port): ADBStatus(port: port)
         case let .failed(port, problem): ADBStatus(port: port, problem: problem)
         }
+        let games = await registry.all().filter { $0.isGame == true }
         return ConfigurationSnapshot(config: config, host: deps.host, profiles: deps.profiles.profiles,
                                      pendingRestart: (bootedConfig.map { config.effect(of: $0) == .restartRequired } ?? false)
                                          || frameRateNeedsRestart(config.fpsLimit),
                                      adb: adbStatus, dataDisk: await dataDiskStatus(), storageLocation: await storage.status(),
-                                     sharedFolder: await sharedFolderStatus())
+                                     sharedFolder: await sharedFolderStatus(),
+                                     games: Set(games.map(\.package)),
+                                     gameOrientations: Dictionary(uniqueKeysWithValues: games.compactMap { app in
+                                         app.orientation.map { (app.package, $0) }
+                                     }))
     }
 
     public func updateConfiguration(_ new: VMConfig, client: ClientID) async throws -> ConfigUpdateResult {
@@ -734,6 +750,11 @@ public actor DaemonCore {
         guard !issues.contains(where: { $0.severity == .error }) else {
             return ConfigUpdateResult(effect: effect, issues: issues)
         }
+        // Root on or another phone: Android's data as it is now is kept first.
+        if let reason = Self.checkpointReason(from: config, to: new) {
+            await autoCheckpoint(reason)
+            new.graphicsOverrides = config.graphicsOverrides
+        }
         let old = config
         config = new
         try new.save(to: deps.paths.config)
@@ -742,6 +763,14 @@ public actor DaemonCore {
         if new.rendererMode != old.rendererMode {
             GPUFallbackRecord.remove(paths: deps.paths)
             (deps.engine as? any GPUFallbackEngine)?.forgetGPUCrashes()
+        }
+        // The GPU layers the next start names go in now, so the restart these
+        // settings need begins with them; the ones it drops go at that start.
+        if new.emulateHardware != old.emulateHardware || new.deviceProfileID != old.deviceProfileID
+            || new.rendererMode != old.rendererMode, let engine = deps.engine as? any GPULayerEngine {
+            let profile = deps.profiles.profile(id: new.deviceProfileID)
+            await engine.stageGPULayers(profile: GuestGPUProfile.emulatesGPU(profile, emulateHardware: new.emulateHardware),
+                                        gfxstreamSync: new.rendererMode != .software)
         }
         if new.fpsLimit != old.fpsLimit { await applyFrameRateLimit(new.fpsLimit) }
         if new.adbEnabled != old.adbEnabled || new.adbPort != old.adbPort {
@@ -1003,6 +1032,15 @@ public actor DaemonCore {
                 throw AvoError.installFailed(String(localized: "Google apps are already being installed.", bundle: .avoKit))
             }
         }
+        // Android as it is without them, to go back to (they change its system partitions).
+        await autoCheckpoint(.googleApps)
+        guard cancelledGoogleApps.remove(request.id) == nil else {
+            publishGoogleApps(GoogleAppsProgress(id: request.id, phase: .cancelled, message: Self.googleAppsCancelledMessage))
+            throw AvoError.internalError(Self.googleAppsCancelledMessage)
+        }
+        guard googleAppsRun == nil else {
+            throw AvoError.installFailed(String(localized: "Google apps are already being installed.", bundle: .avoKit))
+        }
         let local = copy
         try await superviseGoogleApps(request.id, cancellable: true) { [weak self] report in
             guard let self else { return nil }
@@ -1054,6 +1092,8 @@ public actor DaemonCore {
             try await ensureRunning()
             guard googleAppsRun == nil else { throw AvoError.installFailed(Self.googleAppsBusyMessage) }
         }
+        await autoCheckpoint(.googleAppsRemoval)
+        guard googleAppsRun == nil else { throw AvoError.installFailed(Self.googleAppsBusyMessage) }
         do {
             try await superviseGoogleApps(id, cancellable: false, removal: true) { [weak self] report in
                 guard let installer = await self?.googleAppsInstaller(id, engine: engine, report: report) else { return nil }
@@ -1375,7 +1415,7 @@ public actor DaemonCore {
     }
 
     /// Saves a configuration the daemon changed itself and tells every watcher.
-    private func apply(_ new: VMConfig) {
+    func apply(_ new: VMConfig) {
         config = new
         try? new.save(to: deps.paths.config)
         publish(new)
@@ -1515,6 +1555,12 @@ public actor DaemonCore {
         request.displayID = id
         request.visible = visible
         _ = try? await vm.controlSession().request(.setDisplayVisibility(request))
+    }
+
+    public func setDisplayInBackground(_ id: UInt32, inBackground: Bool, client: ClientID) async {
+        guard ownedDisplay(id, by: client) != nil else { return }
+        displays[id]?.inBackground = inBackground
+        publishActivity()
     }
 
     /// The window became the Mac's key window (Avo_V1_FocusDisplay). The
@@ -2026,7 +2072,7 @@ extension DaemonCore {
     }
 
     /// Tells Control Panels where Android's data is now.
-    private func publishStorage() async {
+    func publishStorage() async {
         broadcast(.storageLocation(await storage.status()), to: isControlPanel)
     }
 

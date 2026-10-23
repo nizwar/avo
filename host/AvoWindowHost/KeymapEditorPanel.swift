@@ -158,6 +158,9 @@ final class KeymapEditorModel: ObservableObject {
     @Published var showOnGame = true
     @Published var hintOpacity = 0.75
     @Published var editorOpacity = 0.6
+    /// The panel stands in a window of its own beside the game's (a card
+    /// with rounded corners), not inside it at its edge.
+    @Published var outside = false
     @Published var status = ""
     @Published var problem = false
     @Published var selection: Selection?
@@ -234,7 +237,15 @@ struct KeymapEditorPanel: View {
         .padding(.top, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background { QuickHaze.background }
-        .overlay(alignment: .leading) { Rectangle().fill(QuickHaze.text.opacity(0.12)).frame(width: 1) }
+        .clipShape(RoundedRectangle(cornerRadius: model.outside ? 12 : 0, style: .continuous))
+        .overlay {
+            if model.outside {
+                RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(QuickHaze.text.opacity(0.12))
+            }
+        }
+        .overlay(alignment: .leading) {
+            if !model.outside { Rectangle().fill(QuickHaze.text.opacity(0.12)).frame(width: 1) }
+        }
         .environment(\.colorScheme, .dark)
         .coordinateSpace(name: Self.space)
         .coordinateSpace(name: ControllerPanelView.space)
@@ -337,7 +348,7 @@ private struct DisplaySection: View {
         let percent: FloatingPointFormatStyle<Double>.Percent = .percent.precision(.fractionLength(0))
         VStack(alignment: .leading, spacing: 9) {
             SectionLabel(L("Visibility"))
-            QuickToggle(label: L("Show keys on the game"), caption: L("The keys show on the game’s buttons while you play."), isOn: model.showOnGame) {
+            QuickToggle(label: L("Show keys on game"), caption: L("The keys show on the game’s buttons while you play."), isOn: model.showOnGame) {
                 model.setShowOnGame($0)
             }
             QuickSliderRow(label: L("Key visibility"), value: Text(model.hintOpacity, format: percent)) {
@@ -610,8 +621,8 @@ private struct InspectorCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if let help { QuickHelpButton(help: help, shown: $showsHelp) }
                 Spacer(minLength: 6)
-                BarIconButton(symbol: "trash", label: L("Remove it"), destructive: true) { model.remove() }
-                BarIconButton(symbol: "xmark", label: L("Deselect it")) { model.deselect() }
+                BarIconButton(symbol: "trash", label: L("Remove"), destructive: true) { model.remove() }
+                BarIconButton(symbol: "xmark", label: L("Deselect")) { model.deselect() }
             }
             if showsHelp, let help { QuickCaption(help) }
             QuickRows(spacing: 9) {
@@ -693,7 +704,7 @@ private struct InspectorSettings: View {
                 slider(L("Repeat every"), Binding(get: { Double(interval) }, set: { value in model.update { $0.setRepeatInterval(Int(value)) } }),
                        50...1000, step: 10, text: L("\(interval) ms"))
                 if model.hasEye {
-                    caption(L("Repeated taps are not allowed with the eye (no automatic rapid fire): Done will say so."), problem: true)
+                    caption(L("Repeated taps are not allowed with the eye (no automatic rapid fire): Done won’t save until you change this."), problem: true)
                 }
             }
         case .anchor(_, let radius):

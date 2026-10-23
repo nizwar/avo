@@ -83,6 +83,9 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     private var relaunch: Task<Void, Never>?
     private var rendererStatus: RendererStatus?
     private var gpuCrashes = GPUCrashHistory()
+    /// This GPU launch runs Avo's Vulkan driver wrapper: a failure takes it
+    /// out before the GPU is given up (GuestVulkanWrapper.Failure).
+    private var vulkanWrapperRuns = false
     /// Android is paused (PausableEngine, "Pause" below), and its sound
     /// streams as the engine reports them (`sound playback|capture on|off`).
     private var paused = false
@@ -117,7 +120,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     /// A reboot from inside Android (Restart, `adb reboot`) ends avo-vmm, and
     /// the daemon starts Android again: its start prepares every boot.
     public static func arguments(images: URL, launch: EngineLaunch, gpu: GPUPlan = .software(.chosen, nil),
-                                 netsimd: URL? = nil, initBoot: URL? = nil) -> [String] {
+                                 bluetooth: URL? = nil, initBoot: URL? = nil) -> [String] {
         let config = launch.config
         let paths = launch.paths
         var gpuFlags: [String] = []
@@ -137,7 +140,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
                 "--density", "\(config.bootDensity ?? 320)",
                 "--properties", identityFile(paths).path,
                 "--exit-on-reboot"] + gpuFlags + sharedFolderFlags(config) + refreshRateFlags(launch.displayRate)
-                + (netsimd.map { ["--bluetooth", $0.path] } ?? [])
+                + (bluetooth.map { ["--bluetooth", $0.path] } ?? [])
                 + (initBoot.map { ["--init-boot", $0.path] } ?? [])
                 + config.cameraFlags
                 + (config.microphoneEnabled ? [] : ["--no-microphone"])
@@ -172,10 +175,14 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
 
     /// That file for a launch: written again for every avo-vmm process, so
     /// a software relaunch after a failed GPU boot says `software`.
+    /// `vulkanWrapper` lets Android run Avo's Vulkan driver wrapper on a GPU
+    /// start (GuestVulkanWrapper.switchProperty).
     static func identityProperties(profile: DeviceProfile?, plan: GPUPlan, emulateHardware: Bool = false,
+                                   vulkanWrapper: Bool = false,
                                    markers: (AvoIdentity.Renderer) -> AvoIdentity.Markers) -> String {
         AvoIdentity.propertyFile(profile: profile, markers: markers(plan.isGPU ? .gpu : .software),
                                  emulateHardware: emulateHardware)
+            + (vulkanWrapper ? "\(GuestVulkanWrapper.switchProperty)=1\n" : "")
     }
 
     public func start(_ launch: EngineLaunch) async throws {
@@ -191,8 +198,14 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     private func launch(_ launch: EngineLaunch, plan: GPUPlan) async throws {
         try launch.paths.validateSocketPaths()
         let version = avoVersion
-        try Self.identityProperties(profile: launch.profile, plan: plan, emulateHardware: launch.config.emulateHardware) { .current(version: version, renderer: $0) }
+        // Avo's Vulkan driver wrapper, unless it failed a GPU start; whether
+        // Android has it, as of its last ready boot, says if this start may fail by it.
+        let wrapper = GuestVulkanWrapper.allowed(paths: launch.paths)
+        let wrapperRuns = wrapper && plan.isGPU && GuestVulkanWrapper.installed(paths: launch.paths)
+        try Self.identityProperties(profile: launch.profile, plan: plan, emulateHardware: launch.config.emulateHardware,
+                                    vulkanWrapper: wrapper) { .current(version: version, renderer: $0) }
             .write(to: Self.identityFile(launch.paths), atomically: true, encoding: .utf8)
+        lock.withLock { vulkanWrapperRuns = wrapperRuns }
         lock.withLock {
             paused = false
             playing = false
@@ -207,12 +220,13 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         process.executableURL = executable
         // The image of this start (CuttlefishImage.prepareStart): chosen in
         // the Control Panel, so it can differ from the one at daemon launch.
-        // Android's Bluetooth controller: the Android Emulator's netsimd, when
-        // there is one and Settings › Devices gives Android Bluetooth.
-        let netsimd = launch.config.bluetoothEnabled ? AndroidEmulator.netsimd(home: launch.paths.home) : nil
+        // Android's Bluetooth controller (Avo's Root Canal), when Settings ›
+        // Devices gives Android Bluetooth.
+        let bluetooth = launch.config.bluetoothEnabled
+            ? AndroidEmulator.bluetoothController(engine: executable, home: launch.paths.home) : nil
         // Root: Magisk's init_boot, once one was made for this image (MagiskRoot).
         let initBoot = launch.config.rooted ? MagiskRoot.patchedImage(for: launch.image, paths: launch.paths) : nil
-        process.arguments = Self.arguments(images: launch.image.directory, launch: launch, gpu: plan, netsimd: netsimd,
+        process.arguments = Self.arguments(images: launch.image.directory, launch: launch, gpu: plan, bluetooth: bluetooth,
                                            initBoot: initBoot)
         let monitor = plan.isGPU ? GPUBootMonitor() : nil
         lock.withLock { self.gpuMonitor = monitor }
@@ -300,7 +314,9 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         await agent.forwardScreenLock { screenLockSink.yield($0) }
         await agent.shareFolder(Self.sharedFolderFlags(launch.config).last.map { URL(filePath: $0, directoryHint: .isDirectory) })
         await agent.useDisplayRate(launch.displayRate)
-        await agent.useBluetooth(netsimd != nil)
+        await agent.useBluetooth(bluetooth != nil)
+        // Whether Android has Avo's Vulkan driver wrapper, for the next start's failures.
+        await agent.noteVulkanWrapper { [paths = launch.paths] in GuestVulkanWrapper.noteInstalled($0, paths: paths) }
         await agent.applyDeviceSettings(wifi: launch.config.wifiEnabled, shareMacBluetooth: launch.config.shareMacBluetooth,
                                         cellular: launch.config.cellularEnabled)
         await agent.sampleProcesses(lock.withLock { processSink })
@@ -523,10 +539,25 @@ extension VMMEngine {
     }
 
     /// Writes the fallback record and publishes software; the plan for the
-    /// launch that replaces the failed one.
+    /// launch that replaces the failed one. A GPU launch that ran Avo's
+    /// Vulkan driver wrapper loses the wrapper instead, and the GPU gets one
+    /// more launch without it.
     private func recordFailure(_ failure: GPUFailure, launch: EngineLaunch, plan: GPUPlan) -> GPUPlan {
         let log = launch.paths.logs.appending(path: "avo-vmm.log")
         let detail = Self.gpuError(inLog: log)
+        // The failed log stays for bug reports: the next launch writes a new one.
+        let failedLog = launch.paths.logs.appending(path: "avo-vmm-gpu-failed.log")
+        if case .gpu = plan, lock.withLock({ vulkanWrapperRuns }), let sha256 = GuestVulkanWrapper.wrapper?.sha256 {
+            logger.error("renderer: GPU failed (\(failure.rawValue, privacy: .public)) with Avo's Vulkan driver wrapper: \(detail ?? "-", privacy: .public); trying the GPU without it")
+            do {
+                try GuestVulkanWrapper.Failure(sha256: sha256, failure: failure, date: Date()).save(paths: launch.paths)
+                try? FileManager.default.removeItem(at: failedLog)
+                try? FileManager.default.copyItem(at: log, to: failedLog)
+                return plan
+            } catch {
+                logger.error("renderer: cannot turn Avo's Vulkan driver wrapper off: \(error.localizedDescription, privacy: .public)")
+            }
+        }
         logger.error("renderer: GPU failed (\(failure.rawValue, privacy: .public)): \(detail ?? "-", privacy: .public); using software")
         if case let .gpu(emulator) = plan {
             let record = GPUFallbackRecord(failure: failure, detail: detail, date: Date(),
@@ -537,8 +568,6 @@ extension VMMEngine {
             publish(GPUPlan.software(.failed, failure).status(requested: launch.config.rendererMode, emulator: .found(emulator),
                                                               fallback: record))
         }
-        // The software launch writes a new log; keep the failed one for bug reports.
-        let failedLog = launch.paths.logs.appending(path: "avo-vmm-gpu-failed.log")
         try? FileManager.default.removeItem(at: failedLog)
         try? FileManager.default.copyItem(at: log, to: failedLog)
         return .software(.failed, failure)
@@ -546,7 +575,8 @@ extension VMMEngine {
 
     /// A GPU boot failed after the sockets came up: power that Android off
     /// (10 s), then terminate it (SIGKILL after 5 s), and start it again in
-    /// software. VMManager keeps waiting for Android meanwhile.
+    /// software (on the GPU without Avo's Vulkan driver wrapper, when the
+    /// failed one ran it). VMManager keeps waiting for Android meanwhile.
     private func fallBack(_ failure: GPUFailure, monitor: GPUBootMonitor, launch: EngineLaunch, plan: GPUPlan) {
         let next = recordFailure(failure, launch: launch, plan: plan)
         lock.withLock {
@@ -619,6 +649,15 @@ extension VMMEngine {
 extension VMMEngine: GPUFallbackEngine {
     public func forgetGPUCrashes() {
         lock.withLock { gpuCrashes = GPUCrashHistory() }
+    }
+}
+
+/// Settings › Graphics and "Try GPU Again": the GPU layers the next start
+/// names go in while this one runs (GuestGPUProfile, GuestGfxstreamSync).
+extension VMMEngine: GPULayerEngine {
+    public func stageGPULayers(profile: Bool, gfxstreamSync: Bool) async {
+        await wakeIfPaused()
+        await lock.withLock({ self.agent })?.stageGPULayers(profile: profile, gfxstreamSync: gfxstreamSync)
     }
 }
 

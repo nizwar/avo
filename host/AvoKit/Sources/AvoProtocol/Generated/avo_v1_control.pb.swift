@@ -124,326 +124,317 @@ public nonisolated enum Avo_V1_Orientation: SwiftProtobuf.Enum, Swift.CaseIterab
 
 }
 
-public nonisolated struct Avo_V1_Envelope: @unchecked Sendable {
+public nonisolated struct Avo_V1_Envelope: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  public var protocolVersion: UInt32 {
-    get {_storage._protocolVersion}
-    set {_uniqueStorage()._protocolVersion = newValue}
-  }
+  public var protocolVersion: UInt32 = 0
 
   /// Non-zero when the sender expects a `Reply` (or a typed response such as
   /// `AppList`) carrying the same id. Ids are chosen by the requester and only
   /// need to be unique per connection and direction.
-  public var requestID: UInt64 {
-    get {_storage._requestID}
-    set {_uniqueStorage()._requestID = newValue}
-  }
+  public var requestID: UInt64 = 0
 
-  public var payload: OneOf_Payload? {
-    get {return _storage._payload}
-    set {_uniqueStorage()._payload = newValue}
-  }
+  public var payload: Avo_V1_Envelope.OneOf_Payload? = nil
 
   /// Both directions.
   public var hello: Avo_V1_Hello {
     get {
-      if case .hello(let v)? = _storage._payload {return v}
+      if case .hello(let v)? = payload {return v}
       return Avo_V1_Hello()
     }
-    set {_uniqueStorage()._payload = .hello(newValue)}
+    set {payload = .hello(newValue)}
   }
 
   public var goodbye: Avo_V1_Goodbye {
     get {
-      if case .goodbye(let v)? = _storage._payload {return v}
+      if case .goodbye(let v)? = payload {return v}
       return Avo_V1_Goodbye()
     }
-    set {_uniqueStorage()._payload = .goodbye(newValue)}
+    set {payload = .goodbye(newValue)}
   }
 
   public var ping: Avo_V1_Ping {
     get {
-      if case .ping(let v)? = _storage._payload {return v}
+      if case .ping(let v)? = payload {return v}
       return Avo_V1_Ping()
     }
-    set {_uniqueStorage()._payload = .ping(newValue)}
+    set {payload = .ping(newValue)}
   }
 
   public var pong: Avo_V1_Pong {
     get {
-      if case .pong(let v)? = _storage._payload {return v}
+      if case .pong(let v)? = payload {return v}
       return Avo_V1_Pong()
     }
-    set {_uniqueStorage()._payload = .pong(newValue)}
+    set {payload = .pong(newValue)}
   }
 
   public var reply: Avo_V1_Reply {
     get {
-      if case .reply(let v)? = _storage._payload {return v}
+      if case .reply(let v)? = payload {return v}
       return Avo_V1_Reply()
     }
-    set {_uniqueStorage()._payload = .reply(newValue)}
+    set {payload = .reply(newValue)}
   }
 
   /// Host -> guest.
   public var launch: Avo_V1_Launch {
     get {
-      if case .launch(let v)? = _storage._payload {return v}
+      if case .launch(let v)? = payload {return v}
       return Avo_V1_Launch()
     }
-    set {_uniqueStorage()._payload = .launch(newValue)}
+    set {payload = .launch(newValue)}
   }
 
   public var resize: Avo_V1_Resize {
     get {
-      if case .resize(let v)? = _storage._payload {return v}
+      if case .resize(let v)? = payload {return v}
       return Avo_V1_Resize()
     }
-    set {_uniqueStorage()._payload = .resize(newValue)}
+    set {payload = .resize(newValue)}
   }
 
   public var close: Avo_V1_Close {
     get {
-      if case .close(let v)? = _storage._payload {return v}
+      if case .close(let v)? = payload {return v}
       return Avo_V1_Close()
     }
-    set {_uniqueStorage()._payload = .close(newValue)}
+    set {payload = .close(newValue)}
   }
 
   public var install: Avo_V1_Install {
     get {
-      if case .install(let v)? = _storage._payload {return v}
+      if case .install(let v)? = payload {return v}
       return Avo_V1_Install()
     }
-    set {_uniqueStorage()._payload = .install(newValue)}
+    set {payload = .install(newValue)}
   }
 
   public var uninstall: Avo_V1_Uninstall {
     get {
-      if case .uninstall(let v)? = _storage._payload {return v}
+      if case .uninstall(let v)? = payload {return v}
       return Avo_V1_Uninstall()
     }
-    set {_uniqueStorage()._payload = .uninstall(newValue)}
+    set {payload = .uninstall(newValue)}
   }
 
   public var setClipboard: Avo_V1_SetClipboard {
     get {
-      if case .setClipboard(let v)? = _storage._payload {return v}
+      if case .setClipboard(let v)? = payload {return v}
       return Avo_V1_SetClipboard()
     }
-    set {_uniqueStorage()._payload = .setClipboard(newValue)}
+    set {payload = .setClipboard(newValue)}
   }
 
   public var listApps: Avo_V1_ListApps {
     get {
-      if case .listApps(let v)? = _storage._payload {return v}
+      if case .listApps(let v)? = payload {return v}
       return Avo_V1_ListApps()
     }
-    set {_uniqueStorage()._payload = .listApps(newValue)}
+    set {payload = .listApps(newValue)}
   }
 
   public var forceStop: Avo_V1_ForceStop {
     get {
-      if case .forceStop(let v)? = _storage._payload {return v}
+      if case .forceStop(let v)? = payload {return v}
       return Avo_V1_ForceStop()
     }
-    set {_uniqueStorage()._payload = .forceStop(newValue)}
+    set {payload = .forceStop(newValue)}
   }
 
   public var deleteAppData: Avo_V1_DeleteAppData {
     get {
-      if case .deleteAppData(let v)? = _storage._payload {return v}
+      if case .deleteAppData(let v)? = payload {return v}
       return Avo_V1_DeleteAppData()
     }
-    set {_uniqueStorage()._payload = .deleteAppData(newValue)}
+    set {payload = .deleteAppData(newValue)}
   }
 
   public var getPermissions: Avo_V1_GetPermissions {
     get {
-      if case .getPermissions(let v)? = _storage._payload {return v}
+      if case .getPermissions(let v)? = payload {return v}
       return Avo_V1_GetPermissions()
     }
-    set {_uniqueStorage()._payload = .getPermissions(newValue)}
+    set {payload = .getPermissions(newValue)}
   }
 
   public var setPermission: Avo_V1_SetPermission {
     get {
-      if case .setPermission(let v)? = _storage._payload {return v}
+      if case .setPermission(let v)? = payload {return v}
       return Avo_V1_SetPermission()
     }
-    set {_uniqueStorage()._payload = .setPermission(newValue)}
+    set {payload = .setPermission(newValue)}
   }
 
   public var shareFiles: Avo_V1_ShareFiles {
     get {
-      if case .shareFiles(let v)? = _storage._payload {return v}
+      if case .shareFiles(let v)? = payload {return v}
       return Avo_V1_ShareFiles()
     }
-    set {_uniqueStorage()._payload = .shareFiles(newValue)}
+    set {payload = .shareFiles(newValue)}
   }
 
   public var setDisplayVisibility: Avo_V1_SetDisplayVisibility {
     get {
-      if case .setDisplayVisibility(let v)? = _storage._payload {return v}
+      if case .setDisplayVisibility(let v)? = payload {return v}
       return Avo_V1_SetDisplayVisibility()
     }
-    set {_uniqueStorage()._payload = .setDisplayVisibility(newValue)}
+    set {payload = .setDisplayVisibility(newValue)}
   }
 
   public var openNotification: Avo_V1_OpenNotification {
     get {
-      if case .openNotification(let v)? = _storage._payload {return v}
+      if case .openNotification(let v)? = payload {return v}
       return Avo_V1_OpenNotification()
     }
-    set {_uniqueStorage()._payload = .openNotification(newValue)}
+    set {payload = .openNotification(newValue)}
   }
 
   public var dismissNotification: Avo_V1_DismissNotification {
     get {
-      if case .dismissNotification(let v)? = _storage._payload {return v}
+      if case .dismissNotification(let v)? = payload {return v}
       return Avo_V1_DismissNotification()
     }
-    set {_uniqueStorage()._payload = .dismissNotification(newValue)}
+    set {payload = .dismissNotification(newValue)}
   }
 
   public var setRefreshRate: Avo_V1_SetRefreshRate {
     get {
-      if case .setRefreshRate(let v)? = _storage._payload {return v}
+      if case .setRefreshRate(let v)? = payload {return v}
       return Avo_V1_SetRefreshRate()
     }
-    set {_uniqueStorage()._payload = .setRefreshRate(newValue)}
+    set {payload = .setRefreshRate(newValue)}
   }
 
   public var focusDisplay: Avo_V1_FocusDisplay {
     get {
-      if case .focusDisplay(let v)? = _storage._payload {return v}
+      if case .focusDisplay(let v)? = payload {return v}
       return Avo_V1_FocusDisplay()
     }
-    set {_uniqueStorage()._payload = .focusDisplay(newValue)}
+    set {payload = .focusDisplay(newValue)}
   }
 
   public var performNotificationAction: Avo_V1_PerformNotificationAction {
     get {
-      if case .performNotificationAction(let v)? = _storage._payload {return v}
+      if case .performNotificationAction(let v)? = payload {return v}
       return Avo_V1_PerformNotificationAction()
     }
-    set {_uniqueStorage()._payload = .performNotificationAction(newValue)}
+    set {payload = .performNotificationAction(newValue)}
   }
 
   public var mediaCommand: Avo_V1_MediaCommand {
     get {
-      if case .mediaCommand(let v)? = _storage._payload {return v}
+      if case .mediaCommand(let v)? = payload {return v}
       return Avo_V1_MediaCommand()
     }
-    set {_uniqueStorage()._payload = .mediaCommand(newValue)}
+    set {payload = .mediaCommand(newValue)}
   }
 
   /// Guest -> host.
   public var appInstalled: Avo_V1_AppInstalled {
     get {
-      if case .appInstalled(let v)? = _storage._payload {return v}
+      if case .appInstalled(let v)? = payload {return v}
       return Avo_V1_AppInstalled()
     }
-    set {_uniqueStorage()._payload = .appInstalled(newValue)}
+    set {payload = .appInstalled(newValue)}
   }
 
   public var appRemoved: Avo_V1_AppRemoved {
     get {
-      if case .appRemoved(let v)? = _storage._payload {return v}
+      if case .appRemoved(let v)? = payload {return v}
       return Avo_V1_AppRemoved()
     }
-    set {_uniqueStorage()._payload = .appRemoved(newValue)}
+    set {payload = .appRemoved(newValue)}
   }
 
   public var displayReady: Avo_V1_DisplayReady {
     get {
-      if case .displayReady(let v)? = _storage._payload {return v}
+      if case .displayReady(let v)? = payload {return v}
       return Avo_V1_DisplayReady()
     }
-    set {_uniqueStorage()._payload = .displayReady(newValue)}
+    set {payload = .displayReady(newValue)}
   }
 
   public var taskClosed: Avo_V1_TaskClosed {
     get {
-      if case .taskClosed(let v)? = _storage._payload {return v}
+      if case .taskClosed(let v)? = payload {return v}
       return Avo_V1_TaskClosed()
     }
-    set {_uniqueStorage()._payload = .taskClosed(newValue)}
+    set {payload = .taskClosed(newValue)}
   }
 
   public var notification: Avo_V1_Notification {
     get {
-      if case .notification(let v)? = _storage._payload {return v}
+      if case .notification(let v)? = payload {return v}
       return Avo_V1_Notification()
     }
-    set {_uniqueStorage()._payload = .notification(newValue)}
+    set {payload = .notification(newValue)}
   }
 
   public var notificationRemoved: Avo_V1_NotificationRemoved {
     get {
-      if case .notificationRemoved(let v)? = _storage._payload {return v}
+      if case .notificationRemoved(let v)? = payload {return v}
       return Avo_V1_NotificationRemoved()
     }
-    set {_uniqueStorage()._payload = .notificationRemoved(newValue)}
+    set {payload = .notificationRemoved(newValue)}
   }
 
   public var clipboardChanged: Avo_V1_ClipboardChanged {
     get {
-      if case .clipboardChanged(let v)? = _storage._payload {return v}
+      if case .clipboardChanged(let v)? = payload {return v}
       return Avo_V1_ClipboardChanged()
     }
-    set {_uniqueStorage()._payload = .clipboardChanged(newValue)}
+    set {payload = .clipboardChanged(newValue)}
   }
 
   public var orientationRequest: Avo_V1_OrientationRequest {
     get {
-      if case .orientationRequest(let v)? = _storage._payload {return v}
+      if case .orientationRequest(let v)? = payload {return v}
       return Avo_V1_OrientationRequest()
     }
-    set {_uniqueStorage()._payload = .orientationRequest(newValue)}
+    set {payload = .orientationRequest(newValue)}
   }
 
   public var appList: Avo_V1_AppList {
     get {
-      if case .appList(let v)? = _storage._payload {return v}
+      if case .appList(let v)? = payload {return v}
       return Avo_V1_AppList()
     }
-    set {_uniqueStorage()._payload = .appList(newValue)}
+    set {payload = .appList(newValue)}
   }
 
   public var permissionList: Avo_V1_PermissionList {
     get {
-      if case .permissionList(let v)? = _storage._payload {return v}
+      if case .permissionList(let v)? = payload {return v}
       return Avo_V1_PermissionList()
     }
-    set {_uniqueStorage()._payload = .permissionList(newValue)}
+    set {payload = .permissionList(newValue)}
   }
 
   public var displayContentChanged: Avo_V1_DisplayContentChanged {
     get {
-      if case .displayContentChanged(let v)? = _storage._payload {return v}
+      if case .displayContentChanged(let v)? = payload {return v}
       return Avo_V1_DisplayContentChanged()
     }
-    set {_uniqueStorage()._payload = .displayContentChanged(newValue)}
+    set {payload = .displayContentChanged(newValue)}
   }
 
   public var taskStarted: Avo_V1_TaskStarted {
     get {
-      if case .taskStarted(let v)? = _storage._payload {return v}
+      if case .taskStarted(let v)? = payload {return v}
       return Avo_V1_TaskStarted()
     }
-    set {_uniqueStorage()._payload = .taskStarted(newValue)}
+    set {payload = .taskStarted(newValue)}
   }
 
   public var nowPlaying: Avo_V1_NowPlaying {
     get {
-      if case .nowPlaying(let v)? = _storage._payload {return v}
+      if case .nowPlaying(let v)? = payload {return v}
       return Avo_V1_NowPlaying()
     }
-    set {_uniqueStorage()._payload = .nowPlaying(newValue)}
+    set {payload = .nowPlaying(newValue)}
   }
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
@@ -493,8 +484,6 @@ public nonisolated struct Avo_V1_Envelope: @unchecked Sendable {
   }
 
   public init() {}
-
-  fileprivate var _storage = _StorageClass.defaultInstance
 }
 
 public nonisolated struct Avo_V1_Hello: Sendable {
@@ -924,35 +913,56 @@ public nonisolated struct Avo_V1_AppInfo: Sendable {
 
   public var installerPackage: String = String()
 
+  /// The app says it is a game (its manifest's appCategory="game", or the
+  /// older isGame). Unset when Android was not asked (read from the APK, or
+  /// only listed).
+  public var game: Bool {
+    get {_game ?? false}
+    set {_game = newValue}
+  }
+  /// Returns true if `game` has been explicitly set.
+  public var hasGame: Bool {self._game != nil}
+  /// Clears the value of `game`. Subsequent reads from it will return its default value.
+  public mutating func clearGame() {self._game = nil}
+
+  /// The orientation the app's activities ask for (their screenOrientation),
+  /// set along with `game`: portrait or landscape, unspecified when they let
+  /// the screen turn (or Android was not asked).
+  public var orientation: Avo_V1_Orientation = .unspecified
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
 
   fileprivate var _adaptiveIcon: Avo_V1_AdaptiveIcon? = nil
+  fileprivate var _game: Bool? = nil
 }
 
-public nonisolated struct Avo_V1_AppInstalled: Sendable {
+public nonisolated struct Avo_V1_AppInstalled: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
   public var app: Avo_V1_AppInfo {
-    get {_app ?? Avo_V1_AppInfo()}
-    set {_app = newValue}
+    get {_storage._app ?? Avo_V1_AppInfo()}
+    set {_uniqueStorage()._app = newValue}
   }
   /// Returns true if `app` has been explicitly set.
-  public var hasApp: Bool {self._app != nil}
+  public var hasApp: Bool {_storage._app != nil}
   /// Clears the value of `app`. Subsequent reads from it will return its default value.
-  public mutating func clearApp() {self._app = nil}
+  public mutating func clearApp() {_uniqueStorage()._app = nil}
 
   /// True when this replaces an existing install (update).
-  public var replacing: Bool = false
+  public var replacing: Bool {
+    get {_storage._replacing}
+    set {_uniqueStorage()._replacing = newValue}
+  }
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
 
-  fileprivate var _app: Avo_V1_AppInfo? = nil
+  fileprivate var _storage = _StorageClass.defaultInstance
 }
 
 public nonisolated struct Avo_V1_AppRemoved: Sendable {
@@ -1442,709 +1452,669 @@ nonisolated extension Avo_V1_Envelope: SwiftProtobuf.Message, SwiftProtobuf._Mes
   public static let protoMessageName: String = _protobuf_package + ".Envelope"
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}protocol_version\0\u{3}request_id\0\u{2}\u{8}hello\0\u{1}goodbye\0\u{1}ping\0\u{1}pong\0\u{1}reply\0\u{2}\u{6}launch\0\u{1}resize\0\u{1}close\0\u{1}install\0\u{1}uninstall\0\u{3}set_clipboard\0\u{3}list_apps\0\u{3}force_stop\0\u{3}delete_app_data\0\u{3}get_permissions\0\u{3}set_permission\0\u{3}share_files\0\u{3}set_display_visibility\0\u{3}open_notification\0\u{3}dismiss_notification\0\u{3}set_refresh_rate\0\u{3}focus_display\0\u{3}perform_notification_action\0\u{3}media_command\0\u{4}\u{c}app_installed\0\u{3}app_removed\0\u{3}display_ready\0\u{3}task_closed\0\u{1}notification\0\u{3}notification_removed\0\u{3}clipboard_changed\0\u{3}orientation_request\0\u{3}app_list\0\u{3}permission_list\0\u{3}display_content_changed\0\u{3}task_started\0\u{3}now_playing\0")
 
-  fileprivate class _StorageClass {
-    var _protocolVersion: UInt32 = 0
-    var _requestID: UInt64 = 0
-    var _payload: Avo_V1_Envelope.OneOf_Payload?
-
-      // This property is used as the initial default value for new instances of the type.
-      // The type itself is protecting the reference to its storage via CoW semantics.
-      // This will force a copy to be made of this reference when the first mutation occurs;
-      // hence, it is safe to mark this as `nonisolated(unsafe)`.
-      static nonisolated(unsafe) let defaultInstance = _StorageClass()
-
-    private init() {}
-
-    init(copying source: _StorageClass) {
-      _protocolVersion = source._protocolVersion
-      _requestID = source._requestID
-      _payload = source._payload
-    }
-  }
-
-  fileprivate mutating func _uniqueStorage() -> _StorageClass {
-    if !isKnownUniquelyReferenced(&_storage) {
-      _storage = _StorageClass(copying: _storage)
-    }
-    return _storage
-  }
-
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    _ = _uniqueStorage()
-    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
-      while let fieldNumber = try decoder.nextFieldNumber() {
-        // The use of inline closures is to circumvent an issue where the compiler
-        // allocates stack space for every case branch when no optimizations are
-        // enabled. https://github.com/apple/swift-protobuf/issues/1034
-        switch fieldNumber {
-        case 1: try { try decoder.decodeSingularUInt32Field(value: &_storage._protocolVersion) }()
-        case 2: try { try decoder.decodeSingularUInt64Field(value: &_storage._requestID) }()
-        case 10: try {
-          var v: Avo_V1_Hello?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .hello(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .hello(v)
-          }
-        }()
-        case 11: try {
-          var v: Avo_V1_Goodbye?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .goodbye(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .goodbye(v)
-          }
-        }()
-        case 12: try {
-          var v: Avo_V1_Ping?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .ping(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .ping(v)
-          }
-        }()
-        case 13: try {
-          var v: Avo_V1_Pong?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .pong(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .pong(v)
-          }
-        }()
-        case 14: try {
-          var v: Avo_V1_Reply?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .reply(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .reply(v)
-          }
-        }()
-        case 20: try {
-          var v: Avo_V1_Launch?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .launch(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .launch(v)
-          }
-        }()
-        case 21: try {
-          var v: Avo_V1_Resize?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .resize(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .resize(v)
-          }
-        }()
-        case 22: try {
-          var v: Avo_V1_Close?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .close(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .close(v)
-          }
-        }()
-        case 23: try {
-          var v: Avo_V1_Install?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .install(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .install(v)
-          }
-        }()
-        case 24: try {
-          var v: Avo_V1_Uninstall?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .uninstall(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .uninstall(v)
-          }
-        }()
-        case 25: try {
-          var v: Avo_V1_SetClipboard?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .setClipboard(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .setClipboard(v)
-          }
-        }()
-        case 26: try {
-          var v: Avo_V1_ListApps?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .listApps(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .listApps(v)
-          }
-        }()
-        case 27: try {
-          var v: Avo_V1_ForceStop?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .forceStop(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .forceStop(v)
-          }
-        }()
-        case 28: try {
-          var v: Avo_V1_DeleteAppData?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .deleteAppData(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .deleteAppData(v)
-          }
-        }()
-        case 29: try {
-          var v: Avo_V1_GetPermissions?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .getPermissions(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .getPermissions(v)
-          }
-        }()
-        case 30: try {
-          var v: Avo_V1_SetPermission?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .setPermission(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .setPermission(v)
-          }
-        }()
-        case 31: try {
-          var v: Avo_V1_ShareFiles?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .shareFiles(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .shareFiles(v)
-          }
-        }()
-        case 32: try {
-          var v: Avo_V1_SetDisplayVisibility?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .setDisplayVisibility(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .setDisplayVisibility(v)
-          }
-        }()
-        case 33: try {
-          var v: Avo_V1_OpenNotification?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .openNotification(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .openNotification(v)
-          }
-        }()
-        case 34: try {
-          var v: Avo_V1_DismissNotification?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .dismissNotification(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .dismissNotification(v)
-          }
-        }()
-        case 35: try {
-          var v: Avo_V1_SetRefreshRate?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .setRefreshRate(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .setRefreshRate(v)
-          }
-        }()
-        case 36: try {
-          var v: Avo_V1_FocusDisplay?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .focusDisplay(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .focusDisplay(v)
-          }
-        }()
-        case 37: try {
-          var v: Avo_V1_PerformNotificationAction?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .performNotificationAction(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .performNotificationAction(v)
-          }
-        }()
-        case 38: try {
-          var v: Avo_V1_MediaCommand?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .mediaCommand(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .mediaCommand(v)
-          }
-        }()
-        case 50: try {
-          var v: Avo_V1_AppInstalled?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .appInstalled(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .appInstalled(v)
-          }
-        }()
-        case 51: try {
-          var v: Avo_V1_AppRemoved?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .appRemoved(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .appRemoved(v)
-          }
-        }()
-        case 52: try {
-          var v: Avo_V1_DisplayReady?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .displayReady(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .displayReady(v)
-          }
-        }()
-        case 53: try {
-          var v: Avo_V1_TaskClosed?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .taskClosed(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .taskClosed(v)
-          }
-        }()
-        case 54: try {
-          var v: Avo_V1_Notification?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .notification(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .notification(v)
-          }
-        }()
-        case 55: try {
-          var v: Avo_V1_NotificationRemoved?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .notificationRemoved(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .notificationRemoved(v)
-          }
-        }()
-        case 56: try {
-          var v: Avo_V1_ClipboardChanged?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .clipboardChanged(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .clipboardChanged(v)
-          }
-        }()
-        case 57: try {
-          var v: Avo_V1_OrientationRequest?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .orientationRequest(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .orientationRequest(v)
-          }
-        }()
-        case 58: try {
-          var v: Avo_V1_AppList?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .appList(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .appList(v)
-          }
-        }()
-        case 59: try {
-          var v: Avo_V1_PermissionList?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .permissionList(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .permissionList(v)
-          }
-        }()
-        case 60: try {
-          var v: Avo_V1_DisplayContentChanged?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .displayContentChanged(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .displayContentChanged(v)
-          }
-        }()
-        case 61: try {
-          var v: Avo_V1_TaskStarted?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .taskStarted(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .taskStarted(v)
-          }
-        }()
-        case 62: try {
-          var v: Avo_V1_NowPlaying?
-          var hadOneofValue = false
-          if let current = _storage._payload {
-            hadOneofValue = true
-            if case .nowPlaying(let m) = current {v = m}
-          }
-          try decoder.decodeSingularMessageField(value: &v)
-          if let v = v {
-            if hadOneofValue {try decoder.handleConflictingOneOf()}
-            _storage._payload = .nowPlaying(v)
-          }
-        }()
-        default: break
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularUInt32Field(value: &self.protocolVersion) }()
+      case 2: try { try decoder.decodeSingularUInt64Field(value: &self.requestID) }()
+      case 10: try {
+        var v: Avo_V1_Hello?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .hello(let m) = current {v = m}
         }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .hello(v)
+        }
+      }()
+      case 11: try {
+        var v: Avo_V1_Goodbye?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .goodbye(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .goodbye(v)
+        }
+      }()
+      case 12: try {
+        var v: Avo_V1_Ping?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .ping(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .ping(v)
+        }
+      }()
+      case 13: try {
+        var v: Avo_V1_Pong?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .pong(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .pong(v)
+        }
+      }()
+      case 14: try {
+        var v: Avo_V1_Reply?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .reply(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .reply(v)
+        }
+      }()
+      case 20: try {
+        var v: Avo_V1_Launch?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .launch(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .launch(v)
+        }
+      }()
+      case 21: try {
+        var v: Avo_V1_Resize?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .resize(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .resize(v)
+        }
+      }()
+      case 22: try {
+        var v: Avo_V1_Close?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .close(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .close(v)
+        }
+      }()
+      case 23: try {
+        var v: Avo_V1_Install?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .install(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .install(v)
+        }
+      }()
+      case 24: try {
+        var v: Avo_V1_Uninstall?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .uninstall(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .uninstall(v)
+        }
+      }()
+      case 25: try {
+        var v: Avo_V1_SetClipboard?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .setClipboard(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .setClipboard(v)
+        }
+      }()
+      case 26: try {
+        var v: Avo_V1_ListApps?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .listApps(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .listApps(v)
+        }
+      }()
+      case 27: try {
+        var v: Avo_V1_ForceStop?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .forceStop(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .forceStop(v)
+        }
+      }()
+      case 28: try {
+        var v: Avo_V1_DeleteAppData?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .deleteAppData(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .deleteAppData(v)
+        }
+      }()
+      case 29: try {
+        var v: Avo_V1_GetPermissions?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .getPermissions(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .getPermissions(v)
+        }
+      }()
+      case 30: try {
+        var v: Avo_V1_SetPermission?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .setPermission(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .setPermission(v)
+        }
+      }()
+      case 31: try {
+        var v: Avo_V1_ShareFiles?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .shareFiles(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .shareFiles(v)
+        }
+      }()
+      case 32: try {
+        var v: Avo_V1_SetDisplayVisibility?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .setDisplayVisibility(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .setDisplayVisibility(v)
+        }
+      }()
+      case 33: try {
+        var v: Avo_V1_OpenNotification?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .openNotification(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .openNotification(v)
+        }
+      }()
+      case 34: try {
+        var v: Avo_V1_DismissNotification?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .dismissNotification(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .dismissNotification(v)
+        }
+      }()
+      case 35: try {
+        var v: Avo_V1_SetRefreshRate?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .setRefreshRate(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .setRefreshRate(v)
+        }
+      }()
+      case 36: try {
+        var v: Avo_V1_FocusDisplay?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .focusDisplay(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .focusDisplay(v)
+        }
+      }()
+      case 37: try {
+        var v: Avo_V1_PerformNotificationAction?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .performNotificationAction(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .performNotificationAction(v)
+        }
+      }()
+      case 38: try {
+        var v: Avo_V1_MediaCommand?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .mediaCommand(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .mediaCommand(v)
+        }
+      }()
+      case 50: try {
+        var v: Avo_V1_AppInstalled?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .appInstalled(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .appInstalled(v)
+        }
+      }()
+      case 51: try {
+        var v: Avo_V1_AppRemoved?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .appRemoved(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .appRemoved(v)
+        }
+      }()
+      case 52: try {
+        var v: Avo_V1_DisplayReady?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .displayReady(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .displayReady(v)
+        }
+      }()
+      case 53: try {
+        var v: Avo_V1_TaskClosed?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .taskClosed(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .taskClosed(v)
+        }
+      }()
+      case 54: try {
+        var v: Avo_V1_Notification?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .notification(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .notification(v)
+        }
+      }()
+      case 55: try {
+        var v: Avo_V1_NotificationRemoved?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .notificationRemoved(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .notificationRemoved(v)
+        }
+      }()
+      case 56: try {
+        var v: Avo_V1_ClipboardChanged?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .clipboardChanged(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .clipboardChanged(v)
+        }
+      }()
+      case 57: try {
+        var v: Avo_V1_OrientationRequest?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .orientationRequest(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .orientationRequest(v)
+        }
+      }()
+      case 58: try {
+        var v: Avo_V1_AppList?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .appList(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .appList(v)
+        }
+      }()
+      case 59: try {
+        var v: Avo_V1_PermissionList?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .permissionList(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .permissionList(v)
+        }
+      }()
+      case 60: try {
+        var v: Avo_V1_DisplayContentChanged?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .displayContentChanged(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .displayContentChanged(v)
+        }
+      }()
+      case 61: try {
+        var v: Avo_V1_TaskStarted?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .taskStarted(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .taskStarted(v)
+        }
+      }()
+      case 62: try {
+        var v: Avo_V1_NowPlaying?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .nowPlaying(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .nowPlaying(v)
+        }
+      }()
+      default: break
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every if/case branch local when no optimizations
-      // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
-      // https://github.com/apple/swift-protobuf/issues/1182
-      if _storage._protocolVersion != 0 {
-        try visitor.visitSingularUInt32Field(value: _storage._protocolVersion, fieldNumber: 1)
-      }
-      if _storage._requestID != 0 {
-        try visitor.visitSingularUInt64Field(value: _storage._requestID, fieldNumber: 2)
-      }
-      switch _storage._payload {
-      case .hello?: try {
-        guard case .hello(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 10)
-      }()
-      case .goodbye?: try {
-        guard case .goodbye(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 11)
-      }()
-      case .ping?: try {
-        guard case .ping(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 12)
-      }()
-      case .pong?: try {
-        guard case .pong(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 13)
-      }()
-      case .reply?: try {
-        guard case .reply(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 14)
-      }()
-      case .launch?: try {
-        guard case .launch(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 20)
-      }()
-      case .resize?: try {
-        guard case .resize(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 21)
-      }()
-      case .close?: try {
-        guard case .close(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 22)
-      }()
-      case .install?: try {
-        guard case .install(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 23)
-      }()
-      case .uninstall?: try {
-        guard case .uninstall(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 24)
-      }()
-      case .setClipboard?: try {
-        guard case .setClipboard(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 25)
-      }()
-      case .listApps?: try {
-        guard case .listApps(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 26)
-      }()
-      case .forceStop?: try {
-        guard case .forceStop(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 27)
-      }()
-      case .deleteAppData?: try {
-        guard case .deleteAppData(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 28)
-      }()
-      case .getPermissions?: try {
-        guard case .getPermissions(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 29)
-      }()
-      case .setPermission?: try {
-        guard case .setPermission(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 30)
-      }()
-      case .shareFiles?: try {
-        guard case .shareFiles(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 31)
-      }()
-      case .setDisplayVisibility?: try {
-        guard case .setDisplayVisibility(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 32)
-      }()
-      case .openNotification?: try {
-        guard case .openNotification(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 33)
-      }()
-      case .dismissNotification?: try {
-        guard case .dismissNotification(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 34)
-      }()
-      case .setRefreshRate?: try {
-        guard case .setRefreshRate(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 35)
-      }()
-      case .focusDisplay?: try {
-        guard case .focusDisplay(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 36)
-      }()
-      case .performNotificationAction?: try {
-        guard case .performNotificationAction(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 37)
-      }()
-      case .mediaCommand?: try {
-        guard case .mediaCommand(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 38)
-      }()
-      case .appInstalled?: try {
-        guard case .appInstalled(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 50)
-      }()
-      case .appRemoved?: try {
-        guard case .appRemoved(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 51)
-      }()
-      case .displayReady?: try {
-        guard case .displayReady(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 52)
-      }()
-      case .taskClosed?: try {
-        guard case .taskClosed(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 53)
-      }()
-      case .notification?: try {
-        guard case .notification(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 54)
-      }()
-      case .notificationRemoved?: try {
-        guard case .notificationRemoved(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 55)
-      }()
-      case .clipboardChanged?: try {
-        guard case .clipboardChanged(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 56)
-      }()
-      case .orientationRequest?: try {
-        guard case .orientationRequest(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 57)
-      }()
-      case .appList?: try {
-        guard case .appList(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 58)
-      }()
-      case .permissionList?: try {
-        guard case .permissionList(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 59)
-      }()
-      case .displayContentChanged?: try {
-        guard case .displayContentChanged(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 60)
-      }()
-      case .taskStarted?: try {
-        guard case .taskStarted(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 61)
-      }()
-      case .nowPlaying?: try {
-        guard case .nowPlaying(let v)? = _storage._payload else { preconditionFailure() }
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 62)
-      }()
-      case nil: break
-      }
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if self.protocolVersion != 0 {
+      try visitor.visitSingularUInt32Field(value: self.protocolVersion, fieldNumber: 1)
+    }
+    if self.requestID != 0 {
+      try visitor.visitSingularUInt64Field(value: self.requestID, fieldNumber: 2)
+    }
+    switch self.payload {
+    case .hello?: try {
+      guard case .hello(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 10)
+    }()
+    case .goodbye?: try {
+      guard case .goodbye(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 11)
+    }()
+    case .ping?: try {
+      guard case .ping(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 12)
+    }()
+    case .pong?: try {
+      guard case .pong(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 13)
+    }()
+    case .reply?: try {
+      guard case .reply(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 14)
+    }()
+    case .launch?: try {
+      guard case .launch(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 20)
+    }()
+    case .resize?: try {
+      guard case .resize(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 21)
+    }()
+    case .close?: try {
+      guard case .close(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 22)
+    }()
+    case .install?: try {
+      guard case .install(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 23)
+    }()
+    case .uninstall?: try {
+      guard case .uninstall(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 24)
+    }()
+    case .setClipboard?: try {
+      guard case .setClipboard(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 25)
+    }()
+    case .listApps?: try {
+      guard case .listApps(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 26)
+    }()
+    case .forceStop?: try {
+      guard case .forceStop(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 27)
+    }()
+    case .deleteAppData?: try {
+      guard case .deleteAppData(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 28)
+    }()
+    case .getPermissions?: try {
+      guard case .getPermissions(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 29)
+    }()
+    case .setPermission?: try {
+      guard case .setPermission(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 30)
+    }()
+    case .shareFiles?: try {
+      guard case .shareFiles(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 31)
+    }()
+    case .setDisplayVisibility?: try {
+      guard case .setDisplayVisibility(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 32)
+    }()
+    case .openNotification?: try {
+      guard case .openNotification(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 33)
+    }()
+    case .dismissNotification?: try {
+      guard case .dismissNotification(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 34)
+    }()
+    case .setRefreshRate?: try {
+      guard case .setRefreshRate(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 35)
+    }()
+    case .focusDisplay?: try {
+      guard case .focusDisplay(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 36)
+    }()
+    case .performNotificationAction?: try {
+      guard case .performNotificationAction(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 37)
+    }()
+    case .mediaCommand?: try {
+      guard case .mediaCommand(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 38)
+    }()
+    case .appInstalled?: try {
+      guard case .appInstalled(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 50)
+    }()
+    case .appRemoved?: try {
+      guard case .appRemoved(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 51)
+    }()
+    case .displayReady?: try {
+      guard case .displayReady(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 52)
+    }()
+    case .taskClosed?: try {
+      guard case .taskClosed(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 53)
+    }()
+    case .notification?: try {
+      guard case .notification(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 54)
+    }()
+    case .notificationRemoved?: try {
+      guard case .notificationRemoved(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 55)
+    }()
+    case .clipboardChanged?: try {
+      guard case .clipboardChanged(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 56)
+    }()
+    case .orientationRequest?: try {
+      guard case .orientationRequest(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 57)
+    }()
+    case .appList?: try {
+      guard case .appList(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 58)
+    }()
+    case .permissionList?: try {
+      guard case .permissionList(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 59)
+    }()
+    case .displayContentChanged?: try {
+      guard case .displayContentChanged(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 60)
+    }()
+    case .taskStarted?: try {
+      guard case .taskStarted(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 61)
+    }()
+    case .nowPlaying?: try {
+      guard case .nowPlaying(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 62)
+    }()
+    case nil: break
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Avo_V1_Envelope, rhs: Avo_V1_Envelope) -> Bool {
-    if lhs._storage !== rhs._storage {
-      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
-        let _storage = _args.0
-        let rhs_storage = _args.1
-        if _storage._protocolVersion != rhs_storage._protocolVersion {return false}
-        if _storage._requestID != rhs_storage._requestID {return false}
-        if _storage._payload != rhs_storage._payload {return false}
-        return true
-      }
-      if !storagesAreEqual {return false}
-    }
+    if lhs.protocolVersion != rhs.protocolVersion {return false}
+    if lhs.requestID != rhs.requestID {return false}
+    if lhs.payload != rhs.payload {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -2820,7 +2790,7 @@ nonisolated extension Avo_V1_AdaptiveIcon: SwiftProtobuf.Message, SwiftProtobuf.
 
 nonisolated extension Avo_V1_AppInfo: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".AppInfo"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}package\0\u{1}label\0\u{3}version_name\0\u{3}version_code\0\u{3}icon_png\0\u{3}adaptive_icon\0\u{3}size_bytes\0\u{3}first_install_time_ms\0\u{3}last_update_time_ms\0\u{3}system_app\0\u{1}launchable\0\u{3}installer_package\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}package\0\u{1}label\0\u{3}version_name\0\u{3}version_code\0\u{3}icon_png\0\u{3}adaptive_icon\0\u{3}size_bytes\0\u{3}first_install_time_ms\0\u{3}last_update_time_ms\0\u{3}system_app\0\u{1}launchable\0\u{3}installer_package\0\u{1}game\0\u{1}orientation\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2840,6 +2810,8 @@ nonisolated extension Avo_V1_AppInfo: SwiftProtobuf.Message, SwiftProtobuf._Mess
       case 10: try { try decoder.decodeSingularBoolField(value: &self.systemApp) }()
       case 11: try { try decoder.decodeSingularBoolField(value: &self.launchable) }()
       case 12: try { try decoder.decodeSingularStringField(value: &self.installerPackage) }()
+      case 13: try { try decoder.decodeSingularBoolField(value: &self._game) }()
+      case 14: try { try decoder.decodeSingularEnumField(value: &self.orientation) }()
       default: break
       }
     }
@@ -2886,6 +2858,12 @@ nonisolated extension Avo_V1_AppInfo: SwiftProtobuf.Message, SwiftProtobuf._Mess
     if !self.installerPackage.isEmpty {
       try visitor.visitSingularStringField(value: self.installerPackage, fieldNumber: 12)
     }
+    try { if let v = self._game {
+      try visitor.visitSingularBoolField(value: v, fieldNumber: 13)
+    } }()
+    if self.orientation != .unspecified {
+      try visitor.visitSingularEnumField(value: self.orientation, fieldNumber: 14)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2902,6 +2880,8 @@ nonisolated extension Avo_V1_AppInfo: SwiftProtobuf.Message, SwiftProtobuf._Mess
     if lhs.systemApp != rhs.systemApp {return false}
     if lhs.launchable != rhs.launchable {return false}
     if lhs.installerPackage != rhs.installerPackage {return false}
+    if lhs._game != rhs._game {return false}
+    if lhs.orientation != rhs.orientation {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -2911,36 +2891,74 @@ nonisolated extension Avo_V1_AppInstalled: SwiftProtobuf.Message, SwiftProtobuf.
   public static let protoMessageName: String = _protobuf_package + ".AppInstalled"
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}app\0\u{1}replacing\0")
 
+  fileprivate class _StorageClass {
+    var _app: Avo_V1_AppInfo? = nil
+    var _replacing: Bool = false
+
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _app = source._app
+      _replacing = source._replacing
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
+
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    while let fieldNumber = try decoder.nextFieldNumber() {
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every case branch when no optimizations are
-      // enabled. https://github.com/apple/swift-protobuf/issues/1034
-      switch fieldNumber {
-      case 1: try { try decoder.decodeSingularMessageField(value: &self._app) }()
-      case 2: try { try decoder.decodeSingularBoolField(value: &self.replacing) }()
-      default: break
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularMessageField(value: &_storage._app) }()
+        case 2: try { try decoder.decodeSingularBoolField(value: &_storage._replacing) }()
+        default: break
+        }
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    // The use of inline closures is to circumvent an issue where the compiler
-    // allocates stack space for every if/case branch local when no optimizations
-    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
-    // https://github.com/apple/swift-protobuf/issues/1182
-    try { if let v = self._app {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
-    } }()
-    if self.replacing != false {
-      try visitor.visitSingularBoolField(value: self.replacing, fieldNumber: 2)
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every if/case branch local when no optimizations
+      // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+      // https://github.com/apple/swift-protobuf/issues/1182
+      try { if let v = _storage._app {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+      } }()
+      if _storage._replacing != false {
+        try visitor.visitSingularBoolField(value: _storage._replacing, fieldNumber: 2)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Avo_V1_AppInstalled, rhs: Avo_V1_AppInstalled) -> Bool {
-    if lhs._app != rhs._app {return false}
-    if lhs.replacing != rhs.replacing {return false}
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._app != rhs_storage._app {return false}
+        if _storage._replacing != rhs_storage._replacing {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

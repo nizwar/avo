@@ -1,6 +1,19 @@
 import CoreGraphics
 import Foundation
 
+/// How an app window looks: the Control Panel's for every app (Settings ›
+/// Graphics › App windows › App bar style), or the app's own
+/// (`WindowModeSettings.appBarStyle`, from its window's Device menu, View
+/// menu or Quick Settings).
+public enum AppBarStyle: String, Codable, CaseIterable, Sendable {
+    /// A Mac window, its title bar always shown.
+    case standard
+    /// Screen Only: the app's screen alone with a phone's rounded corners;
+    /// the title bar grows out above it while the pointer leaves the screen
+    /// through its top, as in iPhone Mirroring.
+    case phone
+}
+
 /// Picture in Picture for an app window: the app in a small borderless
 /// window over every other, in a corner of the screen, with the picture's
 /// shape. The Window Host moves the window's content into it; this is where
@@ -60,11 +73,12 @@ public enum PictureInPicture {
     }
 }
 
-/// Keep on Top and where Picture in Picture goes, per app: kept in its App
-/// Shim's own defaults. Picture in Picture itself is not remembered: a new
+/// Keep on Top, where Picture in Picture goes and the app bar style, per
+/// app: kept in its App Shim's own defaults. Picture in Picture itself is not remembered: a new
 /// window opens as a window.
 public struct WindowModeSettings {
     public static let keepOnTopKey = "AvoKeepOnTop"
+    public static let appBarStyleKey = "AvoAppBarStyle"
     public static let cornerKey = "AvoPictureInPictureCorner"
     public static let longSideKey = "AvoPictureInPictureSize"
 
@@ -82,6 +96,15 @@ public struct WindowModeSettings {
         }
     }
 
+    /// The app's own app bar style; nil follows the Control Panel's
+    /// (`VMConfig.appBarStyle`).
+    public var appBarStyle: AppBarStyle? {
+        get { store.string(forKey: Self.appBarStyleKey).flatMap(AppBarStyle.init(rawValue:)) }
+        nonmutating set {
+            if let newValue { store.set(newValue.rawValue, forKey: Self.appBarStyleKey) } else { store.removeObject(forKey: Self.appBarStyleKey) }
+        }
+    }
+
     /// Where the mini window was left (bottom right at first).
     public var corner: PictureInPicture.Corner {
         get { store.string(forKey: Self.cornerKey).flatMap(PictureInPicture.Corner.init(rawValue:)) ?? .bottomRight }
@@ -96,6 +119,29 @@ public struct WindowModeSettings {
         }
         nonmutating set {
             if let newValue { store.set(Double(newValue), forKey: Self.longSideKey) } else { store.removeObject(forKey: Self.longSideKey) }
+        }
+    }
+}
+
+/// Whether closing a game's window asks first (Settings › Graphics › App
+/// windows › Ask before quitting a game, and the question's Don't Ask
+/// Again), for every app: the red light and Picture in Picture's ✕ end the
+/// game in Android, and one wrong click must not end a match. Kept in the
+/// Window Host's defaults, which every App Shim reads.
+public struct QuitSettings {
+    public static let askKey = "AvoAskBeforeQuittingGames"
+
+    public let store: UserDefaults
+
+    public init(store: UserDefaults) {
+        self.store = store
+    }
+
+    /// On unless turned off.
+    public var asksBeforeQuittingGames: Bool {
+        get { store.object(forKey: Self.askKey) as? Bool ?? true }
+        nonmutating set {
+            if newValue { store.removeObject(forKey: Self.askKey) } else { store.set(false, forKey: Self.askKey) }
         }
     }
 }

@@ -78,20 +78,25 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .general: [String(localized: "Shortcuts"), String(localized: "Dock"), String(localized: "Desktop alias"),
                         String(localized: "Notifications"), String(localized: "Notification Center"),
-                        String(localized: "Translate Screen"), String(localized: "Translation")]
-        case .android: [String(localized: "Android version"), String(localized: "Reset Android")]
+                        String(localized: "Translate Screen"), String(localized: "Translation"), String(localized: "Translate into")]
+        case .android: [String(localized: "Android version"), String(localized: "Checkpoints"), String(localized: "Restore"),
+                        String(localized: "Reset Android")]
         case .googleApps: [String(localized: "Google Play"), "MindTheGapps", "GApps", String(localized: "Android ID")]
         // Display was a pane of its own: its settings are in Graphics now.
         case .graphics: [String(localized: "Resolution"), "MetalFX", String(localized: "Sharpness"), String(localized: "Renderer"),
                          String(localized: "Frame rate"), "FPS", "GPU", "4K", String(localized: "Aspect ratio"),
-                         String(localized: "Phone’s screen"), String(localized: "Display"), String(localized: "Default window size"),
-                         String(localized: "Orientation"), String(localized: "Performance HUD"), "HUD"]
+                         String(localized: "Screen size"), String(localized: "Upscaling"), String(localized: "Display"), String(localized: "Default window size"),
+                         String(localized: "Orientation"), String(localized: "Performance HUD"), "HUD",
+                         String(localized: "Max FPS"), String(localized: "Preset"), String(localized: "Smooth edges"),
+                         String(localized: "Sharp upscaling"), String(localized: "Render scale"), String(localized: "App bar style"),
+                         String(localized: "Phone style"), String(localized: "Heavy game")]
         case .devices: ["Wi-Fi", "Bluetooth", String(localized: "Location"), "GPS", String(localized: "Network speed"),
                         "5G", "4G", "LTE", "3G", "EDGE", String(localized: "Offline"), "SIM", String(localized: "Mobile network"),
                         String(localized: "Mobile data"), String(localized: "Signal"), String(localized: "Cameras"),
                         String(localized: "Camera"), "Webcam", String(localized: "Sound"), String(localized: "Volume"),
                         String(localized: "Microphone"), String(localized: "Clipboard"),
-                        String(localized: "Privacy")]
+                        String(localized: "Privacy"), String(localized: "Scrolling"), String(localized: "Mouse"),
+                        String(localized: "Trackpad"), String(localized: "Screen recording")]
         case .performance: [String(localized: "Memory"), "RAM", String(localized: "CPU cores")]
         case .storage: [String(localized: "Data disk"), String(localized: "Android storage"), String(localized: "GPU shader cache"),
                         String(localized: "Location"), String(localized: "External drive"), String(localized: "Shared Folder"),
@@ -156,6 +161,7 @@ struct SettingsWindow: View {
     @State private var pointer = HazePointer()
     @Environment(\.appearsActive) private var appearsActive
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         let pane = selection ?? stored
@@ -204,6 +210,10 @@ struct SettingsWindow: View {
         }
         .onChange(of: router.requestedSettingsPane) {
             if let pane = takeRequest() { selection = pane }
+        }
+        // An app's page asked for while the Library was closed: it opens and shows it.
+        .onChange(of: router.requestedAppPage) { _, package in
+            if package != nil { openWindow(id: LibraryRouter.windowID) }
         }
         .onChange(of: selection) { old, new in
             guard let new else { return }
@@ -532,13 +542,13 @@ private struct SettingsDetail: View {
         Group {
             switch pane {
             case .general: SystemPane(sections: [.shortcuts, .translation, .notifications])
-            case .android: SystemPane(sections: [.androidVersion, .maintenance])
+            case .android: SystemPane(sections: [.androidVersion, .checkpoints, .maintenance])
             case .googleApps: SystemPane(sections: .googleApps)
             case .graphics: GraphicsPane()
             case .performance: PerformancePane()
             case .storage: StoragePane()
             case .fingerprints: FingerprintsPane()
-            case .devices: SystemPane(sections: [.network, .mobile, .bluetooth, .cameras, .sound, .microphone, .location, .clipboard])
+            case .devices: SystemPane(sections: [.network, .mobile, .bluetooth, .cameras, .sound, .microphone, .location, .clipboard, .scrolling])
             case .privacy: SystemPane(sections: .identity)
             case .developer: SystemPane(sections: .developer)
             case .about: AboutPane()

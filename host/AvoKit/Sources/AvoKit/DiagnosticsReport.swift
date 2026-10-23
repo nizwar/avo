@@ -82,7 +82,7 @@ public enum DiagnosticsReport {
     /// How much of each log goes in: its end, where the problem usually is.
     static let limits: [String: Int] = [
         "daemon.log": 4 << 20, "avo-vmm.log": 2 << 20, "avo-vmm-gpu-failed.log": 1 << 20,
-        "kernel.log": 512 << 10, "logcat.log": 2 << 20,
+        "kernel.log": 512 << 10, "logcat.log": 2 << 20, "bluetooth.log": 512 << 10,
     ]
     /// Avo's own log, from the unified log, this far back.
     static let daemonLogSpan = "3h"
@@ -97,7 +97,7 @@ public enum DiagnosticsReport {
             items.append(String(localized: "The names and versions of the installed apps", bundle: .avoKit))
         }
         items.append(String(localized: "Avo’s log from the last 3 hours", bundle: .avoKit))
-        items.append(String(localized: "The engine’s log and the end of Android’s kernel log", bundle: .avoKit))
+        items.append(String(localized: "The engine’s logs (the Bluetooth controller’s too) and the end of Android’s kernel log", bundle: .avoKit))
         if options.includeAndroidLog {
             items.append(String(localized: "The end of Android’s log (logcat), which apps write to as well", bundle: .avoKit))
         }
@@ -158,6 +158,9 @@ public enum DiagnosticsReport {
         let failed = paths.logs.appending(path: "avo-vmm-gpu-failed.log")
         if fileManager.fileExists(atPath: failed.path) { copyLog(failed, as: "avo-vmm-gpu-failed.log") }
         copyLog(paths.instance.appending(path: "kernel.log"), as: "kernel.log")
+        // Android's Bluetooth controller (Root Canal), when it ran.
+        let bluetooth = paths.instance.appending(path: "bluetooth.log")
+        if fileManager.fileExists(atPath: bluetooth.path) { copyLog(bluetooth, as: "bluetooth.log") }
         if options.includeAndroidLog { copyLog(paths.instance.appending(path: "logcat.log"), as: "logcat.log") }
         // Small state files: no secrets, only builds, sizes and paths.
         for file in [paths.vm.appending(path: "gpu-fallback.json"), paths.data.appending(path: "data-disk.json"),

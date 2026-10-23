@@ -178,7 +178,14 @@ GLES 3.1 and Vulkan 1.3.
   Khronos Vulkan loader 1.4.365 and MoltenVK 1.4.0 (the release binary), in
   the emulator's layout (`lib64/`, `lib64/vulkan/`), its `source.properties`
   saying `Pkg.Desc=Avo GPU renderer…` and `Pkg.Revision=avo.N`, which keys
-  the shader cache. The daemon passes it unless
+  the shader cache. Avo's build carries two patches
+  (`scripts/gfxstream-patches`, tested by their `tests/run.sh`): a sequence
+  gate that keeps a guest process's commands in order, and can let go of
+  numbers guest threads took but never sent (`AVO_GFXSTREAM_SEQNO_SKIP_MS`,
+  0 by default, which never skips: Avo's guest layer keeps that deadlock
+  away, and a host too busy to take a sent number in time would run commands
+  out of order); and one that hides the linear ASTC sampling avo-vmm's layer
+  reports (below) from the guest. The daemon passes it unless
   `defaults write dev.avo.daemon AvoAndroidEmulator <dir>` names another; an
   Android Emulator 37 or later (`~/Library/Android/sdk/emulator`) is the
   fallback. avo-vmm loads `lib64/libgfxstream_backend.dylib` at run time by
@@ -220,10 +227,29 @@ GLES 3.1 and Vulkan 1.3.
   this apps got ES 2.0 contexts only. The layer takes the extension, its
   feature structure and the pipelines' provoking-vertex state out again
   before the driver sees them, so `flat` varyings come from a primitive's
-  first vertex instead of its last. Apps' own Vulkan instances do not see the
-  extension. Processes that start before HostAgent names the layer, every
+  first vertex instead of its last. Apps' own Vulkan instances see it too:
+  avo-vmm's layer (below) offers it to every instance. Processes that start
+  before HostAgent names the layer, every
   boot (SurfaceFlinger, system_server, SystemUI), stay at ES 2.0; they work
-  with either.
+  with either. A software start removes the file: unnamed, libvulkan still
+  opens every `libVkLayer*.so` in that folder in every app (userdebug), and
+  apps whose packer refuses libraries from `/data/local` kill themselves when
+  one turns up (FLUJO, ijiami). A Renderer change or "Try GPU Again" puts it
+  back before the restart, so the GPU start names it at once.
+- **Vulkan driver wrapper** (`guest/vkwrap`, `GuestVulkanWrapper`): where
+  Android has the overlays of a `remount` (Google apps) and the known vendor
+  build, the same layer runs inside the Vulkan driver instead, so a GPU start
+  puts nothing of Avo's in `/data/local/debug` and FLUJO runs. HostAgent puts
+  a wrapping `vulkan.ranchu.so` on the vendor overlay, with a copy of the real
+  driver beside it (once Android is ready), and an init file bind-mounts that folder
+  over the APEX's `hw` folder at `post-fs-data` on a GPU start whose
+  identity.prop has `ro.boot.avo.vkwrap=1`. Below libvulkan the layer sees
+  presents as `QueueSignalReleaseImageANDROID`, one per image, and new
+  handles before libvulkan writes its dispatch pointer into them; it handles
+  both. Every process uses the wrapper from the start, so SurfaceFlinger and
+  SystemUI get ES 3.1 too. A GPU start that fails while the wrapper runs
+  turns it off for that build of it (`vkwrap-failed.json`), and the GPU gets
+  one more start without it before Avo falls back to software.
 - **Native ASTC** (`engine/hvf/vmm/layer/native_astc.c`, `virtio/gpu/astc.rs`):
   gfxstream decompresses ASTC into RGBA8 itself unless the driver samples
   *linear-tiled* ASTC, which Metal never does, and an emulated ASTC texture
@@ -267,6 +293,14 @@ GLES 3.1 and Vulkan 1.3.
   memory. Checked against MoltenVK 1.4.0 directly: without the layer a 4x
   color image with ANGLE's usage finds no type; with it, type 0 allocates and
   binds.
+- **The guest layer's jobs on the Mac** (the same layer), for a guest that
+  runs without Avo's guest layer: it splits fragment output arrays, and it
+  offers `VK_EXT_provoking_vertex` (taken out again before MoltenVK) to every
+  instance, not only ANGLE's. The guest driver keeps the first extension list
+  it gets in a process, so when an app's own instance (or HWUI's) asked
+  first, ANGLE got that list and the app's GL stayed at OpenGL ES 2.0. An
+  app's own Vulkan that turns `provokingVertexLast` on gets flat varyings from
+  the first vertex, as ANGLE does; few apps do (console emulators, mostly).
 - **Frames**: on each flush the engine reads the composed buffer back into the
   same shared-memory frames as software (0.6–1.2 ms a frame measured at
   720×1280 and 1080×1920), so the daemon, MetalFX and recording are
@@ -328,7 +362,7 @@ GLES 3.1 and Vulkan 1.3.
 - **Limits**: one refresh rate for all of Android's displays per boot (60
   to 120 Hz; below), ES 3.1 (no geometry shaders in MoltenVK; with the
   guest Vulkan layer, above), first-vertex `flat` varyings, no zero-copy
-  yet, no quick boot.
+  yet, no quick boot (below, after "Pause").
 - **Refresh rate** (`virtio/gpu/edid.rs`, both modes): the virtio-gpu offers
   EDIDs (`VIRTIO_GPU_F_EDID`). A scanout's preferred timing is its size at
   its rate, 60 Hz unless `display <i> <w> <h> <hz>` or, for display 0,
@@ -456,6 +490,30 @@ a pause takes well under a second, adbd answers a command sent during the
 pause right after `resume`, and frames come again at once. When the daemon
 goes away during a pause, the engine resumes before it powers Android off.
 
+A pause is also how a checkpoint holds Android still (architecture.md,
+"Checkpoints"): virtio-blk handles each request on the vCPU that notified it
+(`Block::notify`), so once every vCPU waits at the gate no disk write is half
+done, and the daemon clones Android's disks before it resumes.
+
+**Quick boot** (not there). Starting from a snapshot of a running Android
+needs everything the guest can see saved and put back: guest RAM (anonymous
+memory today, `hvf/src/memory.rs`), every vCPU's registers and system registers
+(`hv_vcpu_get_reg`/`get_sys_reg`), the vtimer offsets, the in-kernel GIC
+(`hv_gic_state_*`, not bound yet in `hvf-sys`), and each device's state:
+virtio-pci transports and queues, block, the 20 consoles, rng, vsock
+(connections to Mac sockets that would not exist after a restore), the three
+NICs with the NAT's TCP and UDP flows, sound, input, the gamepad, virtio-fs
+(open guest file handles), media (cameras), the modem, Bluetooth, the
+sensors and GNSS. None of them serializes its state yet. The blocker is the
+GPU: gfxstream holds the guest's GL and Vulkan objects on the Mac's GPU, and
+the Android Emulator's `libgfxstream_backend.dylib` (37.1) has
+`stream_renderer_snapshot` and `stream_renderer_restore` only as stubs that
+log "Snapshot save requested without support." and return -EINVAL, so a
+GPU-mode Android cannot be snapshotted with the renderer Avo uses. A
+software-rendered Android could be, once every device above saves its state.
+The control socket's `snapshot` command still writes a frame (above), and
+`VMMEngine.snapshot(to:)` refuses.
+
 `--properties FILE` replaces image properties before anything reads them
 (the device profile, by default Avo's honest identity, plus Avo's
 `ro.boot.avo.*` markers, which `VMMEngine` writes for every launch; see
@@ -475,11 +533,15 @@ when "Emulate this phone's hardware" is on, the profile's SoC naming
 Android is up, because doing it at first boot would break it: naming a Vulkan
 layer system-wide before its file exists stops the graphics services. So the
 daemon installs `libGLES_avo_profile.so` into `/data/local/debug/gles` and
-`libVkLayer_avo_profile.so` into `/data/local/debug/vulkan` at every boot
-that lacks them, emulated or not, and sets `debug.gles.layers` and
-`debug.vulkan.layers` only on a boot that began with the files in place: a
-process that started before the install would fail to create a Vulkan
-instance (`GuestGPUProfile`). The GLES
+`libVkLayer_avo_profile.so` into `/data/local/debug/vulkan` on a boot that
+emulates the GPU, and sets `debug.gles.layers` and `debug.vulkan.layers`
+only on a boot that began with the files in place: a process that started
+before the install would fail to create a Vulkan instance
+(`GuestGPUProfile`). A boot that emulates no GPU removes the files, since
+libvulkan opens the Vulkan one in every app even unnamed (see the gfxstream
+sync layer above for the apps that refuse it), and turning emulation on, or
+picking a profile with a GPU, installs them before the restart that setting
+needs. The GLES
 layer answers an app's own `glGetString` with the profile's vendor, renderer
 and driver version instead of ANGLE's; the Vulkan layer reports the profile's
 GPU to an app's own Vulkan. Both leave SurfaceFlinger, HWUI, WebView and
@@ -566,7 +628,7 @@ daemon plays it over ADB (vsock 6520, root through `su` on userdebug):
   Android Studio see it as `emulator-5554` / `AVO_Droid`;
 - once per data disk: Wi-Fi on and joined to VirtWifi, media volume at full
   (the Mac's volume sets how loud), Thread off (no radio to simulate it),
-  Bluetooth off only without netsimd (below); every boot: UWB off (otherwise Android files a full bug
+  Bluetooth off only without a controller (below); every boot: UWB off (otherwise Android files a full bug
   report for the missing radio), the audio HAL without the MMAP and offload
   streams it only simulates and with 20 ms mixer periods ("Sound" above),
   multi audio focus on (every app keeps audio focus when another asks for it,
@@ -691,14 +753,21 @@ Google lets them sign in. A new data disk gets a new ID. The Play Store and
 the Google app are system apps, so Apps offers no Uninstall for them.
 
 **Bluetooth.** Cuttlefish's HCI HAL (`bt_hci`) speaks H4 on /dev/hvc5,
-where Cuttlefish's host runs Root Canal. With the Android Emulator installed,
-the daemon passes `--bluetooth <emulator>/netsimd` and avo-vmm starts that
-netsimd (Root Canal inside; `--hci-port` on a free local port, its files in
-`run/netsim`, its log in the instance's `netsimd.log`) and passes the bytes
-both ways between hvc5 and the port (`bluetooth.rs`). Android's Bluetooth
-turns on and scans, advertises and pairs inside netsim's virtual air.
-Without netsimd Android's Bluetooth has no controller, so the host agent
-turns it off once per data disk as before.
+where Cuttlefish's host runs Root Canal, a virtual controller. Avo brings
+its own: `scripts/build-bluetooth.sh` builds Root Canal from source
+(github.com/google/rootcanal, which follows AOSP's, at a pinned commit; with
+Bazel, Apple's C++ toolchain and unstripped Rust, for macOS 15 and later)
+into `build/bluetooth`, and Avo.app carries it in
+Contents/Resources/bluetooth (`AndroidEmulator.bluetoothController`; the
+Android Emulator's netsimd, Root Canal inside, only for a build without
+it). The daemon passes `--bluetooth <controller>` and avo-vmm starts it
+(`--hci_port` on a free local port, its other ports on free ones too; for
+netsimd its own flags; its files in `run/bluetooth`, its log in the
+instance's `bluetooth.log`) and passes the bytes both ways between hvc5 and
+the port (`bluetooth.rs`). Android's Bluetooth turns on and scans,
+advertises and pairs inside the controller's virtual air. Without a
+controller Android's Bluetooth has none, so the host agent turns it off
+once per data disk as before.
 
 The Mac's Bluetooth LE devices join that air (`MacBluetoothBridge`).
 macOS gives no app the HCI of its controller, so they come through
@@ -719,7 +788,8 @@ channels on a PSM are not offered. Classic Bluetooth (headsets, older
 controllers) has no way through. macOS asks for Bluetooth access the first
 time Android's Bluetooth is on (`NSBluetoothAlwaysUsageDescription`, in
 Avo.app and the daemon). `ProxyChipInNetsim` tests the chip against a real
-netsimd (`AVO_NETSIMD=…/netsimd swift test`).
+controller (`AVO_BLUETOOTH_CONTROLLER=build/bluetooth/rootcanal swift test`),
+and avo-vmm's `controller_starts_resets_and_stops` its bridge.
 
 **Cameras.** Settings › Devices › Cameras gives each of Android's cameras
 a source (`backCamera`, `frontCamera`; `CameraSource`): Emulated, None or
@@ -759,7 +829,7 @@ from the next start on.
 
 **Settings › Devices.** Wi-Fi (`wifiEnabled`: the host agent sets Android's switch at every start and on a change; off, Android is offline), Network speed (`networkSpeed`, the `network` command above) and the Mac's Bluetooth devices (`shareMacBluetooth`, MacBluetoothBridge) apply at once (`DeviceSettingsEngine`). Location moved here from Privacy & Security. Mobile data with a SIM, signal bars and the network type in Android's status bar go to the engine as the `cellular` command above (modem.rs).
 
-Each of the Mac's devices Android may use has a switch there; off, Android has no such hardware and Avo never asks macOS for it. Bluetooth (`bluetoothEnabled`) and Cameras (`camerasEnabled`) are plugged in at the start: off, avo-vmm runs without netsimd (the host agent turns Android's Bluetooth off at every start without a controller) or with `--cameras none`. The Microphone (`microphoneEnabled`, the `microphone` command above) and the Clipboard (`shareClipboard`: the daemon stops watching the Mac's pasteboard and passes nothing either way) follow at once; Location is the switch to share the Mac's location.
+Each of the Mac's devices Android may use has a switch there; off, Android has no such hardware and Avo never asks macOS for it. Bluetooth (`bluetoothEnabled`) and Cameras (`camerasEnabled`) are plugged in at the start: off, avo-vmm runs without a Bluetooth controller (the host agent turns Android's Bluetooth off at every start without one) or with `--cameras none`. The Microphone (`microphoneEnabled`, the `microphone` command above) and the Clipboard (`shareClipboard`: the daemon stops watching the Mac's pasteboard and passes nothing either way) follow at once; Location is the switch to share the Mac's location.
 
 **Root.** With `rooted` on (Settings › System › Developer), avo-vmm boots
 a Magisk-patched copy of the image's init_boot (`--init-boot`,

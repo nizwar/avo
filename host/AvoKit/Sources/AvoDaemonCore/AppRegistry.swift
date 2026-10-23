@@ -39,6 +39,15 @@ public actor AppRegistry {
         record.systemApp = info.systemApp
         record.launchable = info.launchable
         record.installer = info.installerPackage.isEmpty ? nil : info.installerPackage
+        // Only Android's answer says; an APK read on the Mac or a bare listing keeps what it said.
+        if info.hasGame {
+            record.isGame = info.game
+            record.orientation = switch info.orientation {
+            case .portrait, .reversePortrait: .portrait
+            case .landscape, .reverseLandscape: .landscape
+            default: nil
+            }
+        }
 
         var iconChanged = false
         if let png = Self.iconPNG(info) {

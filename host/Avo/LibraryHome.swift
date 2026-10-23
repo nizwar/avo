@@ -310,17 +310,17 @@ private struct WelcomeHero: View {
 }
 
 extension GraphicsSettings {
-    /// "720p · MetalFX", "100% · Bilinear", "Phone’s screen · MetalFX".
+    /// "720p · Sharp", "100% · Smooth", "Phone · Sharp".
     func summaryChip(device: DeviceProfile.Display?) -> String {
         let size = switch effectiveMode(device: device) {
         case .followWindow: renderScale.formatted(.percent.scale(1))
         case .fixed: GraphicsSettings.resolutionName(shortSide)
-        case .deviceProfile: String(localized: "Phone’s screen")
+        case .deviceProfile: String(localized: "Phone")
         }
         let filterName = switch filter {
-        case .metalFXSpatial: "MetalFX"
-        case .bilinear: String(localized: "Bilinear")
-        case .nearest: String(localized: "Nearest")
+        case .metalFXSpatial: String(localized: "Sharp")
+        case .bilinear: String(localized: "Smooth")
+        case .nearest: String(localized: "Pixel art")
         }
         return "\(size) · \(filterName)"
     }

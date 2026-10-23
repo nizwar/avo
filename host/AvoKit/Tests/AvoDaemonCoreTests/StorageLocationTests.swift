@@ -342,6 +342,8 @@ import Testing
         let paths = scratch.paths
         try Self.makeData(in: paths.vm)
         let sums = try Dictionary(uniqueKeysWithValues: AndroidDataFolder(paths.vm).presentItems().map { ($0, try Self.sha(paths.vm.appending(path: $0))) })
+        let checkpoints = paths.vm.appending(path: CheckpointStore.folderName)
+        try FileManager.default.createDirectory(at: checkpoints.appending(path: UUID().uuidString), withIntermediateDirectories: true)
         let locations = StorageLocations(paths: paths, cloning: false) { [] }
         let drive = try scratch.folder("Drive")
 
@@ -362,6 +364,7 @@ import Testing
         for (item, sum) in sums { #expect(try Self.sha(moved.appending(path: item)) == sum, "\(item)") }
         // The old copy is gone; this Mac's side of the VM stays.
         #expect(AndroidDataFolder(paths.vm).presentItems().isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: checkpoints.path), "the old copy's checkpoints go with it")
         #expect(FileManager.default.fileExists(atPath: paths.instance.path))
         let phases = progress.phases
         #expect(phases.first == .checking && phases.last == .finished)

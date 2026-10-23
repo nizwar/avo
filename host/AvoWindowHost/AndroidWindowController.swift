@@ -2,6 +2,7 @@ import AppKit
 import AvoKeymap
 import AvoKit
 import AvoProtocol
+import os
 
 /// One macOS window showing one Android VirtualDisplay (spec: "satu NSWindow
 /// per VirtualDisplay").
@@ -58,13 +59,29 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     private let gameModeButton = TitlebarButton(symbol: "gamecontroller", label: String(localized: "Game Controls", bundle: .windowHost),
                                                 action: nil)
     /// Translate Screen and Translate Into.
-    private let translateButton = TitlebarButton(symbol: "translate", label: String(localized: "Translate Screen (⌘⇧T)", bundle: .windowHost),
+    private let translateButton = TitlebarButton(symbol: "translate", label: String(localized: "Translate Screen (⇧⌘T)", bundle: .windowHost),
                                                  action: nil)
     /// The phone itself (`deviceMenu`): shake, rotate, location and the
     /// fingerprint, screenshots and recordings, Keep on Top. Not one of
     /// `titlebarActions`: some of it works without the display.
     private let deviceButton = TitlebarButton(symbol: "candybarphone", label: String(localized: "Device", bundle: .windowHost),
                                               action: nil)
+    /// Run in Background: a fourth light after the window's own three (blue),
+    /// in every app bar style. The app's windows and its Dock icon go, and
+    /// it runs on in Android (ShimAppDelegate.runInBackground).
+    private let backgroundLight = BackgroundLightButton(label: String(localized: "Run in Background", bundle: .windowHost),
+                                                        action: #selector(AndroidWindowController.runInBackground))
+    /// The app's name after Back. AppKit's own title (hidden) sits centred
+    /// between the title bar's sides, and was cut short while there was room
+    /// by Back.
+    private let titleLabel = TitlebarTitle()
+    /// Run in Background was chosen in full screen: it happens once full screen has ended.
+    private var backgroundAfterFullScreen = false
+    /// The key mapping editor is open over the window.
+    private var editingKeymap = false
+    /// The Control Panel asked for the editor before the display opened
+    /// (`editKeyMappingWhenReady`).
+    private var editKeyMappingOnAttach = false
     private var titlebarActions: [TitlebarButton] { [backButton, gameModeButton, translateButton] }
     /// Touches Android's fingerprint sensor with a finger from Settings ›
     /// Fingerprints (FingerprintMenu.swift). Not one of `titlebarActions`: it
@@ -86,61 +103,223 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     private var recorder: ScreenRecorder?
     /// Notices a recording whose file can no longer be written.
     private var recordingCheck: Timer?
+    /// The red dot and time before the title bar's buttons while recording.
     private let recordingIndicator = RecordingIndicator(plate: false)
     /// The same over the game in full screen, where the title bar hides.
     private let recordingBadge = RecordingIndicator(plate: true)
     /// Picture in Picture while it is on (PictureInPictureWindow.swift).
     private var picture: PictureInPictureWindow?
+    /// The window's content: the app's screen, alone or, in the Phone app
+    /// bar style, in a phone's frame (WindowChrome.swift).
+    private var chrome: WindowChrome?
+    /// The app's screen: Android's display and what goes over it, which
+    /// Picture in Picture takes into its panel.
+    private var screenView: NSView?
     /// Picture in Picture was chosen in full screen: it opens once full screen has ended.
     private var pictureAfterFullScreen = false
     /// Record Android's Sound, for every app (CaptureSettings).
     static let captureSettings = CaptureSettings(store: UserDefaults(suiteName: AvoIdentifiers.windowHost) ?? .standard)
+    /// Ask before quitting a game, for every app (QuitSettings).
+    static let quitSettings = QuitSettings(store: UserDefaults(suiteName: AvoIdentifiers.windowHost) ?? .standard)
     /// Keep on Top and where Picture in Picture goes, for this app (WindowModeSettings).
     static let windowModes = WindowModeSettings(store: .standard)
 
-    /// Back, then icons that open menus of related actions (the same as the
-    /// menu bar's): game controls, translation and the device; last Quick
-    /// Settings. The fingerprint shows first, only while this app, Android's
-    /// lock screen or Settings asks for a finger (FingerprintMenu); the
-    /// Device menu has it otherwise.
-    private lazy var titlebarButtons: NSTitlebarAccessoryViewController = {
+    /// The title bar's buttons. At the leading side, Run in Background's
+    /// light after the window's own three, then Back and the app's name. At
+    /// the trailing side, icons that open menus of related actions (the same
+    /// as the menu bar's): game controls, translation and the device; last
+    /// Quick Settings. The fingerprint shows first, only while this app,
+    /// Android's lock screen or Settings asks for a finger (FingerprintMenu);
+    /// the Device menu has it otherwise. A recording's red dot and time come
+    /// before them all.
+    private let trailingButtons = NSStackView()
+    private let leadingButtons = NSStackView()
+    private lazy var titlebarButtons = titlebarAccessory(trailingButtons, layout: .trailing)
+    private lazy var leadingTitlebarButtons = titlebarAccessory(leadingButtons, layout: .leading)
+    /// Both sides' buttons on the lights' middle (`fitTitlebar`).
+    private var titlebarMiddles: [NSLayoutConstraint] = []
+
+    /// A row of buttons at one side of the title bar. Side accessories are
+    /// laid out by their frame, not Auto Layout (`fitTitlebar`). AppKit puts
+    /// the leading side as far after the green light as the lights are
+    /// apart, so Run in Background's light, first there, sits in their row.
+    private func titlebarAccessory(_ stack: NSStackView, layout: NSLayoutConstraint.Attribute) -> NSTitlebarAccessoryViewController {
+        stack.orientation = .horizontal
+        stack.spacing = layout == .leading ? 10 : 2
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        let container = TitlebarSide(frame: .zero)
+        container.addSubview(stack)
+        let middle = stack.centerYAnchor.constraint(equalTo: container.centerYAnchor)
+        titlebarMiddles.append(middle)
+        NSLayoutConstraint.activate(layout == .leading
+            // The app's name gives way.
+            ? [stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+               stack.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor), middle]
+            : [stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8), middle])
+        let controller = NSTitlebarAccessoryViewController()
+        controller.layoutAttribute = layout
+        controller.view = container
+        return controller
+    }
+
+    /// Once, as the window is made: what the buttons do, and where they go.
+    private func setUpTitlebarButtons() {
         backButton.target = self
+        backgroundLight.target = self
         gameModeButton.popUpMenu = { [weak self] in self?.gameControlsMenu() }
         translateButton.popUpMenu = { [weak self] in self?.translationMenu() }
         deviceButton.popUpMenu = { [weak self] in self?.deviceMenu() }
-        let fingerprint = fingerprintMenu.button
-        let stack = NSStackView(views: [fingerprint] + titlebarActions + [deviceButton, quickSettings.button])
-        stack.orientation = .horizontal
-        stack.spacing = 2
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        // Trailing accessories are laid out by their frame, not Auto Layout:
-        // room for the fingerprint too, which then shows without moving the rest.
-        let hidden = fingerprint.isHidden
-        fingerprint.isHidden = false
-        let size = stack.fittingSize
-        fingerprint.isHidden = hidden
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: size.width + 10, height: max(size.height, 28)))
-        container.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
-            stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-        ])
-        let controller = NSTitlebarAccessoryViewController()
-        controller.layoutAttribute = .trailing
-        controller.view = container
         // They act on the display, which exists once `openDisplay` returns.
         for button in titlebarActions { button.isEnabled = false }
-        return controller
-    }()
+        // It shows while recording (`showRecording`).
+        recordingIndicator.isHidden = true
+        for view in [recordingIndicator, fingerprintMenu.button, gameModeButton, translateButton, deviceButton, quickSettings.button] {
+            trailingButtons.addArrangedSubview(view)
+        }
+        for view in [backgroundLight, backButton, titleLabel] { leadingButtons.addArrangedSubview(view) }
+        leadingButtons.setCustomSpacing(6, after: backButton)
+        guard let window else { return }
+        window.addTitlebarAccessoryViewController(titlebarButtons)
+        window.addTitlebarAccessoryViewController(leadingTitlebarButtons)
+        // The name shows after Back instead.
+        window.titleVisibility = .hidden
+        titleLabel.show(title: window.title, activity: nil)
+        fitTitlebar()
+    }
+
+    /// The app bar style in effect: the app's own (Phone Style in its
+    /// windows' menus, or Quick Settings), else the Control Panel's.
+    private var appBarStyle: AppBarStyle { Self.windowModes.appBarStyle ?? app?.config.appBarStyle ?? .standard }
+
+    /// Fits the title bar's sides to it: as tall as the title bar, their
+    /// buttons on the lights' middle (Run in Background's light in their
+    /// row); the trailing side as wide as its buttons, with room kept for the
+    /// fingerprint, which then shows without moving the rest; the leading
+    /// side, with the app's name, all the width left between them.
+    private func fitTitlebar() {
+        guard let window, let close = window.standardWindowButton(.closeButton), let bar = close.superview else { return }
+        let middle = bar.isFlipped ? close.frame.midY - bar.bounds.midY : bar.bounds.midY - close.frame.midY
+        for constraint in titlebarMiddles where constraint.constant != middle { constraint.constant = middle }
+        let height = bar.bounds.height
+        let fingerprint = fingerprintMenu.button
+        let reserve = fingerprint.isHidden
+        if reserve { fingerprint.isHidden = false }
+        let trailing = trailingButtons.fittingSize.width + 10
+        if reserve { fingerprint.isHidden = true }
+        titleLabel.isHidden = true
+        let least = leadingButtons.fittingSize.width + 10
+        titleLabel.isHidden = false
+        // The leading side starts where AppKit put it, after the green light.
+        let start = leadingTitlebarButtons.view.superview.map { $0.convert($0.bounds, to: bar).minX }
+            ?? (window.standardWindowButton(.zoomButton) ?? close).frame.maxX + 9
+        titlebarButtons.view.setFrameSize(NSSize(width: trailing, height: height))
+        leadingTitlebarButtons.view.setFrameSize(NSSize(width: max(least, bar.bounds.width - start - trailing - 8), height: height))
+    }
+
+    /// The app bar style changed (the Control Panel's, or this app's own):
+    /// the Phone style's frame comes or goes around the screen, which keeps
+    /// its size.
+    func applyAppBarStyle() {
+        quickSettings.refresh()
+        let phone = appBarStyle == .phone
+        guard let chrome, chrome.phone != phone, let window else { return }
+        let screen = screenSize
+        chrome.apply(phone: phone)
+        if !window.styleMask.contains(.fullScreen) {
+            setContentSize(screen)
+            applyWindowConstraints()
+        }
+        showRecordingBadge()
+        scheduleResize(delay: .zero)
+    }
+
+    /// Device › Phone Style (also in the View menu): this app's windows take
+    /// the Phone app bar style, or leave it.
+    @objc func togglePhoneStyle(_ sender: Any?) {
+        setAppBarStyle(appBarStyle == .phone ? .standard : .phone)
+    }
+
+    /// This app's own app bar style (also from Quick Settings), kept only
+    /// while it differs from the Control Panel's: choosing that one follows
+    /// the Control Panel again.
+    func setAppBarStyle(_ style: AppBarStyle) {
+        Self.windowModes.appBarStyle = style == (app?.config.appBarStyle ?? .standard) ? nil : style
+        app?.appBarStyleChanged()
+    }
+
+    /// The blue light (also Window › Run in Background): every window of the
+    /// app goes, its Dock icon too, and it runs on in Android
+    /// (ShimAppDelegate.runInBackground). Full screen ends first: its Space
+    /// would stay behind, black, with no window, Dock icon or menu bar.
+    @objc func runInBackground() {
+        if let window, window.styleMask.contains(.fullScreen) {
+            backgroundAfterFullScreen = true
+            window.toggleFullScreen(nil)
+            return
+        }
+        app?.runInBackground()
+    }
+
+    /// Out of sight while the app runs in the background: Android's display
+    /// stays open and draws nothing nobody sees (`setOnScreen`).
+    func sendToBackground() {
+        if picture != nil { leavePictureInPicture(show: false) }
+        if quickSettings.isShown { quickSettings.toggle() }
+        keymap?.focusLost()
+        GamepadForwarder.shared.resign(self)
+        window?.orderOut(nil)
+        setOnScreen(false)
+        // The menu bar and the Library say it runs in the background, not minimized.
+        if let displayID { client?.setDisplayInBackground(displayID, inBackground: true) }
+    }
+
+    /// Back from the background, as it was.
+    func returnFromBackground() {
+        if let displayID { client?.setDisplayInBackground(displayID, inBackground: false) }
+        showWindow(nil)
+        setOnScreen(isOnScreen)
+    }
+
+    /// What Android calls the screen the app shows: after the app's name,
+    /// when it says more than the name.
+    func showActivityTitle(_ title: String) {
+        window?.subtitle = title
+        titleLabel.show(title: window?.title ?? "", activity: title)
+    }
+
+    /// This app's page in the Control Panel, with everything Quick Settings
+    /// leaves out (Avo.app takes the link).
+    @objc func openAppSettings() {
+        guard let app else { return }
+        if quickSettings.isShown { quickSettings.toggle() }
+        Self.openControlPanel(ControlPanelLink.url(appPage: app.package))
+    }
+
+    /// Opens a Control Panel link with this Avo's own Avo.app.
+    static func openControlPanel(_ link: URL) {
+        guard let avo = hostApplication ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: AvoIdentifiers.app) else {
+            NSWorkspace.shared.open(link)
+            return
+        }
+        NSWorkspace.shared.open([link], withApplicationAt: avo, configuration: NSWorkspace.OpenConfiguration()) { _, error in
+            if let error {
+                Logger(subsystem: AvoIdentifiers.logSubsystem, category: "Window")
+                    .error("cannot open the Control Panel: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
 
     /// The game controller's menu (also Controls in the menu bar).
     private func gameControlsMenu() -> NSMenu {
         let menu = NSMenu()
         menu.addItem(withTitle: String(localized: "Game Mode", bundle: .windowHost), action: #selector(toggleGameMode), keyEquivalent: "g")
-        menu.addItem(withTitle: String(localized: "Edit Key Mapping…", bundle: .windowHost), action: #selector(toggleKeymapEditor), keyEquivalent: "k")
-            .keyEquivalentModifierMask = [.command, .shift]
-        menu.addItem(withTitle: String(localized: "Show Key Mapping on Game", bundle: .windowHost), action: #selector(toggleKeymapHints),
-                     keyEquivalent: "")
+            .symbol("gamecontroller")
+        let edit = menu.addItem(withTitle: String(localized: "Edit Key Mapping…", bundle: .windowHost), action: #selector(toggleKeymapEditor),
+                                keyEquivalent: "k")
+        edit.keyEquivalentModifierMask = [.command, .shift]
+        edit.symbol("keyboard")
+        menu.addItem(withTitle: String(localized: "Show Keys on Game", bundle: .windowHost), action: #selector(toggleKeymapHints),
+                     keyEquivalent: "").symbol("eye")
         for item in menu.items { item.target = self }
         // Its steps have their own target (KeymapHintsMenu).
         menu.addItem(KeymapHintsMenu.shared.makeItem())
@@ -160,22 +339,36 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
 
     /// The phone itself: shake, rotate and where Android is (as in the
     /// Controls menu), the fingerprint, then screenshots and recordings (as
-    /// in the File menu) and Keep on Top (as in the View menu).
+    /// in the File menu), Keep on Top, Picture in Picture and Phone Style
+    /// (as in the View menu).
     private func deviceMenu() -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(withTitle: String(localized: "Shake", bundle: .windowHost), action: #selector(shakeDevice), keyEquivalent: "z")
-            .keyEquivalentModifierMask = [.control, .command]
+        let shake = menu.addItem(withTitle: String(localized: "Shake", bundle: .windowHost), action: #selector(shakeDevice), keyEquivalent: "z")
+        shake.keyEquivalentModifierMask = [.control, .command]
+        shake.symbol("iphone.gen3.radiowaves.left.and.right")
         menu.addItem(withTitle: String(localized: "Rotate", bundle: .windowHost), action: #selector(rotateWindow), keyEquivalent: "r")
+            .symbol("rectangle.portrait.rotate")
         for item in menu.items { item.target = self }
         // The app's (ShimAppDelegate), on the way up from this window.
-        menu.addItem(withTitle: String(localized: "Location…", bundle: .windowHost), action: #selector(ShimAppDelegate.showLocation),
-                     keyEquivalent: "l").keyEquivalentModifierMask = [.command, .option]
-        menu.addItem(withTitle: FingerprintMenu.title, action: nil, keyEquivalent: "").submenu = fingerprintMenu.makeMenu()
+        let location = menu.addItem(withTitle: String(localized: "Location…", bundle: .windowHost), action: #selector(ShimAppDelegate.showLocation),
+                                    keyEquivalent: "l")
+        location.keyEquivalentModifierMask = [.command, .option]
+        location.symbol("location")
+        let fingerprint = menu.addItem(withTitle: FingerprintMenu.title, action: nil, keyEquivalent: "")
+        fingerprint.submenu = fingerprintMenu.makeMenu()
+        fingerprint.symbol("touchid")
         menu.addItem(.separator())
         addCaptureItems(to: menu)
         menu.addItem(.separator())
-        menu.addItem(withTitle: String(localized: "Keep on Top", bundle: .windowHost), action: #selector(toggleKeepOnTop), keyEquivalent: "")
-            .target = self
+        let window = [
+            menu.addItem(withTitle: String(localized: "Keep on Top", bundle: .windowHost), action: #selector(toggleKeepOnTop), keyEquivalent: "")
+                .symbol("pin"),
+            menu.addItem(withTitle: String(localized: "Picture in Picture", bundle: .windowHost), action: #selector(togglePictureInPicture),
+                         keyEquivalent: "").symbol("pip.enter"),
+            menu.addItem(withTitle: String(localized: "Phone Style", bundle: .windowHost), action: #selector(togglePhoneStyle(_:)),
+                         keyEquivalent: "").symbol("iphone"),
+        ]
+        for item in window { item.target = self }
         return menu
     }
 
@@ -184,21 +377,25 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// (also in the File menu).
     private func addCaptureItems(to menu: NSMenu) {
         let first = menu.items.count
-        menu.addItem(withTitle: String(localized: "Take Screenshot", bundle: .windowHost), action: #selector(takeScreenshot), keyEquivalent: "s")
-            .keyEquivalentModifierMask = [.command, .shift]
-        menu.addItem(withTitle: String(localized: "Record Screen", bundle: .windowHost), action: #selector(toggleRecording), keyEquivalent: "r")
-            .keyEquivalentModifierMask = [.command, .shift]
+        let screenshot = menu.addItem(withTitle: String(localized: "Take Screenshot", bundle: .windowHost), action: #selector(takeScreenshot),
+                                      keyEquivalent: "s")
+        screenshot.keyEquivalentModifierMask = [.command, .shift]
+        screenshot.symbol("camera")
+        let record = menu.addItem(withTitle: String(localized: "Record Screen", bundle: .windowHost), action: #selector(toggleRecording),
+                                  keyEquivalent: "r")
+        record.keyEquivalentModifierMask = [.command, .shift]
+        record.symbol("record.circle")
         menu.addItem(withTitle: String(localized: "Record Android’s Sound", bundle: .windowHost), action: #selector(toggleRecordAndroidSound),
-                     keyEquivalent: "")
+                     keyEquivalent: "").symbol("speaker.wave.2")
         menu.addItem(.separator())
         menu.addItem(withTitle: String(localized: "Show Screenshots in Finder", bundle: .windowHost), action: #selector(showScreenshotsFolder),
-                     keyEquivalent: "")
+                     keyEquivalent: "").symbol("photo.on.rectangle")
         menu.addItem(withTitle: String(localized: "Show Recordings in Finder", bundle: .windowHost), action: #selector(showRecordingsFolder),
-                     keyEquivalent: "")
+                     keyEquivalent: "").symbol("film")
         for item in menu.items[first...] where !item.isSeparatorItem { item.target = self }
     }
 
-    /// Device › Shake (⌃⌘Z, also in the Controls menu): Android's
+    /// Device › Shake (⌃⌘Z, also in the Game Controls menu): Android's
     /// accelerometer swings for a second, as a hand shaking the phone would,
     /// for apps that undo, shuffle or report a bug on a shake. The window
     /// gives a little shake with it.
@@ -252,15 +449,6 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         }
     }
 
-    /// The red dot and time next to the icons while recording.
-    private lazy var recordingAccessory: NSTitlebarAccessoryViewController = {
-        let controller = NSTitlebarAccessoryViewController()
-        controller.layoutAttribute = .trailing
-        controller.view = recordingIndicator
-        controller.isHidden = true
-        return controller
-    }()
-
     init(app: ShimAppDelegate, frames: FrameRouter) {
         self.app = app
         self.frames = frames
@@ -271,7 +459,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
 
         // The first window: the default size, turned to the app's orientation.
         let config = app.config
-        let orientation = config.graphics(for: app.package, hasKeyMapping: hasKeyMapping).settings.orientation
+        let orientation = config.graphics(for: app.package, hasKeyMapping: hasKeyMapping, isGame: app.isGame,
+                                          orientation: app.orientation).settings.orientation
         var size = config.defaultWindowSize
         if (orientation == .landscape) != (size.width > size.height) { size = size.rotated }
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: size.width, height: size.height),
@@ -336,14 +525,14 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
             lockOverlay.topAnchor.constraint(equalTo: container.topAnchor),
             lockOverlay.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
-        window.contentView = container
-        window.addTitlebarAccessoryViewController(titlebarButtons)
-        window.addTitlebarAccessoryViewController(recordingAccessory)
-        // The accessory's own isHidden does not hide it in the title bar
-        // (macOS 27 still drew a red "0:00" without a recording); hiding its
-        // view does. showRecording(_:) sets both.
-        recordingAccessory.isHidden = true
-        recordingIndicator.isHidden = true
+        // The window's content is the chrome's: the screen, alone or in a phone's frame.
+        let chrome = WindowChrome(window: window)
+        chrome.keepsBar = { [weak self] in self?.quickSettings.isShown == true }
+        self.chrome = chrome
+        screenView = container
+        chrome.attach(container)
+        setUpTitlebarButtons()
+        chrome.apply(phone: appBarStyle == .phone)
         placeholder.show(icon: NSApp.applicationIconImage, message: String(localized: "Starting \(app.label)…", bundle: .windowHost), busy: true)
         displayView.onDropFiles = { [weak self] urls in self?.share(urls) }
         // The wheel's swipes are in dp: Android's density for the display.
@@ -353,11 +542,15 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
 
         // Remember each app's window frame separately; offset extra windows.
         window.setFrameAutosaveName("AvoWindow-\(app.package)")
-        if window.frame.origin == .zero { window.center() }
+        if window.frame.origin == .zero {
+            // A first window: the default size is the screen's, the frame goes around it.
+            setContentSize(NSSize(width: size.width, height: size.height))
+            window.center()
+        }
 
         // A locked shape opens in the app's orientation (a restored frame
         // keeps its size and place); a free window opens as it was left.
-        let content = window.contentLayoutRect.size
+        let content = screenSize
         fixedLandscape = lockedRatio != nil ? orientation == .landscape : content.width > content.height
         applyWindowConstraints()
         renderer.setOptions(renderOptions)
@@ -366,6 +559,53 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         applyHUDLevel()
         applyWindowLevel()
         frameRateHint.setCap(app.config.fpsLimit)
+        showRecordingBadge()
+    }
+
+    /// The app's screen in the window, which Android's display is sized
+    /// from: the window without its title bar and, in the Phone app bar
+    /// style, its frame.
+    private var screenSize: NSSize {
+        guard let window else { return .zero }
+        return screenSize(inFrame: window.frame.size)
+    }
+
+    private func screenSize(inFrame size: NSSize) -> NSSize {
+        let insets = chrome?.screenInsets ?? NSEdgeInsets()
+        return NSSize(width: size.width - insets.left - insets.right, height: size.height - insets.top - insets.bottom)
+    }
+
+    /// The window's size around a screen of `size`.
+    private func frameSize(forScreen size: NSSize) -> NSSize {
+        let insets = chrome?.screenInsets ?? NSEdgeInsets()
+        return NSSize(width: size.width + insets.left + insets.right, height: size.height + insets.top + insets.bottom)
+    }
+
+    /// Locks the screen to a shape: AppKit's lock for a Mac window; a
+    /// phone's frame is not the screen's shape, so `windowWillResize` keeps
+    /// the screen's there.
+    private func lockAspect(_ ratio: Double) {
+        guard let window else { return }
+        if chrome?.phone == true {
+            // Setting increments ends AppKit's lock.
+            window.contentResizeIncrements = NSSize(width: 1, height: 1)
+        } else {
+            window.contentAspectRatio = fixedLandscape ? NSSize(width: ratio, height: 1) : NSSize(width: 1, height: ratio)
+        }
+    }
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        guard chrome?.phone == true, let ratio = lockedRatio, !sender.styleMask.contains(.fullScreen) else { return frameSize }
+        var screen = screenSize(inFrame: frameSize)
+        let current = screenSize
+        let wide = fixedLandscape ? ratio : 1 / ratio
+        // The side the drag moves more leads.
+        if abs(screen.width - current.width) >= abs(screen.height - current.height) {
+            screen.height = screen.width / wide
+        } else {
+            screen.width = screen.height * wide
+        }
+        return self.frameSize(forScreen: screen)
     }
 
     @available(*, unavailable)
@@ -414,9 +654,11 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
                     GamepadForwarder.shared.update()
                 }
                 keymap.onEditing = { [weak self] editing in
+                    self?.editingKeymap = editing
                     self?.hints.editing = editing
-                    self?.makeRoom(forEditor: editing)
+                    if !editing { self?.makeRoom(forPanel: false) }
                 }
+                keymap.onPanelInside = { [weak self] inside in self?.makeRoom(forPanel: inside) }
                 keymap.onMode = { [weak self] mode in self?.hints.mode = mode }
                 keymap.onGameMode = { [weak self] on in
                     self?.showGameMode(on)
@@ -435,6 +677,10 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
                 for button in titlebarActions { button.isEnabled = true }
                 self.app?.displayAttached(self, displayID: id)
                 if window?.isKeyWindow == true { focusGamepad() }
+                if editKeyMappingOnAttach {
+                    editKeyMappingOnAttach = false
+                    editKeyMappingWhenReady()
+                }
             } catch AvoError.androidLocked {
                 // Locked as the app was about to start: the same as above.
                 waitForUnlock(self.app?.screenLock, client: client, notificationKey: notificationKey)
@@ -495,17 +741,18 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// following the window, the fixed resolution, or the phone's screen.
     private func currentRequest() -> DisplayRequest {
         guard let window else { return DisplayRequest(width: 1080, height: 2336, dpi: 320) }
-        let content = window.contentLayoutRect.size
+        let content = screenSize
         return DisplaySizing.request(contentWidth: content.width, contentHeight: content.height,
                                      backingScale: window.backingScaleFactor, settings: graphics.settings, device: deviceDisplay,
                                      landscape: lockedRatio != nil ? fixedLandscape : nil)
     }
 
-    /// The key mapping editor's panel takes the right of the window, and the
-    /// game moves over: its picture smaller, Android's display the same (the
-    /// window keeps its size, so nothing re-plugs).
-    private func makeRoom(forEditor editing: Bool) {
-        displayTrailing?.constant = editing ? -KeymapEditorView.panelWidth : 0
+    /// The key mapping editor's panel inside the window (full screen, or no
+    /// room beside it) takes its right, and the game moves over: its picture
+    /// smaller, Android's display the same (the window keeps its size, so
+    /// nothing re-plugs). Beside the window, the game keeps its whole size.
+    private func makeRoom(forPanel inside: Bool) {
+        displayTrailing?.constant = inside ? -KeymapEditorView.panelWidth : 0
         hints.needsDisplay = true
     }
 
@@ -518,9 +765,12 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     func windowDidResize(_ notification: Notification) {
         // A free window's shape is where a later fixed ratio starts; only
         // rotating turns a fixed one.
-        if let content = window?.contentLayoutRect.size, lockedRatio == nil {
+        if window != nil, lockedRatio == nil {
+            let content = screenSize
             fixedLandscape = content.width > content.height
         }
+        chrome?.windowResized()
+        fitTitlebar()
         // Android re-plugs the display for a new size: once, when the drag ends.
         guard window?.inLiveResize != true, !fullScreenTransition else { return }
         scheduleResize(delay: .milliseconds(250))
@@ -564,7 +814,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         let quiet = quietNextSwitch
         quietNextSwitch = false
         let proposed = currentRequest()
-        let content = window.contentLayoutRect.size
+        let content = screenSize
         let renderer = displayView.renderer
         // A locked shape is the setting's, not the window's: in full screen
         // or a tile the window may still have the old ratio's shape, and
@@ -702,7 +952,9 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
             let y = NSEvent.mouseLocation.y
             if !self.barsShown, y >= screen.frame.maxY - Self.revealEdge {
                 self.showBars(true)
-            } else if self.barsShown, y < screen.frame.maxY - Self.concealDistance {
+            } else if self.barsShown, y < screen.frame.maxY - Self.concealDistance,
+                      // Quick Settings and the buttons' menus open under the bar: it stays while they show.
+                      !self.quickSettings.isShown, !HazeMenuPresenter.shared.isShown {
                 self.showBars(false)
             } else if !self.barsShown, self.fullScreenTitlebar.map({ $0.alphaValue != 0 }) == true {
                 self.keepBarsHidden()
@@ -712,6 +964,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {
+        chrome?.fullScreen = true
         fullScreenTransitionBegan()
         // The scaler for the full-screen size is built during the animation,
         // so the first frame after it is upscaled already.
@@ -739,13 +992,18 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     func windowDidExitFullScreen(_ notification: Notification) {
         fullScreenTransitionEnded()
         NSApp.presentationOptions = []
+        chrome?.fullScreen = false
     }
 
     func windowDidFailToEnterFullScreen(_ window: NSWindow) {
         fullScreenTransitionEnded()
+        chrome?.fullScreen = false
     }
 
     func windowDidFailToExitFullScreen(_ window: NSWindow) {
+        // Still in full screen: what was to follow its end does not.
+        pictureAfterFullScreen = false
+        backgroundAfterFullScreen = false
         fullScreenTransitionEnded()
     }
 
@@ -757,6 +1015,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
 
     private func fullScreenTransitionEnded() {
         fullScreenTransition = false
+        // The title bar is the window's again (or the screen's): its sides fit it.
+        fitTitlebar()
         displayView.renderer.setInteractiveResize(false)
         showRecordingBadge()
         applyWindowLevel()
@@ -767,13 +1027,19 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
             pictureAfterFullScreen = false
             enterPictureInPicture()
         }
+        if backgroundAfterFullScreen, window?.styleMask.contains(.fullScreen) == false {
+            backgroundAfterFullScreen = false
+            app?.runInBackground()
+        }
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
         becameKey()
+        chrome?.windowStateChanged()
     }
 
     func windowDidResignKey(_ notification: Notification) {
+        chrome?.windowStateChanged()
         // Never keep keys or the pointer captured after focus leaves the game.
         keymap?.focusLost()
         GamepadForwarder.shared.resign(self)
@@ -798,6 +1064,15 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         }, mappingTakesGamepad: { [weak keymap] in keymap?.takesGamepad == true })
     }
 
+    /// The red light and Close Window (⌘W): a game Android is running asks
+    /// first (`askToQuit`). Closes Android asks for, and quitting the app,
+    /// never come here.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard asksBeforeQuitting else { return true }
+        askToQuit(over: sender) { [weak self] in self?.window?.close() }
+        return false
+    }
+
     func windowWillClose(_ notification: Notification) {
         watchFullScreenPointer(false)
         if picture != nil { leavePictureInPicture(show: false) }
@@ -810,8 +1085,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     // MARK: Orientation
 
     func applyOrientation(_ orientation: DisplayOrientation) {
-        guard let window else { return }
-        let size = window.contentLayoutRect.size
+        guard window != nil else { return }
+        let size = screenSize
         let wantsLandscape: Bool
         switch orientation {
         case .landscape, .reverseLandscape: wantsLandscape = true
@@ -832,13 +1107,13 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
                 scheduleResize(delay: .zero)
                 return
             }
-            window.contentAspectRatio = fixedLandscape ? NSSize(width: ratio, height: 1) : NSSize(width: 1, height: ratio)
+            lockAspect(ratio)
         }
-        let content = window.contentLayoutRect.size
-        let frame = window.frameRect(forContentRect: NSRect(origin: .zero, size: NSSize(width: content.height, height: content.width)))
+        let content = screenSize
+        let size = frameSize(forScreen: NSSize(width: content.height, height: content.width))
         var origin = window.frame.origin
-        origin.y += window.frame.height - frame.height // keep the title bar in place
-        window.setFrame(NSRect(origin: origin, size: frame.size), display: true, animate: true)
+        origin.y += window.frame.height - size.height // keep the title bar in place
+        window.setFrame(NSRect(origin: origin, size: size), display: true, animate: true)
     }
 
     @objc func sendBack() {
@@ -847,6 +1122,19 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
 
     @objc func toggleKeymapEditor() {
         keymap?.toggleEditor(over: window)
+    }
+
+    /// The Control Panel's Create Key Mapping… (the app's page): the editor
+    /// opens over the game, now or once the display has opened. One open
+    /// already stays as it is.
+    func editKeyMappingWhenReady() {
+        guard let keymap else {
+            editKeyMappingOnAttach = true
+            return
+        }
+        guard !editingKeymap else { return }
+        if picture != nil { leavePictureInPicture(show: true) }
+        keymap.toggleEditor(over: window)
     }
 
     @objc func toggleGameMode() {
@@ -926,7 +1214,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
             showRecording(true)
             recordingChangedVisibility()
             CaptureFeedback.play(.recordingStarted)
-            notice.show(String(localized: "Recording the screen. ⌘⇧R stops it.", bundle: .windowHost))
+            notice.show(String(localized: "Recording the screen. ⇧⌘R stops it.", bundle: .windowHost))
         } catch {
             notice.show(String(localized: "Could not record the screen: \(error.localizedDescription)", bundle: .windowHost))
         }
@@ -976,14 +1264,14 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     }
 
     private func showRecording(_ on: Bool) {
-        recordingAccessory.isHidden = !on
         recordingIndicator.isHidden = !on
+        fitTitlebar()
         let start: Date? = on ? .now : nil
         recordingIndicator.run(since: start)
         recordingBadge.run(since: start)
         showRecordingBadge()
         // The red dot and time show it; the Device menu then offers Stop Recording.
-        recordingIndicator.toolTip = on ? String(localized: "Recording the screen. ⌘⇧R stops it.", bundle: .windowHost) : nil
+        recordingIndicator.toolTip = on ? String(localized: "Recording the screen. ⇧⌘R stops it.", bundle: .windowHost) : nil
         recordingCheck?.invalidate()
         recordingCheck = nil
         guard on else { return }
@@ -998,9 +1286,12 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     }
 
     /// In full screen the title bar, and the indicator in it, hides until the
-    /// pointer reaches the top: the badge over the game shows the recording.
+    /// pointer reaches the top, and in the Phone app bar style until the
+    /// pointer leaves the screen through its top: the badge over the game
+    /// shows the recording.
     private func showRecordingBadge() {
-        recordingBadge.isHidden = recorder == nil || window?.styleMask.contains(.fullScreen) != true
+        let barHides = window?.styleMask.contains(.fullScreen) == true || chrome?.phone == true
+        recordingBadge.isHidden = recorder == nil || !barHides
     }
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
@@ -1022,13 +1313,25 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
             item.state = Self.windowModes.keepOnTop ? .on : .off
             return true
         }
+        if item.action == #selector(togglePhoneStyle(_:)) {
+            item.state = appBarStyle == .phone ? .on : .off
+            return true
+        }
         if item.action == #selector(togglePictureInPicture) {
             item.state = picture != nil ? .on : .off
-            // Android's screen lock is entered in the window.
-            return picture != nil || !lockOverlay.isShowing
+            // Android's screen lock is entered in the window, and the key
+            // mapping editor is drawn over it: neither fits the small panel.
+            item.toolTip = picture == nil && editingKeymap
+                ? String(localized: "Close the key mapping editor first.", bundle: .windowHost) : nil
+            return picture != nil || (!lockOverlay.isShowing && !editingKeymap)
         }
         // The editor is drawn over the window, which Picture in Picture hides.
-        if item.action == #selector(toggleKeymapEditor) { return picture == nil }
+        if item.action == #selector(toggleKeymapEditor) {
+            // Create while there is no key mapping yet, as the app's page says.
+            item.title = keymap?.profile == nil ? String(localized: "Create Key Mapping…", bundle: .windowHost)
+                                                : String(localized: "Edit Key Mapping…", bundle: .windowHost)
+            return picture == nil
+        }
         if item.action == #selector(toggleKeymapHints) {
             item.state = KeymapHints.visible ? .on : .off
             return keymap != nil
@@ -1060,6 +1363,66 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
 
     var isInPictureInPicture: Bool { picture != nil }
 
+    /// Picture in Picture's ✕: the app quits, as with the red light, a game
+    /// asking first.
+    private func closeFromPicture() {
+        let quit = { [weak self] in
+            guard let self else { return }
+            leavePictureInPicture(show: false)
+            window?.close()
+        }
+        guard asksBeforeQuitting else {
+            quit()
+            return
+        }
+        // The question in the middle of the screen: the small panel has no room for it.
+        askToQuit(over: nil, quit: quit)
+    }
+
+    // MARK: Quitting a game
+
+    /// A game Android is running: the red light and Picture in Picture's ✕
+    /// end it there, and one wrong click must not end a match.
+    private var asksBeforeQuitting: Bool {
+        Self.quitSettings.asksBeforeQuittingGames && displayID != nil && (graphics.profile == .games || hasKeyMapping)
+    }
+
+    /// Run in Background (the blue light's, and Return), Quit or Cancel (Esc),
+    /// as a sheet over `window` (in the middle of the screen without one): a
+    /// stray Return must not end the match either. Don't Ask Again with Quit
+    /// stops asking for every game; Settings › Graphics › App windows asks again.
+    private func askToQuit(over window: NSWindow?, quit: @escaping () -> Void) {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Quit \(app?.label ?? "")?", bundle: .windowHost)
+        alert.informativeText = String(localized: "This ends the game in Android. Run in Background keeps it running without a window.",
+                                       bundle: .windowHost)
+        alert.addButton(withTitle: String(localized: "Run in Background", bundle: .windowHost))
+        let quitButton = alert.addButton(withTitle: String(localized: "Quit", bundle: .windowHost))
+        quitButton.hasDestructiveAction = true
+        alert.addButton(withTitle: String(localized: "Cancel", bundle: .windowHost))
+        alert.showsSuppressionButton = true
+        alert.suppressionButton?.title = String(localized: "Don’t ask again", bundle: .windowHost)
+        let answered: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            switch response {
+            case .alertFirstButtonReturn:
+                self?.runInBackground()
+            case .alertSecondButtonReturn:
+                // Only the quit was meant without asking next time.
+                if alert.suppressionButton?.state == .on { Self.quitSettings.asksBeforeQuittingGames = false }
+                quit()
+            default:
+                break
+            }
+        }
+        if let window, window.isVisible {
+            alert.beginSheetModal(for: window, completionHandler: answered)
+        } else {
+            // Picture in Picture leaves the app in the back: the question takes the keyboard.
+            NSApp.activate()
+            answered(alert.runModal())
+        }
+    }
+
     @objc func togglePictureInPicture() {
         if picture == nil { enterPictureInPicture() } else { leavePictureInPicture(show: true) }
     }
@@ -1068,7 +1431,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// window waits ordered out. Android's display keeps its size (the
     /// picture is scaled down); a rotation re-plugs it as in the window.
     private func enterPictureInPicture() {
-        guard let window, picture == nil, let content = window.contentView else { return }
+        guard let window, picture == nil, !editingKeymap, let content = screenView else { return }
         if window.styleMask.contains(.fullScreen) {
             pictureAfterFullScreen = true
             window.toggleFullScreen(nil)
@@ -1078,16 +1441,18 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         keymap?.focusLost()
         let size = lastSent.map { CGSize(width: Int($0.width), height: Int($0.height)) } ?? displayView.renderer.frameSize ?? content.bounds.size
         // Out of the window first: the window would take it back out of the panel.
-        window.contentView = NSView()
+        chrome?.pictureInPicture = true
+        chrome?.detachScreen()
+        content.layer?.cornerRadius = 0
+        content.layer?.borderWidth = 0
         let picture = PictureInPictureWindow(content: content, aspect: size.width / max(size.height, 1), screen: window.screen,
                                              settings: Self.windowModes)
         // The menus' actions reach this window from the panel.
         picture.panel.nextResponder = self
         picture.onBack = { [weak self] in self?.leavePictureInPicture(show: true) }
-        picture.onClose = { [weak self] in
-            self?.leavePictureInPicture(show: false)
-            self?.window?.close()
-        }
+        picture.onClose = { [weak self] in self?.closeFromPicture() }
+        // The ✕ ends the app in Android, as the red light does: it says so.
+        picture.setCloseLabel(String(localized: "Quit \(app?.label ?? "")", bundle: .windowHost))
         picture.onVisible = { [weak self] visible in self?.setOnScreen(visible) }
         picture.onKey = { [weak self] key in
             guard let self else { return }
@@ -1110,7 +1475,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     private func leavePictureInPicture(show: Bool) {
         guard let window, let picture else { return }
         self.picture = nil
-        if let content = picture.takeContent() { window.contentView = content }
+        if let content = picture.takeContent() { chrome?.attach(content) }
+        chrome?.pictureInPicture = false
         window.makeFirstResponder(lockOverlay.isShowing ? lockOverlay.focusTarget : displayView)
         guard show else { return }
         window.makeKeyAndOrderFront(nil)
@@ -1124,7 +1490,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// key mapping) with its own changes on top.
     private var graphics: ResolvedGraphics {
         guard let app else { return ResolvedGraphics(settings: .appsDefault, profile: .apps, reason: .none, changes: .init()) }
-        return app.config.graphics(for: app.package, hasKeyMapping: hasKeyMapping)
+        return app.config.graphics(for: app.package, hasKeyMapping: hasKeyMapping, isGame: app.isGame,
+                                   orientation: app.orientation)
     }
 
     /// The device profile's screen, which the phone's-screen mode gives Android.
@@ -1158,9 +1525,9 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     private func applyWindowConstraints() {
         guard let window, !window.styleMask.contains(.fullScreen) else { return }
         let settings = graphics.settings
-        let content = window.contentLayoutRect.size
+        let content = screenSize
         if let ratio = lockedRatio {
-            window.contentAspectRatio = fixedLandscape ? NSSize(width: ratio, height: 1) : NSSize(width: 1, height: ratio)
+            lockAspect(ratio)
             let long = max(content.width, content.height)
             setContentSize(fixedLandscape ? NSSize(width: long, height: long / ratio) : NSSize(width: long / ratio, height: long))
             return
@@ -1184,13 +1551,13 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         var size = wanted
         let visible = window.screen?.visibleFrame
         if let visible {
-            let room = window.contentRect(forFrameRect: visible).size
+            let room = screenSize(inFrame: visible.size)
             let k = min(1, room.width / size.width, room.height / size.height)
             size = NSSize(width: size.width * k, height: size.height * k)
         }
-        let current = window.contentLayoutRect.size
+        let current = screenSize
         guard abs(size.width - current.width) > 0.01 || abs(size.height - current.height) > 0.01 else { return }
-        var frame = window.frameRect(forContentRect: NSRect(origin: .zero, size: size))
+        var frame = NSRect(origin: .zero, size: frameSize(forScreen: size))
         frame.origin = NSPoint(x: window.frame.minX, y: window.frame.maxY - frame.height)
         if let visible {
             frame.origin.x = max(min(frame.minX, visible.maxX - frame.width), visible.minX)
@@ -1202,16 +1569,22 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// The daemon's configuration changed (`immediate`: from this window's
     /// View menu). Filter and sharpness apply on the next frame; a new size
     /// or density re-plugs once, after a short pause so a Control Panel
-    /// slider does not re-plug on every step.
-    func configurationChanged(from old: VMConfig, immediate: Bool) {
+    /// slider does not re-plug on every step. `wasGame`: what Android said
+    /// about the app before, when the same snapshot changed it too.
+    func configurationChanged(from old: VMConfig, immediate: Bool,
+                              wasGame: (isGame: Bool, orientation: VMConfig.Orientation?)? = nil) {
         guard let app else { return }
+        let oldGame = wasGame ?? (isGame: app.isGame, orientation: app.orientation)
         defer { quickSettings.refresh() }
         if old.performanceHUD != app.config.performanceHUD {
             hudOverride = nil
             applyHUDLevel()
         }
         if old.fpsLimit != app.config.fpsLimit { frameRateHint.setCap(app.config.fpsLimit) }
-        let before = old.graphics(for: app.package, hasKeyMapping: hasKeyMapping)
+        // The Control Panel's app bar style, for an app without its own.
+        if old.appBarStyle != app.config.appBarStyle { applyAppBarStyle() }
+        let before = old.graphics(for: app.package, hasKeyMapping: hasKeyMapping, isGame: oldGame.isGame,
+                                  orientation: oldGame.orientation)
         // The phone's screen is the device profile's: choosing another one changes it.
         let phoneChanged = old.deviceDisplay(in: app.profiles) != deviceDisplay
             && (before.settings.mode == .deviceProfile || graphics.settings.mode == .deviceProfile)
@@ -1248,12 +1621,14 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// The View menu's first line and which of its items apply (GraphicsMenu).
     var graphicsMenuMode: GraphicsMenuMode {
         let resolved = graphics
-        let base = resolved.profile == .games ? String(localized: "Game Settings", bundle: .windowHost)
-                                              : String(localized: "App Settings", bundle: .windowHost)
+        let base = resolved.profile == .games ? String(localized: "Preset: Games", bundle: .windowHost)
+                                              : String(localized: "Preset: Apps", bundle: .windowHost)
         let line = if !resolved.changes.isEmpty {
             String(localized: "\(base), changed for this app", bundle: .windowHost)
         } else if resolved.reason == .keyMapping {
-            String(localized: "Game Settings (key mapping)", bundle: .windowHost)
+            String(localized: "Preset: Games (key mapping)", bundle: .windowHost)
+        } else if resolved.reason == .androidGame {
+            String(localized: "Preset: Games (listed as a game)", bundle: .windowHost)
         } else {
             base
         }
@@ -1261,12 +1636,9 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     }
 
     @objc func toggleGameSettings(_ sender: Any?) {
-        guard let app else { return }
-        let chosen: GraphicsProfile = graphics.profile == .games ? .apps : .games
-        let automatic: GraphicsProfile = hasKeyMapping ? .games : .apps
-        var override = app.config.graphicsOverrides[app.package] ?? AppGraphicsOverride()
-        override.profile = chosen == automatic ? nil : chosen
-        saveGraphics(override)
+        // As Quick Settings and the app's page do: what the app changed stays,
+        // minus what the other preset has already.
+        quickSettingsChooseProfile(graphics.profile == .games ? .apps : .games)
     }
 
     @objc func chooseResolutionMode(_ sender: NSMenuItem) {
@@ -1352,7 +1724,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         var settings = resolved.settings
         change(&settings)
         var override = app.config.graphicsOverrides[app.package] ?? AppGraphicsOverride()
-        override.changes = GraphicsSettingsPatch.difference(settings, from: app.config.settings(for: resolved.profile))
+        override.changes = GraphicsSettingsPatch.difference(settings, from: resolved.base)
         saveGraphics(override)
     }
 
@@ -1365,7 +1737,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         if stored != nil, !UserDefaults.standard.bool(forKey: key) {
             UserDefaults.standard.set(true, forKey: key)
             quietNextSwitch = true
-            notice.show(String(localized: "Graphics settings saved for \(app.label). View ▸ Use Default Graphics Settings undoes this.",
+            notice.show(String(localized: "Graphics settings saved for \(app.label). View › Use Default Graphics Settings undoes this.",
                                bundle: .windowHost))
         }
         app.applyLocalOverride(stored)
@@ -1413,10 +1785,10 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
             guard choice == .deviceProfile else { break }
             // The phone's screen needs a phone: Avo's own identity has none.
             if deviceDisplay != nil, let name = app?.deviceProfile?.name {
-                item.title = String(localized: "Phone’s Screen (\(name))", bundle: .windowHost)
+                item.title = String(localized: "Screen Size: Phone (\(name))", bundle: .windowHost)
                 item.toolTip = nil
             } else {
-                item.title = String(localized: "Phone’s Screen", bundle: .windowHost)
+                item.title = String(localized: "Screen Size: Phone", bundle: .windowHost)
                 item.toolTip = String(localized: "Choose a phone in Avo’s Settings › Privacy & Security › Device profile.", bundle: .windowHost)
             }
             return deviceDisplay != nil
@@ -1450,6 +1822,236 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
             return nil
         }
         return true
+    }
+}
+
+/// Run in Background's light, after the window's own three: the system's
+/// own red light, turned blue. A copy of the close widget draws each look
+/// (`takePictures`), which this button shows with its hue made blue: the
+/// same fill, shine and pressed look, gray in a window in the back. Its
+/// glyph shows while the pointer is over the lights, lit as they are then.
+final class BackgroundLightButton: NSButton {
+    private typealias Pictures = (normal: NSImage, pressed: NSImage)
+    private var pictures: Pictures?
+    /// The last lit ones: the pointer over the lights of a window in the
+    /// back lights them up.
+    private var litPictures: Pictures?
+    private var hovering = false {
+        didSet { if hovering != oldValue { needsDisplay = true } }
+    }
+    private var lightsArea: NSTrackingArea?
+    private weak var lightsView: NSView?
+    private var observers: [NSObjectProtocol] = []
+
+    private static let glyph = NSColor(srgbRed: 0.04, green: 0.2, blue: 0.43, alpha: 1)
+    static let diameter: CGFloat = 14
+
+    convenience init(label: String, action: Selector?) {
+        self.init(frame: NSRect(x: 0, y: 0, width: Self.diameter, height: Self.diameter))
+        isBordered = false
+        title = ""
+        refusesFirstResponder = true
+        toolTip = label
+        setAccessibilityLabel(label)
+        self.action = action
+        translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            widthAnchor.constraint(equalToConstant: Self.diameter),
+            heightAnchor.constraint(equalToConstant: Self.diameter),
+        ])
+    }
+
+    override var intrinsicContentSize: NSSize { NSSize(width: Self.diameter, height: Self.diameter) }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        for observer in observers { NotificationCenter.default.removeObserver(observer) }
+        observers = []
+        guard let window else { return }
+        // Lit as the window comes to the front, gray as it goes to the back:
+        // after AppKit has turned its own lights.
+        let changes: [(Notification.Name, AnyObject)] = [
+            (NSWindow.didBecomeMainNotification, window), (NSWindow.didResignMainNotification, window),
+            (NSWindow.didBecomeKeyNotification, window), (NSWindow.didResignKeyNotification, window),
+            (NSApplication.didBecomeActiveNotification, NSApp), (NSApplication.didResignActiveNotification, NSApp),
+        ]
+        observers = changes.map { name, object in
+            NotificationCenter.default.addObserver(forName: name, object: object, queue: .main) { [weak self] _ in
+                DispatchQueue.main.async { MainActor.assumeIsolated { self?.takePictures() } }
+            }
+        }
+        trackLights()
+        takePictures()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        litPictures = nil
+        takePictures()
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        litPictures = nil
+        takePictures()
+    }
+
+    override func layout() {
+        super.layout()
+        trackLights()
+    }
+
+    /// The pointer over any of the lights shows this one's glyph, as it
+    /// does theirs: a tracking area over the row, from the red light to this.
+    private func trackLights() {
+        if let lightsArea { lightsView?.removeTrackingArea(lightsArea) }
+        lightsArea = nil
+        guard let close = window?.standardWindowButton(.closeButton), let row = close.superview else { return }
+        let mine = convert(bounds, to: row)
+        let area = NSTrackingArea(rect: close.frame.union(mine).insetBy(dx: -2, dy: -2),
+                                  options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
+        row.addTrackingArea(area)
+        lightsArea = area
+        lightsView = row
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        hovering = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        hovering = false
+    }
+
+    /// The close widget's look now, as it is and pressed, in blue.
+    private func takePictures() {
+        defer { needsDisplay = true }
+        guard let normal = picture(pressed: false), let pressed = picture(pressed: true) else {
+            pictures = nil
+            return
+        }
+        pictures = (normal.image, pressed.image)
+        if normal.lit { litPictures = pictures }
+    }
+
+    /// A new widget for each look, drawn here for a moment and never shown:
+    /// one that has drawn another look may still draw it a moment after.
+    private func picture(pressed: Bool) -> (image: NSImage, lit: Bool)? {
+        guard let window,
+              let widget = NSWindow.standardWindowButton(.closeButton, for: [.titled, .closable, .miniaturizable, .resizable]) else { return nil }
+        let scale = window.backingScaleFactor
+        let width = Int((bounds.width * scale).rounded()), height = Int((bounds.height * scale).rounded())
+        guard width > 0, height > 0,
+              let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8,
+                                         samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                                         bytesPerRow: 0, bitsPerPixel: 0) else { return nil }
+        rep.size = bounds.size
+        widget.frame = bounds
+        widget.isHighlighted = pressed
+        addSubview(widget)
+        widget.cacheDisplay(in: widget.bounds, to: rep)
+        widget.removeFromSuperview()
+        // A lit light is coloured in the middle; one in the back is gray.
+        let middle = rep.colorAt(x: width / 2, y: height / 2)?.usingColorSpace(.deviceRGB)
+        let lit = (middle?.saturationComponent ?? 0) > 0.3
+        Self.recolor(rep, hue: Self.blueHue(in: effectiveAppearance))
+        let image = NSImage(size: bounds.size)
+        image.addRepresentation(rep)
+        return (image, lit)
+    }
+
+    /// The hue of macOS's blue, in the appearance.
+    private static func blueHue(in appearance: NSAppearance) -> CGFloat {
+        var hue: CGFloat = 0.58
+        appearance.performAsCurrentDrawingAppearance {
+            if let blue = NSColor.systemBlue.usingColorSpace(.deviceRGB) { hue = blue.hueComponent }
+        }
+        return hue
+    }
+
+    /// Every coloured pixel takes the hue, keeping its saturation, brightness
+    /// and opacity: the red light's shine and shades, in blue. Grays stay.
+    private static func recolor(_ rep: NSBitmapImageRep, hue: CGFloat) {
+        guard let data = rep.bitmapData, rep.bitsPerPixel == 32, rep.samplesPerPixel == 4,
+              !rep.bitmapFormat.contains(.alphaFirst) else { return }
+        let premultiplied = !rep.bitmapFormat.contains(.alphaNonpremultiplied)
+        for y in 0..<rep.pixelsHigh {
+            for x in 0..<rep.pixelsWide {
+                let pixel = data + y * rep.bytesPerRow + x * 4
+                let alpha = CGFloat(pixel[3]) / 255
+                guard alpha > 0 else { continue }
+                let unit = premultiplied ? alpha : 1
+                let red = min(CGFloat(pixel[0]) / 255 / unit, 1)
+                let green = min(CGFloat(pixel[1]) / 255 / unit, 1)
+                let blue = min(CGFloat(pixel[2]) / 255 / unit, 1)
+                let high = max(red, green, blue), low = min(red, green, blue)
+                guard high - low > 0.01 else { continue }
+                let color = NSColor(deviceHue: hue, saturation: (high - low) / high, brightness: high, alpha: 1)
+                pixel[0] = UInt8((color.redComponent * unit * 255).rounded())
+                pixel[1] = UInt8((color.greenComponent * unit * 255).rounded())
+                pixel[2] = UInt8((color.blueComponent * unit * 255).rounded())
+            }
+        }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        if let pictures {
+            let shown = hovering ? litPictures ?? pictures : pictures
+            (isHighlighted ? shown.pressed : shown.normal).draw(in: bounds)
+        } else {
+            // No widget to draw from: a plain blue circle.
+            NSColor.systemBlue.setFill()
+            NSBezierPath(ovalIn: bounds.insetBy(dx: 0.5, dy: 0.5)).fill()
+        }
+        guard hovering else { return }
+        let configuration = NSImage.SymbolConfiguration(pointSize: 7.5, weight: .black)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [Self.glyph]))
+        guard let glyph = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)?
+            .withSymbolConfiguration(configuration) else { return }
+        let size = glyph.size
+        glyph.draw(in: NSRect(x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2 - 0.25, width: size.width, height: size.height))
+    }
+}
+
+/// The app's name in the title bar, after Back, in the title's own font and
+/// colour (which dims by itself in a window in the back). What Android
+/// calls the screen it shows follows, fainter, when it says more than the
+/// name: not the name again, nor a code name ("UnityPlayerActivity").
+final class TitlebarTitle: NSTextField {
+    convenience init() {
+        self.init(labelWithString: "")
+        lineBreakMode = .byTruncatingTail
+        maximumNumberOfLines = 1
+        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        setContentHuggingPriority(.defaultHigh, for: .horizontal)
+    }
+
+    func show(title: String, activity: String?) {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
+        let font = NSFont.titleBarFont(ofSize: 0)
+        let text = NSMutableAttributedString(string: title, attributes: [.font: font, .foregroundColor: NSColor.windowFrameTextColor,
+                                                                         .paragraphStyle: paragraph])
+        let activity = activity?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let codeName = !activity.contains(" ") && (activity.contains(".") || activity.hasSuffix("Activity"))
+        if !activity.isEmpty, !codeName, activity.localizedCaseInsensitiveCompare(title) != .orderedSame {
+            // A dynamic colour as it is: one with less alpha would keep the appearance it was made in.
+            text.append(NSAttributedString(string: " – \(activity)", attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor,
+                                                                                 .paragraphStyle: paragraph]))
+        }
+        attributedStringValue = text
+        toolTip = text.string
+        setAccessibilityLabel(text.string)
+    }
+}
+
+/// One side of the title bar: clicks go to its buttons, else on through to
+/// the title bar beneath (and, where the two sides overlap in a narrow
+/// window, to the other side's buttons), never to the side itself.
+private final class TitlebarSide: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let hit = super.hitTest(point)
+        return hit === self || hit is NSStackView ? nil : hit
     }
 }
 
@@ -1595,6 +2197,7 @@ extension AndroidWindowController: QuickSettingsTarget {
     var quickSettingsState: QuickSettingsState {
         var state = QuickSettingsState()
         guard let app else { return state }
+        state.appName = app.label
         state.graphics = graphics
         if let profile = app.deviceProfile, let display = profile.display {
             state.phone = .init(name: profile.name, display: display)
@@ -1607,9 +2210,11 @@ extension AndroidWindowController: QuickSettingsTarget {
         state.fpsChoices = FrameRates.choices(for: screens, keeping: app.config.fpsLimit)
         state.fpsNote = FrameRates.screenNote(cap: app.config.fpsLimit, screens: screens)
         state.hudLevel = hudLevel
+        state.appBarStyle = appBarStyle
         if let keymap, keymap.profile != nil {
             state.keyMapping = .init(gameMode: keymap.gameMode, hintsVisible: KeymapHints.visible, hintsOpacity: KeymapHints.opacity)
         }
+        state.canEditKeyMapping = keymap != nil && picture == nil && !editingKeymap
         state.scrollMode = WheelScrollController.settings.mode
         state.translating = translation.isActive
         state.canTranslate = displayID != nil
@@ -1621,7 +2226,7 @@ extension AndroidWindowController: QuickSettingsTarget {
     /// changed, minus what the new profile already has.
     func quickSettingsChooseProfile(_ choice: GraphicsProfile) {
         guard let app else { return }
-        let automatic: GraphicsProfile = hasKeyMapping ? .games : .apps
+        let automatic: GraphicsProfile = hasKeyMapping || app.isGame ? .games : .apps
         let base = app.config.settings(for: choice)
         saveGraphics(AppGraphicsOverride(profile: choice == automatic ? nil : choice,
                                          changes: .difference(graphics.changes.applied(to: base), from: base)))
@@ -1649,12 +2254,26 @@ extension AndroidWindowController: QuickSettingsTarget {
         setHUDLevel(level)
     }
 
+    func quickSettingsSetAppBarStyle(_ style: AppBarStyle) {
+        setAppBarStyle(style)
+    }
+
     func quickSettingsSetGameMode(_ on: Bool) {
         keymap?.setGameMode(on)
     }
 
     func quickSettingsSetTranslating(_ on: Bool) {
         if translation.isActive != on { translation.toggle() }
+    }
+
+    func quickSettingsOpenAppSettings() {
+        openAppSettings()
+    }
+
+    func quickSettingsEditKeyMapping() {
+        if quickSettings.isShown { quickSettings.toggle() }
+        // Opens it; one open already stays (a toggle would close it).
+        editKeyMappingWhenReady()
     }
 
     func quickSettingsAndroidVolume() async -> AndroidVolume? {

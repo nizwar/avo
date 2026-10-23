@@ -76,6 +76,9 @@ struct AppPage: View {
         }
         .animation(Haze.Motion.animation(Haze.Motion.content, reduceMotion: reduceMotion), value: allGraphics)
         .task(id: app.package) {
+            // Game or app, and the preset the graphics start from, follow
+            // the key mappings, which the app's window may have changed since.
+            model.refreshKeyMappings()
             keyMapping = await Self.mapping(for: app.package)
         }
         .onChange(of: model.keyMappedPackages) {
@@ -313,12 +316,12 @@ private struct AppGraphicsCard: View {
                 let settings = resolved.settings
                 let mode = settings.effectiveMode(device: model.deviceProfile?.display)
                 // The profile the app's graphics start from, switched right here.
-                let automatic: GraphicsProfile = model.hasKeyMapping(app.package) ? .games : .apps
+                let automatic: GraphicsProfile = model.hasKeyMapping(app.package) || model.listedAsGame(app.package) ? .games : .apps
                 HazeRows {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 4) {
                             Text("Preset").font(.mona(12)).foregroundStyle(Haze.textTertiary)
-                            HelpButton("Preset", "Apps and Games are the two presets in Settings › Graphics. Avo picks one by itself (an app with key mapping is a game); the changes made on this page stay on top of either.")
+                            HelpButton("Preset", "Apps and Games are the two presets in Settings › Graphics. Avo picks one by itself (an app with key mapping, or one Android lists as a game, is a game); the changes made on this page stay on top of either.")
                         }
                         HazeSegmented(options: [(GraphicsProfile.apps, Text("Apps")), (GraphicsProfile.games, Text("Games"))],
                                       selection: Binding(get: { resolved.profile }, set: { choice in
@@ -347,9 +350,9 @@ private struct AppGraphicsCard: View {
                         Group {
                             switch mode {
                             case .followWindow:
-                                Text("Follows the window (\(settings.renderScale)% render scale)")
+                                Text("Window (\(settings.renderScale)% render scale)")
                             case .deviceProfile:
-                                Text("Phone’s screen (\(model.deviceProfile?.name ?? ""))")
+                                Text("Phone (\(model.deviceProfile?.name ?? ""))")
                             case .fixed:
                                 if !Self.resolutions.contains(settings.shortSide) {
                                     Text("Fixed at \(GraphicsSettings.resolutionName(settings.shortSide))")
@@ -481,10 +484,10 @@ private struct AppControlsCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 4) {
-                Text("Controls").font(.mona(15, 600))
-                HelpButton("Controls") {
+                Text("Game controls").font(.mona(15, 600))
+                HelpButton("Game controls") {
                     Text("Game Mode turns keys and clicks into touches with the app’s key mapping. ⌘G turns it on and off in the app’s window; a new window starts the way the last one ended.")
-                    Text("The key mapping is edited over the game: in its window, choose Game Controls › Edit Key Mapping or press ⌘K.")
+                    Text("The key mapping is edited over the game: Create Key Mapping… (or Edit) below opens the app with the editor. In its window, choose Game Controls › Edit Key Mapping or press ⇧⌘K.")
                 }
             }
             if keyMapping != nil {
@@ -493,7 +496,7 @@ private struct AppControlsCard: View {
                 }
                 .toggleStyle(HazeCheckboxStyle())
                 Toggle(isOn: Binding(get: { keyHints }, set: { keyHints = $0; ShimPreferences(package: app.package).keyHintsVisible = $0 })) {
-                    Text("Show key hints").font(.mona(14))
+                    Text("Show keys on game").font(.mona(14))
                 }
                 .toggleStyle(HazeCheckboxStyle())
             } else {
@@ -502,7 +505,7 @@ private struct AppControlsCard: View {
                     .foregroundStyle(Haze.textTertiary)
             }
             Button {
-                model.open(app)
+                model.editKeyMapping(app)
             } label: {
                 Text(keyMapping == nil ? "Create Key Mapping…" : "Edit Key Mapping…")
                     .font(.mona(13, 600))
@@ -514,7 +517,7 @@ private struct AppControlsCard: View {
             }
             .buttonStyle(HazeCardButtonStyle())
             .hazeHover($keyMappingHover)
-            .help("Opens the app; edit the key mapping over it with ⌘K")
+            .help("Opens the app with the key mapping editor over the game. In its window, ⇧⌘K opens it too.")
         }
         .onAppear {
             let preferences = ShimPreferences(package: app.package)

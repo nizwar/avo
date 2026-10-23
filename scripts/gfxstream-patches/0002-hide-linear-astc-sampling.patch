@@ -1,0 +1,51 @@
+diff --git a/host/vulkan/vk_decoder_global_state.cpp b/host/vulkan/vk_decoder_global_state.cpp
+index 24f9fbc..991903f 100644
+--- a/host/vulkan/vk_decoder_global_state.cpp
++++ b/host/vulkan/vk_decoder_global_state.cpp
+@@ -10543,6 +10543,36 @@ class VkDecoderGlobalState::Impl {
+         pProperties->sampleCounts &= VK_SAMPLE_COUNT_1_BIT;
+     }
+ 
++#if defined(__APPLE__)
++    // Avo: Avo's Vulkan layer on the Mac reports sampled, linear-filtered
++    // linear tiling for ASTC LDR wherever optimal tiling has it, so that
++    // needEmulatedAstc() leaves ASTC to Metal instead of decompressing it.
++    // Metal has no linear compressed images: the guest must not see the two
++    // bits (Avo's guest layer used to take them away there).
++    static constexpr VkFormatFeatureFlags kLinearAstcSampling =
++        VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
++
++    static bool isAstcLdr(VkFormat format) {
++        return format >= VK_FORMAT_ASTC_4x4_UNORM_BLOCK && format <= VK_FORMAT_ASTC_12x12_SRGB_BLOCK;
++    }
++
++    static void hideLinearAstcSampling(VkFormat format, VkFormatProperties* pFormatProperties) {
++        if (!isAstcLdr(format)) return;
++        pFormatProperties->linearTilingFeatures &= ~kLinearAstcSampling;
++    }
++
++    static void hideLinearAstcSampling(VkFormat format, VkFormatProperties2* pFormatProperties) {
++        if (!isAstcLdr(format)) return;
++        pFormatProperties->formatProperties.linearTilingFeatures &= ~kLinearAstcSampling;
++        for (auto* s = reinterpret_cast<VkBaseOutStructure*>(pFormatProperties->pNext); s; s = s->pNext) {
++            if (s->sType == VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_3) {
++                reinterpret_cast<VkFormatProperties3*>(s)->linearTilingFeatures &=
++                    ~static_cast<VkFormatFeatureFlags2>(kLinearAstcSampling);
++            }
++        }
++    }
++#endif
++
+     template <class VkFormatProperties1or2>
+     void getPhysicalDeviceFormatPropertiesCore(
+         std::function<void(VkPhysicalDevice, VkFormat, VkFormatProperties1or2*)>
+@@ -10557,6 +10587,9 @@ class VkDecoderGlobalState::Impl {
+             return;
+         }
+         getPhysicalDeviceFormatPropertiesFunc(physicalDevice, format, pFormatProperties);
++#if defined(__APPLE__)
++        hideLinearAstcSampling(format, pFormatProperties);
++#endif
+     }
+ 
+     template <typename VkHandleToInfoMap,

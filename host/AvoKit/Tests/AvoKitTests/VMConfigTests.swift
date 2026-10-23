@@ -139,6 +139,7 @@ let macMini8 = HostInfo(physicalMemoryBytes: 8 << 30, performanceCores: 4, effic
         #expect(effect { $0.performanceHUD = .fps } == .immediate)
         #expect(effect { $0.appGraphics.orientation = .landscape } == .immediate)
         #expect(effect { $0.defaultWindowSize = .init(width: 500, height: 900) } == .newWindows) // App windows: no restart
+        #expect(effect { $0.appBarStyle = .phone } == .immediate) // open windows change their looks
         #expect(effect { $0.rooted = true } == .restartRequired)             // Sistem
         #expect(effect { $0.deviceProfileID = "xiaomi-14" } == .restartRequired)
         #expect(effect { $0.createDesktopAlias.toggle() } == .immediate)
@@ -232,6 +233,19 @@ let macMini8 = HostInfo(physicalMemoryBytes: 8 << 30, performanceCores: 4, effic
     }
 
     // MARK: Renderer
+
+    /// The standard title bar unless the user chose another, also in a file
+    /// from before the setting or with a style a newer Avo added.
+    @Test func appBarStyleDefaultsToStandard() throws {
+        #expect(VMConfig().appBarStyle == .standard)
+        let old = try JSONDecoder().decode(VMConfig.self, from: Data(#"{"memoryMiB": 6144}"#.utf8))
+        #expect(old.appBarStyle == .standard)
+        let newer = try JSONDecoder().decode(VMConfig.self, from: Data(#"{"appBarStyle": "floating"}"#.utf8))
+        #expect(newer.appBarStyle == .standard)
+        var phone = VMConfig()
+        phone.appBarStyle = .phone
+        #expect(try JSONDecoder().decode(VMConfig.self, from: JSONEncoder().encode(phone)).appBarStyle == .phone)
+    }
 
     @Test func rendererModeDefaultsToAutomatic() throws {
         #expect(VMConfig().rendererMode == .auto)

@@ -48,7 +48,8 @@ struct RendererStatusRow: View {
             // Avo.app brings its GPU renderer: only a damaged copy lacks it.
             return Text("This copy of Avo is missing its GPU renderer, so Android renders in software. Install Avo again to use the GPU.")
         case .emulatorUnsupported?:
-            return Text("GPU rendering needs the Android Emulator 37 or later; this Mac has \(renderer.emulatorVersion ?? "?"). Update it with Android Studio’s SDK Manager.")
+            // Avo.app brings its own: only an old or damaged copy has one too old.
+            return Text("This copy of Avo has an old GPU renderer (\(renderer.emulatorVersion ?? "?")), so Android renders in software. Install the latest Avo to use the GPU.")
         case .failed?:
             return Text("GPU rendering failed to start, so Android uses software rendering.")
         case .chosen?, nil:
