@@ -71,9 +71,10 @@
 //   (below, "Border colours").
 // - Settings' "OpenGL ES version" (debug.avo.gl.max): below 3.2 the layer
 //   leaves ANGLE's exposeES32ForTesting out; at 3.0 and 2.0 it takes the
-//   requirements ANGLE checks away — ES 3.1's storage-buffer count
-//   (vkGetPhysicalDeviceProperties2 answers fewer), ES 3.0's
-//   VK_EXT_provoking_vertex (no longer offered) — so every context stops
+//   requirements ANGLE checks away — ES 3.1's storage-buffer count, and
+//   for 2.0 ES 3.0's VK_EXT_provoking_vertex with, for the builds that
+//   offer ES 3.1 without it, their sample locations
+//   (vkGetPhysicalDeviceProperties2 answers both) — so every context stops
 //   at the chosen version (below, "The GLES version Avo offers").
 // - Images of the compressed formats gfxstream emulates (ASTC on the Mac):
 //   the host refills the uncompressed copy that shaders sample only in
@@ -1331,6 +1332,11 @@ static void physical_properties2(VkPhysicalDevice physical, VkPhysicalDeviceProp
     if (!next) return;
     next(physical, properties);
     if (instance->angle && gles_max() <= 30) properties->properties.limits.maxPerStageDescriptorStorageBuffers = 4;
+    // ES 2.0: taking VK_EXT_provoking_vertex away caps the builds that ask
+    // after it, and the older ones ("ANGLE up to mid-2025 offered ES 3.1
+    // regardless") need the sample locations gone too — ES 3.0's multisample
+    // renderbuffers cannot live without them.
+    if (instance->angle && gles_max() <= 20) properties->properties.limits.standardSampleLocations = VK_FALSE;
 }
 
 static VKAPI_ATTR void VKAPI_CALL GetPhysicalDeviceProperties2(VkPhysicalDevice physical,
