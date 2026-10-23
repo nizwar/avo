@@ -33,7 +33,8 @@ chosen, Avo still identifies itself to apps that check for it (the
     },
     "cpu": { "clusters": [
       { "cores": 1, "implementer": 65, "part": 3458, "maxFreqKHz": 3302400 },
-      { "cores": 5, "implementer": 65, "part": 3457, "maxFreqKHz": 3148800 },
+      { "cores": 3, "implementer": 65, "part": 3457, "maxFreqKHz": 3148800 },
+      { "cores": 2, "implementer": 65, "part": 3457, "maxFreqKHz": 2956800 },
       { "cores": 2, "implementer": 65, "part": 3456, "maxFreqKHz": 2265600 }
     ] },
     "gpu": {

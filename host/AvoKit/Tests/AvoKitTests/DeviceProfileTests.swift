@@ -254,24 +254,24 @@ import Testing
     @Test func aPhonesCPUFitsAndroidsCores() {
         typealias Cluster = DeviceHardware.CPU.Cluster
         let a520 = Cluster(cores: 2, implementer: 0x41, part: 0xD80, revision: 1, maxFreqKHz: 2_265_600, minFreqKHz: 300_000)
-        let a720 = Cluster(cores: 3, implementer: 0x41, part: 0xD81, maxFreqKHz: 2_956_800, minFreqKHz: 499_200)
-        let a720Fast = Cluster(cores: 2, implementer: 0x41, part: 0xD81, maxFreqKHz: 3_148_800, minFreqKHz: 499_200)
+        let a720 = Cluster(cores: 2, implementer: 0x41, part: 0xD81, maxFreqKHz: 2_956_800, minFreqKHz: 499_200)
+        let a720Fast = Cluster(cores: 3, implementer: 0x41, part: 0xD81, maxFreqKHz: 3_148_800, minFreqKHz: 499_200)
         let x4 = Cluster(cores: 1, implementer: 0x41, part: 0xD82, maxFreqKHz: 3_302_400, minFreqKHz: 576_000)
         let cpu = DeviceHardware.CPU(clusters: [a520, a720, a720Fast, x4])
         #expect(a520.midr == 0x410F_D801)
         #expect(Cluster(cores: 6, implementer: 0x51, part: 0x001, variant: 3, revision: 1).midr == 0x513F_0011)
         #expect(cpu.fitted(to: 8) == cpu)
         // Fewer vCPUs: the phone's fastest cores, still numbered from the slowest.
-        #expect(cpu.fitted(to: 4).clusters.map(\.cores) == [1, 2, 1])
-        #expect(cpu.fitted(to: 4).clusters.map(\.maxFreqKHz) == [2_956_800, 3_148_800, 3_302_400])
+        #expect(cpu.fitted(to: 4).clusters.map(\.cores) == [3, 1])
+        #expect(cpu.fitted(to: 4).clusters.map(\.maxFreqKHz) == [3_148_800, 3_302_400])
         #expect(cpu.fitted(to: 1).clusters == [x4])
         // More: the slowest cluster grows.
-        #expect(cpu.fitted(to: 10).clusters.map(\.cores) == [4, 3, 2, 1])
+        #expect(cpu.fitted(to: 10).clusters.map(\.cores) == [4, 2, 3, 1])
         // Listed fastest first (as the README's example), Android numbers them the same.
         #expect(DeviceHardware.CPU(clusters: [x4, a720Fast, a720, a520]).fitted(to: 8) == cpu)
         #expect(cpu.fitted(to: 0).clusters.isEmpty)
         #expect(cpu.engineClusters(vcpus: 8)
-            == "2x410fd801@300000-2265600,3x410fd810@499200-2956800,2x410fd810@499200-3148800,1x410fd820@576000-3302400")
+            == "2x410fd801@300000-2265600,2x410fd810@499200-2956800,3x410fd810@499200-3148800,1x410fd820@576000-3302400")
         #expect(cpu.engineClusters(vcpus: 2) == "1x410fd810@499200-3148800,1x410fd820@576000-3302400")
         // Without a lowest frequency, 300 MHz; without a top one, nothing to present.
         let noMin = DeviceHardware.CPU(clusters: [Cluster(cores: 4, implementer: 0x41, part: 0xD05, maxFreqKHz: 2_000_000)])

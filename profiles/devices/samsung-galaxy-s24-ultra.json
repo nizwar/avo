@@ -38,14 +38,14 @@
           "minFreqKHz": 300000
         },
         {
-          "cores": 3,
+          "cores": 2,
           "implementer": 65,
           "part": 3457,
           "maxFreqKHz": 2956800,
           "minFreqKHz": 499200
         },
         {
-          "cores": 2,
+          "cores": 3,
           "implementer": 65,
           "part": 3457,
           "maxFreqKHz": 3148800,
@@ -55,7 +55,7 @@
           "cores": 1,
           "implementer": 65,
           "part": 3458,
-          "maxFreqKHz": 3302400,
+          "maxFreqKHz": 3398400,
           "minFreqKHz": 576000
         }
       ]
