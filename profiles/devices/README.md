@@ -81,6 +81,17 @@ It reaches apps these ways, covering how apps actually read the hardware:
   `implementer`/`part` are decimal here (`65` = `0x41` ARM); `vkVendorID`,
   `vkDeviceID`, `vkDriverVersion` are numbers too (`20803` = `0x5143`
   Qualcomm). `vkDriverID` is a `VkDriverId` (`8` Qualcomm, `9` ARM).
+- **Build** — the identity's fingerprint names the whole build, as on the
+  phone: `ro.build.id`, `ro.build.version.incremental`, `ro.build.display.id`
+  (`Build.ID`, `INCREMENTAL`, `DISPLAY`), the description and flavor, every
+  partition's fingerprint, ID and incremental, and every partition's product
+  names (`ro.product.vendor.model`, ...), which otherwise stay the image's
+  (`aosp_cf_arm64_only_phone`, "Cuttlefish arm64 phone"). A value the
+  identity sets itself wins. Two stay the image's: the vendor partition's
+  build (`ro.vendor.build.*`), which Avo's guest patches check before they
+  apply, and `ro.build.type` / `ro.build.tags` (userdebug, test keys), which
+  say how Android really runs. Android treats the change like an update once
+  (it clears its code caches on the next boot).
 - **Memory** — `memoryGB` is the phone's RAM as sold (the base model's when
   it comes in several sizes). Android gets that much while the checkbox is
   on, in place of Settings › Performance › Memory, as far as the Mac allows

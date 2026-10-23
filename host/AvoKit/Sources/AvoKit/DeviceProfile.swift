@@ -123,12 +123,55 @@ public struct DeviceProfile: Codable, Identifiable, Equatable, Sendable {
         return hardware.soc != nil || hardware.cpu != nil || !(hardware.gpu?.isEmpty ?? true) || hardware.memoryGB != nil
     }
 
-    /// The identity properties, plus the hardware ones when `emulateHardware`
-    /// is on. The identity always wins, so a profile that sets `ro.soc.model`
-    /// itself keeps it. The engine writes this at boot (`AvoIdentity`).
+    /// The identity properties, plus the hardware ones and the phone's whole
+    /// build identity (`buildIdentityProperties`) when `emulateHardware` is
+    /// on. The identity always wins, so a profile that sets `ro.soc.model` or
+    /// `ro.build.id` itself keeps it. The engine writes this at boot (`AvoIdentity`).
     public func properties(emulateHardware: Bool) -> [String: String] {
         guard emulateHardware, let hardware else { return properties }
         return properties.merging(hardware.bootProperties()) { identity, _ in identity }
+            .merging(buildIdentityProperties()) { identity, _ in identity }
+    }
+
+    /// Partitions whose build names follow the phone. Not `vendor`: Avo's
+    /// guest patches (GuestComposer, GuestVulkanWrapper) bind only on the
+    /// image's own `ro.vendor.build.fingerprint`, so it stays the image's.
+    static let buildPartitions = productPartitions.filter { $0 != "vendor" }
+
+    /// What a real phone says about its build everywhere, from the profile's
+    /// fingerprint (`brand/name/device:release/id/incremental:type/tags`):
+    /// `Build.ID`, `Build.VERSION.INCREMENTAL`, `Build.DISPLAY`, the build
+    /// description and flavor, each partition's fingerprint, ID and
+    /// incremental, and each partition's product names, which otherwise stay
+    /// the image's ("aosp_cf_arm64_only_phone", "Cuttlefish arm64 phone").
+    /// `ro.build.type` and `ro.build.tags` stay the image's (userdebug, test
+    /// keys): that is how Android really runs. Empty for Avo's identity and
+    /// a profile without a valid fingerprint.
+    public func buildIdentityProperties() -> [String: String] {
+        guard !isAvoIdentity, let fingerprint = properties["ro.build.fingerprint"],
+              Self.isValidFingerprint(fingerprint) else { return [:] }
+        let parts = fingerprint.split(separator: ":").map { $0.split(separator: "/").map(String.init) }
+        let (name, release, id, incremental, type, tags) = (parts[0][1], parts[1][0], parts[1][1], parts[1][2], parts[2][0], parts[2][1])
+        let description = "\(name)-\(type) \(release) \(id) \(incremental) \(tags)"
+        var out = [
+            "ro.build.id": id,
+            "ro.build.version.incremental": incremental,
+            "ro.build.description": description,
+            // AOSP's own rule: a release build shows its ID, others the description.
+            "ro.build.display.id": type == "user" && tags == "release-keys" ? id : description,
+            "ro.build.flavor": "\(name)-\(type)",
+        ]
+        for partition in Self.buildPartitions {
+            out["ro.\(partition).build.fingerprint"] = fingerprint
+            out["ro.\(partition).build.id"] = id
+            out["ro.\(partition).build.version.incremental"] = incremental
+        }
+        for partition in Self.productPartitions {
+            for field in Self.productFields {
+                if let value = properties["ro.product.\(field)"] { out["ro.product.\(partition).\(field)"] = value }
+            }
+        }
+        return out
     }
 
     public var brand: String? { properties["ro.product.brand"] }

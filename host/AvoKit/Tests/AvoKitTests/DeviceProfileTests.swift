@@ -219,6 +219,43 @@ import Testing
         #expect(rog.cpu?.fitted(to: 8).clusters.map(\.cores) == [2, 2, 3, 1])
     }
 
+    /// With the hardware emulated, the whole build reads as the phone's,
+    /// from its fingerprint; the vendor partition's build keeps the image's
+    /// (Avo's guest patches bind on it), and type and tags stay the image's.
+    @Test func emulationNamesThePhonesBuildEverywhere() throws {
+        let catalog = try DeviceProfileCatalog(directory: Self.repoProfiles)
+        let rog = try #require(catalog.profile(id: "asus-rog-phone-8"))
+        let fingerprint = "asus/WW_AI2401/ASUS_AI2401:14/UKQ1.231108.001/34.1004.0204.81:user/release-keys"
+        #expect(rog.properties["ro.build.fingerprint"] == fingerprint)
+        let off = rog.properties(emulateHardware: false)
+        #expect(off["ro.build.id"] == nil && off["ro.product.vendor.model"] == nil, "off: only the identity")
+        let on = rog.properties(emulateHardware: true)
+        #expect(on["ro.build.id"] == "UKQ1.231108.001")
+        #expect(on["ro.build.version.incremental"] == "34.1004.0204.81")
+        #expect(on["ro.build.display.id"] == "UKQ1.231108.001")
+        #expect(on["ro.build.description"] == "WW_AI2401-user 14 UKQ1.231108.001 34.1004.0204.81 release-keys")
+        #expect(on["ro.build.flavor"] == "WW_AI2401-user")
+        for partition in ["system", "system_ext", "product", "odm", "bootimage", "system_dlkm"] {
+            #expect(on["ro.\(partition).build.fingerprint"] == fingerprint, "\(partition)")
+            #expect(on["ro.\(partition).build.id"] == "UKQ1.231108.001", "\(partition)")
+        }
+        #expect(on["ro.vendor.build.fingerprint"] == nil && on["ro.vendor.build.id"] == nil, "the image's, for Avo's patches")
+        #expect(on["ro.product.vendor.model"] == "ASUS_AI2401_A")
+        #expect(on["ro.product.system.brand"] == "asus")
+        #expect(on["ro.product.odm.device"] == "ASUS_AI2401")
+        #expect(on["ro.build.type"] == nil && on["ro.build.tags"] == nil, "how Android really runs")
+        // A profile's own value wins; a non-release build shows its description.
+        var own = rog
+        own.properties["ro.build.display.id"] = "WW_34.1004.0204.81"
+        own.properties["ro.build.fingerprint"] = "asus/WW_AI2401/ASUS_AI2401:14/UKQ1/34:userdebug/test-keys"
+        let mine = own.properties(emulateHardware: true)
+        #expect(mine["ro.build.display.id"] == "WW_34.1004.0204.81")
+        #expect(DeviceProfile(id: "x", name: "X", properties: own.properties).buildIdentityProperties()["ro.build.display.id"]
+            == "WW_AI2401-userdebug 14 UKQ1 34 test-keys")
+        // Avo's honest identity derives nothing; Android does.
+        #expect(DeviceProfile.avo.buildIdentityProperties().isEmpty)
+    }
+
     @Test func emulationAddsHardwarePropertiesButIdentityWins() {
         let gpu = DeviceHardware.GPU(glVendor: "Qualcomm", glRenderer: "Adreno (TM) 750",
                                      vkName: "Adreno (TM) 750", vkVendorID: 0x5143, vkDriverID: 8)
