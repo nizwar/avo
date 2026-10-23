@@ -408,7 +408,7 @@ GLES 3.2 and Vulkan 1.3.
   twenty-four, the one Metal has no stage for (above; a 3.2 context, their
   limits at zero; border colours are the nearest fixed one, the blends are
   ANGLE's own emulation) — first-vertex
-  `flat` varyings, no zero-copy
+  `flat` varyings, no zero-copy (the way through: [zero-copy.md](zero-copy.md))
   yet, no quick boot (below, after "Pause").
 - **Refresh rate** (`virtio/gpu/edid.rs`, both modes): the virtio-gpu offers
   EDIDs (`VIRTIO_GPU_F_EDID`). A scanout's preferred timing is its size at

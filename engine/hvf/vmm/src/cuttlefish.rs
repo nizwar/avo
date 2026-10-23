@@ -267,6 +267,47 @@ struct Tee {
     echo: bool,
 }
 
+/// The logcat console (hvc2), watching for one line of Avo's: when the sync
+/// layer finds the image's ANGLE has not the ES 3.2 feature the daemon
+/// named, it says so (guest/gfxsync). The engine answers by leaving a marker
+/// beside the logs, named after the image, and the daemon reads it before
+/// promising 3.2 again: this one boot told Android `ro.opengles.version`
+/// 3.2 it could not make; from the next start on that image, none is
+/// promised (`VMMEngine.es32Refuted`). A line may straddle two writes, so
+/// the tail of each is carried into the next look.
+struct LogcatWatch {
+    file: std::fs::File,
+    marker: PathBuf,
+    tail: Vec<u8>,
+}
+
+impl LogcatWatch {
+    fn new(file: std::fs::File, image: &Path, instance: &Path) -> LogcatWatch {
+        let name = image.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        LogcatWatch { file, marker: instance.join(format!("es32-refuted-{name}")), tail: Vec::new() }
+    }
+}
+
+impl Write for LogcatWatch {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        self.file.write_all(data)?;
+        const NEEDLE: &[u8] = b"contexts stay at their own cap";
+        self.tail.extend_from_slice(data);
+        if self.tail.windows(NEEDLE.len()).any(|w| w == NEEDLE) {
+            let _ = std::fs::write(&self.marker, b"");
+            self.tail.clear();
+        } else if self.tail.len() > NEEDLE.len() {
+            let keep = self.tail.len() - NEEDLE.len() + 1;
+            self.tail.drain(..keep - 1);
+        }
+        Ok(data.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.file.flush()
+    }
+}
+
 impl Write for Tee {
     fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
         self.file.write_all(data)?;
@@ -542,7 +583,7 @@ fn boot(options: &Options, renderer: Option<&RenderHost>, bluetooth: Option<&Arc
         let sink: Option<Sink> = match index {
             0 => Some(kernel_log(&kernel_file)?),
             1 => Some(Box::new(Tee { file: log("console.log")?, clients: console_clients.clone(), echo: false })),
-            2 => Some(Box::new(log("logcat.log")?)),
+            2 => Some(Box::new(LogcatWatch::new(log("logcat.log")?, &options.images, &options.instance))),
             // /dev/hvc5: the Bluetooth HAL's H4 (bluetooth.rs).
             5 => bluetooth.map(|bluetooth| bluetooth.sink()),
             7 => Some(gnss.sink()),

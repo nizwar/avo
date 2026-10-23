@@ -211,20 +211,42 @@ import Testing
         #expect(VMMEngine.exposesES32(image: image(sdk: 36)))
         #expect(!VMMEngine.exposesES32(image: image(sdk: 35)))
         #expect(!VMMEngine.exposesES32(image: nil))
-        let capable = VMMEngine.identityProperties(profile: .avo, plan: .gpu(emulator), image: image(sdk: 37),
+        let capable = VMMEngine.identityProperties(profile: .avo, plan: .gpu(emulator), es32Capable: true,
                                                    markers: markers)
         #expect(capable.contains("debug.avo.gl.es32=1\n"))
         #expect(capable.contains("ro.opengles.version=196610\n"))
         #expect(!capable.contains("debug.avo.gl.max"))
         // An image without it writes nothing: the bootconfig's 3.1 stands.
-        let incapable = VMMEngine.identityProperties(profile: .avo, plan: .gpu(emulator), image: image(sdk: 35),
+        let incapable = VMMEngine.identityProperties(profile: .avo, plan: .gpu(emulator), es32Capable: false,
                                                      markers: markers)
         #expect(!incapable.contains("es32"))
         #expect(!incapable.contains("opengles"))
         // A chosen lower version is the image's own choice to cap.
         let chosen = VMMEngine.identityProperties(profile: .avo, plan: .gpu(emulator), gles: .v3_1,
-                                                  image: image(sdk: 36), markers: markers)
+                                                  es32Capable: true, markers: markers)
         #expect(chosen.contains("debug.avo.gl.max=3.1\n"))
         #expect(chosen.contains("ro.opengles.version=196609\n"))
+    }
+
+    /// An image whose own ANGLE refused the promise once — avo-vmm heard the
+    /// sync layer say so in the guest's logcat and left a marker — is never
+    /// promised 3.2 again, whatever its API level says (`es32Refuted`).
+    @Test func aRefutedImageIsNeverPromised3_2Again() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: "avo-es32-\(UUID().uuidString.prefix(8))")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let paths = AvoPaths(home: root.appending(path: "home"), temporaryDirectory: root.appending(path: "tmp"))
+        let image = AndroidImage(schema: 1, version: "17", sdk: 37, kernel: "kernel", initrd: nil, partitions: [],
+                                 overlayStock: "", overlayRooted: "", files: [])
+        #expect(VMMEngine.exposesES32(image: image))
+        #expect(!VMMEngine.es32Refuted(image: image, paths: paths))
+        // What avo-vmm's LogcatWatch leaves beside the logs.
+        try FileManager.default.createDirectory(at: paths.instance, withIntermediateDirectories: true)
+        try Data().write(to: paths.instance.appending(path: "es32-refuted-\(image.directory.lastPathComponent)"))
+        #expect(VMMEngine.es32Refuted(image: image, paths: paths))
+        // Another image is untouched.
+        let other = AndroidImage(schema: 1, version: "16", sdk: 36, kernel: "kernel", initrd: nil, partitions: [],
+                                 overlayStock: "", overlayRooted: "", files: [],
+                                 directory: URL(filePath: "/images/android-16-15581820"))
+        #expect(!VMMEngine.es32Refuted(image: other, paths: paths))
     }
 }

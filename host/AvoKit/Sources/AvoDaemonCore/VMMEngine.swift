@@ -193,9 +193,20 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         (image?.sdk ?? 0) >= 36
     }
 
+    /// An image this Mac has already seen refuse the promise: the sync layer
+    /// read the image's renderer library and found no exposeES32ForTesting,
+    /// and said so in the guest's logcat, where avo-vmm was listening and
+    /// left this marker (`LogcatWatch` in cuttlefish.rs). The one boot that
+    /// told Android 3.2 it could not make is the most it costs: from the
+    /// next start of that image on, nothing is promised.
+    static func es32Refuted(image: AndroidImage, paths: AvoPaths) -> Bool {
+        let name = image.directory.lastPathComponent
+        return FileManager.default.fileExists(atPath: paths.instance.appending(path: "es32-refuted-\(name)").path)
+    }
+
     static func identityProperties(profile: DeviceProfile?, plan: GPUPlan, emulateHardware: Bool = false,
                                    vulkanWrapper: Bool = false, gles: VMConfig.GLESVersion = .v3_2,
-                                   image: AndroidImage? = nil,
+                                   es32Capable: Bool = false,
                                    markers: (AvoIdentity.Renderer) -> AvoIdentity.Markers) -> String {
         AvoIdentity.propertyFile(profile: profile, markers: markers(plan.isGPU ? .gpu : .software),
                                  emulateHardware: emulateHardware)
@@ -205,7 +216,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
             // choice (ro.opengles.version). 3.2 needs an ANGLE that has
             // exposeES32ForTesting (`exposesES32`); the bootconfig's floor is
             // 3.1. Software has no layer: its GLES is SwiftShader's, untouched.
-            + (plan.isGPU && gles == .v3_2 && exposesES32(image: image)
+            + (plan.isGPU && gles == .v3_2 && es32Capable
                 ? "debug.avo.gl.es32=1\nro.opengles.version=196610\n" : "")
             + (plan.isGPU && gles != .v3_2 ? "debug.avo.gl.max=\(gles.rawValue)\nro.opengles.version=\(gles.androidVersion)\n" : "")
     }
@@ -227,8 +238,9 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         // Android has it, as of its last ready boot, says if this start may fail by it.
         let wrapper = GuestVulkanWrapper.allowed(paths: launch.paths)
         let wrapperRuns = wrapper && plan.isGPU && GuestVulkanWrapper.installed(paths: launch.paths)
+        let es32 = Self.exposesES32(image: launch.image) && !Self.es32Refuted(image: launch.image, paths: launch.paths)
         try Self.identityProperties(profile: launch.profile, plan: plan, emulateHardware: launch.config.emulateHardware,
-                                    vulkanWrapper: wrapper, gles: launch.config.glesVersion, image: launch.image) {
+                                    vulkanWrapper: wrapper, gles: launch.config.glesVersion, es32Capable: es32) {
             .current(version: version, renderer: $0)
         }
             .write(to: Self.identityFile(launch.paths), atomically: true, encoding: .utf8)
