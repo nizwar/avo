@@ -17,6 +17,8 @@ SDK="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 API=36
 BT="$SDK/build-tools/$(ls "$SDK/build-tools" | sort -V | tail -1)"
 JAR="$SDK/platforms/android-$API/android.jar"
+# Without that platform, the newest one there is (only API 34 calls are used).
+[[ -f "$JAR" ]] || JAR="$(ls -d "$SDK"/platforms/android-* | sort -V | tail -1)/android.jar"
 OUT="$HERE/build"
 rm -rf "$OUT"
 mkdir -p "$OUT"/{res,classes,dex}
