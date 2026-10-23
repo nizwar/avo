@@ -169,7 +169,7 @@ device comes last (see "Shared folder" below). Frames go to shared memory
 **GPU (gfxstream).** Graphics › Renderer: Automatic (the default), GPU
 (Metal) or Software. With the GPU, Android's GLES (guest ANGLE) and Vulkan
 (`vulkan.ranchu`) go through gfxstream to MoltenVK and Metal; apps get
-GLES 3.1 and Vulkan 1.3.
+GLES 3.2 and Vulkan 1.3.
 
 - **The renderer** ships in Avo.app (`Contents/Resources/gfxstream`, built
   from source by `scripts/build-gfxstream.sh`, `make gfxstream`): gfxstream's
@@ -210,6 +210,10 @@ GLES 3.1 and Vulkan 1.3.
   bound where ANGLE keeps its push constants, so whatever an app drew after a
   `glClear` in the middle of a frame came out mirrored left-right and squeezed
   into the middle half (Microsoft Launcher); ANGLE now clears with its own draw.
+  A third, `exposeES32ForTesting` (OpenGL ES 3.2), goes in through
+  `ANGLE_FEATURE_OVERRIDES_ENABLED`, which the gfxstream sync layer writes in
+  every process as it loads, with the property's names: the property is full
+  at 91 bytes.
 - **Guest Vulkan layer** (`guest/gfxsync`, `GuestGfxstreamSync`): HostAgent
   installs `VK_LAYER_AVO_gfxstream_sync` in `/data/local/debug/vulkan` and
   names it in `debug.vulkan.layer.9` (from the boot after the first install),
@@ -228,10 +232,15 @@ GLES 3.1 and Vulkan 1.3.
   feature structure and the pipelines' provoking-vertex state out again
   before the driver sees them, so `flat` varyings come from a primitive's
   first vertex instead of its last. Apps' own Vulkan instances see it too:
-  avo-vmm's layer (below) offers it to every instance. Processes that start
-  before HostAgent names the layer, every
-  boot (SurfaceFlinger, system_server, SystemUI), stay at ES 2.0; they work
-  with either. A software start removes the file: unnamed, libvulkan still
+  avo-vmm's layer (below) offers it to every instance. The layer also turns
+  on ANGLE's `exposeES32ForTesting` as it loads (the constructor in its
+  source): OpenGL ES 3.2, which ANGLE otherwise caps at 3.1 over the
+  geometry shaders MoltenVK lacks (and its
+  `VK_KHR_blend_equation_advanced` and border-color samplers); apps get 3.2
+  contexts, and one that asks for geometry shaders finds their limits at
+  zero. Processes that start before HostAgent names the layer, every boot
+  (SurfaceFlinger, system_server, SystemUI), stay at ES 2.0; they work with
+  either. A software start removes the file: unnamed, libvulkan still
   opens every `libVkLayer*.so` in that folder in every app (userdebug), and
   apps whose packer refuses libraries from `/data/local` kill themselves when
   one turns up (FLUJO, ijiami). A Renderer change or "Try GPU Again" puts it
@@ -367,8 +376,9 @@ GLES 3.1 and Vulkan 1.3.
   avo-vmm, emulator or macOS; the Graphics pane and a banner say why, and the
   failed log is kept as `avo-vmm-gpu-failed.log`.
 - **Limits**: one refresh rate for all of Android's displays per boot (60
-  to 120 Hz; below), ES 3.1 (no geometry shaders in MoltenVK; with the
-  guest Vulkan layer, above), first-vertex `flat` varyings, no zero-copy
+  to 120 Hz; below), ES 3.2 without geometry shaders, advanced blend
+  equations and border-color samplers (above; a 3.2 context, their limits at
+  zero), first-vertex `flat` varyings, no zero-copy
   yet, no quick boot (below, after "Pause").
 - **Refresh rate** (`virtio/gpu/edid.rs`, both modes): the virtio-gpu offers
   EDIDs (`VIRTIO_GPU_F_EDID`). A scanout's preferred timing is its size at

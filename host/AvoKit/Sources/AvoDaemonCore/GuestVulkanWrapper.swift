@@ -23,7 +23,7 @@ import Foundation
 /// next boot: the init file bind-mounts in `post-fs-data`, before
 /// SurfaceFlinger and zygote, so every process of a GPU start uses the
 /// wrapper, SurfaceFlinger and SystemUI too (their ANGLE then offers OpenGL
-/// ES 3.1, as apps' does). It mounts only on a GPU start whose engine set
+/// ES 3.2, as apps' does). It mounts only on a GPU start whose engine set
 /// `switchProperty`: the daemon leaves it out after a GPU start that failed
 /// with the wrapper (`Failure`), so nothing in Android has to be undone.
 /// Without the overlays, or on another vendor build, HostAgent keeps the

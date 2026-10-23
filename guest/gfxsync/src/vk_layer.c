@@ -47,6 +47,18 @@
 //   before the driver sees them, so flat varyings keep the driver's
 //   convention: the first vertex of each primitive, where OpenGL ES takes the
 //   last. Apps' own Vulkan instances do not see the extension.
+// - OpenGL ES 3.2, which ANGLE otherwise caps at 3.1: of the extensions
+//   OpenGL ES 3.2 asks for, MoltenVK lacks two — geometry shaders (Metal has
+//   no such stage; the limits read zero) and border-color samplers (Metal's
+//   samplers take four fixed border colours, so there is no
+//   VK_EXT_custom_border_color). Advanced blend equations, the third an
+//   x86 emulator misses, ANGLE emulates itself on Android through
+//   framebuffer fetch, which Apple GPUs do (raster order); tessellation,
+//   cube map arrays, sample shading, GPUShader5 and the rest are the
+//   hardware's. The layer turns on ANGLE's exposeES32ForTesting, which
+//   raises the cap without the two missing ones: an app gets an ES 3.2
+//   context, and one that asks for geometry shaders or a border colour
+//   finds their limits at zero (the constructor at "ES 3.2" below).
 // - Images of the compressed formats gfxstream emulates (ASTC on the Mac):
 //   the host refills the uncompressed copy that shaders sample only in
 //   vkCmdPipelineBarrier, so after a vkCmdPipelineBarrier2 or vkCmdWaitEvents
@@ -82,6 +94,57 @@
 #define EXPORT __attribute__((visibility("default")))
 #define LAYER_NAME "VK_LAYER_AVO_gfxstream_sync"
 #define LOG(...) __android_log_print(ANDROID_LOG_INFO, "AvoGfxSync", __VA_ARGS__)
+
+// MARK: ES 3.2
+
+// ANGLE reads its feature overrides from ANGLE_FEATURE_OVERRIDES_ENABLED or
+// debug.angle.feature_overrides_enabled, and takes the variable alone when
+// both are there. The property is full (91 bytes, the two overrides Avo's
+// bootconfig sets; engine/hvf/vmm/src/virtio/gpu/guest.rs) and the variable
+// has no such limit, so the layer writes the variable. The instance that
+// loads this library is made before ANGLE reads either — its renderer comes
+// with the physical device, after the driver is in — and whatever the
+// property, or a developer's own variable, named rides along.
+#define AVO_FEATURES_ENV "ANGLE_FEATURE_OVERRIDES_ENABLED"
+#define AVO_FEATURES_PROPERTY "debug.angle.feature_overrides_enabled"
+#define AVO_ES32_FEATURE "exposeES32ForTesting"
+
+// Whether `name` is one of the ':'-separated names in `list`.
+static bool feature_named(const char* list, const char* name) {
+    size_t length = strlen(name);
+    while (list && *list) {
+        const char* separator = strchr(list, ':');
+        size_t item = separator ? (size_t)(separator - list) : strlen(list);
+        if (item == length && memcmp(list, name, length) == 0) return true;
+        list = separator ? separator + 1 : NULL;
+    }
+    return false;
+}
+
+__attribute__((constructor)) static void expose_es_3_2(void) {
+    char property[PROP_VALUE_MAX];
+    __system_property_get(AVO_FEATURES_PROPERTY, property);
+    char merged[512] = AVO_ES32_FEATURE;
+    const char* lists[] = {getenv(AVO_FEATURES_ENV), property};
+    for (size_t i = 0; i < sizeof lists / sizeof *lists; i++) {
+        for (const char* list = lists[i]; list && *list;) {
+            const char* separator = strchr(list, ':');
+            size_t length = separator ? (size_t)(separator - list) : strlen(list);
+            if (length >= sizeof merged - strlen(merged) - 1) break;  // no room for more
+            if (length) {
+                char name[64];
+                if (length < sizeof name) {
+                    memcpy(name, list, length);
+                    name[length] = '\0';
+                    if (!feature_named(merged, name)) strcat(strcat(merged, ":"), name);
+                }
+            }
+            list = separator ? separator + 1 : NULL;
+        }
+    }
+    setenv(AVO_FEATURES_ENV, merged, 1);
+    LOG("OpenGL ES 3.2: ANGLE's feature overrides are '%s'", merged);
+}
 
 // The loader's link structures (Android's vulkan/vk_layer_interface.h).
 enum { LAYER_LINK_INFO = 0 };

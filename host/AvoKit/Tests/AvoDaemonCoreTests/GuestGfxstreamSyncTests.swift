@@ -11,6 +11,16 @@ import Testing
         #expect(layer.sha256.count == 64)
     }
 
+    /// The layer turns ANGLE's exposeES32ForTesting on through
+    /// ANGLE_FEATURE_OVERRIDES_ENABLED as it loads, so apps get OpenGL ES 3.2
+    /// (guest/gfxsync/src/vk_layer.c): both strings are in the binary.
+    @Test func theLayerExposesES3_2() throws {
+        let layer = try #require(GuestGfxstreamSync.layer)
+        let missing = ["exposeES32ForTesting", "ANGLE_FEATURE_OVERRIDES_ENABLED"]
+            .filter { layer.data.firstRange(of: Data($0.utf8)) == nil }
+        #expect(missing.isEmpty, "the ES 3.2 strings are in the layer")
+    }
+
     @Test func theGuestCopyIsComparedByHash() throws {
         let sha = try #require(GuestGfxstreamSync.layer?.sha256)
         let path = GuestGfxstreamSync.path

@@ -21,7 +21,9 @@ pub fn graphics_bootconfig(mode: &GpuMode) -> Vec<(&'static str, &'static str)> 
         // ANGLE to gfxstream Vulkan (vulkan.ranchu), Vulkan straight there,
         // both over the virtio-gpu ASG ring to the Mac's GPU. With client
         // composition SurfaceFlinger composes on the GPU too and the composer
-        // only flips its target through KMS.
+        // only flips its target through KMS. ES 3.2 (196610): the sync layer
+        // turns ANGLE's exposeES32ForTesting on (guest/gfxsync; without it
+        // ANGLE caps at 3.1, for the geometry shaders MoltenVK lacks).
         GpuMode::Gfxstream { hwc, .. } => {
             let mut keys = vec![
                 ("androidboot.cpuvulkan.version", "0"),
@@ -37,7 +39,7 @@ pub fn graphics_bootconfig(mode: &GpuMode) -> Vec<(&'static str, &'static str)> 
                 ("androidboot.hardware.egl", "angle"),
                 ("androidboot.hardware.vulkan", "ranchu"),
                 ("androidboot.hardware.gltransport", "virtio-gpu-asg"),
-                ("androidboot.opengles.version", "196609"),
+                ("androidboot.opengles.version", "196610"),
                 ("androidboot.hardware.angle_feature_overrides_enabled", ANGLE_FEATURES_ENABLED),
             ]);
             keys
@@ -73,6 +75,11 @@ pub fn graphics_properties(mode: &GpuMode) -> &'static str {
 ///   (alpha 1.0f = 0x3f800000) unpacks to a vertex flip of (-1, 63/127): the rest of the
 ///   frame comes out mirrored left-right and squeezed into the middle half (Microsoft
 ///   Launcher, Skia/HWUI). MoltenVK 1.4.1 rewrote that state tracking.
+///
+/// This list is full, so exposeES32ForTesting (OpenGL ES 3.2, above) goes in
+/// through `ANGLE_FEATURE_OVERRIDES_ENABLED` instead, which has no length
+/// limit; the gfxstream sync layer writes that variable with this list's
+/// names in it (guest/gfxsync/src/vk_layer.c).
 const ANGLE_FEATURES_ENABLED: &str = "mapUnspecifiedColorSpaceToPassThrough:preferDrawClearOverVkCmdClearAttachments";
 
 #[cfg(test)]
@@ -90,6 +97,7 @@ mod tests {
         assert_eq!(keys.len(), 8);
         assert_eq!(keys[0], ("androidboot.cpuvulkan.version", "4206592"));
         assert_eq!(value(&keys, "androidboot.hardware.vulkan"), Some("pastel"));
+        assert_eq!(value(&keys, "androidboot.opengles.version"), Some("196609"));
         assert_eq!(value(&keys, "androidboot.hardware.hwcomposer.mode"), None);
         assert_eq!(value(&keys, "androidboot.hardware.gltransport"), None);
     }
@@ -102,6 +110,8 @@ mod tests {
         assert_eq!(value(&client, "androidboot.cpuvulkan.version"), Some("0"));
         assert_eq!(value(&client, "androidboot.hardware.gltransport"), Some("virtio-gpu-asg"));
         assert_eq!(value(&client, "androidboot.hardware.hwcomposer.mode"), Some("client"));
+        // ES 3.2: the sync layer turns ANGLE's exposeES32ForTesting on.
+        assert_eq!(value(&client, "androidboot.opengles.version"), Some("196610"));
         let host = graphics_bootconfig(&GpuMode::Gfxstream { dir: PathBuf::from("/e"), hwc: Hwc::Host });
         assert_eq!(value(&host, "androidboot.hardware.hwcomposer.mode"), None);
         assert_eq!(host.len() + 1, client.len());

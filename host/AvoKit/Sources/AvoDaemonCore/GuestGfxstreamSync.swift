@@ -23,7 +23,8 @@ import Foundation
 ///
 /// And it gives ANGLE's own instance `VK_EXT_provoking_vertex`, which the
 /// driver and MoltenVK lack: without it the image's ANGLE offers no OpenGL ES
-/// above 2.0, with it apps get ES 3.1. The layer drops the extension again on
+/// above 2.0, with it apps get ES 3.2 (the layer also turns ANGLE's
+/// exposeES32ForTesting on). The layer drops the extension again on
 /// its way to the driver, so `flat` varyings come from a primitive's first
 /// vertex rather than its last.
 ///

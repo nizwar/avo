@@ -5,9 +5,10 @@
 #
 #   libVkLayer_avo_gfxstream_sync.so  keeps the guest gfxstream Vulkan driver
 #                                     from deadlocking, splits fragment
-#                                     output arrays for MoltenVK, and gives
-#                                     ANGLE VK_EXT_provoking_vertex so apps
-#                                     get OpenGL ES 3.1
+#                                     output arrays for MoltenVK, gives
+#                                     ANGLE VK_EXT_provoking_vertex, and
+#                                     turns on its exposeES32ForTesting so
+#                                     apps get OpenGL ES 3.2
 #                                     (src/vk_layer.c says how)
 #
 # HostAgent installs it in /data/local/debug/vulkan in GPU mode and lists it
