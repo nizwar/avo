@@ -4664,6 +4664,16 @@
         }
       }
     },
+    "For development: apps read this phone’s SoC, hardware name, CPU, GPU, memory and screen, so a build’s per-device code paths (a chipset or brand check) run as they would on the real phone. Android gets the phone’s memory while it is on." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untuk pengembangan: aplikasi membaca SoC, nama perangkat keras, CPU, GPU, memori, dan layar ponsel ini, sehingga jalur kode per perangkat (pemeriksaan chipset atau merek) berjalan seperti di ponsel aslinya. Selama aktif, Android mendapat memori ponsel tersebut."
+          }
+        }
+      }
+    },
     "FPS" : {
       "localizations" : {
         "id" : {
@@ -4795,6 +4805,7 @@
       }
     },
     "For development: apps read this phone’s SoC, CPU, GPU and screen, so a build’s per-device code paths (a chipset or brand check) run as they would on the real phone." : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -5490,6 +5501,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "H+ · 7,2 Mbit/s"
+          }
+        }
+      }
+    },
+    "Hardware “%@”" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perangkat keras “%@”"
           }
         }
       }
@@ -9968,6 +9989,16 @@
         }
       }
     },
+    "This Mac gives Android %@ GB" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac ini memberi Android %@ GB"
+          }
+        }
+      }
+    },
     "This Mac’s location" : {
       "localizations" : {
         "id" : {
@@ -10904,6 +10935,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saat Bluetooth Android menyala, app-nya bisa menemukan dan memakai perangkat Bluetooth LE yang terlihat oleh Mac ini: jam, sensor, beacon. macOS meminta izin pada kali pertama."
+          }
+        }
+      }
+    },
+    "While “Emulate this phone’s hardware” is on, Android gets %@ GB, the most this Mac allows of the %@’s %lld GB." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selama “Tiru perangkat keras ponsel ini” aktif, Android mendapat %1$@ GB, batas Mac ini dari %3$lld GB milik %2$@."
+          }
+        }
+      }
+    },
+    "While “Emulate this phone’s hardware” is on, Android gets the %@’s %@ GB instead." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selama “Tiru perangkat keras ponsel ini” aktif, Android mendapat %2$@ GB milik %1$@."
           }
         }
       }
