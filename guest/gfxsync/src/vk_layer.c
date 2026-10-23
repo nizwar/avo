@@ -47,18 +47,30 @@
 //   before the driver sees them, so flat varyings keep the driver's
 //   convention: the first vertex of each primitive, where OpenGL ES takes the
 //   last. Apps' own Vulkan instances do not see the extension.
-// - OpenGL ES 3.2, which ANGLE otherwise caps at 3.1: of the extensions
-//   OpenGL ES 3.2 asks for, MoltenVK lacks two — geometry shaders (Metal has
-//   no such stage; the limits read zero) and border-color samplers (Metal's
-//   samplers take four fixed border colours, so there is no
-//   VK_EXT_custom_border_color). Advanced blend equations, the third an
-//   x86 emulator misses, ANGLE emulates itself on Android through
-//   framebuffer fetch, which Apple GPUs do (raster order); tessellation,
-//   cube map arrays, sample shading, GPUShader5 and the rest are the
-//   hardware's. The layer turns on ANGLE's exposeES32ForTesting, which
-//   raises the cap without the two missing ones: an app gets an ES 3.2
-//   context, and one that asks for geometry shaders or a border colour
-//   finds their limits at zero (the constructor at "ES 3.2" below).
+// - OpenGL ES 3.2, which ANGLE otherwise caps at 3.1: of the twenty-four
+//   extensions OpenGL ES 3.2 asks for, only geometry shaders are missing —
+//   Metal has no such stage (the limits read zero), and no layer can add a
+//   GPU stage to one. Border-colour samplers the layer stands in for (the
+//   next bullet), so twenty-three work: advanced blend equations ANGLE
+//   emulates itself on Android through framebuffer fetch, which Apple GPUs
+//   do (raster order); tessellation, cube map arrays, sample shading,
+//   GPUShader5 and the rest are the hardware's. The layer turns on ANGLE's
+//   exposeES32ForTesting, which raises the cap without geometry shaders: an
+//   app gets an ES 3.2 context, and one that asks for them finds their
+//   limits at zero (the constructor at "ES 3.2" below).
+// - VK_EXT_custom_border_color, which the driver has not (Metal's samplers
+//   take one of six fixed border colours): the layer offers the extension
+//   to ANGLE alone and answers its features, and when ANGLE makes a
+//   sampler with a custom border colour, the layer takes the colour to the
+//   nearest fixed one — GLES's own default (0,0,0,1) and the black and
+//   white corners are exact — so the driver never sees the custom one
+//   (below, "Border colours").
+// - Settings' "OpenGL ES version" (debug.avo.gl.max): below 3.2 the layer
+//   leaves ANGLE's exposeES32ForTesting out; at 3.0 and 2.0 it takes the
+//   requirements ANGLE checks away — ES 3.1's storage-buffer count
+//   (vkGetPhysicalDeviceProperties2 answers fewer), ES 3.0's
+//   VK_EXT_provoking_vertex (no longer offered) — so every context stops
+//   at the chosen version (below, "The GLES version Avo offers").
 // - Images of the compressed formats gfxstream emulates (ASTC on the Mac):
 //   the host refills the uncompressed copy that shaders sample only in
 //   vkCmdPipelineBarrier, so after a vkCmdPipelineBarrier2 or vkCmdWaitEvents
@@ -95,6 +107,27 @@
 #define LAYER_NAME "VK_LAYER_AVO_gfxstream_sync"
 #define LOG(...) __android_log_print(ANDROID_LOG_INFO, "AvoGfxSync", __VA_ARGS__)
 
+// MARK: The GLES version Avo offers
+
+// Settings' "OpenGL ES version" for this start: 20, 30, 31 or 32, and 3.2
+// when the property is unset. Read once; every process loads this layer
+// long after init put the property there (the daemon's identity file,
+// which the engine hands to Android before anything reads it).
+static int the_gles_max;
+
+static void read_gles_max(void) {
+    char value[PROP_VALUE_MAX];
+    __system_property_get("debug.avo.gl.max", value);
+    the_gles_max =
+        strcmp(value, "2.0") == 0 ? 20 : strcmp(value, "3.0") == 0 ? 30 : strcmp(value, "3.1") == 0 ? 31 : 32;
+}
+
+static int gles_max(void) {
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    pthread_once(&once, read_gles_max);
+    return the_gles_max;
+}
+
 // MARK: ES 3.2
 
 // ANGLE reads its feature overrides from ANGLE_FEATURE_OVERRIDES_ENABLED or
@@ -124,7 +157,9 @@ static bool feature_named(const char* list, const char* name) {
 __attribute__((constructor)) static void expose_es_3_2(void) {
     char property[PROP_VALUE_MAX];
     __system_property_get(AVO_FEATURES_PROPERTY, property);
-    char merged[512] = AVO_ES32_FEATURE;
+    // Settings' "OpenGL ES version" below 3.2 keeps ANGLE's cap where it is.
+    char merged[512] = "";
+    if (gles_max() >= 32) strcat(merged, AVO_ES32_FEATURE);
     const char* lists[] = {getenv(AVO_FEATURES_ENV), property};
     for (size_t i = 0; i < sizeof lists / sizeof *lists; i++) {
         for (const char* list = lists[i]; list && *list;) {
@@ -136,14 +171,18 @@ __attribute__((constructor)) static void expose_es_3_2(void) {
                 if (length < sizeof name) {
                     memcpy(name, list, length);
                     name[length] = '\0';
-                    if (!feature_named(merged, name)) strcat(strcat(merged, ":"), name);
+                    if (!feature_named(merged, name)) {
+                        if (merged[0]) strcat(merged, ":");
+                        strcat(merged, name);
+                    }
                 }
             }
             list = separator ? separator + 1 : NULL;
         }
     }
+    if (!merged[0]) return;
     setenv(AVO_FEATURES_ENV, merged, 1);
-    LOG("OpenGL ES 3.2: ANGLE's feature overrides are '%s'", merged);
+    LOG("OpenGL ES %d.%d: ANGLE's feature overrides are '%s'", gles_max() / 10, gles_max() % 10, merged);
 }
 
 // The loader's link structures (Android's vulkan/vk_layer_interface.h).
@@ -236,6 +275,9 @@ typedef struct Instance {
     PFN_vkEnumerateDeviceExtensionProperties enumerate_extensions;
     PFN_vkGetPhysicalDeviceFeatures2 features2;
     PFN_vkGetPhysicalDeviceFeatures2KHR features2_khr;
+    // The GLES version clamp answers through these (Settings' "OpenGL ES version").
+    PFN_vkGetPhysicalDeviceProperties2 properties2;
+    PFN_vkGetPhysicalDeviceProperties2KHR properties2_khr;
 } Instance;
 
 // The device functions the layer wraps, in the order of `wrapped` below.
@@ -252,6 +294,7 @@ enum {
     F_DestroySwapchainKHR,
     F_CreateShaderModule,
     F_CreateGraphicsPipelines,
+    F_CreateSampler,
     F_FreeMemory,
     F_FreeCommandBuffers,
     F_FreeDescriptorSets,
@@ -306,6 +349,9 @@ typedef struct Device {
     // ANGLE enabled the layer's VK_EXT_provoking_vertex: pipelines lose their
     // provoking-vertex state.
     bool provoking_vertex;
+    // ANGLE enabled the layer's VK_EXT_custom_border_color: samplers get
+    // their custom border colour taken to a fixed one.
+    bool border_colors;
     PFN_vkVoidFunction fn[F_COUNT];
     // Semaphores that carry a sync fd in the driver (exportable as one, or
     // imported from one): signalling them makes a submission wait in the lock.
@@ -1091,13 +1137,13 @@ static void relink(Unlinked unlinked) {
     if (unlinked.taken) unlinked.before->pNext = unlinked.taken;
 }
 
-// The driver's own device extensions, with room for one more; NULL on failure.
+// The driver's own device extensions, with room for two more; NULL on failure.
 static VkExtensionProperties* driver_extensions(Instance* instance, VkPhysicalDevice physical, uint32_t* count,
                                                 VkResult* result) {
     *count = 0;
     *result = instance->enumerate_extensions(physical, NULL, count, NULL);
     if (*result != VK_SUCCESS) return NULL;
-    VkExtensionProperties* all = calloc(*count + 1, sizeof *all);
+    VkExtensionProperties* all = calloc(*count + 2, sizeof *all);
     if (!all) {
         *result = VK_ERROR_OUT_OF_HOST_MEMORY;
         return NULL;
@@ -1131,6 +1177,19 @@ static bool stands_in_for_provoking_vertex(Instance* instance, VkPhysicalDevice 
     return !native;
 }
 
+// Whether the layer stands in for VK_EXT_custom_border_color here: ANGLE's
+// instance, and a driver without it. (Unknown means no.)
+static bool stands_in_for_border_colors(Instance* instance, VkPhysicalDevice physical) {
+    if (!instance || !instance->angle) return false;
+    uint32_t count;
+    VkResult result;
+    VkExtensionProperties* all = driver_extensions(instance, physical, &count, &result);
+    if (!all) return false;
+    bool native = has_extension(all, count, VK_EXT_CUSTOM_BORDER_COLOR_EXTENSION_NAME);
+    free(all);
+    return !native;
+}
+
 static VkResult device_extensions(Instance* instance, VkPhysicalDevice physical, uint32_t* count,
                                   VkExtensionProperties* properties) {
     if (!instance->angle) return instance->enumerate_extensions(physical, NULL, count, properties);
@@ -1138,9 +1197,13 @@ static VkResult device_extensions(Instance* instance, VkPhysicalDevice physical,
     VkResult result;
     VkExtensionProperties* all = driver_extensions(instance, physical, &have, &result);
     if (!all) return result;
-    if (!has_extension(all, have, VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME)) {
+    if (gles_max() > 20 && !has_extension(all, have, VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME)) {
         snprintf(all[have].extensionName, sizeof all[have].extensionName, "%s", VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME);
         all[have++].specVersion = VK_EXT_PROVOKING_VERTEX_SPEC_VERSION;
+    }
+    if (!has_extension(all, have, VK_EXT_CUSTOM_BORDER_COLOR_EXTENSION_NAME)) {
+        snprintf(all[have].extensionName, sizeof all[have].extensionName, "%s", VK_EXT_CUSTOM_BORDER_COLOR_EXTENSION_NAME);
+        all[have++].specVersion = VK_EXT_CUSTOM_BORDER_COLOR_SPEC_VERSION;
     }
     if (!properties) {
         *count = have;
@@ -1158,20 +1221,53 @@ static void physical_features2(VkPhysicalDevice physical, VkPhysicalDeviceFeatur
     Instance* instance = instance_of(physical);
     PFN_vkGetPhysicalDeviceFeatures2 next = !instance ? NULL : khr ? instance->features2_khr : instance->features2;
     if (!next) return;
-    Unlinked unlinked = {NULL, NULL};
-    if (instance->angle) {
-        unlinked = unlink_struct(features, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROVOKING_VERTEX_FEATURES_EXT);
-        if (unlinked.taken && !stands_in_for_provoking_vertex(instance, physical)) {
-            relink(unlinked);
-            unlinked.taken = NULL;
+    // Both stand-ins go out of the chain for the call: the driver has
+    // neither, and ANGLE's answers come from the layer.
+    Unlinked provoking = {NULL, NULL}, border = {NULL, NULL};
+    if (instance->angle && gles_max() > 20) {
+        provoking = unlink_struct(features, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROVOKING_VERTEX_FEATURES_EXT);
+        if (provoking.taken && !stands_in_for_provoking_vertex(instance, physical)) {
+            relink(provoking);
+            provoking.taken = NULL;
         }
     }
+    if (instance->angle) {
+        border = unlink_struct(features, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT);
+    }
     next(physical, features);
-    if (!unlinked.taken) return;
-    relink(unlinked);
-    VkPhysicalDeviceProvokingVertexFeaturesEXT* provoking = (VkPhysicalDeviceProvokingVertexFeaturesEXT*)unlinked.taken;
-    provoking->provokingVertexLast = VK_TRUE;
-    provoking->transformFeedbackPreservesProvokingVertex = VK_FALSE;
+    relink(provoking);
+    relink(border);
+    if (provoking.taken) {
+        VkPhysicalDeviceProvokingVertexFeaturesEXT* out = (VkPhysicalDeviceProvokingVertexFeaturesEXT*)provoking.taken;
+        out->provokingVertexLast = VK_TRUE;
+        out->transformFeedbackPreservesProvokingVertex = VK_FALSE;
+    }
+    if (border.taken) {
+        VkPhysicalDeviceCustomBorderColorFeaturesEXT* out = (VkPhysicalDeviceCustomBorderColorFeaturesEXT*)border.taken;
+        out->customBorderColors = VK_TRUE;
+        out->customBorderColorWithoutFormat = VK_TRUE;
+    }
+}
+
+// Settings' "OpenGL ES version" at 3.0 or 2.0: ES 3.1 asks ANGLE for more
+// storage buffers per stage than this answers, and every context stops at
+// 3.0. Apps' own instances see the driver's number unchanged.
+static void physical_properties2(VkPhysicalDevice physical, VkPhysicalDeviceProperties2* properties, bool khr) {
+    Instance* instance = instance_of(physical);
+    PFN_vkGetPhysicalDeviceProperties2 next = !instance ? NULL : khr ? instance->properties2_khr : instance->properties2;
+    if (!next) return;
+    next(physical, properties);
+    if (instance->angle && gles_max() <= 30) properties->properties.limits.maxPerStageDescriptorStorageBuffers = 4;
+}
+
+static VKAPI_ATTR void VKAPI_CALL GetPhysicalDeviceProperties2(VkPhysicalDevice physical,
+                                                               VkPhysicalDeviceProperties2* properties) {
+    physical_properties2(physical, properties, false);
+}
+
+static VKAPI_ATTR void VKAPI_CALL GetPhysicalDeviceProperties2KHR(VkPhysicalDevice physical,
+                                                                  VkPhysicalDeviceProperties2* properties) {
+    physical_properties2(physical, properties, true);
 }
 
 static VKAPI_ATTR void VKAPI_CALL GetPhysicalDeviceFeatures2(VkPhysicalDevice physical, VkPhysicalDeviceFeatures2* features) {
@@ -1260,6 +1356,96 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateGraphicsPipelines(VkDevice handle, V
     return pipelines_made(kept, result);
 }
 
+// MARK: Border colours
+
+// Metal's samplers take one of six fixed border colours. ANGLE sends a
+// custom one (VK_EXT_custom_border_color, which the layer stands in for);
+// the exact corners stay what they are, and any other colour becomes the
+// nearest corner — a border colour a game reads back would differ, nothing
+// else does.
+static VkBorderColor nearest_border_color(bool is_float, const VkClearColorValue* color, bool* rounded) {
+    static const VkBorderColor float_corners[3] = {
+        VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE};
+    static const VkBorderColor int_corners[3] = {
+        VK_BORDER_COLOR_INT_TRANSPARENT_BLACK, VK_BORDER_COLOR_INT_OPAQUE_BLACK, VK_BORDER_COLOR_INT_OPAQUE_WHITE};
+    *rounded = false;
+    if (is_float) {
+        const float* c = color->float32;
+        if (c[0] == 0 && c[1] == 0 && c[2] == 0 && c[3] == 0) return float_corners[0];
+        if (c[0] == 0 && c[1] == 0 && c[2] == 0 && c[3] == 1.0f) return float_corners[1];
+        if (c[0] == 1.0f && c[1] == 1.0f && c[2] == 1.0f && c[3] == 1.0f) return float_corners[2];
+        *rounded = true;
+        int best = 0;
+        float best_distance = 0;
+        for (int corner = 0; corner < 3; corner++) {
+            float distance = 0;
+            for (int i = 0; i < 4; i++) {
+                float side = c[i] - (corner == 2 ? 1.0f : i == 3 ? corner : 0.0f);
+                distance += side * side;
+            }
+            if (corner == 0 || distance < best_distance) {
+                best = corner;
+                best_distance = distance;
+            }
+        }
+        return float_corners[best];
+    }
+    const int32_t* c = color->int32;
+    if (c[0] == 0 && c[1] == 0 && c[2] == 0 && c[3] == 0) return int_corners[0];
+    if (c[0] == 0 && c[1] == 0 && c[2] == 0 && c[3] == 1) return int_corners[1];
+    if (c[0] == 1 && c[1] == 1 && c[2] == 1 && c[3] == 1) return int_corners[2];
+    *rounded = true;
+    int best = 0;
+    long best_distance = 0;
+    for (int corner = 0; corner < 3; corner++) {
+        long distance = 0;
+        for (int i = 0; i < 4; i++) {
+            long side = c[i] - (corner == 2 ? 1 : i == 3 ? corner : 0);
+            distance += side * side;
+        }
+        if (corner == 0 || distance < best_distance) {
+            best = corner;
+            best_distance = distance;
+        }
+    }
+    return int_corners[best];
+}
+
+static atomic_flag border_rounded_logged = ATOMIC_FLAG_INIT;
+
+// ANGLE's samplers with CLAMP_TO_BORDER carry VK_BORDER_COLOR_*_CUSTOM_EXT
+// and the colour in a pNext the driver has no extension for: the layer
+// swaps in the nearest fixed colour and takes the pNext out. The caller's
+// chain is whole again on return.
+static VKAPI_ATTR VkResult VKAPI_CALL CreateSampler(VkDevice handle, const VkSamplerCreateInfo* info,
+                                                    const VkAllocationCallbacks* a, VkSampler* out) {
+    Device* device = find_device(key_of(handle));
+    if (!device) return VK_ERROR_DEVICE_LOST;
+    if (info->borderColor != VK_BORDER_COLOR_FLOAT_CUSTOM_EXT && info->borderColor != VK_BORDER_COLOR_INT_CUSTOM_EXT) {
+        return NEXT(device, CreateSampler)(handle, info, a, out);
+    }
+    const VkSamplerCustomBorderColorCreateInfoEXT* custom = NULL;
+    for (const VkBaseInStructure* at = info->pNext; at; at = at->pNext) {
+        if (at->sType == VK_STRUCTURE_TYPE_SAMPLER_CUSTOM_BORDER_COLOR_CREATE_INFO_EXT) {
+            custom = (const VkSamplerCustomBorderColorCreateInfoEXT*)at;
+        }
+    }
+    if (!custom) return VK_ERROR_INITIALIZATION_FAILED;
+    bool is_float = info->borderColor == VK_BORDER_COLOR_FLOAT_CUSTOM_EXT;
+    bool rounded = false;
+    VkSamplerCreateInfo copy = *info;
+    Unlinked unlinked = unlink_struct(&copy, VK_STRUCTURE_TYPE_SAMPLER_CUSTOM_BORDER_COLOR_CREATE_INFO_EXT);
+    copy.borderColor = nearest_border_color(is_float, &custom->customBorderColor, &rounded);
+    VkResult result = NEXT(device, CreateSampler)(handle, &copy, a, out);
+    relink(unlinked);
+    if (result == VK_SUCCESS && rounded && !atomic_flag_test_and_set(&border_rounded_logged)) {
+        LOG("a custom border colour was taken to the nearest fixed one (%d %d %d %d)",
+            custom->customBorderColor.int32[0], custom->customBorderColor.int32[1], custom->customBorderColor.int32[2],
+            custom->customBorderColor.int32[3]);
+    }
+    return result;
+}
+
 static const struct {
     const char* name;
     PFN_vkVoidFunction function;
@@ -1271,6 +1457,7 @@ static const struct {
     W(QueuePresentKHR),
     W(QueueSignalReleaseImageANDROID),
     [F_QueueWaitIdle] = {"vkQueueWaitIdle", NULL},
+    W(CreateSampler),
     W(CreateSemaphore),
     W(ImportSemaphoreFdKHR),
     W(CreateSwapchainKHR),
@@ -1322,6 +1509,7 @@ static const struct {
 static PFN_vkVoidFunction wrapper(Device* device, const char* name) {
     for (int i = 0; i < F_COUNT; i++) {
         if (i == F_CreateGraphicsPipelines && !device->provoking_vertex && !device->moltenvk) continue;
+        if (i == F_CreateSampler && !device->border_colors) continue;
         // Emulated compressed textures: the gfxstream driver's devices only.
         if (i >= F_CreateImage && !device->gfxstream) continue;
         if (wrapped[i].function && strcmp(wrapped[i].name, name) == 0) {
@@ -1347,29 +1535,38 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical, co
     PFN_vkCreateDevice create = (PFN_vkCreateDevice)gipa(instance ? instance->handle : VK_NULL_HANDLE, "vkCreateDevice");
     if (!create) return VK_ERROR_INITIALIZATION_FAILED;
 
-    // The layer's VK_EXT_provoking_vertex goes no further: not the extension,
-    // nor its feature structure.
+    // The layer's VK_EXT_provoking_vertex and VK_EXT_custom_border_color go
+    // no further: neither the extensions, nor their feature structures.
     VkDeviceCreateInfo copy = *info;
     const char** names = NULL;
-    Unlinked feature = {NULL, NULL};
-    bool provoking_vertex = false;
+    Unlinked features[2] = {{NULL, NULL}, {NULL, NULL}};
+    bool provoking_vertex = false, border_colors = false;
     for (uint32_t i = 0; i < info->enabledExtensionCount; i++) {
         if (strcmp(info->ppEnabledExtensionNames[i], VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME) == 0) provoking_vertex = true;
+        if (strcmp(info->ppEnabledExtensionNames[i], VK_EXT_CUSTOM_BORDER_COLOR_EXTENSION_NAME) == 0) border_colors = true;
     }
     provoking_vertex = provoking_vertex && stands_in_for_provoking_vertex(instance, physical);
-    if (provoking_vertex) {
+    border_colors = border_colors && stands_in_for_border_colors(instance, physical);
+    if (provoking_vertex || border_colors) {
         if (!(names = malloc(info->enabledExtensionCount * sizeof *names))) return VK_ERROR_OUT_OF_HOST_MEMORY;
         copy.enabledExtensionCount = 0;
         for (uint32_t i = 0; i < info->enabledExtensionCount; i++) {
-            if (strcmp(info->ppEnabledExtensionNames[i], VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME) != 0) {
-                names[copy.enabledExtensionCount++] = info->ppEnabledExtensionNames[i];
-            }
+            const char* name = info->ppEnabledExtensionNames[i];
+            if (provoking_vertex && strcmp(name, VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME) == 0) continue;
+            if (border_colors && strcmp(name, VK_EXT_CUSTOM_BORDER_COLOR_EXTENSION_NAME) == 0) continue;
+            names[copy.enabledExtensionCount++] = name;
         }
         copy.ppEnabledExtensionNames = names;
-        feature = unlink_struct(&copy, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROVOKING_VERTEX_FEATURES_EXT);
+        if (provoking_vertex) {
+            features[0] = unlink_struct(&copy, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROVOKING_VERTEX_FEATURES_EXT);
+        }
+        if (border_colors) {
+            features[1] = unlink_struct(&copy, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT);
+        }
     }
     VkResult result = create(physical, &copy, allocator, out);
-    relink(feature);
+    relink(features[0]);
+    relink(features[1]);
     free(names);
     if (result != VK_SUCCESS) return result;
 
@@ -1396,6 +1593,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical, co
     device->gfxstream = gfxstream && device->fn[F_QueueSubmit];
     device->moltenvk = gfxstream && device->fn[F_CreateShaderModule];
     device->provoking_vertex = provoking_vertex && device->fn[F_CreateGraphicsPipelines];
+    device->border_colors = border_colors && device->fn[F_CreateSampler];
     if (device->gfxstream) {
         LOG("gfxstream device %p: %sdestroys are kept apart from submissions that signal sync fds, fragment output "
             "arrays are split for MoltenVK",
@@ -1478,6 +1676,8 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo*
         (PFN_vkEnumerateDeviceExtensionProperties)gipa(*out, "vkEnumerateDeviceExtensionProperties");
     instance->features2 = (PFN_vkGetPhysicalDeviceFeatures2)gipa(*out, "vkGetPhysicalDeviceFeatures2");
     instance->features2_khr = (PFN_vkGetPhysicalDeviceFeatures2KHR)gipa(*out, "vkGetPhysicalDeviceFeatures2KHR");
+    instance->properties2 = (PFN_vkGetPhysicalDeviceProperties2)gipa(*out, "vkGetPhysicalDeviceProperties2");
+    instance->properties2_khr = (PFN_vkGetPhysicalDeviceProperties2KHR)gipa(*out, "vkGetPhysicalDeviceProperties2KHR");
     // ANGLE names itself as the engine (and HWUI shares its instance).
     const VkApplicationInfo* app = info->pApplicationInfo;
     instance->angle = gfxstream_driver() && instance->enumerate_extensions && app && app->pEngineName
@@ -1572,6 +1772,12 @@ EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(VkInstance
         }
         if (strcmp(name, "vkGetPhysicalDeviceFeatures2KHR") == 0 && instance->features2_khr) {
             return (PFN_vkVoidFunction)GetPhysicalDeviceFeatures2KHR;
+        }
+        if (strcmp(name, "vkGetPhysicalDeviceProperties2") == 0 && instance->properties2) {
+            return (PFN_vkVoidFunction)GetPhysicalDeviceProperties2;
+        }
+        if (strcmp(name, "vkGetPhysicalDeviceProperties2KHR") == 0 && instance->properties2_khr) {
+            return (PFN_vkVoidFunction)GetPhysicalDeviceProperties2KHR;
         }
     }
     return instance->gipa(handle, name);

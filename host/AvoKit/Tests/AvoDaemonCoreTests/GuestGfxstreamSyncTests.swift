@@ -13,10 +13,13 @@ import Testing
 
     /// The layer turns ANGLE's exposeES32ForTesting on through
     /// ANGLE_FEATURE_OVERRIDES_ENABLED as it loads, so apps get OpenGL ES 3.2
-    /// (guest/gfxsync/src/vk_layer.c): both strings are in the binary.
+    /// (guest/gfxsync/src/vk_layer.c): those strings are in the binary, and
+    /// so is the border-colour stand-in and the property Settings' "OpenGL
+    /// ES" sets (VK_EXT_custom_border_color, debug.avo.gl.max).
     @Test func theLayerExposesES3_2() throws {
         let layer = try #require(GuestGfxstreamSync.layer)
-        let missing = ["exposeES32ForTesting", "ANGLE_FEATURE_OVERRIDES_ENABLED"]
+        let missing = ["exposeES32ForTesting", "ANGLE_FEATURE_OVERRIDES_ENABLED", "VK_EXT_custom_border_color",
+                       "debug.avo.gl.max"]
             .filter { layer.data.firstRange(of: Data($0.utf8)) == nil }
         #expect(missing.isEmpty, "the ES 3.2 strings are in the layer")
     }

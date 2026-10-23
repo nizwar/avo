@@ -213,7 +213,9 @@ GLES 3.2 and Vulkan 1.3.
   A third, `exposeES32ForTesting` (OpenGL ES 3.2), goes in through
   `ANGLE_FEATURE_OVERRIDES_ENABLED`, which the gfxstream sync layer writes in
   every process as it loads, with the property's names: the property is full
-  at 91 bytes.
+  at 91 bytes. Settings › Graphics' "OpenGL ES" below 3.2 leaves it out and
+  takes the requirements ANGLE checks away (the sync layer again), so a
+  start caps contexts at 2.0, 3.0 or 3.1 (`VMConfig.glesVersion`).
 - **Guest Vulkan layer** (`guest/gfxsync`, `GuestGfxstreamSync`): HostAgent
   installs `VK_LAYER_AVO_gfxstream_sync` in `/data/local/debug/vulkan` and
   names it in `debug.vulkan.layer.9` (from the boot after the first install),
@@ -234,15 +236,23 @@ GLES 3.2 and Vulkan 1.3.
   first vertex instead of its last. Apps' own Vulkan instances see it too:
   avo-vmm's layer (below) offers it to every instance. The layer also turns
   on ANGLE's `exposeES32ForTesting` as it loads (the constructor in its
-  source): OpenGL ES 3.2, which ANGLE otherwise caps at 3.1 over the two
-  extensions of its twenty-four that MoltenVK lacks, both because Metal does
-  — geometry shaders (no such stage; the limits read zero) and border-colour
-  samplers (four fixed border colours, no VK_EXT_custom_border_color).
-  Advanced blend equations, which x86 emulators also miss, ANGLE emulates
-  itself on Android through framebuffer fetch, which Apple GPUs do;
-  tessellation, cube map arrays, sample shading and GPUShader5 are the
-  hardware's. Apps get 3.2 contexts; one that asks for the missing two finds
-  their limits at zero. Processes that start before HostAgent names the layer, every boot
+  source): OpenGL ES 3.2, which ANGLE otherwise caps at 3.1, for ANGLE asks
+  after twenty-four extensions and one is missing — geometry shaders, which
+  Metal has no stage for (the limits read zero) and no layer can add to a
+  GPU. Border-colour samplers, the second the driver lacks, the layer
+  stands in for: it offers `VK_EXT_custom_border_color` to ANGLE alone and
+  answers its features, and takes each sampler's custom border colour to
+  the nearest of Metal's six fixed ones (GLES's default (0,0,0,1) and the
+  black and white corners are exact) before the driver sees it. Advanced
+  blend equations, which x86 emulators miss too, ANGLE emulates itself on
+  Android through framebuffer fetch, which Apple GPUs do; tessellation,
+  cube map arrays, sample shading and GPUShader5 are the hardware's. Apps
+  get 3.2 contexts; one that asks for geometry shaders finds their limits
+  at zero. Settings › Graphics' "OpenGL ES" picks a lower cap
+  (`debug.avo.gl.max`, the daemon's identity file): 3.1 leaves the feature
+  out; 3.0 also answers ANGLE's storage-buffer count question with a number
+  under ES 3.1's requirement; 2.0 also offers no `VK_EXT_provoking_vertex`.
+  `ro.opengles.version` says the same choice. Processes that start before HostAgent names the layer, every boot
   (SurfaceFlinger, system_server, SystemUI), stay at ES 2.0; they work with
   either. A software start removes the file: unnamed, libvulkan still
   opens every `libVkLayer*.so` in that folder in every app (userdebug), and
@@ -380,9 +390,10 @@ GLES 3.2 and Vulkan 1.3.
   avo-vmm, emulator or macOS; the Graphics pane and a banner say why, and the
   failed log is kept as `avo-vmm-gpu-failed.log`.
 - **Limits**: one refresh rate for all of Android's displays per boot (60
-  to 120 Hz; below), ES 3.2 without geometry shaders and border-colour
-  samplers, which Metal lacks (above; a 3.2 context, their limits at zero —
-  the advanced blend equations are ANGLE's own emulation), first-vertex
+  to 120 Hz; below), ES 3.2 without geometry shaders alone — of its
+  twenty-four, the one Metal has no stage for (above; a 3.2 context, their
+  limits at zero; border colours are the nearest fixed one, the blends are
+  ANGLE's own emulation) — first-vertex
   `flat` varyings, no zero-copy
   yet, no quick boot (below, after "Pause").
 - **Refresh rate** (`virtio/gpu/edid.rs`, both modes): the virtio-gpu offers
