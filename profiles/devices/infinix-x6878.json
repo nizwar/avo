@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "id": "infinix-x6878",
+  "name": "Infinix X6878",
+  "properties": {
+    "ro.product.brand": "Infinix",
+    "ro.product.manufacturer": "INFINIX",
+    "ro.product.model": "Infinix X6878",
+    "ro.product.device": "Infinix-X6878",
+    "ro.product.name": "X6878-OP",
+    "ro.build.fingerprint": "Infinix/X6878-OP/Infinix-X6878:16/BP2A.250605.031.A3/301500018:user/release-keys"
+  },
+  "display": {
+    "width": 1208,
+    "height": 2644,
+    "dpi": 480
+  },
+  "notes": "Read from a real Infinix X6878 (Snapdragon 7s Gen 3 / SM7635, Adreno 810, Android 16, build X6878-16.3.0.150SP09) on 2026-10-23 with getprop, dumpsys SurfaceFlinger and cmd gpu vkjson. The hardware block is used only when \"Emulate this phone's hardware\" is on.",
+  "hardware": {
+    "soc": {
+      "manufacturer": "QTI",
+      "model": "SM7635",
+      "platform": "volcano",
+      "board": "volcano"
+    },
+    "cpu": {
+      "clusters": [
+        {
+          "cores": 4,
+          "implementer": 65,
+          "part": 3456,
+          "revision": 1,
+          "maxFreqKHz": 1804800,
+          "minFreqKHz": 441600
+        },
+        {
+          "cores": 3,
+          "implementer": 65,
+          "part": 3457,
+          "revision": 1,
+          "maxFreqKHz": 2400000,
+          "minFreqKHz": 480000
+        },
+        {
+          "cores": 1,
+          "implementer": 65,
+          "part": 3457,
+          "revision": 1,
+          "maxFreqKHz": 2707200,
+          "minFreqKHz": 480000
+        }
+      ]
+    },
+    "gpu": {
+      "glVendor": "Qualcomm",
+      "glRenderer": "Adreno (TM) 810",
+      "glVersion": "V@0800.74 (GIT@a97e8c1cc4, I1c372a512c, 1778485024) (Date:05/11/26)",
+      "vkName": "Adreno (TM) 810",
+      "vkVendorID": 20803,
+      "vkDeviceID": 1140916224,
+      "vkDriverVersion": 2150760522,
+      "vkDriverID": 8,
+      "vkDriverName": "Qualcomm Technologies Inc. Adreno Vulkan Driver",
+      "vkDriverInfo": "Driver Build: a97e8c1cc4, I1c372a512c, 1778485024"
+    }
+  }
+}
