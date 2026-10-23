@@ -87,11 +87,12 @@ It reaches apps these ways, covering how apps actually read the hardware:
   partition's fingerprint, ID and incremental, and every partition's product
   names (`ro.product.vendor.model`, ...), which otherwise stay the image's
   (`aosp_cf_arm64_only_phone`, "Cuttlefish arm64 phone"). A value the
-  identity sets itself wins. Two stay the image's: the vendor partition's
-  build (`ro.vendor.build.*`), which Avo's guest patches check before they
-  apply, and `ro.build.type` / `ro.build.tags` (userdebug, test keys), which
-  say how Android really runs. Android treats the change like an update once
-  (it clears its code caches on the next boot).
+  identity sets itself wins. `Build.TYPE` and `Build.TAGS` follow the
+  fingerprint too (`user`, `release-keys`); what Android really allows stays
+  in `ro.debuggable`. The vendor partition's build (`ro.vendor.build.*`)
+  stays the image's, which Avo's guest patches check before they apply.
+  Android treats the change like an update once (it clears its code caches
+  on the next boot).
 - **Memory** — `memoryGB` is the phone's RAM as sold (the base model's when
   it comes in several sizes). Android gets that much while the checkbox is
   on, in place of Settings › Performance › Memory, as far as the Mac allows
@@ -132,10 +133,12 @@ Rules enforced by `DeviceProfile.validate()` (AvoKit) and CI:
   `ro.build.description`, `ro.build.product`, `ro.build.display.id`,
   `ro.build.id`, `ro.build.version.incremental`, `ro.build.tags`,
   `ro.build.type`, `ro.build.flavor`, `ro.soc.manufacturer` and
-  `ro.soc.model`, and a partition's own build names
-  (`ro.system.build.fingerprint`, `.id`, `.version.incremental`; every
-  partition but `vendor`), for a phone whose system image comes from
-  another build than its vendor one (Qualcomm's QSSI). Security state
+  `ro.soc.model`, and every partition's names: `ro.product.<partition>.*`
+  and `ro.<partition>.build.fingerprint`, `.id`, `.version.incremental`,
+  `.type` and `.tags` (any partition but `vendor`'s build, including a
+  phone's own such as Transsion's `tr_region`), for a phone whose system
+  image comes from another build than its vendor one (Qualcomm's QSSI). An
+  empty value blanks a partition the phone does not have. Security state
   (`ro.debuggable`, `ro.secure`, verified boot), hardware (`ro.hardware*`,
   which picks drivers and init scripts), ABI lists, API levels and Avo's own
   `ro.boot.avo.*` markers are rejected.

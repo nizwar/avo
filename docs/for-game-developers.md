@@ -169,8 +169,8 @@ adb shell pm list features | grep avo     # feature:com.avodroid.feature.MAC=1
   `ro.boot.avo.host.chip`. With "Emulate this phone's hardware" on, these,
   the CPU, the GPU strings, the memory and the build names (`Build.ID`,
   `DISPLAY`, the partitions' fingerprints) are the chosen phone's instead
-  (`profiles/devices/README.md`); the `ro.boot.avo.*` markers stay, and so
-  do `Build.TYPE` `userdebug` and `Build.TAGS` `test-keys`.
+  (`profiles/devices/README.md`), `Build.TYPE` and `TAGS` included; the
+  `ro.boot.avo.*` markers stay, and `ro.debuggable` says what Android allows.
 - Avo ships no Google apps. Users may install a Google apps package
   themselves and register the device at Google's page for uncertified
   devices. Play Integrity's device integrity verdict fails on Avo, and keys

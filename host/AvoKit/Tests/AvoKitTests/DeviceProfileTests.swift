@@ -105,6 +105,22 @@ import Testing
         #expect(DeviceProfile.isIdentityProperty(key))
     }
 
+    /// Phones have partitions of their own (Transsion's `tr_*`), and a
+    /// partition the phone lacks is blanked; the vendor build stays the image's.
+    @Test func anyPartitionButVendorsBuild() {
+        for key in ["ro.product.tr_carrier.model", "ro.tr_region.build.fingerprint", "ro.tr_misc.build.tags",
+                    "ro.odm.build.type", "ro.product.vendor.model"] {
+            #expect(DeviceProfile.isIdentityProperty(key), "\(key)")
+        }
+        for key in ["ro.vendor.build.id", "ro.boot.build.id", "ro.Tr.build.id", "ro.product.tr_x.abilist",
+                    "ro.tr_x.build.date", "ro.product.cpu.abilist"] {
+            #expect(!DeviceProfile.isIdentityProperty(key), "\(key)")
+        }
+        var properties = Self.validProperties
+        properties["ro.system_dlkm.build.fingerprint"] = ""
+        #expect(DeviceProfile(id: "x", name: "X", properties: properties).validate().isEmpty)
+    }
+
     /// A partition's own fingerprint is checked like the build's.
     @Test func partitionFingerprintsMustLookLikeOne() {
         var properties = Self.validProperties
@@ -254,7 +270,8 @@ import Testing
         #expect(on["ro.product.vendor.model"] == "ASUS_AI2401_A")
         #expect(on["ro.product.system.brand"] == "asus")
         #expect(on["ro.product.odm.device"] == "ASUS_AI2401")
-        #expect(on["ro.build.type"] == nil && on["ro.build.tags"] == nil, "how Android really runs")
+        #expect(on["ro.build.type"] == "user" && on["ro.build.tags"] == "release-keys", "as the phone says")
+        #expect(on["ro.system.build.type"] == "user" && on["ro.vendor.build.type"] == nil)
         // A profile's own value wins; a non-release build shows its description.
         var own = rog
         own.properties["ro.build.display.id"] = "WW_34.1004.0204.81"

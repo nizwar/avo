@@ -75,11 +75,29 @@ public struct DeviceProfile: Codable, Identifiable, Equatable, Sendable {
 
     /// A partition's own build names, as a phone has them: its system image
     /// often comes from another brand (Qualcomm's QSSI, "Transsion/tssi/...")
-    /// than its vendor one. Not the vendor partition's: Avo's guest patches
-    /// bind only on the image's `ro.vendor.build.fingerprint`.
-    public static let partitionBuildProperties: Set<String> = Set(buildPartitions.flatMap { partition in
-        ["fingerprint", "id", "version.incremental"].map { "ro.\(partition).build.\($0)" }
-    })
+    /// than its vendor one, and phones add partitions of their own
+    /// (`tr_carrier`, `tr_region`). Not the vendor partition's: Avo's guest
+    /// patches bind only on the image's `ro.vendor.build.fingerprint`.
+    static let partitionBuildFields = ["fingerprint", "id", "version.incremental", "type", "tags"]
+    /// Words that are not partitions in `ro.<word>.build.*`.
+    static let notPartitions: Set<String> = ["vendor", "boot", "build", "hardware", "kernel", "debug"]
+
+    /// A partition name as Android spells it in its properties: 1-32 of
+    /// a-z, 0-9 and `_`.
+    static func isPartitionName(_ name: Substring) -> Bool {
+        (1...32).contains(name.count) && name.allSatisfy { ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "_" }
+    }
+
+    /// `ro.<partition>.build.<field>` for a partition other than `vendor`.
+    public static func isPartitionBuildProperty(_ key: String) -> Bool {
+        guard key.hasPrefix("ro.") else { return false }
+        let rest = key.dropFirst(3)
+        guard let dot = rest.firstIndex(of: ".") else { return false }
+        let partition = rest[..<dot]
+        let after = rest[rest.index(after: dot)...]
+        guard after.hasPrefix("build."), isPartitionName(partition), !notPartitions.contains(String(partition)) else { return false }
+        return partitionBuildFields.contains(String(after.dropFirst("build.".count)))
+    }
 
     /// Security state, debuggability and verified boot; the hardware
     /// (`ro.hardware*` picks init scripts, graphics and audio drivers) and
@@ -93,12 +111,12 @@ public struct DeviceProfile: Codable, Identifiable, Equatable, Sendable {
     /// strings only. ABI lists, API levels, hardware drivers and Avo's own
     /// `ro.boot.avo.*` markers are not identity.
     public static func isIdentityProperty(_ key: String) -> Bool {
-        if buildProperties.contains(key) || partitionBuildProperties.contains(key) { return true }
+        if buildProperties.contains(key) || isPartitionBuildProperty(key) { return true }
         guard key.hasPrefix("ro.product.") else { return false }
         let parts = key.dropFirst("ro.product.".count).split(separator: ".", omittingEmptySubsequences: false)
         switch parts.count {
         case 1: return productFields.contains(String(parts[0]))
-        case 2: return productPartitions.contains(String(parts[0])) && productFields.contains(String(parts[1]))
+        case 2: return isPartitionName(parts[0]) && productFields.contains(String(parts[1]))
         default: return false
         }
     }
@@ -150,11 +168,12 @@ public struct DeviceProfile: Codable, Identifiable, Equatable, Sendable {
     /// fingerprint (`brand/name/device:release/id/incremental:type/tags`):
     /// `Build.ID`, `Build.VERSION.INCREMENTAL`, `Build.DISPLAY`, the build
     /// description and flavor, each partition's fingerprint, ID and
-    /// incremental, and each partition's product names, which otherwise stay
-    /// the image's ("aosp_cf_arm64_only_phone", "Cuttlefish arm64 phone").
-    /// `ro.build.type` and `ro.build.tags` stay the image's (userdebug, test
-    /// keys): that is how Android really runs. Empty for Avo's identity and
-    /// a profile without a valid fingerprint.
+    /// incremental, type and tags, and each partition's product names,
+    /// which otherwise stay the image's ("aosp_cf_arm64_only_phone",
+    /// "Cuttlefish arm64 phone"). `Build.TYPE` and `Build.TAGS` read the
+    /// phone's too ("user", "release-keys"); what Android really allows
+    /// stays in `ro.debuggable` and `ro.boot.avo.*`. Empty for Avo's identity
+    /// and a profile without a valid fingerprint.
     public func buildIdentityProperties() -> [String: String] {
         guard !isAvoIdentity, let fingerprint = properties["ro.build.fingerprint"],
               Self.isValidFingerprint(fingerprint) else { return [:] }
@@ -168,11 +187,15 @@ public struct DeviceProfile: Codable, Identifiable, Equatable, Sendable {
             // AOSP's own rule: a release build shows its ID, others the description.
             "ro.build.display.id": type == "user" && tags == "release-keys" ? id : description,
             "ro.build.flavor": "\(name)-\(type)",
+            "ro.build.type": type,
+            "ro.build.tags": tags,
         ]
         for partition in Self.buildPartitions {
             out["ro.\(partition).build.fingerprint"] = fingerprint
             out["ro.\(partition).build.id"] = id
             out["ro.\(partition).build.version.incremental"] = incremental
+            out["ro.\(partition).build.type"] = type
+            out["ro.\(partition).build.tags"] = tags
         }
         for partition in Self.productPartitions {
             for field in Self.productFields {
@@ -216,8 +239,10 @@ public struct DeviceProfile: Codable, Identifiable, Equatable, Sendable {
                 problems.append("\(key) is part of the build fingerprint: no spaces, '/' or ':'")
             }
         }
+        // A partition's may be empty: the phone has no such partition.
         for (key, fingerprint) in properties.sorted(by: { $0.key < $1.key })
-        where key.hasSuffix("build.fingerprint") && !Self.isValidFingerprint(fingerprint) {
+        where key.hasSuffix("build.fingerprint") && !Self.isValidFingerprint(fingerprint)
+            && !(key != "ro.build.fingerprint" && fingerprint.isEmpty) {
             problems.append("\(key) must look like brand/product/device:release/id/incremental:type/tags")
         }
         if let display {
