@@ -14,6 +14,17 @@ import Testing
         #expect(wrapper.sha256.count == 64)
     }
 
+    /// The GPU profile layer rides in the wrapper (guest/gpuprofile, linked
+    /// in beside the sync layer): the wrapper enters it by its renamed
+    /// avo_profile_* entry points, so the spoof needs no layer in
+    /// /data/local/debug and no debug.vulkan.layers (HostAgent).
+    @Test func theProfileLayerRidesInTheWrapper() throws {
+        let wrapper = try #require(GuestVulkanWrapper.wrapper)
+        let symbols = ["avo_profile_create_instance", "avo_profile_create_device", "avo_profile_vkGetInstanceProcAddr"]
+        #expect(symbols.filter { wrapper.data.firstRange(of: Data($0.utf8)) == nil }.isEmpty,
+                "the profile layer's entry points are in the wrapper")
+    }
+
     @Test func theRealDriverPathMatchesTheWrappersOwn() {
         // vk_wrap.c opens REAL_PATH; the install puts the real driver there.
         #expect(GuestVulkanWrapper.hwDir == "/apex/com.google.cf.vulkan/lib64/hw")

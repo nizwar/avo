@@ -17,6 +17,21 @@
 //   debug.avo.vk.driver_id    VkDriverId, e.g. 8 (Qualcomm proprietary)
 //   debug.avo.vk.driver_name  VkPhysicalDeviceDriverProperties::driverName
 //   debug.avo.vk.driver_info  VkPhysicalDeviceDriverProperties::driverInfo
+//
+// The Vulkan HAL wrapper links this file in beside the gfxstream sync layer
+// (guest/vkwrap): in that one library the loader's entry point names would
+// collide with the sync layer's, so AVO_VK_WRAP renames them (avo_profile_*)
+// and exposes the create functions the wrapper enters; the standalone layer
+// (build.sh) keeps the loader's names.
+#ifdef AVO_VK_WRAP
+#define vkGetInstanceProcAddr avo_profile_vkGetInstanceProcAddr
+#define vkGetDeviceProcAddr avo_profile_vkGetDeviceProcAddr
+#define vkEnumerateInstanceLayerProperties avo_profile_vkEnumerateInstanceLayerProperties
+#define vkEnumerateDeviceLayerProperties avo_profile_vkEnumerateDeviceLayerProperties
+#define vkEnumerateInstanceExtensionProperties avo_profile_vkEnumerateInstanceExtensionProperties
+#define vkEnumerateDeviceExtensionProperties avo_profile_vkEnumerateDeviceExtensionProperties
+#endif
+
 #include <pthread.h>
 #include <stdio.h>
 #include <vulkan/vulkan.h>
@@ -559,3 +574,17 @@ AVO_EXPORT VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateDeviceExtensionProperties(V
     *count = 0;
     return VK_SUCCESS;
 }
+
+#ifdef AVO_VK_WRAP
+// The wrapper's way in: it enters the layer at the top of its chain, its HAL
+// path having no loader link of its own to fetch these by name with.
+AVO_EXPORT VKAPI_ATTR VkResult VKAPI_CALL avo_profile_create_instance(const VkInstanceCreateInfo* info,
+                                                                      const VkAllocationCallbacks* allocator, VkInstance* out) {
+    return CreateInstance(info, allocator, out);
+}
+
+AVO_EXPORT VKAPI_ATTR VkResult VKAPI_CALL avo_profile_create_device(VkPhysicalDevice physical, const VkDeviceCreateInfo* info,
+                                                                    const VkAllocationCallbacks* allocator, VkDevice* out) {
+    return CreateDevice(physical, info, allocator, out);
+}
+#endif
