@@ -4,6 +4,19 @@ All notable changes to Avo are listed here. Versions follow
 [Semantic Versioning](https://semver.org); preview builds carry a build
 number (`CFBundleVersion`) that only goes up.
 
+## 0.3.1 Preview 3 (build 107)
+
+A small fix on top of Preview 2: on an app's page, the Resolution in the
+quick Graphics card now follows the preset — the 720p–4K picker only under
+Games, and the phone's screen (Phone) or the window's (Apps) shown rather
+than set — instead of always showing the picker and quietly switching the
+app to a fixed resolution. Install it over Preview 2; your Android data stays.
+
+### Fixed
+
+- The app page's quick Resolution control no longer forces Fixed mode when
+  the app is on the Phone or Apps preset; it matches All Graphics Settings.
+
 ## 0.3.1 Preview 2 (build 105)
 
 The first notarized Avo: it opens like any app, with no "Open Anyway" in
