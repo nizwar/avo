@@ -57,7 +57,11 @@
 //   GPUShader5 and the rest are the hardware's. The layer turns on ANGLE's
 //   exposeES32ForTesting, which raises the cap without geometry shaders: an
 //   app gets an ES 3.2 context, and one that asks for them finds their
-//   limits at zero (the constructor at "ES 3.2" below).
+//   limits at zero (the constructor at "ES 3.2" below). Only when the
+//   image's ANGLE has the feature does the layer turn it on — the daemon
+//   says so in debug.avo.gl.es32; an ANGLE without it would ignore the name
+//   and Android would promise what it cannot make (the Android 16 image's
+//   ANGLE predates the feature, the 17's has it).
 // - VK_EXT_custom_border_color, which the driver has not (Metal's samplers
 //   take one of six fixed border colours): the layer offers the extension
 //   to ANGLE alone and answers its features, and when ANGLE makes a
@@ -130,6 +134,25 @@ static int gles_max(void) {
 
 // MARK: ES 3.2
 
+// Whether this image's ANGLE knows exposeES32ForTesting: the daemon says so
+// in debug.avo.gl.es32, for it knows the image (an ANGLE that does not know
+// the name merely ignores it — the Android 16 image's ANGLE predates the
+// feature — and Android would promise 3.2 contexts it cannot make). Read
+// once, like the version below.
+static bool the_image_exposes_es32;
+
+static void read_image_exposes_es32(void) {
+    char value[PROP_VALUE_MAX];
+    __system_property_get("debug.avo.gl.es32", value);
+    the_image_exposes_es32 = strcmp(value, "1") == 0;
+}
+
+static bool image_exposes_es32(void) {
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    pthread_once(&once, read_image_exposes_es32);
+    return the_image_exposes_es32;
+}
+
 // ANGLE reads its feature overrides from ANGLE_FEATURE_OVERRIDES_ENABLED or
 // debug.angle.feature_overrides_enabled, and takes the variable alone when
 // both are there. The property is full (91 bytes, the two overrides Avo's
@@ -157,9 +180,10 @@ static bool feature_named(const char* list, const char* name) {
 __attribute__((constructor)) static void expose_es_3_2(void) {
     char property[PROP_VALUE_MAX];
     __system_property_get(AVO_FEATURES_PROPERTY, property);
-    // Settings' "OpenGL ES version" below 3.2 keeps ANGLE's cap where it is.
+    // Settings' "OpenGL ES version" below 3.2 keeps ANGLE's cap where it is,
+    // and so does an image whose ANGLE has not the feature.
     char merged[512] = "";
-    if (gles_max() >= 32) strcat(merged, AVO_ES32_FEATURE);
+    if (gles_max() >= 32 && image_exposes_es32()) strcat(merged, AVO_ES32_FEATURE);
     const char* lists[] = {getenv(AVO_FEATURES_ENV), property};
     for (size_t i = 0; i < sizeof lists / sizeof *lists; i++) {
         for (const char* list = lists[i]; list && *list;) {

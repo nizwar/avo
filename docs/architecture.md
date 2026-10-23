@@ -818,8 +818,10 @@ within what the Mac can spare, cores, Android's storage size, FPS cap
 Performance, renderer, OpenGL ES version, device profile and GMS need a
 restart; the default
 window size applies to an app's first window. Graphics' "OpenGL ES" picks
-the highest version apps get on a GPU start — 3.2 by default, or a lower
-one to test an app against a weaker phone's GPU (docs/engine.md, "GPU"). The FPS cap (60 by default)
+the highest version apps get on a GPU start — 3.2 by default where the
+image's ANGLE has it (Android 17's does; older images keep their own 3.1),
+or a lower one to test an app against a weaker phone's GPU
+(docs/engine.md, "GPU"). The FPS cap (60 by default)
 picks the refresh rate every Android display has for a boot (`FrameRates`:
 the cap above 60, else 60; avo-vmm `--refresh-rate`), and within it
 Android's render rate (HostAgent: `peak_refresh_rate`, at once). Settings,

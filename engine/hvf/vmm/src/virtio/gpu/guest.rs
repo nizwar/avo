@@ -21,10 +21,11 @@ pub fn graphics_bootconfig(mode: &GpuMode) -> Vec<(&'static str, &'static str)> 
         // ANGLE to gfxstream Vulkan (vulkan.ranchu), Vulkan straight there,
         // both over the virtio-gpu ASG ring to the Mac's GPU. With client
         // composition SurfaceFlinger composes on the GPU too and the composer
-        // only flips its target through KMS. ES 3.2 (196610): the sync layer
-        // turns ANGLE's exposeES32ForTesting on (guest/gfxsync; without it
-        // ANGLE caps at 3.1, for the geometry shaders and border-colour
-        // samplers Metal lacks).
+        // only flips its target through KMS. GLES stays at 3.1 (196609):
+        // whether a start's ANGLE can expose 3.2 (exposeES32ForTesting; the
+        // Android 17 image's ANGLE has it, the 16's has not) is the daemon's
+        // to know, and it says so in the identity file with
+        // ro.opengles.version (VMMEngine.exposesES32).
         GpuMode::Gfxstream { hwc, .. } => {
             let mut keys = vec![
                 ("androidboot.cpuvulkan.version", "0"),
@@ -40,7 +41,7 @@ pub fn graphics_bootconfig(mode: &GpuMode) -> Vec<(&'static str, &'static str)> 
                 ("androidboot.hardware.egl", "angle"),
                 ("androidboot.hardware.vulkan", "ranchu"),
                 ("androidboot.hardware.gltransport", "virtio-gpu-asg"),
-                ("androidboot.opengles.version", "196610"),
+                ("androidboot.opengles.version", "196609"),
                 ("androidboot.hardware.angle_feature_overrides_enabled", ANGLE_FEATURES_ENABLED),
             ]);
             keys
@@ -111,8 +112,7 @@ mod tests {
         assert_eq!(value(&client, "androidboot.cpuvulkan.version"), Some("0"));
         assert_eq!(value(&client, "androidboot.hardware.gltransport"), Some("virtio-gpu-asg"));
         assert_eq!(value(&client, "androidboot.hardware.hwcomposer.mode"), Some("client"));
-        // ES 3.2: the sync layer turns ANGLE's exposeES32ForTesting on.
-        assert_eq!(value(&client, "androidboot.opengles.version"), Some("196610"));
+        assert_eq!(value(&client, "androidboot.opengles.version"), Some("196609"));
         let host = graphics_bootconfig(&GpuMode::Gfxstream { dir: PathBuf::from("/e"), hwc: Hwc::Host });
         assert_eq!(value(&host, "androidboot.hardware.hwcomposer.mode"), None);
         assert_eq!(host.len() + 1, client.len());

@@ -188,12 +188,41 @@ import Testing
         let gpu = VMMEngine.identityProperties(profile: .avo, plan: .gpu(emulator), gles: .v3_0, markers: markers)
         #expect(gpu.contains("debug.avo.gl.max=3.0\n"))
         #expect(gpu.contains("ro.opengles.version=196608\n"))
-        // The default writes nothing: the layer and the bootconfig say 3.2.
-        let def = VMMEngine.identityProperties(profile: .avo, plan: .gpu(emulator), markers: markers)
-        #expect(!def.contains("debug.avo.gl.max"))
         // Software has no layer to read it.
         let software = VMMEngine.identityProperties(profile: .avo, plan: .software(.chosen, nil), gles: .v3_0,
                                                     markers: markers)
         #expect(!software.contains("debug.avo.gl.max"))
+    }
+
+    /// 3.2 rides in the identity file only when the image's ANGLE has
+    /// exposeES32ForTesting (Android 17's does; the 16's predates it, and
+    /// its ANGLE would ignore the name while Android promised 3.2).
+    @Test func es3_2FollowsTheImage() {
+        let markers: (AvoIdentity.Renderer) -> AvoIdentity.Markers = {
+            AvoIdentity.Markers(version: "0.2.0", hostOS: "macOS 27.0.1", hostChip: "Apple M4 Pro", renderer: $0)
+        }
+        let emulator = AndroidEmulator(directory: URL(filePath: "/emu"), version: "37.1.11", build: nil)
+        func image(sdk: Int) -> AndroidImage {
+            AndroidImage(schema: 1, version: "17", sdk: sdk, kernel: "kernel", initrd: nil, partitions: [],
+                         overlayStock: "", overlayRooted: "", files: [])
+        }
+        #expect(VMMEngine.exposesES32(image: image(sdk: 37)))
+        #expect(!VMMEngine.exposesES32(image: image(sdk: 36)))
+        #expect(!VMMEngine.exposesES32(image: nil))
+        let capable = VMMEngine.identityProperties(profile: .avo, plan: .gpu(emulator), image: image(sdk: 37),
+                                                   markers: markers)
+        #expect(capable.contains("debug.avo.gl.es32=1\n"))
+        #expect(capable.contains("ro.opengles.version=196610\n"))
+        #expect(!capable.contains("debug.avo.gl.max"))
+        // An image without it writes nothing: the bootconfig's 3.1 stands.
+        let incapable = VMMEngine.identityProperties(profile: .avo, plan: .gpu(emulator), image: image(sdk: 36),
+                                                     markers: markers)
+        #expect(!incapable.contains("es32"))
+        #expect(!incapable.contains("opengles"))
+        // A chosen lower version is the image's own choice to cap.
+        let chosen = VMMEngine.identityProperties(profile: .avo, plan: .gpu(emulator), gles: .v3_1,
+                                                  image: image(sdk: 36), markers: markers)
+        #expect(chosen.contains("debug.avo.gl.max=3.1\n"))
+        #expect(chosen.contains("ro.opengles.version=196609\n"))
     }
 }

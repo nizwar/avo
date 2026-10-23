@@ -248,10 +248,14 @@ GLES 3.2 and Vulkan 1.3.
   Android through framebuffer fetch, which Apple GPUs do; tessellation,
   cube map arrays, sample shading and GPUShader5 are the hardware's. Apps
   get 3.2 contexts; one that asks for geometry shaders finds their limits
-  at zero. Settings › Graphics' "OpenGL ES" picks a lower cap
-  (`debug.avo.gl.max`, the daemon's identity file): 3.1 leaves the feature
-  out; 3.0 also answers ANGLE's storage-buffer count question with a number
-  under ES 3.1's requirement; 2.0 also offers no `VK_EXT_provoking_vertex`.
+  at zero. The feature rides in the daemon's identity file only when the
+  image's ANGLE has it — the Android 17 image's does (8d8796935e4f), the
+  16's predates it, and an ANGLE without it merely ignores the name while
+  Android promised 3.2 contexts it cannot make (`VMMEngine.exposesES32`;
+  the bootconfig's floor is 3.1). Settings › Graphics' "OpenGL ES" picks a
+  lower cap (`debug.avo.gl.max`): 3.1 leaves the feature out; 3.0 also
+  answers ANGLE's storage-buffer count question with a number under ES
+  3.1's requirement; 2.0 also offers no `VK_EXT_provoking_vertex`.
   `ro.opengles.version` says the same choice. Processes that start before HostAgent names the layer, every boot
   (SurfaceFlinger, system_server, SystemUI), stay at ES 2.0; they work with
   either. A software start removes the file: unnamed, libvulkan still

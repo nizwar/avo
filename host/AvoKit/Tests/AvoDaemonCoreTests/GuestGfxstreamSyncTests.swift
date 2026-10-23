@@ -19,7 +19,7 @@ import Testing
     @Test func theLayerExposesES3_2() throws {
         let layer = try #require(GuestGfxstreamSync.layer)
         let missing = ["exposeES32ForTesting", "ANGLE_FEATURE_OVERRIDES_ENABLED", "VK_EXT_custom_border_color",
-                       "debug.avo.gl.max"]
+                       "debug.avo.gl.max", "debug.avo.gl.es32"]
             .filter { layer.data.firstRange(of: Data($0.utf8)) == nil }
         #expect(missing.isEmpty, "the ES 3.2 strings are in the layer")
     }
