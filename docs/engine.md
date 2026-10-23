@@ -234,11 +234,15 @@ GLES 3.2 and Vulkan 1.3.
   first vertex instead of its last. Apps' own Vulkan instances see it too:
   avo-vmm's layer (below) offers it to every instance. The layer also turns
   on ANGLE's `exposeES32ForTesting` as it loads (the constructor in its
-  source): OpenGL ES 3.2, which ANGLE otherwise caps at 3.1 over the
-  geometry shaders MoltenVK lacks (and its
-  `VK_KHR_blend_equation_advanced` and border-color samplers); apps get 3.2
-  contexts, and one that asks for geometry shaders finds their limits at
-  zero. Processes that start before HostAgent names the layer, every boot
+  source): OpenGL ES 3.2, which ANGLE otherwise caps at 3.1 over the two
+  extensions of its twenty-four that MoltenVK lacks, both because Metal does
+  — geometry shaders (no such stage; the limits read zero) and border-colour
+  samplers (four fixed border colours, no VK_EXT_custom_border_color).
+  Advanced blend equations, which x86 emulators also miss, ANGLE emulates
+  itself on Android through framebuffer fetch, which Apple GPUs do;
+  tessellation, cube map arrays, sample shading and GPUShader5 are the
+  hardware's. Apps get 3.2 contexts; one that asks for the missing two finds
+  their limits at zero. Processes that start before HostAgent names the layer, every boot
   (SurfaceFlinger, system_server, SystemUI), stay at ES 2.0; they work with
   either. A software start removes the file: unnamed, libvulkan still
   opens every `libVkLayer*.so` in that folder in every app (userdebug), and
@@ -376,9 +380,10 @@ GLES 3.2 and Vulkan 1.3.
   avo-vmm, emulator or macOS; the Graphics pane and a banner say why, and the
   failed log is kept as `avo-vmm-gpu-failed.log`.
 - **Limits**: one refresh rate for all of Android's displays per boot (60
-  to 120 Hz; below), ES 3.2 without geometry shaders, advanced blend
-  equations and border-color samplers (above; a 3.2 context, their limits at
-  zero), first-vertex `flat` varyings, no zero-copy
+  to 120 Hz; below), ES 3.2 without geometry shaders and border-colour
+  samplers, which Metal lacks (above; a 3.2 context, their limits at zero —
+  the advanced blend equations are ANGLE's own emulation), first-vertex
+  `flat` varyings, no zero-copy
   yet, no quick boot (below, after "Pause").
 - **Refresh rate** (`virtio/gpu/edid.rs`, both modes): the virtio-gpu offers
   EDIDs (`VIRTIO_GPU_F_EDID`). A scanout's preferred timing is its size at
