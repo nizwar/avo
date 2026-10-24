@@ -34,6 +34,17 @@ public final class KeymapController {
     private var heldMotion: (dx: Double, dy: Double, since: CFTimeInterval)?
     /// The profile has MOBA controls, which need to know where the cursor is.
     private var aimsAtCursor = false
+    /// The keyboard's and the mouse's state now, beside their events (tests give their own).
+    var hardware = Hardware()
+    /// The presses the hardware showed down as their event came: only these are let go by what it says
+    /// later (a press it never showed, such as a trackpad's tap, is left to its own release).
+    private var seenDown: Set<Trigger> = []
+    /// The click's finger went down with the left button seen down.
+    private var clickSeenDown = false
+    /// When the held keys were last checked against the hardware (`releaseUnseen`).
+    private var lastReleaseCheck: CFTimeInterval = 0
+    /// What `releaseUnseen` let go: its late release, should it still come, is swallowed.
+    private var letGoUnseen: Set<Trigger> = []
     /// Short messages for the window (mouse locked or freed).
     public var onNotice: ((String) -> Void)?
     /// The layout's mode changed (a Switch Mode control, a new layout): its id.
@@ -110,6 +121,9 @@ public final class KeymapController {
 
     public func apply(_ profile: KeymapProfile?) {
         if var engine { emit(engine.reset()); self.engine = engine }
+        letGoUnseen.removeAll()
+        seenDown.removeAll()
+        clickSeenDown = false
         unlockPointer()
         self.profile = profile
         aimsAtCursor = profile?.controls.contains(where: \.followsCursor) == true
@@ -144,14 +158,31 @@ public final class KeymapController {
         if overlay?.isEditing == true { return overlay?.assign(.key(key), down: down) ?? false }
         guard mapping else { return false }
         guard !isRepeat else { return engine?.profile.controls.contains { $0.allTriggers.contains(.key(key)) } == true }
-        if down { reportCursor() }
+        if !down, letGoUnseen.remove(.key(key)) != nil { return true }
+        if down {
+            letGoUnseen.remove(.key(key))
+            reportCursor()
+            if let code = KeyboardMapping.macKeyCode(for: key), hardware.isKeyDown(code) { seenDown.insert(.key(key)) }
+        } else {
+            seenDown.remove(.key(key))
+        }
         return handle(down ? .keyDown(key) : .keyUp(key))
     }
 
     public func mouse(_ button: MouseButton, down: Bool) -> Bool {
         // The mouse locks only with the eye's key: a click is a click.
         guard mapping else { return false }
-        if down { reportCursor() }
+        if !down, letGoUnseen.remove(.mouse(button)) != nil { return true }
+        let seen = hardware.mouseButtons() & (1 << button.buttonNumber) != 0
+        if down {
+            letGoUnseen.remove(.mouse(button))
+            reportCursor()
+            if seen { seenDown.insert(.mouse(button)) }
+            if button == .left { clickSeenDown = seen }
+        } else {
+            seenDown.remove(.mouse(button))
+            if button == .left { clickSeenDown = false }
+        }
         if handle(down ? .mouseDown(button) : .mouseUp(button)) { return true }
         // A left click no control takes is a touch where it happens. It goes
         // in with the engine's touches: sent on its own (the game view's
@@ -180,9 +211,64 @@ public final class KeymapController {
 
     public func focusLost() {
         unlockPointer()
+        letGoUnseen.removeAll()
+        seenDown.removeAll()
+        clickSeenDown = false
         guard var engine else { return }
         emit(engine.reset())
         self.engine = engine
+    }
+
+    // MARK: Releases that never came
+
+    /// The keyboard's and the mouse's state, read beside their events.
+    @MainActor
+    struct Hardware {
+        /// Whether the key with this Mac key code is down now (the session's HID state).
+        var isKeyDown: (UInt16) -> Bool = { CGEventSource.keyState(.combinedSessionState, key: CGKeyCode($0)) }
+        /// The mouse buttons down now, one bit per `MouseButton.buttonNumber`.
+        var mouseButtons: () -> Int = { NSEvent.pressedMouseButtons }
+    }
+
+    /// How often the held keys and buttons are checked while the mapping ticks.
+    static let releaseCheckInterval: CFTimeInterval = 0.1
+
+    /// A key or button the engine still holds that the hardware has let go is
+    /// released now, so nothing stays pressed in the game: its keyUp went
+    /// elsewhere (a trackpad gesture of the system's, Mission Control, an
+    /// input method, a menu that took the keyboard for a moment).
+    func releaseUnseen(at now: CFTimeInterval) {
+        guard now - lastReleaseCheck >= Self.releaseCheckInterval, mapping, let held = engine?.heldTriggers else { return }
+        lastReleaseCheck = now
+        let buttons = hardware.mouseButtons()
+        seenDown.formIntersection(held)
+        for trigger in held where seenDown.contains(trigger) {
+            let released: Bool
+            switch trigger {
+            case .key(let key):
+                guard let code = KeyboardMapping.macKeyCode(for: key) else { continue }
+                released = !hardware.isKeyDown(code)
+            case .mouse(let button):
+                released = buttons & (1 << button.buttonNumber) == 0
+            default:
+                continue
+            }
+            guard released else { continue }
+            seenDown.remove(trigger)
+            letGoUnseen.insert(trigger)
+            switch trigger {
+            case .key(let key): _ = handle(.keyUp(key))
+            case .mouse(let button): _ = handle(.mouseUp(button))
+            default: break
+            }
+        }
+        // A click's finger, its button up without a mouseUp.
+        if clickSeenDown, engine?.isClickFingerDown == true, buttons & 1 == 0 {
+            clickSeenDown = false
+            letGoUnseen.insert(.mouse(.left))
+            let at = cursorInDisplay() ?? (0, 0)
+            _ = handle(.fingerUp(x: at.x, y: at.y))
+        }
     }
 
     public func stop() {
@@ -275,6 +361,7 @@ public final class KeymapController {
     private func tick() {
         let now = CACurrentMediaTime()
         if isPointerLocked { flushHeldMotion(at: now) }
+        releaseUnseen(at: now)
         guard var engine else { return }
         // A held MOBA control or click reads the cursor on every frame: while
         // a mouse button is down macOS sends drags, which never reach pointerMoved.
