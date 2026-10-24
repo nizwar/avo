@@ -57,16 +57,26 @@ test('Avo Hub has its page in both languages, in the menu, honest about its rele
   assert.match(en, /<a href="\.\.\/hub\/" aria-current="page">Avo Hub<\/a>/);
   assert.match(read('sitemap.xml'), /<loc>https:\/\/[^<]+\/id\/hub\/<\/loc>/);
 
-  // Not released: no download, GitHub and building from source instead.
+  // Not released, its repository private: no download, and no link to a
+  // repository visitors would find empty, nor an open-source claim.
   assert.match(en, /In development: not released yet/);
-  assert.match(en, /href="https:\/\/github\.com\/nizwar\/avo_hub"/);
-  assert.match(en, /href="https:\/\/github\.com\/nizwar\/avo_hub#building-from-source"/);
-  assert.doesNotMatch(en, /Download for Mac/);
+  assert.doesNotMatch(en, /github\.com\/nizwar\/avo_hub/);
+  assert.doesNotMatch(en, /Download for Mac|Follow on GitHub|Build it yourself|<li>Open source<\/li>|Open source, like Avo/);
+  assert.doesNotMatch(id, /github\.com\/nizwar\/avo_hub|<li>Open source<\/li>|Open source, seperti Avo/);
+  assert.doesNotMatch(en, /<div class="cta-row">\s*<\/div>/);
 
   const dir = await mkdtemp(path.join(tmpdir(), 'avo-site-'));
   try {
+    // The repository public: GitHub and building from source.
+    await build({ outDir: dir, quiet: true, overrides: { hub: { openSource: true } } });
+    const open = readFileSync(path.join(dir, 'hub/index.html'), 'utf8');
+    assert.match(open, /href="https:\/\/github\.com\/nizwar\/avo_hub"/);
+    assert.match(open, /href="https:\/\/github\.com\/nizwar\/avo_hub#building-from-source"/);
+    assert.match(open, /<li>Open source<\/li>/);
+    assert.match(open, /Open source, like Avo/);
+
     const downloadUrl = 'https://github.com/nizwar/avo_hub/releases/download/v0.1.0/AvoHub-0.1.0-b2.dmg';
-    await build({ outDir: dir, quiet: true, overrides: { hub: { release: { available: true, version: '0.1.0 Preview 1', downloadUrl } } } });
+    await build({ outDir: dir, quiet: true, overrides: { hub: { openSource: true, release: { available: true, version: '0.1.0 Preview 1', downloadUrl } } } });
     const released = readFileSync(path.join(dir, 'hub/index.html'), 'utf8');
     assert.match(released, /Version 0\.1\.0 Preview 1 is out/);
     assert.match(released, /Download for Mac/);

@@ -17,12 +17,10 @@
         {{h:hubPill}}
         <h1 id="hero-title" class="display">{{t:hub.hero.title}}</h1>
         <p class="lede">{{t:hub.hero.lede}}</p>
-        <div class="cta-row">
 {{h:hubCtas}}
-        </div>
 {{h:hubMeta}}
         <ul class="hero-points">
-          <li>{{t:hub.hero.pointOpen}}</li>
+          {{h:hubPointOpen}}
           <li>{{t:hub.hero.pointBrand}}</li>
           <li>{{t:hub.hero.pointAccount}}</li>
         </ul>
@@ -95,7 +93,7 @@
       <ul class="feature-cards">
         <li class="feature-card" data-tilt="card"><span class="feature-icon" data-tilt-depth aria-hidden="true"><svg class="icon"><use href="#i-keys"/></svg></span><h3>{{t:hub.avo.keysTitle}}</h3><p>{{t:hub.avo.keysText}}</p></li>
         <li class="feature-card" data-tilt="card"><span class="feature-icon" data-tilt-depth aria-hidden="true"><svg class="icon"><use href="#i-spark"/></svg></span><h3>{{t:hub.avo.lookTitle}}</h3><p>{{t:hub.avo.lookText}}</p></li>
-        <li class="feature-card" data-tilt="card"><span class="feature-icon" data-tilt-depth aria-hidden="true"><svg class="icon"><use href="#i-code"/></svg></span><h3>{{t:hub.avo.openTitle}}</h3><p>{{t:hub.avo.openText}}</p></li>
+        {{h:hubOpenCard}}
       </ul>
     </div>
   </section>
@@ -141,9 +139,7 @@
         <h2 id="get-title" class="display">{{h:hubGetTitle}}</h2>
         <p class="lede">{{h:hubGetText}}</p>
       </header>
-      <div class="cta-row">
 {{h:hubCtas}}
-      </div>
 {{h:hubMeta}}
       <p class="hub-avo-note">{{t:hub.get.avoQuestion}} <a href="{{v:homeHref}}">{{t:hub.get.avoLink}}</a></p>
     </div>
