@@ -346,9 +346,18 @@ GLES 3.2 and Vulkan 1.3.
   app's own Vulkan that turns `provokingVertexLast` on gets flat varyings from
   the first vertex, as ANGLE does; few apps do (console emulators, mostly).
 - **Frames**: on each flush the engine reads the composed buffer back into the
-  same shared-memory frames as software (0.6–1.2 ms a frame measured at
-  720×1280 and 1080×1920), so the daemon, MetalFX and recording are
-  unchanged. Zero-copy IOSurfaces come with our own gfxstream build.
+  same shared-memory frames as software, so the daemon, MetalFX and recording
+  are unchanged. With Avo's own gfxstream (patch 0003,
+  `stream_renderer_avo_read_color_buffer`) a `gpu-frames` thread does it: the
+  render thread only posts the newest flush of each scanout and goes on with
+  the guest's commands, gfxstream holds no lock while the GPU copies, and
+  the GPU writes the frame straight into the shared buffer, imported as host
+  memory (`VK_EXT_external_memory_host`; buffers start on 16 KiB pages for
+  it). Measured at 1080×2400 and 120 Hz: about 0.5 ms of GPU time a frame,
+  off the render thread, where `transfer_read_iov` blocked it 0.9–1.1 ms a
+  frame (with gfxstream's FrameBuffer lock held) and copied the frame twice
+  on the CPU. The Android Emulator's gfxstream lacks the symbols and keeps
+  that old path, as does `AVO_FRAMES_ON_RENDER_THREAD=1`.
 - **Engine** (`virtio/gpu/render.rs`): one `gpu-render` thread makes every
   gfxstream call (vCPUs only post work; gfxstream's fence callback only posts
   the fence); fenced requests are answered when gfxstream signals them, and a

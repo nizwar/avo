@@ -149,7 +149,8 @@ that owns the display; the shim wraps the IOSurfaces as Metal textures and
 scales them into a `CAMetalLayer` (see "Resolution and scaling"). No frame
 is copied or encoded on the CPU, except for screenshots and recordings.
 avo-vmm, for now, writes frames to shared memory instead (triple buffered;
-with the GPU renderer they are read back from gfxstream), and the daemon's
+with the GPU renderer the GPU copies them there from gfxstream, on a thread
+of the engine's own), and the daemon's
 `FrameBridge` copies them into those IOSurfaces. A copy the engine wrote over
 meanwhile is dropped, and a daemon that falls behind skips presents, never a
 swapchain. A window nobody sees (minimized, covered, on another Space, and
