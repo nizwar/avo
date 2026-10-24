@@ -86,6 +86,8 @@ public struct KeymapEngine: Sendable {
         case move(touch: Int, x: Double, y: Double)
         case repeatTap(control: String, trigger: Trigger)
         case macroStep(control: String, index: Int)
+        /// A scroll bar's finger lets go, unless the wheel turned again since (`generation`).
+        case barRelease(control: String, generation: Int)
     }
 
     private struct Scheduled: Sendable {
@@ -124,6 +126,17 @@ public struct KeymapEngine: Sendable {
     private var clickFinger: Int?
     /// A click that a click area kept from the game: its release is taken too.
     private var clickSwallowed = false
+    /// The controls a click on their click zone holds down, until it lets go.
+    private var zonePressed: [String] = []
+    /// Where each scroll bar's thumb is, as a fraction of its track (its
+    /// rest point until the wheel moves it), and how often the wheel has
+    /// turned it, so only the last notch's release lets go.
+    private var bars: [String: Double] = [:]
+    private var barTurns: [String: Int] = [:]
+    /// How long a scroll bar's finger stays down after the wheel's last notch.
+    static let scrollReleaseSeconds = 0.2
+    /// How long it takes to drag the thumb back to its rest point.
+    static let scrollResetSeconds = 0.25
 
     private struct GlideTouch: Sendable {
         var x: Double
@@ -187,6 +200,12 @@ public struct KeymapEngine: Sendable {
             return output
         case let .fingerDown(x, y):
             output.consumed = true
+            // A control's click zone under it presses the control as its key
+            // would, and the click is not the game's: its button is touched once.
+            if pressZones(at: x, y, now: now, output: &output) {
+                clickSwallowed = true
+                break
+            }
             // The click areas under it do their actions, and one may keep
             // the click from the game.
             if clickAreas(at: x, y, output: &output) {
@@ -202,6 +221,7 @@ public struct KeymapEngine: Sendable {
             if clickSwallowed {
                 clickSwallowed = false
                 output.consumed = true
+                releaseZones(at: now)
                 break
             }
             guard let touch = clickFinger else { break }
@@ -255,6 +275,7 @@ public struct KeymapEngine: Sendable {
         cursor = nil
         clickFinger = nil
         clickSwallowed = false
+        zonePressed.removeAll()
         adsActive = false
         pointerLocked = false
         flushMoves()
@@ -448,6 +469,8 @@ public struct KeymapEngine: Sendable {
         for control in controls where isActive(control) {
             if case .dpad = control.kind { updateDPad(control, smoothly: false) }
         }
+        // The new mode's scroll bars start from their rest points.
+        for control in controls { if case .scrollBar = control.kind { bars[control.id] = nil } }
         if let look = entered.mouseLook { lockPointer(look, output: &output) }
     }
 
@@ -455,43 +478,49 @@ public struct KeymapEngine: Sendable {
         guard pressed.remove(trigger) != nil else {
             return profile.fps?.cursorToggle == trigger
         }
-        for control in controls where control.allTriggers.contains(trigger) {
-            switch control.kind {
-            case .tap, .hold:
-                // Still held through another of its triggers.
-                guard !control.triggers.contains(where: pressed.contains),
-                      let touch = held.removeValue(forKey: control.id) else { continue }
-                let earliest = (heldSince.removeValue(forKey: control.id) ?? now) + Double(Self.tapDurationMilliseconds) / 1000
-                // A quick press still gives the app a whole tap.
-                if now < earliest { enqueue(earliest, .lift(touch: touch)) } else { lift(touch) }
-            case .ads(_, let toggle) where !toggle:
-                if let touch = held.removeValue(forKey: control.id) { lift(touch) }
-                adsActive = false
-            case .dpad:
-                updateDPad(control)
-            case .anchor:
-                anchors[control.id] = nil
-                if let touch = held.removeValue(forKey: control.id) { lift(touch) }
-            case .mobaMove, .smartCast:
-                guard !control.triggers.contains(where: pressed.contains),
-                      let touch = held.removeValue(forKey: control.id) else { continue }
-                // Let go where it is aimed now, not partway through the
-                // glide: a skill casts where the finger leaves the screen.
-                let aim = glides.removeValue(forKey: control.id)
-                let earliest = (heldSince.removeValue(forKey: control.id) ?? now) + Double(Self.tapDurationMilliseconds) / 1000
-                if now < earliest {
-                    // A quick press still gives the game a whole touch.
-                    if let aim { enqueue(earliest, .move(touch: touch, x: aim.targetX / width, y: aim.targetY / height)) }
-                    enqueue(earliest, .lift(touch: touch))
-                } else {
-                    if let aim { move(touch, x: aim.targetX, y: aim.targetY) }
-                    lift(touch)
-                }
-            default:
-                break
-            }
+        // A control a click holds down stays down until the click lets go.
+        for control in controls where control.allTriggers.contains(trigger) && !zonePressed.contains(control.id) {
+            releaseControl(control, at: now)
         }
         return true
+    }
+
+    /// Lets go of what `control` holds, unless another of its keys still holds it.
+    private mutating func releaseControl(_ control: Control, at now: TimeInterval) {
+        switch control.kind {
+        case .tap, .hold:
+            // Still held through another of its triggers.
+            guard !control.triggers.contains(where: pressed.contains),
+                  let touch = held.removeValue(forKey: control.id) else { return }
+            let earliest = (heldSince.removeValue(forKey: control.id) ?? now) + Double(Self.tapDurationMilliseconds) / 1000
+            // A quick press still gives the app a whole tap.
+            if now < earliest { enqueue(earliest, .lift(touch: touch)) } else { lift(touch) }
+        case .ads(_, let toggle) where !toggle:
+            if let touch = held.removeValue(forKey: control.id) { lift(touch) }
+            adsActive = false
+        case .dpad:
+            updateDPad(control)
+        case .anchor:
+            anchors[control.id] = nil
+            if let touch = held.removeValue(forKey: control.id) { lift(touch) }
+        case .mobaMove, .smartCast:
+            guard !control.triggers.contains(where: pressed.contains),
+                  let touch = held.removeValue(forKey: control.id) else { return }
+            // Let go where it is aimed now, not partway through the
+            // glide: a skill casts where the finger leaves the screen.
+            let aim = glides.removeValue(forKey: control.id)
+            let earliest = (heldSince.removeValue(forKey: control.id) ?? now) + Double(Self.tapDurationMilliseconds) / 1000
+            if now < earliest {
+                // A quick press still gives the game a whole touch.
+                if let aim { enqueue(earliest, .move(touch: touch, x: aim.targetX / width, y: aim.targetY / height)) }
+                enqueue(earliest, .lift(touch: touch))
+            } else {
+                if let aim { move(touch, x: aim.targetX, y: aim.targetY) }
+                lift(touch)
+            }
+        default:
+            break
+        }
     }
 
     private mutating func activate(_ control: Control, trigger: Trigger, at now: TimeInterval) {
@@ -550,6 +579,69 @@ public struct KeymapEngine: Sendable {
         case .hotkey, .clickArea:
             // They touch nothing: `press` does their actions.
             break
+        case let .scrollBar(_, _, rest, step):
+            if let reset = control.reset, trigger == reset {
+                moveThumb(control, to: rest, release: Self.scrollResetSeconds, at: now)
+            } else if trigger.isMomentary {
+                let position = bars[control.id] ?? rest
+                moveThumb(control, to: position + (trigger == .scrollUp ? step : -step), release: Self.scrollReleaseSeconds, at: now)
+            }
+        }
+    }
+
+    // MARK: Scroll bars
+
+    /// Drags a scroll bar's thumb to `fraction` of its track, within its
+    /// ends: the finger goes down on the thumb where it is (unless it is
+    /// still down from the last notch), glides there, and lets go `release`
+    /// seconds after the last move. Nothing happens at an end.
+    private mutating func moveThumb(_ control: Control, to fraction: Double, release: TimeInterval, at now: TimeInterval) {
+        guard case let .scrollBar(_, _, rest, _) = control.kind else { return }
+        let from = bars[control.id] ?? rest
+        let target = min(max(fraction, 0), 1)
+        guard abs(target - from) > 1e-9, let start = control.scrollPoint(at: from), let end = control.scrollPoint(at: target) else { return }
+        if held[control.id] == nil {
+            guard let touch = down(start) else { return }
+            held[control.id] = touch
+            glides[control.id] = GlideTouch(x: start.x * width, y: start.y * height, targetX: end.x * width, targetY: end.y * height)
+        } else {
+            glides[control.id]?.targetX = end.x * width
+            glides[control.id]?.targetY = end.y * height
+        }
+        // Part of the way now, the rest over the next frames.
+        glide(control.id, fraction: 0.45)
+        bars[control.id] = target
+        let turn = (barTurns[control.id] ?? 0) + 1
+        barTurns[control.id] = turn
+        enqueue(now + release, .barRelease(control: control.id, generation: turn))
+    }
+
+    // MARK: Click zones
+
+    /// A click at (x, y) in pixels with the mouse free: the controls of this
+    /// mode whose click zone it is in are pressed as their keys would press
+    /// them, their actions done once. True when there was one: the click is
+    /// theirs, not the game's.
+    private mutating func pressZones(at x: Double, _ y: Double, now: TimeInterval, output: inout Output) -> Bool {
+        guard !pointerLocked, width > 0, height > 0 else { return false }
+        let point = NormalizedPoint(x / width, y / height)
+        let hit = controls.filter { control in
+            guard control.canHaveClickZone, let zone = control.clickZone else { return false }
+            return isActive(control) && zone.contains(point, width: width, height: height)
+        }
+        guard !hit.isEmpty else { return false }
+        zonePressed = hit.map(\.id)
+        for control in hit where control.touchesTheScreen { activate(control, trigger: .mouse(.left), at: now) }
+        for control in hit { run(control.actions, output: &output) }
+        return true
+    }
+
+    /// The click on the zones let go: what they hold lets go too.
+    private mutating func releaseZones(at now: TimeInterval) {
+        let ids = zonePressed
+        zonePressed.removeAll()
+        for id in ids {
+            if let control = controls.first(where: { $0.id == id }) { releaseControl(control, at: now) }
         }
     }
 
@@ -797,10 +889,15 @@ public struct KeymapEngine: Sendable {
             case let .move(touch, x, y):
                 move(touch, x: x * width, y: y * height)
             case let .repeatTap(controlID, trigger):
-                guard pressed.contains(trigger), let control = controls.first(where: { $0.id == controlID }),
+                guard pressed.contains(trigger) || zonePressed.contains(controlID), let control = controls.first(where: { $0.id == controlID }),
                       case let .repeatTap(point, interval) = control.kind, isActive(control) else { continue }
                 tap(point, at: time)
                 enqueue(time + Double(interval) / 1000, .repeatTap(control: controlID, trigger: trigger))
+            case let .barRelease(controlID, generation):
+                guard barTurns[controlID] == generation, let touch = held.removeValue(forKey: controlID) else { continue }
+                // Let go where the thumb was dragged to, not partway through the glide.
+                if let glide = glides.removeValue(forKey: controlID) { move(touch, x: glide.targetX, y: glide.targetY) }
+                lift(touch)
             case let .macroStep(controlID, index):
                 guard let control = controls.first(where: { $0.id == controlID }) else { continue }
                 runMacroStep(control, index: index, at: time)

@@ -492,7 +492,7 @@ extension Control {
     public func accepts(_ element: GamepadElement) -> Bool {
         switch (element, kind) {
         case (.stick, .dpad), (.stick, .aim), (.dpad, .dpad): true
-        case (.button, .dpad), (.button, .aim), (.button, .clickArea), (.stick, _), (.dpad, _): false
+        case (.button, .dpad), (.button, .aim), (.button, .clickArea), (.button, .scrollBar), (.stick, _), (.dpad, _): false
         case (.button, _): true
         }
     }
