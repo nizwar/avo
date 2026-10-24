@@ -150,4 +150,36 @@ import Testing
         // The GLES layer and its folder stay.
         #expect(!lines.contains { $0.contains(GuestGPUProfile.glesDir) })
     }
+    // MARK: A boot the ANGLE wrapper runs (GuestGLESWrapper)
+
+    /// The ANGLE wrapper answers glGetString from inside ANGLE: with the
+    /// Vulkan driver wrapper too, nothing of the profile goes in /data/local/debug.
+    @Test func aBootWithTheANGLEWrapperInstallsNoGlesLayer() throws {
+        let vulkan = try #require(GuestGPUProfile.layers.last)
+        #expect(GuestGPUProfile.layersToInstall(gles: false).map(\.name) == [vulkan.name])
+        #expect(GuestGPUProfile.layersToInstall(vulkan: false, gles: false).isEmpty)
+        let lines = GuestGPUProfile.installScript(gles: false).split(separator: "\n").map(String.init)
+        #expect(!lines.contains { $0.contains(GuestGPUProfile.glesDir) }, "the GLES loader's folder stays untouched")
+        #expect(GuestGPUProfile.upToDate(sumOutput: "\(vulkan.sha256)  \(vulkan.dir)/\(vulkan.name)", gles: false))
+        #expect(GuestGPUProfile.upToDate(sumOutput: "", vulkan: false, gles: false))
+    }
+
+    /// debug.gles.layers stays unset on such a boot: the /data/local/debug
+    /// path needs ro.debuggable=1, the wrapper does not.
+    @Test func aBootWithTheANGLEWrapperNamesNoGlesLayer() {
+        let check = "Adreno (TM) 750\nQualcomm\nAdreno (TM) 750\nV@0762.11\n"
+        #expect(GuestGPUProfile.enableCommands(checkOutput: check, present: GuestGPUProfile.names, gles: false)
+            == ["setprop debug.vulkan.layers \(DeviceHardware.vulkanLayer)"])
+        #expect(GuestGPUProfile.enableCommands(checkOutput: check, present: GuestGPUProfile.names, vulkan: false, gles: false).isEmpty)
+        #expect(GuestGPUProfile.wantsGLES(checkOutput: check))
+        #expect(!GuestGPUProfile.wantsGLES(checkOutput: "Adreno (TM) 750\n\n\n\n"))
+    }
+
+    /// The file a boot without the wrapper left goes; the Vulkan one stays.
+    @Test func aBootWithTheANGLEWrapperTakesTheGlesLayerAway() {
+        let lines = GuestGPUProfile.removeGLESScript().split(separator: "\n").map(String.init)
+        #expect(lines.first == "set -e")
+        #expect(lines.contains("rm -f /data/local/debug/gles/\(DeviceHardware.glesLayer) /data/local/debug/gles/.avo-gpuprofile.new"))
+        #expect(!lines.contains { $0.contains(GuestGPUProfile.vulkanDir) })
+    }
 }

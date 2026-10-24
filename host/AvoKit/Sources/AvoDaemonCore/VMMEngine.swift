@@ -86,6 +86,8 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     /// This GPU launch runs Avo's Vulkan driver wrapper: a failure takes it
     /// out before the GPU is given up (GuestVulkanWrapper.Failure).
     private var vulkanWrapperRuns = false
+    /// … and Avo's ANGLE wrapper (GuestGLESWrapper.Failure).
+    private var glesWrapperRuns = false
     /// Android is paused (PausableEngine, "Pause" below), and its sound
     /// streams as the engine reports them (`sound playback|capture on|off`).
     private var paused = false
@@ -205,12 +207,17 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     }
 
     static func identityProperties(profile: DeviceProfile?, plan: GPUPlan, emulateHardware: Bool = false,
-                                   vulkanWrapper: Bool = false, gles: VMConfig.GLESVersion = .v3_2,
+                                   vulkanWrapper: Bool = false, glesWrapper: Bool = false, gles: VMConfig.GLESVersion = .v3_2,
                                    es32Capable: Bool = false,
                                    markers: (AvoIdentity.Renderer) -> AvoIdentity.Markers) -> String {
         AvoIdentity.propertyFile(profile: profile, markers: markers(plan.isGPU ? .gpu : .software),
                                  emulateHardware: emulateHardware)
             + (vulkanWrapper ? "\(GuestVulkanWrapper.switchProperty)=1\n" : "")
+            // Avo's ANGLE wrapper: only on a GPU start that emulates the
+            // profile's GPU (GuestGLESWrapper.switchedOn).
+            + (GuestGLESWrapper.switchedOn(allowed: glesWrapper, plan: plan,
+                                           emulatesGPU: GuestGPUProfile.emulatesGPU(profile, emulateHardware: emulateHardware))
+                ? "\(GuestGLESWrapper.switchProperty)=1\n" : "")
             // Settings › Graphics' "OpenGL ES" below 3.2: the sync layer reads
             // debug.avo.gl.max (guest/gfxsync) and Android reports the same
             // choice (ro.opengles.version). 3.2 needs an ANGLE that has
@@ -238,13 +245,23 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         // Android has it, as of its last ready boot, says if this start may fail by it.
         let wrapper = GuestVulkanWrapper.allowed(paths: launch.paths)
         let wrapperRuns = wrapper && plan.isGPU && GuestVulkanWrapper.installed(paths: launch.paths)
+        // Avo's ANGLE wrapper likewise, on a GPU start that emulates a GPU.
+        let glesWrapper = GuestGLESWrapper.allowed(paths: launch.paths)
+        let glesWrapperRuns = GuestGLESWrapper.switchedOn(
+            allowed: glesWrapper, plan: plan,
+            emulatesGPU: GuestGPUProfile.emulatesGPU(launch.profile, emulateHardware: launch.config.emulateHardware))
+            && GuestGLESWrapper.installed(paths: launch.paths)
         let es32 = Self.exposesES32(image: launch.image) && !Self.es32Refuted(image: launch.image, paths: launch.paths)
         try Self.identityProperties(profile: launch.profile, plan: plan, emulateHardware: launch.config.emulateHardware,
-                                    vulkanWrapper: wrapper, gles: launch.config.glesVersion, es32Capable: es32) {
+                                    vulkanWrapper: wrapper, glesWrapper: glesWrapper, gles: launch.config.glesVersion,
+                                    es32Capable: es32) {
             .current(version: version, renderer: $0)
         }
             .write(to: Self.identityFile(launch.paths), atomically: true, encoding: .utf8)
-        lock.withLock { vulkanWrapperRuns = wrapperRuns }
+        lock.withLock {
+            vulkanWrapperRuns = wrapperRuns
+            self.glesWrapperRuns = glesWrapperRuns
+        }
         lock.withLock {
             paused = false
             playing = false
@@ -356,6 +373,9 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         await agent.useBluetooth(bluetooth != nil)
         // Whether Android has Avo's Vulkan driver wrapper, for the next start's failures.
         await agent.noteVulkanWrapper { [paths = launch.paths] in GuestVulkanWrapper.noteInstalled($0, paths: paths) }
+        await agent.useGLESWrapper(allowed: GuestGLESWrapper.allowed(paths: launch.paths)) { [paths = launch.paths] in
+            GuestGLESWrapper.noteInstalled($0, paths: paths)
+        }
         await agent.applyDeviceSettings(wifi: launch.config.wifiEnabled, shareMacBluetooth: launch.config.shareMacBluetooth,
                                         cellular: launch.config.cellularEnabled)
         await agent.sampleProcesses(lock.withLock { processSink })
@@ -579,22 +599,28 @@ extension VMMEngine {
 
     /// Writes the fallback record and publishes software; the plan for the
     /// launch that replaces the failed one. A GPU launch that ran Avo's
-    /// Vulkan driver wrapper loses the wrapper instead, and the GPU gets one
-    /// more launch without it.
+    /// Vulkan driver wrapper or ANGLE wrapper loses the wrappers it ran
+    /// instead, and the GPU gets one more launch without them.
     private func recordFailure(_ failure: GPUFailure, launch: EngineLaunch, plan: GPUPlan) -> GPUPlan {
         let log = launch.paths.logs.appending(path: "avo-vmm.log")
         let detail = Self.gpuError(inLog: log)
         // The failed log stays for bug reports: the next launch writes a new one.
         let failedLog = launch.paths.logs.appending(path: "avo-vmm-gpu-failed.log")
-        if case .gpu = plan, lock.withLock({ vulkanWrapperRuns }), let sha256 = GuestVulkanWrapper.wrapper?.sha256 {
-            logger.error("renderer: GPU failed (\(failure.rawValue, privacy: .public)) with Avo's Vulkan driver wrapper: \(detail ?? "-", privacy: .public); trying the GPU without it")
+        let (vulkan, gles) = lock.withLock { (vulkanWrapperRuns, glesWrapperRuns) }
+        if case .gpu = plan, vulkan || gles {
+            logger.error("renderer: GPU failed (\(failure.rawValue, privacy: .public)) with Avo's \(vulkan && gles ? "Vulkan driver and ANGLE wrappers" : vulkan ? "Vulkan driver wrapper" : "ANGLE wrapper", privacy: .public): \(detail ?? "-", privacy: .public); trying the GPU without")
             do {
-                try GuestVulkanWrapper.Failure(sha256: sha256, failure: failure, date: Date()).save(paths: launch.paths)
+                if vulkan, let sha256 = GuestVulkanWrapper.wrapper?.sha256 {
+                    try GuestVulkanWrapper.Failure(sha256: sha256, failure: failure, date: Date()).save(paths: launch.paths)
+                }
+                if gles, let sha256 = GuestGLESWrapper.wrapper?.sha256 {
+                    try GuestGLESWrapper.Failure(sha256: sha256, failure: failure, date: Date()).save(paths: launch.paths)
+                }
                 try? FileManager.default.removeItem(at: failedLog)
                 try? FileManager.default.copyItem(at: log, to: failedLog)
                 return plan
             } catch {
-                logger.error("renderer: cannot turn Avo's Vulkan driver wrapper off: \(error.localizedDescription, privacy: .public)")
+                logger.error("renderer: cannot turn Avo's wrappers off: \(error.localizedDescription, privacy: .public)")
             }
         }
         logger.error("renderer: GPU failed (\(failure.rawValue, privacy: .public)): \(detail ?? "-", privacy: .public); using software")

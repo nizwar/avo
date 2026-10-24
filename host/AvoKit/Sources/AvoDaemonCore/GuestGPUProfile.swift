@@ -26,6 +26,12 @@ import Foundation
 /// `debug.vulkan.layers` unset — the `/data/local/debug` path needs
 /// `ro.debuggable=1`, the wrapper does not.
 ///
+/// Likewise a boot whose ANGLE wrapper runs (GuestGLESWrapper) answers an
+/// app's `glGetString` from inside ANGLE: it takes the GLES layer out of
+/// `/data/local/debug` (`removeGLESScript`) and leaves `debug.gles.layers`
+/// unset (`gles: false`). With both wrappers running, nothing of the profile
+/// is in `/data/local/debug`.
+///
 /// libvulkan looks for layers once, as a process starts, and a named layer it
 /// did not find then makes vkCreateInstance fail (as GuestGfxstreamSync
 /// says). So a layer is named only on a boot that began with its file in
@@ -62,11 +68,12 @@ enum GuestGPUProfile {
     /// The layers' file names (the GLES layer's is also its name).
     static let names = Set(layers.map(\.name))
 
-    /// The layers a boot puts in `/data/local/debug`: both, or the GLES one
-    /// alone on a boot whose Vulkan driver wrapper carries the profile layer
-    /// inside the HAL driver (GuestVulkanWrapper).
-    static func layersToInstall(vulkan: Bool = true) -> [(name: String, dir: String, data: Data, sha256: String)] {
-        vulkan ? layers : layers.filter { $0.name != vulkanFile }
+    /// The layers a boot puts in `/data/local/debug`: both, or without the
+    /// Vulkan one on a boot whose Vulkan driver wrapper carries the profile
+    /// layer inside the HAL driver (GuestVulkanWrapper), and without the GLES
+    /// one on a boot whose ANGLE wrapper answers `glGetString` (GuestGLESWrapper).
+    static func layersToInstall(vulkan: Bool = true, gles: Bool = true) -> [(name: String, dir: String, data: Data, sha256: String)] {
+        layers.filter { (vulkan || $0.name != vulkanFile) && (gles || $0.name != DeviceHardware.glesLayer) }
     }
 
     /// `/data/local/debug` and the given layers' folders beneath it.
@@ -81,8 +88,8 @@ enum GuestGPUProfile {
     /// reads (libvulkan reads `libVkLayer*.so`, libEGL only the names it is
     /// given), so no process maps a half-written file, and one that mapped
     /// the old build keeps it intact.
-    static func installScript(vulkan: Bool = true) -> String {
-        let install = layersToInstall(vulkan: vulkan)
+    static func installScript(vulkan: Bool = true, gles: Bool = true) -> String {
+        let install = layersToInstall(vulkan: vulkan, gles: gles)
         var lines = [
             "set -e",
             "mkdir -p \(dirs(install))",
@@ -127,6 +134,18 @@ enum GuestGPUProfile {
         ].joined(separator: "\n")
     }
 
+    /// Takes the GLES layer out of `/data/local/debug` on a boot the ANGLE
+    /// wrapper answers `glGetString` (GuestGLESWrapper): that path needs
+    /// `ro.debuggable=1`, the wrapper does not. `rmdir` keeps the folder
+    /// another layer may still be in.
+    static func removeGLESScript() -> String {
+        [
+            "set -e",
+            "rm -f \(glesDir)/\(DeviceHardware.glesLayer) \(glesDir)/.avo-gpuprofile.new",
+            "rmdir \(glesDir) \(debugDir) 2>/dev/null || true",
+        ].joined(separator: "\n")
+    }
+
     /// Whether a start with `profile` emulates its GPU: the engine then sets
     /// the `debug.avo.gl.*` / `debug.avo.vk.*` values that name the layers.
     static func emulatesGPU(_ profile: DeviceProfile?, emulateHardware: Bool) -> Bool {
@@ -144,12 +163,13 @@ enum GuestGPUProfile {
     /// `present` (`present(sumOutput:)`). Empty when nothing is emulated.
     /// `vulkan: false` on a boot the Vulkan driver wrapper carries the
     /// profile layer: `debug.vulkan.layers` stays unset (it needs
-    /// `ro.debuggable=1`, the wrapper does not).
-    static func enableCommands(checkOutput: String, present: Set<String>, vulkan: Bool = true) -> [String] {
+    /// `ro.debuggable=1`, the wrapper does not). `gles: false` likewise on a
+    /// boot the ANGLE wrapper answers `glGetString`: `debug.gles.layers` stays unset.
+    static func enableCommands(checkOutput: String, present: Set<String>, vulkan: Bool = true, gles: Bool = true) -> [String] {
         let values = checkOutput.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }
         var commands: [String] = []
-        if values.dropFirst().prefix(3).contains(where: { !$0.isEmpty }), present.contains(DeviceHardware.glesLayer) {
+        if gles, wantsGLES(checkOutput: checkOutput), present.contains(DeviceHardware.glesLayer) {
             commands.append("setprop debug.gles.layers \(DeviceHardware.glesLayer)")
         }
         if vulkan, let name = values.first, !name.isEmpty, present.contains(vulkanFile) {
@@ -158,12 +178,18 @@ enum GuestGPUProfile {
         return commands
     }
 
+    /// Whether `checkCommand`'s output has a GLES string for apps to read.
+    static func wantsGLES(checkOutput: String) -> Bool {
+        checkOutput.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }.dropFirst().prefix(3).contains { !$0.isEmpty }
+    }
+
     /// Whether every layer in `output` (one `sha256sum` line each) already
     /// matches this build, so the install can be skipped. With
-    /// `vulkan: false`, the GLES layer alone: the wrapper runs the Vulkan one.
-    static func upToDate(sumOutput output: String, vulkan: Bool = true) -> Bool {
+    /// `vulkan: false` or `gles: false`, without the layer a wrapper runs instead.
+    static func upToDate(sumOutput output: String, vulkan: Bool = true, gles: Bool = true) -> Bool {
         let sums = checksums(output)
-        return layersToInstall(vulkan: vulkan).allSatisfy { sums[$0.name] == $0.sha256 }
+        return layersToInstall(vulkan: vulkan, gles: gles).allSatisfy { sums[$0.name] == $0.sha256 }
     }
 
     /// The layers `output` finds in the guest, of any build. Read before this
