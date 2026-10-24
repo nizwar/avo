@@ -37,6 +37,8 @@ const VIEWPORTS = {
 const SHOTS = [
   { name: 'home-en', url: SITE, views: ['desktop', 'tablet', 'phone', 'small'] },
   { name: 'home-id', url: `${SITE}id/`, views: ['desktop', 'phone'] },
+  { name: 'hub-en', url: `${SITE}hub/`, views: ['desktop', 'tablet', 'phone', 'small'] },
+  { name: 'hub-id', url: `${SITE}id/hub/`, views: ['desktop', 'phone'] },
   { name: 'notfound', url: `${SITE}does-not-exist/deeper/`, views: ['desktop', 'phone'], expectStatus: 404 },
   { name: 'home-en-reduced-motion', url: SITE, views: ['desktop'], reducedMotion: true },
 ];

@@ -3,6 +3,8 @@
     "siteName": "Avo",
     "homeTitle": "Avo: Android apps and games on your Mac",
     "homeDescription": "Use Android apps and play Android games on your Mac, each in its own window. Free and open source, for Macs with Apple chips.",
+    "hubTitle": "Avo Hub: your Android phone on your Mac",
+    "hubDescription": "Avo Hub brings your Android phone to your Mac: its screen, notifications, messages, photos and files, over a cable, Wi‑Fi or the internet. A companion to Avo, in development.",
     "notFoundTitle": "Page not found | Avo",
     "ogAlt": "The Avo app icon on a dark green background."
   },
@@ -23,7 +25,8 @@
     "mac": "On your Mac",
     "how": "How it works",
     "faq": "FAQ",
-    "support": "Support"
+    "support": "Support",
+    "hub": "Avo Hub"
   },
   "release": {
     "statusUnreleased": "Early development: preview builds only",
@@ -256,5 +259,91 @@
     "title": "This page doesn't exist.",
     "text": "The link may be old.",
     "home": "Go to the home page"
+  },
+  "hub": {
+    "statusUnreleased": "In development: not released yet",
+    "statusReleased": "Version {version} is out",
+    "unreleasedNote": "There's nothing to install yet. Follow Avo Hub on GitHub to hear when the first preview is out.",
+    "watch": "Follow on GitHub",
+    "build": "Build it yourself",
+    "download": "Download for Mac",
+    "downloadMeta": "Preview · macOS 15 or newer · Apple silicon",
+    "hero": {
+      "title": "Your Android phone, at home on your Mac.",
+      "lede": "Avo Hub brings the phone you already have to your Mac: its screen, notifications, messages, photos and files. Over a cable, the same Wi‑Fi or the internet.",
+      "pointOpen": "Open source",
+      "pointBrand": "Any brand, Android 11 or newer",
+      "pointAccount": "No account needed",
+      "artAlt": "A phone's screen in its own Mac window, beside a message notification from the phone. The phone is connected over the same Wi‑Fi.",
+      "artPhone": "Pixel 9",
+      "artTime": "9:41",
+      "artNotifApp": "Messages",
+      "artNotifBody": "Dimas: on my way",
+      "artPathCable": "Cable",
+      "artPathWifi": "Same Wi‑Fi",
+      "artPathNet": "Internet"
+    },
+    "features": {
+      "kicker": "What you can do",
+      "title": "Your phone, without picking it up.",
+      "lede": "At your desk or away from home, Avo Hub reaches your phone over a cable, the same Wi‑Fi or the internet.",
+      "screenTitle": "Your phone's screen in a window",
+      "screenText": "Use the phone with your Mac's mouse, trackpad and keyboard, and hear its sound.",
+      "notifTitle": "Notifications",
+      "notifText": "They show up in Notification Center. Reply, dismiss, or copy a one-time code from your Mac.",
+      "messagesTitle": "Messages and contacts",
+      "messagesText": "Read and answer your text messages from your Mac, and look up your contacts.",
+      "filesTitle": "Photos and files",
+      "filesText": "Browse your gallery and folders, save originals to your Mac, and send files to the phone.",
+      "findTitle": "Find your phone",
+      "findText": "Ring it at full volume, even on silent. Its battery and signal stay in the menu bar.",
+      "remoteTitle": "Control your Mac from the phone",
+      "remoteText": "Remote Screen works the other way round: your Mac's screen on the phone, your finger as the trackpad. It's off until you turn it on.",
+      "also": "While the phone's screen is open on your Mac, copy on one and paste on the other. Using the phone's camera as a webcam in Mac apps is on its way too.",
+      "status": "Avo Hub is still in development. These features are built and being tested, and may change before the first release."
+    },
+    "avo": {
+      "kicker": "With Avo",
+      "title": "Made to go with Avo.",
+      "lede": "Avo runs Android apps and games on your Mac, no phone needed. Avo Hub connects the phone in your pocket. They're separate apps: use one, or both.",
+      "keysTitle": "Your key layouts come along",
+      "keysText": "Play your phone's games from the Mac with Avo's key mapping: keyboard, mouse aim and controllers. A game you set up in Avo starts with the same layout.",
+      "lookTitle": "The same look",
+      "lookText": "Avo Hub is built with Avo's design, on your Mac and on your phone.",
+      "openTitle": "Open source, like Avo",
+      "openText": "The same Apache 2.0 license, with all the code <a href=\"{hubGithub}\">on GitHub</a>."
+    },
+    "how": {
+      "kicker": "How it works",
+      "title": "Up and running in three steps.",
+      "step1Title": "Install on the Mac, then the phone",
+      "step1Text": "Plug your phone into the Mac with a USB cable, and Avo Hub puts its phone app on it. The setup assistant shows you every step.",
+      "step2Title": "Pair with a QR code",
+      "step2Text": "Scan the code on your Mac with the phone. When both show the same six digits, you're paired.",
+      "step3Title": "Connected wherever you are",
+      "step3Text": "The cable first, then the same Wi‑Fi, then the internet when you're out. Avo Hub switches by itself.",
+      "readiness": "Every phone brand has its own battery savers and settings that get in the way. Readiness, on the phone, finds each one and shows you what to do.",
+      "privacy": "Your phone decides what each Mac may do, feature by feature, and keeps a record of it. There's no account, and over the internet everything travels encrypted."
+    },
+    "req": {
+      "kicker": "Before you start",
+      "title": "What you need",
+      "macTitle": "A Mac with an Apple chip",
+      "macText": "M1 or newer, with macOS 15 Sequoia or newer.",
+      "phoneTitle": "An Android phone, any brand",
+      "phoneText": "Android 11 or newer, and a USB cable that carries data, not just power.",
+      "toolsTitle": "Android platform tools",
+      "toolsText": "On your Mac, for what goes over the cable: installing the phone app and turning on full control (tapping and typing from the Mac). Install them with <code>brew install android-platform-tools</code>.",
+      "note": "Apps that protect their screen, such as some banking and streaming apps, show black in the window."
+    },
+    "get": {
+      "kicker": "Status",
+      "titleUnreleased": "Coming soon.",
+      "textUnreleased": "Avo Hub is in development, and there's nothing to install yet. The first preview will be a disk image for your Mac, which then puts the app on your phone over USB. Follow along on GitHub, or build it from source.",
+      "titleReleased": "Try the preview.",
+      "textReleased": "Download Avo Hub for your Mac. When you set it up, it puts the app on your phone over USB.",
+      "avoQuestion": "Want Android apps on your Mac without a phone?",
+      "avoLink": "Try Avo"
+    }
   }
 }
