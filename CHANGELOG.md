@@ -4,6 +4,83 @@ All notable changes to Avo are listed here. Versions follow
 [Semantic Versioning](https://semver.org); preview builds carry a build
 number (`CFBundleVersion`) that only goes up.
 
+## 0.3.1 Preview 4 (build 113)
+
+OpenGL ES 3.2 for the games that need it, key mappings where one key does
+several things, and an emulated phone that now names its own hardware,
+memory and build. Frames also reach the window with less work, and Avo asks
+Android about its notifications less often. Install it over Preview 3; your
+Android data stays.
+
+### New
+
+- **OpenGL ES 3.2.** With the GPU renderer, apps now get OpenGL ES 3.2, so
+  games that ask for it start. Everything 3.2 offers is there except
+  geometry shaders, which Apple's GPUs have no stage for. Settings ›
+  Graphics › OpenGL ES picks a lower version (3.1, 3.0 or 2.0) to try an app
+  as on a weaker phone; it applies after Android restarts.
+- **One key, several actions.** A control can also switch the key mapping to
+  another mode and free, lock or toggle the mouse, in the order you list
+  them: F can press the game's Enter Vehicle button and switch to the
+  vehicle's controls. Select a control to see everything it does, reorder
+  or remove its actions, or add one; they show as badges beside it on the
+  game.
+- **Hotkeys and click areas.** A hotkey is a key that only does its actions.
+  A click area, sized on the game, does them when you click it with the
+  mouse free, and its click can reach the game or not. The separate Switch
+  Mode and Free/Lock the Mouse controls are gone: key mappings that had them
+  keep working, their keys turned into actions or hotkeys.
+- **Controls by kind of game.** The key mapping panel offers its controls as
+  General, FPS and MOBA, and lists a mode's controls the same way.
+- **The emulated phone's hardware name, memory and build.** With Emulate this
+  phone's hardware on, Android reports the phone's hardware name (qcom on a
+  Snapdragon), gets the phone's RAM as far as the Mac allows, and names the
+  phone's whole build, partition by partition. The Infinix X6878 carries all
+  of it, read from a real phone.
+
+### Improved
+
+- **Smoother frame delivery.** The GPU renderer copies each frame straight
+  into the memory the window reads, on a thread of its own, instead of
+  holding up Android's graphics commands for about a millisecond a frame and
+  copying the frame twice on the CPU.
+- **Fewer interruptions while Android draws.** Android no longer signals the
+  GPU device for each command while that device is busy with the ones
+  before (about a quarter fewer signals, each of which stops a processor).
+- **Less polling.** A notification that stays in Android is read again every
+  10 seconds instead of every 2; new ones still reach the Mac at once.
+
+### Fixed
+
+- Snapdragon 8 Gen 3 phones had their CPU clusters the wrong way round: they
+  now have three Cortex-A720 at 3.15 GHz and two at 2.96 GHz, and the Galaxy
+  S24 Ultra's Cortex-X4 runs at 3.39 GHz.
+
+### Known issues
+
+- Bluetooth headsets and other classic Bluetooth devices, Bluetooth pairing
+  with the Mac's devices, and calls or SMS on the SIM don't work yet.
+- Some apps with anti-tamper protection close right after opening while
+  Settings › Privacy & Security › Emulate this phone's hardware is on; turn
+  it off for them.
+- Root access may not start Android once Google apps are installed in it;
+  Avo then turns root back off.
+- Delta Force draws its terrain flat at the Ultimate and MAX presets; at
+  High and below it is textured (restart the game after changing the
+  preset). With software rendering its 3D scenes show wrong colors.
+- OpenGL ES 3.2 has no geometry shaders, and a texture border color other
+  than black, white or transparent is drawn as the nearest of those.
+- With Emulate this phone's hardware on, Android takes the phone's RAM
+  (12 GB for many gaming phones). With other heavy apps running, macOS may
+  start swapping and games stutter; Avo does not yet give memory Android no
+  longer uses back to the Mac.
+- With Android's data on an external drive, macOS asks again after an update
+  whether Avo may use the drive, and Android starts only once you allow it.
+- Apps that need hardware attestation (most banking apps, some DRM and
+  anti-cheat systems) generally do not run.
+- Each game loads more slowly the first time after the update: the Mac
+  compiles its shaders again for Avo's updated GPU renderer.
+
 ## 0.3.1 Preview 3 (build 107)
 
 A small fix on top of Preview 2: on an app's page, the Resolution in the
