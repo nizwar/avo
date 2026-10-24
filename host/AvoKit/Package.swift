@@ -7,7 +7,18 @@
 // haze's window controls, the Input channel's records, screen sampling) is
 // avo_kit, a submodule at vendor/avo_kit; AvoShared brings it into AvoHostKit.
 
+import Foundation
 import PackageDescription
+
+// avo_kit: Avo's own submodule (vendor/avo_kit), or, while Avo is itself a
+// project's submodule (Avo Hub's vendor/avo), that project's vendor/avo_kit
+// beside it. Both then build the one copy the project pins: SwiftPM does not
+// take two packages of the same identity from two places.
+let avoRoot = URL(fileURLWithPath: Context.packageDirectory).deletingLastPathComponent().deletingLastPathComponent()
+let avoKitBesideAvo = avoRoot.deletingLastPathComponent().appendingPathComponent("avo_kit")
+let avoKitPath = avoRoot.deletingLastPathComponent().lastPathComponent == "vendor"
+    && FileManager.default.fileExists(atPath: avoKitBesideAvo.appendingPathComponent("Package.swift").path)
+    ? "../../../avo_kit" : "../../vendor/avo_kit"
 
 let package = Package(
     name: "AvoKit",
@@ -30,7 +41,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.39.0"),
-        .package(path: "../../vendor/avo_kit"),
+        .package(path: avoKitPath),
     ],
     targets: [
         // Shared models, configuration, paths, identifiers and XPC interfaces.
