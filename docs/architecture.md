@@ -621,19 +621,32 @@ it was), for the different sets of buttons a game shows: on foot and in a
 vehicle, an inventory. A control acts in every mode unless it names the ones
 it acts in (`modes`), and only the controls of the current mode answer their
 keys, show as hints and touch the screen. The engine starts in the first mode
-and stays in its mode through a reset (Game Mode off and on). A switch-mode
-control (`switch_mode`) enters its mode when its key or controller button
-goes down; on entering, the fingers of controls that do not act there lift
-(taps and holds still lift with their keys), and a joystick of the new mode
-takes keys that are already held, so W held while getting in drives on.
-`mouse_look` controls lock the mouse to the eye or free it (`lock`), for a
-key that leaves mouse look without a mode.
+and stays in its mode through a reset (Game Mode off and on). A control's
+switch action (`{"switch_mode": id}`, below) enters its mode when its key
+or controller button goes down; on entering, the fingers of controls that do
+not act there lift (taps and holds still lift with their keys), and a
+joystick of the new mode takes keys that are already held, so W held while
+getting in drives on.
+
+**Actions.** Every control but a joystick and the eye may list `actions`,
+done in their order after its own touch: `{"switch_mode": id}`, and
+`{"mouse": "lock" | "free" | "toggle"}` (with the eye: lock the mouse to it,
+free it, or the other of the two), so F presses the game's Enter button
+and switches to the vehicle, and Tab opens the inventory and frees the
+mouse. A `hotkey` touches nothing and only does its actions (it needs at
+least one), and a `click_area` (`area`, a rectangle like the eye's) does
+them when it is clicked while the mouse is free, the click still touching
+the game there unless `pass_through` is false (back to combat when the
+inventory's Close button is clicked). Before actions, Avo saved
+`switch_mode` and `mouse_look` controls of their own; they load as the
+actions of the control on exactly their keys in exactly their modes, else
+as hotkeys, and are saved so.
 
 **Shared keys.** A key, mouse button or controller button may drive any
-number of controls: F can press the game's Enter button and switch to the
-vehicle mode at once. On a press, the controls that touch the screen go first
-and the mode switch and mouse lock after, so the game's button is pressed in
-the mode it belongs to and lifts with its key. The eye's lock key may press
+number of controls: F can press the game's Enter button and a hotkey can
+switch the mode on it too. On a press, the controls that touch the screen go
+first and the actions after, so the game's button is pressed in the mode it
+belongs to and lifts with its key. The eye's lock key may press
 controls too (Tab: the game's inventory and a free cursor). Within a joystick
 a key is one direction only.
 
@@ -802,9 +815,9 @@ are saved without them. An older Avo ignores `gamepad` and `dpad_buttons`,
 and its keys still work; it also ignores a joystick's `run`, which then
 walks. An anchor's rectangular `area` from before build 64 loads as a circle
 half as tall as the rectangle. An older Avo skips
-`switch_mode` and `mouse_look` controls (kinds it does not know) and ignores
-`modes`, so there every control acts at once, and it refuses a layout that
-binds a key or button to more than one control.
+the controls it does not know (`hotkey`, `click_area`) and ignores `actions`
+and `modes`, so there every control acts at once and only touches, and it
+refuses a layout that binds a key or button to more than one control.
 
 Profiles are JSON with positions normalized to the window, stored per package
 in `~/Library/Application Support/Avo/keymaps/`, with community starters in
