@@ -210,9 +210,10 @@ private final class FakeEngineSocket: @unchecked Sendable {
     }
 
     /// Every two seconds, without windows: the tasks, the notification list
-    /// and the bug report state in one call, and the notifications of the
-    /// Mac's apps in one more (before: one call each, and one per notification).
-    @Test func aLookIsTwoShellCalls() async throws {
+    /// and the bug report state in one call; the notifications of the Mac's
+    /// apps in one more, but only when one is new or was read long enough
+    /// ago (before: every look, and before that one call per notification).
+    @Test func aLookReadsNewNotificationsAndTheOthersNowAndThen() async throws {
         let android = ScriptedAndroid()
         android.notifications.withLock {
             $0 = [ScriptedAndroid.notification("dev.example", id: 1, title: "First", when: 1_792_264_925_339),
@@ -230,22 +231,30 @@ private final class FakeEngineSocket: @unchecked Sendable {
         #expect(await eventually(timeout: .seconds(10)) { posted().count == 2 })
         #expect(Set(posted()) == ["First", "Second"])
 
+        // Both were read in one call that asked about the app's two only.
+        let first = android.commands().filter { $0.hasPrefix("cmd notification get ") }
+        #expect(first.count == 1)
+        #expect(first.allSatisfy { $0.components(separatedBy: "cmd notification get ").count - 1 == 2 && !$0.contains("com.other") })
+
+        // Looks that find the same two read neither again for a while.
         let start = ContinuousClock.now
         #expect(await eventually(timeout: .seconds(10)) { android.looks(since: start) >= 2 })
         let commands = android.commands(since: start)
-        let looks = commands.filter { $0.hasPrefix("cmd activity stack list;") }.count
-        let details = commands.filter { $0.hasPrefix("cmd notification get ") }
-        // Every look's notifications in one call that asks about both of the app's
-        // (a look at either end of the span may have its call outside it).
-        #expect(abs(details.count - looks) <= 1)
-        #expect(details.allSatisfy { $0.components(separatedBy: "cmd notification get ").count - 1 == 2 && !$0.contains("com.other") })
+        #expect(!commands.contains { $0.hasPrefix("cmd notification get ") })
         // Nothing of the look on its own any more.
         #expect(!commands.contains { ["am stack list", "cmd activity stack list", "cmd notification list", "getprop init.svc.bugreport"].contains($0) })
         #expect(posted().count == 2, "an unchanged notification is not posted again")
 
-        // An updated one is posted again.
+        // A new one is read at the next look, and only it.
+        let added = ContinuousClock.now
+        android.notifications.withLock { $0.append(ScriptedAndroid.notification("dev.example", id: 4, title: "Third", when: 1_792_264_925_342)) }
+        #expect(await eventually(timeout: .seconds(5)) { posted().contains("Third") })
+        let reads = android.commands(since: added).filter { $0.hasPrefix("cmd notification get ") }
+        #expect(reads.count == 1 && reads[0].components(separatedBy: "cmd notification get ").count - 1 == 1)
+
+        // An update under the same key reaches the Mac once it is read again.
         android.notifications.withLock { $0[0] = ScriptedAndroid.notification("dev.example", id: 1, title: "First again", when: 1_792_264_999_999) }
-        #expect(await eventually(timeout: .seconds(10)) { posted().contains("First again") })
+        #expect(await eventually(timeout: HostAgent.notificationReread + .seconds(5)) { posted().contains("First again") })
         await agent.shutdown()
     }
 

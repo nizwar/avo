@@ -36,4 +36,21 @@ import Testing
         // No flags in the dump: opening it dismisses it.
         #expect(HostAgent.parseNotification("NotificationRecord(0x1: pkg=com.avodroid.hello importance=3)\n")?.autoCancel == true)
     }
+
+    /// A look reads new notifications at once and one it read again only
+    /// after a while, longer for an ongoing one, instead of every one every 2 s.
+    @Test func looksReadOnlyNewNotificationsAndTheOthersNowAndThen() {
+        let start = ContinuousClock.now
+        let read: [String: HostAgent.NotificationRead] = [
+            "0|a|1|null|1": .init(at: start, ongoing: false),
+            "0|b|2|null|2": .init(at: start, ongoing: true),
+        ]
+        let keys = ["0|a|1|null|1", "0|b|2|null|2", "0|c|3|null|3"]
+        #expect(HostAgent.notificationsDue(keys, read: read, now: start + .seconds(2)) == ["0|c|3|null|3"], "only the new one")
+        #expect(HostAgent.notificationsDue(keys, read: read, now: start + HostAgent.notificationReread)
+                == ["0|a|1|null|1", "0|c|3|null|3"], "the one read 10 s ago too")
+        #expect(HostAgent.notificationsDue(keys, read: read, now: start + HostAgent.ongoingNotificationReread) == keys,
+                "and the ongoing one after a minute")
+        #expect(HostAgent.notificationsDue([], read: read, now: start).isEmpty, "none listed: no shell call")
+    }
 }

@@ -129,6 +129,9 @@ actor HostAgent: DisplayResizing {
     private var clipboardFromHost: String?
     /// Notifications passed to the Mac: key → when it was posted.
     private var shownNotifications: [String: Int64] = [:]
+    /// When each notification Android lists was last read in full, and
+    /// whether it was ongoing then (`notificationsDue`).
+    private var readNotifications: [String: NotificationRead] = [:]
     /// Those that go away when opened (FLAG_AUTO_CANCEL), as in Android's shade.
     private var autoCancelNotifications: Set<String> = []
     /// Notifications to dismiss in Android, gathered for one helper run.
@@ -1413,18 +1416,24 @@ actor HostAgent: DisplayResizing {
         if list == nil { list = try? await shell("cmd notification list") }
         guard let list else { return }
         let keys = Self.notificationKeys(in: list).filter { key in known[Self.package(ofNotification: key)] != nil }
+        // Only new ones, and the others now and then: each look reading every
+        // one again was a shell call every 2 s for as long as one lingered.
+        let now = ContinuousClock.now
+        let due = Self.notificationsDue(keys, read: readNotifications, now: now)
+        readNotifications = readNotifications.filter { keys.contains($0.key) }
         // Every one in one shell call, not a shell process more for each.
         let marker = Self.shellMarker()
         var dumps: [String] = []
-        if !keys.isEmpty,
-           let output = try? await shell(keys.map { "cmd notification get \(Self.quote($0)); echo \(marker)" }.joined(separator: "; ")) {
+        if !due.isEmpty,
+           let output = try? await shell(due.map { "cmd notification get \(Self.quote($0)); echo \(marker)" }.joined(separator: "; ")) {
             dumps = Self.sections(of: output, marker: marker)
         }
         var posting: [Avo_V1_Notification] = []
         var withButtons: [String] = []
-        for (index, key) in keys.enumerated() {
-            guard index < dumps.count, let info = Self.parseNotification(dumps[index]), !info.ongoing,
-                  shownNotifications[key] != info.postedAt else { continue }
+        for (index, key) in due.enumerated() {
+            guard index < dumps.count, let info = Self.parseNotification(dumps[index]) else { continue }
+            readNotifications[key] = NotificationRead(at: now, ongoing: info.ongoing)
+            guard !info.ongoing, shownNotifications[key] != info.postedAt else { continue }
             shownNotifications[key] = info.postedAt
             if info.autoCancel { autoCancelNotifications.insert(key) } else { autoCancelNotifications.remove(key) }
             var notification = Avo_V1_Notification()
@@ -1477,6 +1486,28 @@ actor HostAgent: DisplayResizing {
             await checkNotifications()
         } else {
             logger.error("could not dismiss \(keys.count) notifications in Android")
+        }
+    }
+
+    /// A notification read in full (`cmd notification get`).
+    struct NotificationRead: Equatable {
+        var at: ContinuousClock.Instant
+        var ongoing: Bool
+    }
+
+    /// How long a notification that was read stays unread: an app that
+    /// updates it under the same key (a chat's next message) reaches the Mac
+    /// within this. Ongoing ones, which stay in Android, are read less often,
+    /// only to see one stop being ongoing.
+    static let notificationReread = Duration.seconds(10)
+    static let ongoingNotificationReread = Duration.seconds(60)
+
+    /// Which of `keys` a look reads in full: the new ones, and the others
+    /// once their time since the last read passed.
+    static func notificationsDue(_ keys: [String], read: [String: NotificationRead], now: ContinuousClock.Instant) -> [String] {
+        keys.filter { key in
+            guard let last = read[key] else { return true }
+            return now - last.at >= (last.ongoing ? ongoingNotificationReread : notificationReread)
         }
     }
 
