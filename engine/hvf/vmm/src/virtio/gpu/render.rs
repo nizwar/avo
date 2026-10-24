@@ -11,13 +11,16 @@
 //! The renderer starts once per process and survives guest reboots: a
 //! device reset or the end of a boot purges what that guest made.
 //!
-//! Frames: on RESOURCE_FLUSH of a renderer resource shown on a scanout,
-//! `transfer_read_iov` reads the whole color buffer straight into the next
-//! shared-memory frame buffer (frames.rs), so the window host, upscaler and
-//! recorder see the same frames as in 2D mode.
+//! Frames: on RESOURCE_FLUSH of a renderer resource shown on a scanout, the
+//! whole color buffer is read back into the next shared-memory frame buffer
+//! (frames.rs), so the window host, upscaler and recorder see the same
+//! frames as in 2D mode. With Avo's own renderer that happens on a thread of
+//! its own (`FrameReader`), the GPU writing the buffer itself, while this
+//! thread goes on with the guest's commands; with another gfxstream,
+//! `transfer_read_iov` reads it here.
 
 use super::fence::{FenceQueue, Ring};
-use super::gfxstream::{self, Box3, Callbacks, CreateBlob, Library, ResourceCreateArgs};
+use super::gfxstream::{self, Box3, Callbacks, CreateBlob, Library, Readback, ResourceCreateArgs};
 use super::hostmem::{self, HostVisible, Hvf, PAGE};
 use super::{Format, Hwc, Rect, State, le32, le64, rect, MAX_SCANOUTS};
 use super::{
@@ -31,8 +34,9 @@ use crate::virtio::queue::Chain;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{CStr, c_void};
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 pub use super::gfxstream::set_environment;
@@ -238,7 +242,8 @@ struct Renderer {
     epoch: u16,
     hostmem: HostVisible<Hvf>,
     attach: Option<Attach>,
-    first_frame: bool,
+    /// `gpu first-frame` went out this boot (here or from `FrameReader`).
+    first_frame: Arc<AtomicBool>,
     /// The guest created its first rendering context this boot (`gpu context`).
     saw_context: bool,
     /// When `gpu stalled` went out, until the fences pending then are done.
@@ -246,6 +251,119 @@ struct Renderer {
     scratch: Vec<u8>,
     stats: Stats,
     warned: HashSet<String>,
+    /// Reads frames back on its own thread (Avo's renderer).
+    reader: Option<FrameReader>,
+}
+
+/// Reads frames back on a thread of its own (`Readback`, Avo's renderer):
+/// the render thread only says which resource a scanout shows and goes on
+/// with the guest's commands, gfxstream holds none of its locks while the
+/// GPU copies, and the GPU writes the shared frame buffer itself. Per
+/// scanout only the newest flush waits; one read at a time.
+struct FrameReader {
+    shared: Arc<(Mutex<Reads>, Condvar)>,
+}
+
+#[derive(Default)]
+struct Reads {
+    /// The newest flush of each scanout not read yet.
+    waiting: [Option<Read>; MAX_SCANOUTS],
+    /// Readbacks since the engine log's last line.
+    count: u64,
+    total: Duration,
+    max: Duration,
+    /// A read failed for another reason than its resource going away: the
+    /// render thread reads frames itself from then on.
+    failed: bool,
+}
+
+struct Read {
+    resource: u32,
+    width: u32,
+    height: u32,
+    format: Format,
+    state: Arc<Mutex<State>>,
+    events: FrameHandle,
+}
+
+impl FrameReader {
+    fn start(readback: Readback, first_frame: Arc<AtomicBool>) -> Option<FrameReader> {
+        let shared = Arc::new((Mutex::new(Reads::default()), Condvar::new()));
+        let worker = shared.clone();
+        std::thread::Builder::new()
+            .name("gpu-frames".into())
+            .spawn(move || Self::run(readback, &worker, &first_frame))
+            .ok()?;
+        // Before a layout's memory goes, gfxstream lets go of what it imported.
+        crate::frames::set_unmap_hook(Box::new(move |buffer| unsafe { (readback.forget)(buffer.cast()) }));
+        Some(FrameReader { shared })
+    }
+
+    fn usable(&self) -> bool {
+        !self.shared.0.lock().unwrap().failed
+    }
+
+    /// Reads `read` for `scanout` next, instead of an older flush still waiting.
+    fn request(&self, scanout: usize, read: Read) {
+        let (reads, ready) = &*self.shared;
+        reads.lock().unwrap().waiting[scanout] = Some(read);
+        ready.notify_one();
+    }
+
+    /// Forgets the flushes still waiting (the guest that made them is gone).
+    fn clear(&self) {
+        self.shared.0.lock().unwrap().waiting = Default::default();
+    }
+
+    /// The readbacks since the last call: how many, their total and longest time.
+    fn take_stats(&self) -> (u64, Duration, Duration) {
+        let mut reads = self.shared.0.lock().unwrap();
+        let stats = (reads.count, reads.total, reads.max);
+        (reads.count, reads.total, reads.max) = (0, Duration::ZERO, Duration::ZERO);
+        stats
+    }
+
+    fn run(readback: Readback, shared: &(Mutex<Reads>, Condvar), first_frame: &AtomicBool) {
+        let (reads, ready) = shared;
+        // Scanouts take turns.
+        let mut start = 0;
+        loop {
+            let (scanout, read) = {
+                let mut waiting = reads.lock().unwrap();
+                loop {
+                    let next = (0..MAX_SCANOUTS).map(|k| (start + k) % MAX_SCANOUTS).find(|&i| waiting.waiting[i].is_some());
+                    if let Some(i) = next {
+                        start = i + 1;
+                        break (i, waiting.waiting[i].take().unwrap());
+                    }
+                    waiting = ready.wait(waiting).unwrap();
+                }
+            };
+            // A scanout whose layout cannot be made, or that another read has.
+            let Some(target) = read.state.lock().unwrap().sink.reserve_frame(scanout, read.width, read.height, read.format) else {
+                continue;
+            };
+            let started = Instant::now();
+            let result = unsafe { (readback.read)(read.resource, target.pixels.cast(), target.len as u64) };
+            let took = started.elapsed();
+            let shown = read.state.lock().unwrap().sink.finish_frame(target, result == 0);
+            // -ENOENT: the guest let go of the resource since its flush.
+            let failed = result != 0 && result != -libc::ENOENT;
+            {
+                let mut stats = reads.lock().unwrap();
+                stats.count += 1;
+                stats.total += took;
+                stats.max = stats.max.max(took);
+                stats.failed |= failed;
+            }
+            if failed {
+                eprintln!("[gpu] reading resource {} back on its own thread failed ({result}): frames are read on the render thread from now on", read.resource);
+            }
+            if shown && !first_frame.swap(true, Ordering::AcqRel) {
+                read.events.emit_sticky(format!("gpu first-frame {scanout}"));
+            }
+        }
+    }
 }
 
 fn header(code: u32) -> Vec<u8> {
@@ -309,6 +427,15 @@ impl Renderer {
             return Err(format!("gfxstream aligns blobs to {alignment} bytes, not {PAGE}"));
         }
         let device = callbacks.device().unwrap_or_else(chip_name);
+        let first_frame = Arc::new(AtomicBool::new(false));
+        // AVO_FRAMES_ON_RENDER_THREAD=1 keeps the old way, to compare.
+        let reader = lib
+            .readback
+            .filter(|_| std::env::var_os("AVO_FRAMES_ON_RENDER_THREAD").is_none())
+            .and_then(|readback| FrameReader::start(readback, first_frame.clone()));
+        if verbose || reader.is_some() {
+            eprintln!("[gpu] frames are read back {}", if reader.is_some() { "on their own thread" } else { "on the render thread" });
+        }
         let renderer = Renderer {
             lib,
             capsets,
@@ -318,12 +445,13 @@ impl Renderer {
             epoch: 1,
             hostmem: HostVisible::new(HOST_VISIBLE_SIZE, Hvf),
             attach: None,
-            first_frame: false,
+            first_frame,
             saw_context: false,
             stall_mark: None,
             scratch: Vec::new(),
             stats: Stats::default(),
             warned: HashSet::new(),
+            reader,
         };
         Ok((renderer, device))
     }
@@ -797,6 +925,7 @@ impl Renderer {
         let (width, height) = (args.width, args.height);
         let mut first = None;
         let mut failed = false;
+        let reader = self.reader.as_ref().filter(|reader| reader.usable());
         {
             let mut guard = attach.state.lock().unwrap();
             let state = &mut *guard;
@@ -806,6 +935,12 @@ impl Renderer {
                 // A rect that does not fit would panic the copy below, with
                 // the State lock held.
                 if !scanout.enabled || scanout.resource != id || !r.within(width, height) {
+                    continue;
+                }
+                let whole = (r.x, r.y, r.width, r.height) == (0, 0, width, height);
+                if let Some(reader) = reader.filter(|_| whole) {
+                    let read = Read { resource: id, width, height, format, state: attach.state.clone(), events: attach.events.clone() };
+                    reader.request(index, read);
                     continue;
                 }
                 let started = Instant::now();
@@ -838,7 +973,7 @@ impl Renderer {
                 self.stats.readback_total += took;
                 self.stats.readback_max = self.stats.readback_max.max(took);
                 failed |= !shown;
-                if shown && !self.first_frame && first.is_none() {
+                if shown && first.is_none() && !self.first_frame.load(Ordering::Acquire) {
                     first = Some(index);
                 }
             }
@@ -846,8 +981,9 @@ impl Renderer {
         if failed {
             self.warn_once(format!("readback {id}"), || format!("resource {id} ({width}x{height}) could not be read back"));
         }
-        if let Some(index) = first {
-            self.first_frame = true;
+        if let Some(index) = first
+            && !self.first_frame.swap(true, Ordering::AcqRel)
+        {
             attach.events.emit_sticky(format!("gpu first-frame {index}"));
         }
     }
@@ -865,7 +1001,10 @@ impl Renderer {
         }
         self.fences.clear();
         self.epoch = self.epoch.wrapping_add(1);
-        self.first_frame = false;
+        if let Some(reader) = &self.reader {
+            reader.clear();
+        }
+        self.first_frame.store(false, Ordering::Release);
         self.saw_context = false;
         self.stall_mark = None;
         self.attach = None;
@@ -896,6 +1035,12 @@ impl Renderer {
         let elapsed = now.duration_since(window);
         if elapsed < STATS_EVERY {
             return;
+        }
+        if let Some(reader) = &self.reader {
+            let (count, total, max) = reader.take_stats();
+            self.stats.readbacks += count;
+            self.stats.readback_total += total;
+            self.stats.readback_max = self.stats.readback_max.max(max);
         }
         let blobs = self.resources.values().filter(|r| r.blob.is_some()).count();
         // A line while frames flow or anything else changed.

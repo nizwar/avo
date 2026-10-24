@@ -23,6 +23,11 @@
 #                                       run commands out of order
 #   0002-hide-linear-astc-sampling      the guest no longer sees the linear
 #                                       ASTC sampling Avo's Mac layer reports
+#   0003-avo-readback                   stream_renderer_avo_read_color_buffer:
+#                                       avo-vmm reads frames on a thread of
+#                                       its own, the GPU writing them straight
+#                                       into the shared frame memory, with no
+#                                       renderer lock held while it copies
 #
 # With them and avo-vmm's Vulkan layer (engine/hvf/vmm/layer), a guest could
 # run without Avo's guest layer; source.properties says so
@@ -54,7 +59,7 @@ VULKAN_VERSION=v1.4.365
 MOLTENVK_VERSION=v1.4.0
 MOLTENVK_SHA256=f4feaf6a4988352de8e6d49874ccc1cd6a45021e3cb476e8531bef7ecc73e93a
 # Bump with any change above or below: it keys avo-vmm's GPU shader cache.
-REVISION=avo.2
+REVISION=avo.3
 
 PATCH_SUM="$(cat "$PATCHES"/*.patch | shasum -a 256 | cut -c 1-12)"
 STAMP="$REVISION $GFXSTREAM_COMMIT $VULKAN_VERSION $MOLTENVK_VERSION $PATCH_SUM"

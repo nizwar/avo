@@ -132,6 +132,19 @@ pub struct Library {
     pub create_blob: unsafe extern "C" fn(u32, u32, *const CreateBlob, *const libc::iovec, u32, *const Handle) -> c_int,
     pub resource_map: unsafe extern "C" fn(u32, *mut *mut c_void, *mut u64) -> c_int,
     pub resource_unmap: unsafe extern "C" fn(u32) -> c_int,
+    /// Avo's own renderer only (scripts/gfxstream-patches/0003): frames
+    /// read back on a thread of their own, the GPU writing into shared memory.
+    pub readback: Option<Readback>,
+}
+
+/// `stream_renderer_avo_read_color_buffer` and `…_forget_readback_memory`.
+#[derive(Clone, Copy)]
+pub struct Readback {
+    /// Resource, destination, its length: 0 on success, -ENOENT for a
+    /// resource that is gone.
+    pub read: unsafe extern "C" fn(u32, *mut c_void, u64) -> c_int,
+    /// Before a destination's memory goes away.
+    pub forget: unsafe extern "C" fn(*mut c_void),
 }
 
 /// The Android Emulator's backend's `@rpath` dependencies in `lib64`.
@@ -173,6 +186,18 @@ macro_rules! symbol {
         // SAFETY: the field's type is the symbol's prototype in the header.
         unsafe { std::mem::transmute::<*mut c_void, _>(pointer) }
     }};
+}
+
+impl Readback {
+    fn find(backend: *mut c_void) -> Option<Readback> {
+        let read = unsafe { libc::dlsym(backend, c"stream_renderer_avo_read_color_buffer".as_ptr()) };
+        let forget = unsafe { libc::dlsym(backend, c"stream_renderer_avo_forget_readback_memory".as_ptr()) };
+        if read.is_null() || forget.is_null() {
+            return None;
+        }
+        // SAFETY: the prototypes in the patch.
+        unsafe { Some(Readback { read: std::mem::transmute::<*mut c_void, _>(read), forget: std::mem::transmute::<*mut c_void, _>(forget) }) }
+    }
 }
 
 impl Library {
@@ -230,6 +255,7 @@ impl Library {
             create_blob: symbol!(backend, "create_blob"),
             resource_map: symbol!(backend, "resource_map"),
             resource_unmap: symbol!(backend, "resource_unmap"),
+            readback: Readback::find(backend),
         })
     }
 

@@ -1,0 +1,567 @@
+diff --git a/host/color_buffer.cpp b/host/color_buffer.cpp
+index 2733c4a..ac72166 100644
+--- a/host/color_buffer.cpp
++++ b/host/color_buffer.cpp
+@@ -65,6 +65,7 @@ class ColorBuffer::Impl : public LazySnapshotObj<ColorBuffer::Impl> {
+ 
+     void readToBytes(int x, int y, int width, int height, GfxstreamFormat pixelsFormat,
+                      void* outPixels, uint64_t outPixelsSize);
++    bool readToBytesAvo(void* outPixels, uint64_t outPixelsSize);
+     void readToBytesScaled(int pixelsWidth, int pixelsHeight, int pixelsRotation, Rect rect,
+                            GfxstreamFormat pixelsFormat, void* outPixels,
+                            const std::optional<std::array<float, 16>>& colorTransform);
+@@ -270,6 +271,14 @@ void ColorBuffer::Impl::readToBytes(
+     GFXSTREAM_FATAL("%s: No ColorBuffer impl", __func__);
+ }
+ 
++bool ColorBuffer::Impl::readToBytesAvo(void* outPixels, uint64_t outPixelsSize) {
++    touch();
++#if GFXSTREAM_ENABLE_HOST_GLES
++    if (mColorBufferGl) return false;
++#endif
++    return mColorBufferVk && mColorBufferVk->readToBytesAvo(outPixels, outPixelsSize);
++}
++
+ void ColorBuffer::Impl::readToBytesScaled(
+     int pixelsWidth, int pixelsHeight, int pixelsRotation, Rect rect, GfxstreamFormat pixelsFormat,
+     void* outPixels, const std::optional<std::array<float, 16>>& colorTransform) {
+@@ -688,6 +697,10 @@ void ColorBuffer::readToBytes(int x, int y, int width, int height, GfxstreamForm
+     mImpl->readToBytes(x, y, width, height, pixelsFormat, outPixels, outPixelsSize);
+ }
+ 
++bool ColorBuffer::readToBytesAvo(void* outPixels, uint64_t outPixelsSize) {
++    return mImpl->readToBytesAvo(outPixels, outPixelsSize);
++}
++
+ void ColorBuffer::readToBytesScaled(int pixelsWidth, int pixelsHeight, int pixelsRotation,
+                                     const Rect& rect, GfxstreamFormat pixelsFormat, void* outPixels,
+                                     const std::optional<std::array<float, 16>>& colorTransform) {
+diff --git a/host/color_buffer.h b/host/color_buffer.h
+index 8d38af3..cee2409 100644
+--- a/host/color_buffer.h
++++ b/host/color_buffer.h
+@@ -75,6 +75,10 @@ class ColorBuffer : public LazySnapshotObj<ColorBuffer> {
+     void readToBytes(int x, int y, int width, int height,
+                      GfxstreamFormat pixelsFormat,
+                      void* outPixels, uint64_t outPixelsSize);
++    // Avo: the whole buffer, tight rows, read without the renderer's locks
++    // held while the GPU copies (VkEmulation::readColorBufferIntoAvo). False
++    // without a Vulkan side.
++    bool readToBytesAvo(void* outPixels, uint64_t outPixelsSize);
+     void readToBytesScaled(int pixelsWidth, int pixelsHeight, int pixelsRotation, const Rect& rect,
+                            GfxstreamFormat pixelsFormat, void* outPixels,
+                            const std::optional<std::array<float, 16>>& colorTransform);
+diff --git a/host/frame_buffer.cpp b/host/frame_buffer.cpp
+index 5796790..7a24a37 100644
+--- a/host/frame_buffer.cpp
++++ b/host/frame_buffer.cpp
+@@ -5487,6 +5487,10 @@ bool FrameBuffer::hasEmulationGl() const { return mImpl->hasEmulationGl(); }
+ 
+ bool FrameBuffer::hasEmulationVk() const { return mImpl->hasEmulationVk(); }
+ 
++void FrameBuffer::forgetReadbackMemoryAvo(void* pixels) {
++    if (mImpl->hasEmulationVk()) mImpl->getEmulationVk().forgetReadbackMemoryAvo(pixels);
++}
++
+ bool FrameBuffer::setColorBufferVulkanMode(HandleType colorBufferHandle, uint32_t mode) {
+     return mImpl->setColorBufferVulkanMode(colorBufferHandle, mode);
+ }
+diff --git a/host/frame_buffer.h b/host/frame_buffer.h
+index 0b18ceb..dd40d5a 100644
+--- a/host/frame_buffer.h
++++ b/host/frame_buffer.h
+@@ -437,6 +437,9 @@ class FrameBuffer : public gfxstream::base::EventNotificationSupport<FrameBuffer
+     bool hasEmulationGl() const;
+     bool hasEmulationVk() const;
+ 
++    // Avo: VkEmulation::forgetReadbackMemoryAvo (stream_renderer_avo_forget_readback_memory).
++    void forgetReadbackMemoryAvo(void* pixels);
++
+     bool setColorBufferVulkanMode(HandleType colorBufferHandle, uint32_t mode);
+     int32_t mapGpaToBufferHandle(uint32_t bufferHandle, uint64_t gpa, uint64_t size = 0);
+ 
+diff --git a/host/virtio_gpu_gfxstream_renderer.cpp b/host/virtio_gpu_gfxstream_renderer.cpp
+index 3f58cca..9d4b6c6 100644
+--- a/host/virtio_gpu_gfxstream_renderer.cpp
++++ b/host/virtio_gpu_gfxstream_renderer.cpp
+@@ -373,6 +373,29 @@ VG_EXPORT int stream_renderer_transfer_read_iov(uint32_t handle, uint32_t ctx_id
+     return sFrontend()->transferReadIov(handle, offset, box, iov, iovec_cnt);
+ }
+ 
++// Avo (scripts/gfxstream-patches/0003): reads resource `handle`'s whole
++// color buffer into `pixels` (tight rows). Unlike transfer_read_iov it may run
++// on a thread of its own while the others go on: it holds the color buffer
++// for the read and no renderer lock while the GPU copies, and page-aligned
++// memory the device can import is written by the GPU directly. 0 on success.
++VG_EXPORT int stream_renderer_avo_read_color_buffer(uint32_t handle, void* pixels, uint64_t size) {
++    GFXSTREAM_TRACE_EVENT(GFXSTREAM_TRACE_STREAM_RENDERER_CATEGORY,
++                          "stream_renderer_avo_read_color_buffer()");
++
++    FrameBuffer* frameBuffer = FrameBuffer::getFB();
++    if (!frameBuffer) return -EINVAL;
++    // Held for the read: a guest that unrefs the resource meanwhile frees
++    // its image only after the copy.
++    gfxstream::host::ColorBufferPtr colorBuffer = frameBuffer->findColorBuffer(handle);
++    if (!colorBuffer) return -ENOENT;
++    return colorBuffer->readToBytesAvo(pixels, size) ? 0 : -EIO;
++}
++
++// Avo: lets go of what reading into `pixels` set up, before that memory goes.
++VG_EXPORT void stream_renderer_avo_forget_readback_memory(void* pixels) {
++    if (FrameBuffer* frameBuffer = FrameBuffer::getFB()) frameBuffer->forgetReadbackMemoryAvo(pixels);
++}
++
+ VG_EXPORT int stream_renderer_transfer_write_iov(uint32_t handle, uint32_t ctx_id, int level,
+                                                  uint32_t stride, uint32_t layer_stride,
+                                                  struct stream_renderer_box* box, uint64_t offset,
+diff --git a/host/vulkan/color_buffer_vk.cpp b/host/vulkan/color_buffer_vk.cpp
+index e29cf17..88aaa65 100644
+--- a/host/vulkan/color_buffer_vk.cpp
++++ b/host/vulkan/color_buffer_vk.cpp
+@@ -89,6 +89,10 @@ bool ColorBufferVk::readToBytes(uint32_t x, uint32_t y, uint32_t w, uint32_t h,
+     return mVkEmulation.readColorBufferToBytes(mHandle, x, y, w, h, outBytes, outBytesSize);
+ }
+ 
++bool ColorBufferVk::readToBytesAvo(void* outBytes, uint64_t outBytesSize) {
++    return mVkEmulation.readColorBufferIntoAvo(mHandle, outBytes, outBytesSize);
++}
++
+ bool ColorBufferVk::readPixelsScaled(int pixelsWidth, int pixelsHeight, int pixelsRotation,
+                                      const Rect& rect, GfxstreamFormat pixelsFormat,
+                                      void* outPixels,
+diff --git a/host/vulkan/color_buffer_vk.h b/host/vulkan/color_buffer_vk.h
+index abb7d99..5937c52 100644
+--- a/host/vulkan/color_buffer_vk.h
++++ b/host/vulkan/color_buffer_vk.h
+@@ -51,6 +51,8 @@ class ColorBufferVk {
+     bool readToBytes(std::vector<uint8_t>* outBytes);
+     bool readToBytes(uint32_t x, uint32_t y, uint32_t w, uint32_t h, void* outBytes,
+                      uint64_t outBytesSize);
++    // Avo: VkEmulation::readColorBufferIntoAvo.
++    bool readToBytesAvo(void* outBytes, uint64_t outBytesSize);
+     bool readPixelsScaled(int pixelsWidth, int pixelsHeight, int pixelsRotation, const Rect& rect,
+                           GfxstreamFormat pixelsFormat, void* outPixels,
+                           const std::optional<std::array<float, 16>>& colorTransform);
+diff --git a/host/vulkan/vk_common_operations.cpp b/host/vulkan/vk_common_operations.cpp
+index aba4ea2..a204f18 100644
+--- a/host/vulkan/vk_common_operations.cpp
++++ b/host/vulkan/vk_common_operations.cpp
+@@ -1463,6 +1463,13 @@ std::unique_ptr<VkEmulation> VkEmulation::create(VulkanDispatch* gvk,
+     }
+ #endif
+ 
++    // Avo: readColorBufferIntoAvo lets the GPU write readbacks straight into
++    // the caller's memory.
++    if (emulation->mDeviceInfo.supportsExternalMemoryHostProps) {
++        selectedDeviceExtensionNames.emplace(VK_EXT_EXTERNAL_MEMORY_HOST_EXTENSION_NAME);
++        emulation->mAvoHostImport = true;
++    }
++
+     if (emulation->mDeviceInfo.robustness2Features) {
+         selectedDeviceExtensionNames.emplace(VK_EXT_ROBUSTNESS_2_EXTENSION_NAME);
+     }
+@@ -1766,6 +1773,15 @@ void VkEmulation::initFeatures(Features features) {
+ }
+ 
+ VkEmulation::~VkEmulation() {
++    {
++        std::lock_guard<std::mutex> avoLock(mAvoMutex);
++        for (auto& [pixels, readback] : mAvoReadbacks) destroyReadbackAvo(&readback);
++        mAvoReadbacks.clear();
++        if (mDvk && mAvoCommandPool != VK_NULL_HANDLE) {
++            mDvk->vkDestroyCommandPool(mDevice, mAvoCommandPool, nullptr);
++            mAvoCommandPool = VK_NULL_HANDLE;
++        }
++    }
+     std::lock_guard<std::mutex> lock(mMutex);
+ 
+     mCompositorVk.reset();
+@@ -3595,6 +3611,333 @@ bool VkEmulation::readColorBufferToBytesLocked(uint32_t colorBufferHandle, uint3
+     return true;
+ }
+ 
++// Avo: a command buffer and fence of the readback's own, and where its copy
++// lands: `outPixels` itself when the device imports it, else a staging buffer
++// that only this readback uses.
++bool VkEmulation::createReadbackAvo(void* outPixels, uint64_t size, AvoReadback* readback) {
++    auto vk = mDvk;
++    if (mAvoCommandPool == VK_NULL_HANDLE) {
++        const VkCommandPoolCreateInfo poolCi = {
++            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
++            .pNext = nullptr,
++            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
++            .queueFamilyIndex = mQueueFamilyIndex,
++        };
++        if (vk->vkCreateCommandPool(mDevice, &poolCi, nullptr, &mAvoCommandPool) != VK_SUCCESS) {
++            mAvoCommandPool = VK_NULL_HANDLE;
++            return false;
++        }
++    }
++    const VkCommandBufferAllocateInfo allocateInfo = {
++        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
++        .pNext = nullptr,
++        .commandPool = mAvoCommandPool,
++        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
++        .commandBufferCount = 1,
++    };
++    if (vk->vkAllocateCommandBuffers(mDevice, &allocateInfo, &readback->commandBuffer) != VK_SUCCESS) {
++        readback->commandBuffer = VK_NULL_HANDLE;
++        return false;
++    }
++    const VkFenceCreateInfo fenceCi = {
++        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
++        .pNext = nullptr,
++        .flags = 0,
++    };
++    if (vk->vkCreateFence(mDevice, &fenceCi, nullptr, &readback->fence) != VK_SUCCESS) {
++        readback->fence = VK_NULL_HANDLE;
++        destroyReadbackAvo(readback);
++        return false;
++    }
++    readback->size = size;
++
++    const VkPhysicalDeviceMemoryProperties& memProps = mDeviceInfo.memProps;
++    const VkDeviceSize alignment = std::max<VkDeviceSize>(
++        mDeviceInfo.externalMemoryHostProps.minImportedHostPointerAlignment,
++        static_cast<VkDeviceSize>(getpagesize()));
++    if (mAvoHostImport && vk->vkGetMemoryHostPointerPropertiesEXT &&
++        reinterpret_cast<uintptr_t>(outPixels) % alignment == 0 && size % alignment == 0) {
++        VkMemoryHostPointerPropertiesEXT hostProps = {
++            .sType = VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT,
++            .pNext = nullptr,
++            .memoryTypeBits = 0,
++        };
++        const VkExternalMemoryBufferCreateInfo externalCi = {
++            .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO,
++            .pNext = nullptr,
++            .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
++        };
++        const VkBufferCreateInfo bufferCi = {
++            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
++            .pNext = &externalCi,
++            .flags = 0,
++            .size = size,
++            .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
++            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
++            .queueFamilyIndexCount = 0,
++            .pQueueFamilyIndices = nullptr,
++        };
++        VkResult result = vk->vkGetMemoryHostPointerPropertiesEXT(
++            mDevice, VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, outPixels, &hostProps);
++        if (result == VK_SUCCESS) {
++            result = vk->vkCreateBuffer(mDevice, &bufferCi, nullptr, &readback->buffer);
++        }
++        // MoltenVK 1.4.0 takes no external memory info on a buffer
++        // (VK_ERROR_FEATURE_NOT_PRESENT), and a plain buffer binds the
++        // imported memory all the same.
++        if (result == VK_ERROR_FEATURE_NOT_PRESENT) {
++            VkBufferCreateInfo plainCi = bufferCi;
++            plainCi.pNext = nullptr;
++            result = vk->vkCreateBuffer(mDevice, &plainCi, nullptr, &readback->buffer);
++        }
++        if (result == VK_SUCCESS) {
++            VkMemoryRequirements reqs;
++            vk->vkGetBufferMemoryRequirements(mDevice, readback->buffer, &reqs);
++            uint32_t typeIndex = UINT32_MAX;
++            for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
++                if ((reqs.memoryTypeBits & hostProps.memoryTypeBits & (1u << i)) &&
++                    (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
++                    typeIndex = i;
++                    break;
++                }
++            }
++            const VkImportMemoryHostPointerInfoEXT importInfo = {
++                .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT,
++                .pNext = nullptr,
++                .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
++                .pHostPointer = outPixels,
++            };
++            const VkMemoryAllocateInfo allocInfo = {
++                .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
++                .pNext = &importInfo,
++                .allocationSize = size,
++                .memoryTypeIndex = typeIndex,
++            };
++            if (typeIndex != UINT32_MAX && reqs.size <= size &&
++                vk->vkAllocateMemory(mDevice, &allocInfo, nullptr, &readback->memory) == VK_SUCCESS) {
++                if (vk->vkBindBufferMemory(mDevice, readback->buffer, readback->memory, 0) ==
++                    VK_SUCCESS) {
++                    readback->imported = true;
++                    readback->coherent = memProps.memoryTypes[typeIndex].propertyFlags &
++                                         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
++                    return true;
++                }
++                vk->vkFreeMemory(mDevice, readback->memory, nullptr);
++                readback->memory = VK_NULL_HANDLE;
++            }
++            vk->vkDestroyBuffer(mDevice, readback->buffer, nullptr);
++            readback->buffer = VK_NULL_HANDLE;
++        }
++        GFXSTREAM_WARNING("Avo readback: %p (%llu bytes) could not be imported, so it reads "
++                          "through a staging buffer.",
++                          outPixels, static_cast<unsigned long long>(size));
++    }
++
++    StagingBuffer staging;
++    if (!staging.create(vk, mDevice, &memProps, mDebugUtilsHelper, size)) {
++        destroyReadbackAvo(readback);
++        return false;
++    }
++    readback->buffer = staging.mBuffer;
++    readback->memory = staging.mMemory;
++    readback->mapped = staging.mMappedPtr;
++    readback->coherent = staging.mIsHostCoherent;
++    return true;
++}
++
++void VkEmulation::destroyReadbackAvo(AvoReadback* readback) {
++    auto vk = mDvk;
++    if (!vk) return;
++    // A read that gave up waiting may still be on the GPU.
++    if (readback->pending && readback->fence != VK_NULL_HANDLE) {
++        vk->vkWaitForFences(mDevice, 1, &readback->fence, VK_TRUE, 5ULL * 1000ULL * 1000ULL * 1000ULL);
++    }
++    if (readback->buffer != VK_NULL_HANDLE) vk->vkDestroyBuffer(mDevice, readback->buffer, nullptr);
++    // Freeing mapped memory unmaps it.
++    if (readback->memory != VK_NULL_HANDLE) vk->vkFreeMemory(mDevice, readback->memory, nullptr);
++    if (readback->fence != VK_NULL_HANDLE) vk->vkDestroyFence(mDevice, readback->fence, nullptr);
++    if (readback->commandBuffer != VK_NULL_HANDLE && mAvoCommandPool != VK_NULL_HANDLE) {
++        vk->vkFreeCommandBuffers(mDevice, mAvoCommandPool, 1, &readback->commandBuffer);
++    }
++    *readback = AvoReadback{};
++}
++
++void VkEmulation::forgetReadbackMemoryAvo(void* outPixels) {
++    std::lock_guard<std::mutex> avoLock(mAvoMutex);
++    auto it = mAvoReadbacks.find(outPixels);
++    if (it == mAvoReadbacks.end()) return;
++    destroyReadbackAvo(&it->second);
++    mAvoReadbacks.erase(it);
++}
++
++bool VkEmulation::readColorBufferIntoAvo(uint32_t colorBufferHandle, void* outPixels,
++                                         uint64_t outPixelsSize) {
++    auto vk = mDvk;
++    std::lock_guard<std::mutex> avoLock(mAvoMutex);
++
++    auto it = mAvoReadbacks.find(outPixels);
++    if (it != mAvoReadbacks.end() && it->second.size != outPixelsSize) {
++        destroyReadbackAvo(&it->second);
++        mAvoReadbacks.erase(it);
++        it = mAvoReadbacks.end();
++    }
++    if (it == mAvoReadbacks.end()) {
++        AvoReadback created;
++        if (!createReadbackAvo(outPixels, outPixelsSize, &created)) {
++            GFXSTREAM_ERROR("Avo readback: no command buffer or memory for %p.", outPixels);
++            return false;
++        }
++        it = mAvoReadbacks.emplace(outPixels, created).first;
++    }
++    AvoReadback& readback = it->second;
++
++    VkDeviceSize copySize = 0;
++    {
++        std::lock_guard<std::mutex> lock(mMutex);
++        auto colorBufferInfo = gfxstream::base::find(mColorBuffers, colorBufferHandle);
++        if (!colorBufferInfo || !colorBufferInfo->image) {
++            return false;
++        }
++        TransferInfo transferInfo;
++        if (!getFormatTransferInfo(colorBufferInfo->imageCreateInfoShallow.format,
++                                   colorBufferInfo->imageCreateInfoShallow.extent, &transferInfo)) {
++            return false;
++        }
++        // Formats that need unpacking, and a destination too small, go the
++        // ordinary way (which says why when it fails).
++        if (transferInfo.unpackFunction || transferInfo.stagingBufferCopySize > outPixelsSize) {
++            return readColorBufferToBytesLocked(
++                colorBufferHandle, 0, 0, colorBufferInfo->imageCreateInfoShallow.extent.width,
++                colorBufferInfo->imageCreateInfoShallow.extent.height, outPixels, outPixelsSize);
++        }
++        copySize = transferInfo.stagingBufferCopySize;
++
++        // The same commands as readColorBufferToBytesLocked.
++        if (colorBufferInfo->currentLayout == VK_IMAGE_LAYOUT_UNDEFINED) {
++            colorBufferInfo->currentLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
++        }
++        const VkCommandBufferBeginInfo beginInfo = {
++            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
++            .pNext = nullptr,
++            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
++            .pInheritanceInfo = nullptr,
++        };
++        if (vk->vkBeginCommandBuffer(readback.commandBuffer, &beginInfo) != VK_SUCCESS) {
++            return false;
++        }
++        const VkImageLayout currentLayout = colorBufferInfo->currentLayout;
++        const VkImageLayout transferSrcLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
++        const VkImageSubresourceRange range = {
++            .aspectMask = getFormatAspects(colorBufferInfo->imageCreateInfoShallow.format),
++            .baseMipLevel = 0,
++            .levelCount = 1,
++            .baseArrayLayer = 0,
++            .layerCount = 1,
++        };
++        const VkImageMemoryBarrier toTransferSrc = {
++            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
++            .pNext = nullptr,
++            .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
++            .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
++            .oldLayout = currentLayout,
++            .newLayout = transferSrcLayout,
++            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
++            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
++            .image = colorBufferInfo->image,
++            .subresourceRange = range,
++        };
++        vk->vkCmdPipelineBarrier(readback.commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
++                                 VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1,
++                                 &toTransferSrc);
++        vk->vkCmdCopyImageToBuffer(readback.commandBuffer, colorBufferInfo->image,
++                                   transferSrcLayout, readback.buffer,
++                                   transferInfo.bufferImageCopies.size(),
++                                   transferInfo.bufferImageCopies.data());
++        // The host reads what the GPU wrote.
++        const VkBufferMemoryBarrier toHost = {
++            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
++            .pNext = nullptr,
++            .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
++            .dstAccessMask = VK_ACCESS_HOST_READ_BIT,
++            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
++            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
++            .buffer = readback.buffer,
++            .offset = 0,
++            .size = VK_WHOLE_SIZE,
++        };
++        vk->vkCmdPipelineBarrier(readback.commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
++                                 VK_PIPELINE_STAGE_HOST_BIT, 0, 0, nullptr, 1, &toHost, 0, nullptr);
++        if (currentLayout != VK_IMAGE_LAYOUT_UNDEFINED) {
++            const VkImageMemoryBarrier toCurrentLayout = {
++                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
++                .pNext = nullptr,
++                .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
++                .dstAccessMask = VK_ACCESS_NONE_KHR,
++                .oldLayout = transferSrcLayout,
++                .newLayout = currentLayout,
++                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
++                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
++                .image = colorBufferInfo->image,
++                .subresourceRange = range,
++            };
++            vk->vkCmdPipelineBarrier(readback.commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
++                                     VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr,
++                                     1, &toCurrentLayout);
++        } else {
++            colorBufferInfo->currentLayout = transferSrcLayout;
++        }
++        if (vk->vkEndCommandBuffer(readback.commandBuffer) != VK_SUCCESS) {
++            return false;
++        }
++        const VkSubmitInfo submitInfo = {
++            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
++            .pNext = nullptr,
++            .waitSemaphoreCount = 0,
++            .pWaitSemaphores = nullptr,
++            .pWaitDstStageMask = nullptr,
++            .commandBufferCount = 1,
++            .pCommandBuffers = &readback.commandBuffer,
++            .signalSemaphoreCount = 0,
++            .pSignalSemaphores = nullptr,
++        };
++        gfxstream::base::AutoLock queueLock(*mQueueLock);
++        if (vk->vkQueueSubmit(mQueue, 1, &submitInfo, readback.fence) != VK_SUCCESS) {
++            return false;
++        }
++        readback.pending = true;
++    }
++
++    // No renderer lock from here on: the guest's work goes on while the GPU copies.
++    static constexpr uint64_t kWaitNs = 5ULL * 1000ULL * 1000ULL * 1000ULL;
++    VkResult waitRes = vk->vkWaitForFences(mDevice, 1, &readback.fence, VK_TRUE, kWaitNs);
++    if (waitRes == VK_TIMEOUT) {
++        GFXSTREAM_ERROR("Avo readback of ColorBuffer:%d waited 5 s, retrying...", colorBufferHandle);
++        waitRes = vk->vkWaitForFences(mDevice, 1, &readback.fence, VK_TRUE, kWaitNs * 2);
++    }
++    if (waitRes != VK_SUCCESS) {
++        GFXSTREAM_ERROR("Avo readback of ColorBuffer:%d failed: %s", colorBufferHandle,
++                        string_VkResult(waitRes));
++        return false;
++    }
++    vk->vkResetFences(mDevice, 1, &readback.fence);
++    readback.pending = false;
++
++    if (!readback.imported) {
++        if (!readback.coherent) {
++            const VkMappedMemoryRange range = {
++                .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
++                .pNext = nullptr,
++                .memory = readback.memory,
++                .offset = 0,
++                .size = VK_WHOLE_SIZE,
++            };
++            vk->vkInvalidateMappedMemoryRanges(mDevice, 1, &range);
++        }
++        std::memcpy(outPixels, readback.mapped, copySize);
++    }
++    return true;
++}
++
+ bool VkEmulation::readColorBufferPixelsScaled(
+     uint32_t colorBufferHandle, int pixelsWidth, int pixelsHeight, GFXSTREAM_ROTATION pixelsRotation,
+     const Rect& rect, GfxstreamFormat pixelsFormat, void* outPixels,
+diff --git a/host/vulkan/vk_common_operations.h b/host/vulkan/vk_common_operations.h
+index 840d6f1..b98994c 100644
+--- a/host/vulkan/vk_common_operations.h
++++ b/host/vulkan/vk_common_operations.h
+@@ -401,6 +401,17 @@ class VkEmulation {
+     bool readColorBufferToBytes(uint32_t colorBufferHandle, std::vector<uint8_t>* bytes);
+     bool readColorBufferToBytes(uint32_t colorBufferHandle, uint32_t x, uint32_t y, uint32_t w,
+                                 uint32_t h, void* outPixels, uint64_t outPixelsSize);
++    // Avo: the whole color buffer into `outPixels` (tight rows), like
++    // readColorBufferToBytes, but holding mMutex only while the copy is
++    // recorded and submitted: the GPU wait and any CPU copy run without it,
++    // so the guest's work goes on meanwhile. Memory the device can import
++    // (page-aligned) is written by the GPU itself, with no CPU copy. One
++    // read per destination at a time.
++    bool readColorBufferIntoAvo(uint32_t colorBufferHandle, void* outPixels,
++                                uint64_t outPixelsSize);
++    // Avo: lets go of what readColorBufferIntoAvo set up for `outPixels`,
++    // before that memory goes away.
++    void forgetReadbackMemoryAvo(void* outPixels);
+     bool readColorBufferPixelsScaled(uint32_t colorBufferHandle, int pixelsWidth, int pixelsHeight,
+                                      GFXSTREAM_ROTATION pixelsRotation, const Rect& rect,
+                                      GfxstreamFormat pixelsFormat, void* outPixels,
+@@ -728,6 +739,32 @@ class VkEmulation {
+     // signaled only if the command buffer completes.
+     std::vector<std::tuple<VkCommandBuffer, VkFence>> mTransferQueueCommandBufferPool GUARDED_BY(mMutex);
+ 
++    // Avo: what readColorBufferIntoAvo reads through, per destination.
++    struct AvoReadback {
++        VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
++        VkFence fence = VK_NULL_HANDLE;
++        // The destination imported as a buffer (`imported`), or a staging
++        // buffer of its own that the CPU copies out of.
++        VkBuffer buffer = VK_NULL_HANDLE;
++        VkDeviceMemory memory = VK_NULL_HANDLE;
++        VkDeviceSize size = 0;
++        void* mapped = nullptr;
++        bool imported = false;
++        bool coherent = true;
++        // A submission whose fence was not seen signalled yet.
++        bool pending = false;
++    };
++    bool createReadbackAvo(void* outPixels, uint64_t size, AvoReadback* readback)
++        REQUIRES(mAvoMutex);
++    void destroyReadbackAvo(AvoReadback* readback) REQUIRES(mAvoMutex);
++    // Taken before mMutex, never the other way round. It is held for a whole
++    // read, so a destination is never let go of while the GPU writes it.
++    std::mutex mAvoMutex;
++    // VK_EXT_external_memory_host is enabled on mDevice.
++    bool mAvoHostImport = false;
++    VkCommandPool mAvoCommandPool GUARDED_BY(mAvoMutex) = VK_NULL_HANDLE;
++    std::unordered_map<void*, AvoReadback> mAvoReadbacks GUARDED_BY(mAvoMutex);
++
+     std::unique_ptr<CompositorVk> mCompositorVk;
+ 
+     // The implementation for Vulkan native swapchain. Only initialized in initVkEmulationFeatures

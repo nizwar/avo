@@ -2,15 +2,16 @@
 //! to App Shim windows (as IOSurfaces) without copying through a socket.
 //!
 //! One file per scanout and layout ("generation"), named
-//! `scanout-<index>-<generation>.frames`, holding a 4 KiB header and three
+//! `scanout-<index>-<generation>.frames`, holding a 16 KiB header and three
 //! frame buffers (triple buffering: the reader copies the newest buffer while
-//! the guest fills another). Header, little endian:
+//! the guest fills another). Buffers start on host pages, so the GPU can
+//! write a readback straight into one (render.rs). Header, little endian:
 //!
 //! ```text
 //!  0  magic "AVOF"          24  format (0 = BGRA, 1 = RGBA)
 //!  4  version (1)           28  buffer count (3)
-//!  8  generation            32  offset of buffer 0 (4096)
-//! 12  width                 36  bytes per buffer (multiple of 4096)
+//!  8  generation            32  offset of buffer 0 (16384)
+//! 12  width                 36  bytes per buffer (multiple of 16384)
 //! 16  height                40  index of the newest complete buffer
 //! 20  bytes per row         48  frames published (u64; 0 = none yet)
 //! ```
@@ -22,16 +23,18 @@
 //! slowly gets only the newest, control.rs) and `frames-off <index>` when
 //! the scanout is unplugged and its file deleted.
 
-use crate::virtio::gpu::{Format, Frame, FrameSink, MAX_SCANOUTS};
+use crate::virtio::gpu::{Format, Frame, FrameSink, FrameTarget, MAX_SCANOUTS};
 use std::fs::OpenOptions;
 use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{Ordering, fence};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 const MAGIC: &[u8; 4] = b"AVOF";
-const HEADER: usize = 4096;
+/// Apple silicon's page: what memory the GPU imports must start and end on.
+const PAGE: usize = 16384;
+const HEADER: usize = PAGE;
 const BUFFERS: usize = 3;
 
 unsafe extern "C" {
@@ -45,10 +48,50 @@ const MAP_SHARED: i32 = 0x0001;
 /// Where events go (the control server's subscribers).
 pub type EventSink = Arc<dyn Fn(String) + Send + Sync>;
 
-struct Surface {
-    path: PathBuf,
+/// What the renderer calls for each buffer of a mapping before it goes, to
+/// let go of what it set up for writing into it (`set_unmap_hook`).
+type UnmapHook = Box<dyn Fn(*mut u8) + Send + Sync>;
+static UNMAP_HOOK: OnceLock<UnmapHook> = OnceLock::new();
+
+/// Called with each frame buffer of a layout before its memory is unmapped
+/// (the renderer imports buffers it reads frames back into).
+pub fn set_unmap_hook(hook: UnmapHook) {
+    let _ = UNMAP_HOOK.set(hook);
+}
+
+/// A layout's shared memory. A readback on another thread holds it too
+/// (`FrameTarget`), so it stays mapped until that read is done even when
+/// the layout is replaced meanwhile.
+struct Mapping {
     map: *mut u8,
     len: usize,
+    buffer_size: usize,
+}
+
+// Writers coordinate through `Surface` (one fill of a buffer at a time).
+unsafe impl Send for Mapping {}
+unsafe impl Sync for Mapping {}
+
+impl Mapping {
+    fn buffer(&self, index: usize) -> *mut u8 {
+        unsafe { self.map.add(HEADER + index * self.buffer_size) }
+    }
+}
+
+impl Drop for Mapping {
+    fn drop(&mut self) {
+        if let Some(hook) = UNMAP_HOOK.get() {
+            for index in 0..BUFFERS {
+                hook(self.buffer(index));
+            }
+        }
+        unsafe { munmap(self.map, self.len) };
+    }
+}
+
+struct Surface {
+    path: PathBuf,
+    mapping: Arc<Mapping>,
     width: u32,
     height: u32,
     format: Format,
@@ -57,15 +100,15 @@ struct Surface {
     generation: u32,
     /// Its `frames` event went out (just before its first frame).
     announced: bool,
+    /// A readback on another thread is filling the next buffer
+    /// (`reserve_frame`); nothing else may until it finishes.
+    reserved: bool,
 }
-
-// The mapping is only touched by the GPU device thread that owns the sink.
-unsafe impl Send for Surface {}
 
 impl Surface {
     fn create(path: PathBuf, generation: u32, width: u32, height: u32, format: Format) -> std::io::Result<Surface> {
         let stride = width as usize * 4;
-        let buffer_size = (stride * height as usize).next_multiple_of(4096);
+        let buffer_size = (stride * height as usize).next_multiple_of(PAGE);
         let len = HEADER + BUFFERS * buffer_size;
         let file = OpenOptions::new().read(true).write(true).create(true).truncate(true).open(&path)?;
         let mapped = file.set_len(len as u64).and_then(|()| {
@@ -88,26 +131,30 @@ impl Surface {
         put(28, BUFFERS as u32);
         put(32, HEADER as u32);
         put(36, buffer_size as u32);
-        Ok(Surface { path, map, len, width, height, format, buffer_size, sequence: 0, generation, announced: false })
+        let mapping = Arc::new(Mapping { map, len, buffer_size });
+        Ok(Surface { path, mapping, width, height, format, buffer_size, sequence: 0, generation, announced: false, reserved: false })
     }
 
-    /// The buffer the next frame goes into: never the newest one, which
-    /// readers may be copying.
-    fn next_buffer(&mut self) -> &mut [u8] {
+    /// Where the next frame goes: never the newest buffer, which readers may
+    /// be copying.
+    fn next_pointer(&self) -> *mut u8 {
         // The last frame's counter before any write into this buffer. The
         // daemon reads the counter before and after copying the newest
         // buffer and drops the copy if it rose by more than one: this
         // buffer was the newest two frames ago, and the counter must show
         // that before a reader can see it being refilled.
         fence(Ordering::Release);
-        let next = ((self.sequence + 1) % BUFFERS as u64) as usize;
-        unsafe { std::slice::from_raw_parts_mut(self.map.add(HEADER + next * self.buffer_size), self.buffer_size) }
+        self.mapping.buffer(((self.sequence + 1) % BUFFERS as u64) as usize)
+    }
+
+    fn next_buffer(&mut self) -> &mut [u8] {
+        unsafe { std::slice::from_raw_parts_mut(self.next_pointer(), self.buffer_size) }
     }
 
     /// The newest published buffer.
     fn newest(&self) -> &[u8] {
         let index = (self.sequence % BUFFERS as u64) as usize;
-        unsafe { std::slice::from_raw_parts(self.map.add(HEADER + index * self.buffer_size), self.buffer_size) }
+        unsafe { std::slice::from_raw_parts(self.mapping.buffer(index), self.buffer_size) }
     }
 
     /// Copies a frame into the next buffer and publishes it, `rotate`d as
@@ -129,7 +176,7 @@ impl Surface {
     fn publish_next(&mut self) -> u64 {
         let next = ((self.sequence + 1) % BUFFERS as u64) as usize;
         self.sequence += 1;
-        let header = unsafe { std::slice::from_raw_parts_mut(self.map, HEADER) };
+        let header = unsafe { std::slice::from_raw_parts_mut(self.mapping.map, HEADER) };
         // Buffer contents before the index, the index before the sequence.
         fence(Ordering::Release);
         header[40..44].copy_from_slice(&(next as u32).to_le_bytes());
@@ -141,8 +188,8 @@ impl Surface {
 
 impl Drop for Surface {
     fn drop(&mut self) {
-        unsafe { munmap(self.map, self.len) };
-        // Readers keep their mapping; the name goes away with the layout.
+        // The memory goes with the last holder of `mapping`; readers keep
+        // their own mapping; the name goes away with the layout.
         let _ = std::fs::remove_file(&self.path);
     }
 }
@@ -345,7 +392,7 @@ impl FrameSink for SharedFrames {
         let frame = if self.swap_red_blue { Frame { format: frame.format.swapping_red_blue(), ..frame } } else { frame };
         let index = frame.scanout;
         let (format, rotate) = stored(frame.format);
-        if !self.ensure_surface(index, frame.width, frame.height, format) {
+        if !self.ensure_surface(index, frame.width, frame.height, format) || self.surfaces[index].as_ref().unwrap().reserved {
             return;
         }
         self.announce(index);
@@ -360,7 +407,9 @@ impl FrameSink for SharedFrames {
     fn fill_frame(&mut self, scanout: usize, width: u32, height: u32, format: Format, fill: &mut dyn FnMut(&mut [u8]) -> bool) -> bool {
         let format = if self.swap_red_blue { format.swapping_red_blue() } else { format };
         let (format, rotate) = stored(format);
-        if scanout >= MAX_SCANOUTS || !self.ensure_surface(scanout, width, height, format) {
+        // A readback on another thread fills the next buffer: this frame is
+        // older than the one it brings.
+        if scanout >= MAX_SCANOUTS || !self.ensure_surface(scanout, width, height, format) || self.surfaces[scanout].as_ref().unwrap().reserved {
             return false;
         }
         let len = width as usize * height as usize * 4;
@@ -371,19 +420,67 @@ impl FrameSink for SharedFrames {
         if rotate {
             alpha_last(buffer);
         }
+        self.publish_filled(scanout);
+        true
+    }
+
+    fn reserve_frame(&mut self, scanout: usize, width: u32, height: u32, format: Format) -> Option<FrameTarget> {
+        let format = if self.swap_red_blue { format.swapping_red_blue() } else { format };
+        let (format, rotate) = stored(format);
+        if scanout >= MAX_SCANOUTS || !self.ensure_surface(scanout, width, height, format) {
+            return None;
+        }
+        let surface = self.surfaces[scanout].as_mut().unwrap();
+        if surface.reserved {
+            return None;
+        }
+        surface.reserved = true;
+        Some(FrameTarget {
+            scanout,
+            pixels: surface.next_pointer(),
+            len: surface.buffer_size,
+            rotate,
+            generation: surface.generation,
+            keep: surface.mapping.clone(),
+        })
+    }
+
+    fn finish_frame(&mut self, target: FrameTarget, filled: bool) -> bool {
+        let scanout = target.scanout;
+        // The layout changed meanwhile: the frame went into memory nobody
+        // reads any more.
+        let Some(surface) = self.surfaces.get_mut(scanout).and_then(Option::as_mut).filter(|s| s.generation == target.generation) else {
+            return false;
+        };
+        surface.reserved = false;
+        if !filled {
+            return false;
+        }
+        if target.rotate {
+            let len = surface.width as usize * surface.height as usize * 4;
+            alpha_last(unsafe { std::slice::from_raw_parts_mut(target.pixels, len) });
+        }
+        self.publish_filled(scanout);
+        true
+    }
+}
+
+impl SharedFrames {
+    /// Publishes what was written into the next buffer of `scanout`, after
+    /// its layout's `frames` event when that has not gone out yet.
+    fn publish_filled(&mut self, scanout: usize) {
         self.announce(scanout);
         let sequence = self.surfaces[scanout].as_mut().unwrap().publish_next();
         self.emit(format!("frame {scanout} {sequence}"));
         let snapshots = self.take_snapshots(scanout);
         if !snapshots.is_empty() {
             let surface = self.surfaces[scanout].as_ref().unwrap();
-            let frame = Frame { scanout, width, height, stride: width as usize * 4, format, pixels: surface.newest() };
+            let frame = Frame { scanout, width: surface.width, height: surface.height, stride: surface.width as usize * 4, format: surface.format, pixels: surface.newest() };
             let image = bmp(&frame);
             for path in snapshots {
                 let _ = std::fs::write(&path, &image);
             }
         }
-        true
     }
 }
 
@@ -504,6 +601,50 @@ mod tests {
         assert_eq!(contents(layouts[0]), (1, vec![0x10, 0x20, 0x30, 0xff]), "RGBA");
         assert_eq!(layouts[1].split(' ').nth(6), Some("0"));
         assert_eq!(contents(layouts[1]), (0, vec![0x30, 0x20, 0x10, 0]), "BGRX");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn frames_read_back_elsewhere_are_published_when_finished() {
+        let (mut frames, events, dir) = collecting("reserve");
+        let target = frames.reserve_frame(0, 3, 2, Format::Bgra).expect("a buffer");
+        assert_eq!(target.pixels as usize % PAGE, 0, "buffers start on a page");
+        assert_eq!(target.len % PAGE, 0, "and end on one");
+        assert!(target.len >= 3 * 2 * 4);
+        // The scanout is the readback's until it finishes.
+        assert!(frames.reserve_frame(0, 3, 2, Format::Bgra).is_none());
+        assert!(!frames.fill_frame(0, 3, 2, Format::Bgra, &mut |_| true));
+        assert!(events.lock().unwrap().is_empty(), "nothing yet");
+
+        unsafe { std::slice::from_raw_parts_mut(target.pixels, 24) }.copy_from_slice(&[9; 24]);
+        assert!(frames.finish_frame(target, true));
+        let events = events.lock().unwrap().clone();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[1], "frame 0 1");
+        let data = std::fs::read(events[0].splitn(8, ' ').nth(7).unwrap()).unwrap();
+        let latest = u32::from_le_bytes(data[40..44].try_into().unwrap()) as usize;
+        let size = u32::from_le_bytes(data[36..40].try_into().unwrap()) as usize;
+        assert_eq!(u32::from_le_bytes(data[32..36].try_into().unwrap()) as usize, HEADER);
+        assert_eq!(&data[HEADER + latest * size..][..24], &[9; 24]);
+
+        // A readback that failed publishes nothing and frees the scanout.
+        let target = frames.reserve_frame(0, 3, 2, Format::Bgra).unwrap();
+        assert!(!frames.finish_frame(target, false));
+        assert!(frames.reserve_frame(0, 3, 2, Format::Bgra).is_some());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_readback_into_a_replaced_layout_is_dropped_and_its_memory_kept_until_then() {
+        let (mut frames, events, dir) = collecting("replaced");
+        let target = frames.reserve_frame(0, 2, 2, Format::Bgra).unwrap();
+        // The display was resized while the GPU copied.
+        assert!(frames.fill_frame(0, 4, 4, Format::Bgra, &mut |_| true));
+        // Still mapped: the target holds the old layout's memory.
+        unsafe { std::slice::from_raw_parts_mut(target.pixels, 16) }.fill(1);
+        assert!(!frames.finish_frame(target, true), "the old layout gets no frame");
+        let frames_events: Vec<String> = events.lock().unwrap().iter().filter(|e| e.starts_with("frame ")).cloned().collect();
+        assert_eq!(frames_events, ["frame 0 1"], "only the new layout's");
         std::fs::remove_dir_all(dir).unwrap();
     }
 

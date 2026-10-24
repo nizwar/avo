@@ -157,7 +157,40 @@ pub trait FrameSink: Send {
         self.frame(Frame { scanout, width, height, stride: width as usize * 4, format, pixels: &pixels });
         true
     }
+
+    /// The buffer the next frame of `scanout` goes into, for a readback on
+    /// another thread (render.rs): nothing else fills that scanout until
+    /// `finish_frame`. None where frames are not shared, or while another
+    /// readback has it.
+    fn reserve_frame(&mut self, _scanout: usize, _width: u32, _height: u32, _format: Format) -> Option<FrameTarget> {
+        None
+    }
+
+    /// Publishes the frame written into `target` when `filled`; either way
+    /// its scanout is free again. False when nothing was published (also
+    /// when the layout changed meanwhile).
+    fn finish_frame(&mut self, _target: FrameTarget, _filled: bool) -> bool {
+        false
+    }
 }
+
+/// Where a readback on another thread writes a frame (`reserve_frame`):
+/// `len` bytes from `pixels`, rows of `width * 4` from its start, starting
+/// and ending on host pages so the GPU can write them itself.
+pub struct FrameTarget {
+    pub scanout: usize,
+    pub pixels: *mut u8,
+    pub len: usize,
+    /// The frame's first byte goes last (`frames::stored`).
+    pub rotate: bool,
+    pub generation: u32,
+    /// Keeps the memory mapped while the target lives (held, never read).
+    #[allow(dead_code)]
+    pub keep: Arc<dyn std::any::Any + Send + Sync>,
+}
+
+// The memory is the target's alone until `finish_frame` (`keep` holds it).
+unsafe impl Send for FrameTarget {}
 
 #[derive(Clone, Copy, Default)]
 struct Scanout {
