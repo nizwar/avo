@@ -61,6 +61,16 @@
         }
       }
     },
+    "%@ drags the thumb back to where it rests." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ menggeser jempol kembali ke posisi diamnya."
+          }
+        }
+      }
+    },
     "%@ failed its checksum." : {
       "localizations" : {
         "id" : {
@@ -214,6 +224,16 @@
         }
       }
     },
+    "%@ resets" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ me-reset"
+          }
+        }
+      }
+    },
     "%@ runs" : {
       "localizations" : {
         "id" : {
@@ -266,6 +286,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@: joystick atau mata tidak bisa menjalankan aksi"
+          }
+        }
+      }
+    },
+    "%@: a step must be 1 to 50% of the track" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: langkah harus 1 sampai 50% dari jalur"
           }
         }
       }
@@ -586,12 +616,52 @@
         }
       }
     },
+    "%@: the rest point must be on the track" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: posisi diam harus berada di jalur"
+          }
+        }
+      }
+    },
+    "%@: the scroll bar's track is too short" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: jalur scroll bar terlalu pendek"
+          }
+        }
+      }
+    },
     "%@: the wheel cannot be held to run" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@: roda mouse tidak bisa ditahan untuk lari"
+          }
+        }
+      }
+    },
+    "%@: the wheel cannot reset a scroll bar" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: roda mouse tidak bisa me-reset scroll bar"
+          }
+        }
+      }
+    },
+    "%@: this kind of control cannot be clicked" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: jenis kontrol ini tidak bisa diklik"
           }
         }
       }
@@ -678,6 +748,26 @@
         }
       }
     },
+    "A click inside the area presses “%@” now. Drag the area or its edges over the game’s button." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klik di dalam area sekarang menekan “%@”. Seret area atau tepinya ke atas tombol game."
+          }
+        }
+      }
+    },
+    "A click with the mouse free inside its area presses this control, as its key would: the game’s button is touched once, and its actions run once. Drag the area or its edges on the game." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klik dengan mouse bebas di dalam areanya menekan kontrol ini, sama seperti tombolnya: tombol game disentuh sekali, dan aksinya berjalan sekali. Seret area atau tepinya di game."
+          }
+        }
+      }
+    },
     "A copy of “%@”, with its controls: type its name in its tab." : {
       "localizations" : {
         "id" : {
@@ -758,6 +848,16 @@
         }
       }
     },
+    "A scroll bar follows the wheel. To give it a reset key, click Reset key in the panel, then press the key." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scroll bar mengikuti roda mouse. Untuk memberi tombol reset, klik Tombol reset di panel, lalu tekan tombolnya."
+          }
+        }
+      }
+    },
     "A stick drives a joystick or the eye. To use pressing it down (%@) here, press the stick down." : {
       "localizations" : {
         "id" : {
@@ -810,6 +910,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Di atas 1×, dorongan yang lebih kecil sudah mencapai tepi joystick, dan mata berputar lebih cepat."
+          }
+        }
+      }
+    },
+    "Across" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mendatar"
           }
         }
       }
@@ -1510,6 +1620,16 @@
         }
       }
     },
+    "Area shape" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bentuk area"
+          }
+        }
+      }
+    },
     "As It Was" : {
       "localizations" : {
         "id" : {
@@ -2020,6 +2140,16 @@
         }
       }
     },
+    "Click it, then press the key that resets the scroll bar." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klik, lalu tekan tombol yang me-reset scroll bar."
+          }
+        }
+      }
+    },
     "Click it, then press the key to hold for running (Shift, for example)." : {
       "localizations" : {
         "id" : {
@@ -2066,6 +2196,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Jika diklik saat mouse bebas, area ini menjalankan semua ini berurutan. Ganti Mode berpindah ke kumpulan kontrol lain; Lepaskan dan Kunci Mouse mengubah apa yang dilakukan mouse dengan mata."
+          }
+        }
+      }
+    },
+    "Clicking the game presses it" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klik di game juga menekannya"
+          }
+        }
+      }
+    },
+    "Clicks on the game no longer press “%@”." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klik di game tidak lagi menekan “%@”."
           }
         }
       }
@@ -2346,6 +2496,16 @@
         }
       }
     },
+    "Direction" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arah"
+          }
+        }
+      }
+    },
     "Discard" : {
       "localizations" : {
         "id" : {
@@ -2376,12 +2536,32 @@
         }
       }
     },
+    "Down" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bawah"
+          }
+        }
+      }
+    },
     "Drag distance" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Jarak seret"
+          }
+        }
+      }
+    },
+    "Drag the track over the game’s slider and its ends to the slider’s ends; the ● is where the thumb rests." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seret jalurnya ke atas slider game dan ujungnya ke ujung slider; ● adalah posisi diam jempolnya."
           }
         }
       }
@@ -3048,6 +3228,16 @@
         }
       }
     },
+    "How far one notch of the wheel drags the thumb, of the track’s length." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seberapa jauh satu notch roda menggeser jempol, dari panjang jalur."
+          }
+        }
+      }
+    },
     "How far the joystick is pushed while the run key is held, compared with its size." : {
       "localizations" : {
         "id" : {
@@ -3417,6 +3607,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tata Letak"
+          }
+        }
+      }
+    },
+    "Left" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiri"
           }
         }
       }
@@ -4001,6 +4201,16 @@
         }
       }
     },
+    "No reset key" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tanpa tombol reset"
+          }
+        }
+      }
+    },
     "No run key" : {
       "localizations" : {
         "id" : {
@@ -4177,6 +4387,16 @@
         }
       }
     },
+    "Press it to drag the thumb back to where it rests (the map’s zoom back to normal). Click the key, then press another to change it." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tekan untuk menggeser jempol kembali ke posisi diamnya (zoom peta kembali normal). Klik tombolnya, lalu tekan tombol lain untuk menggantinya."
+          }
+        }
+      }
+    },
     "Press its key or controller button. Right-click for a mouse button." : {
       "localizations" : {
         "id" : {
@@ -4203,6 +4423,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tekan tombol untuk hotkey ini, lalu tambahkan apa yang dilakukannya di panel."
+          }
+        }
+      }
+    },
+    "Press the key that drags the thumb back to rest." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tekan tombol yang menggeser jempol kembali ke posisi diam."
           }
         }
       }
@@ -4497,6 +4727,16 @@
         }
       }
     },
+    "Reset key" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tombol reset"
+          }
+        }
+      }
+    },
     "Reset the controller mapping?" : {
       "localizations" : {
         "id" : {
@@ -4523,6 +4763,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pemulihan Android"
+          }
+        }
+      }
+    },
+    "Rests at" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Posisi diam"
+          }
+        }
+      }
+    },
+    "Right" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kanan"
           }
         }
       }
@@ -4617,6 +4877,26 @@
         }
       }
     },
+    "Round" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bulat"
+          }
+        }
+      }
+    },
+    "Rounded" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sudut tumpul"
+          }
+        }
+      }
+    },
     "Run key" : {
       "localizations" : {
         "id" : {
@@ -4703,6 +4983,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Preset “%@” disimpan."
+          }
+        }
+      }
+    },
+    "Scroll" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scroll"
+          }
+        }
+      }
+    },
+    "Scroll Bar" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scroll Bar"
+          }
+        }
+      }
+    },
+    "Scroll Bar: the wheel drags the thumb of a slider of the game (a map’s zoom) a step a notch, within its ends." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scroll Bar: roda mouse menggeser jempol slider game (zoom peta) satu langkah per notch, di antara ujung-ujungnya."
+          }
+        }
+      }
+    },
+    "Scroll bar" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scroll bar"
           }
         }
       }
@@ -4837,6 +5157,16 @@
         }
       }
     },
+    "Square" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kotak"
+          }
+        }
+      }
+    },
     "Start the Game in This Mode" : {
       "localizations" : {
         "id" : {
@@ -4873,6 +5203,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tata letak awal: setelah itu, pindahkan tiap kontrol ke tombol game"
+          }
+        }
+      }
+    },
+    "Step per notch" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Langkah per notch"
           }
         }
       }
@@ -5761,6 +6101,16 @@
         }
       }
     },
+    "The wheel drags the scroll bar: press a key to reset it." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Roda mouse menggeser scroll bar: tekan tombol keyboard untuk me-resetnya."
+          }
+        }
+      }
+    },
     "The wheel works with Tap, Swipe and Hotkey only." : {
       "localizations" : {
         "id" : {
@@ -6229,6 +6579,26 @@
         }
       }
     },
+    "Up" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atas"
+          }
+        }
+      }
+    },
+    "Up and down" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Naik turun"
+          }
+        }
+      }
+    },
     "Use" : {
       "localizations" : {
         "id" : {
@@ -6339,6 +6709,16 @@
         }
       }
     },
+    "Wheel" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Roda"
+          }
+        }
+      }
+    },
     "Wheel Down" : {
       "localizations" : {
         "id" : {
@@ -6355,6 +6735,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Roda Naik"
+          }
+        }
+      }
+    },
+    "Wheel up drags it" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Roda ke atas menggeser ke"
           }
         }
       }
@@ -6385,6 +6775,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tempat jari menggeser untuk memutar kamera. Selama mata dipilih, seret area atau tepinya di game."
+          }
+        }
+      }
+    },
+    "Where the thumb is when the game starts, in a new mode, and after its reset key: 0% is the wheel-down end." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Posisi jempol saat game mulai, di mode baru, dan setelah tombol reset: 0% adalah ujung roda-ke-bawah."
+          }
+        }
+      }
+    },
+    "Which way a turn of the wheel up drags the thumb; down drags it back." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ke arah mana putaran roda ke atas menggeser jempol; ke bawah menggesernya kembali."
           }
         }
       }

@@ -68,6 +68,8 @@ struct KeymapPainter {
         case let .dpad(center, _, _, _, _, _, _), let .mobaMove(center, _): center
         case let .aim(area, _, _, _, _, _, _, origin): origin ?? area.center
         case .clickArea(let area, _): area.center
+        // The thumb where it rests.
+        case let .scrollBar(_, _, rest, _): control.scrollPoint(at: rest) ?? NormalizedPoint(0.5, 0.5)
         // No place on the game.
         case .hotkey: NormalizedPoint(0.5, 0.5)
         case let .swipe(from, _, _): from
@@ -124,6 +126,10 @@ struct KeymapPainter {
             return CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)
         case .clickArea(let area, _):
             return rect(of: area)
+        case let .scrollBar(from, to, _, _):
+            // Around the track, as wide as a button.
+            let a = point(from), b = point(to), r = bubbleRadius(control)
+            return CGRect(x: min(a.x, b.x) - r, y: min(a.y, b.y) - r, width: abs(b.x - a.x) + 2 * r, height: abs(b.y - a.y) + 2 * r)
         default:
             let c = point(anchor(of: control)), r = bubbleRadius(control)
             return CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)
@@ -239,6 +245,29 @@ struct KeymapPainter {
         case .hotkey, .clickArea:
             // A hotkey has no place on the game; a click area is drawn under the controls (drawClickArea).
             break
+        case let .scrollBar(from, to, _, _):
+            let a = point(from), b = point(to)
+            // The track: a thick capsule with the game's slider in it, a tick at each end.
+            let track = NSBezierPath()
+            track.move(to: a)
+            track.line(to: b)
+            track.lineCapStyle = .round
+            fade(color, 0.22 * opacity).setStroke()
+            track.lineWidth = bubbleRadius(control) * 1.2
+            track.stroke()
+            line(track, color: fade(color), width: 2)
+            for end in [a, b] { circle(at: end, radius: 5, color: color, filled: true, solid: true) }
+            // Wheel up drags the thumb towards `to`.
+            let length = hypot(b.x - a.x, b.y - a.y)
+            if length > 0 {
+                let ux = (b.x - a.x) / length, uy = (b.y - a.y) / length
+                arrowHead(at: CGPoint(x: b.x + ux * 14, y: b.y + uy * 14), from: b, color: color)
+            }
+            // The thumb at its rest point, carrying the wheel's mark.
+            bubble(control, at: point(anchor(of: control)), color: color, symbolName: control.isVerticalScrollBar ? "arrow.up.and.down" : "arrow.left.and.right")
+            let reset = control.reset.map { String(localized: "\($0.shortLabel) resets", bundle: .avoKit) }
+            caption(([String(localized: "Scroll bar", bundle: .avoKit)] + (reset.map { [$0] } ?? [])).joined(separator: " · "),
+                    below: frame(of: control), color: color)
         case .repeatTap:
             bubble(control, at: point(anchor(of: control)), color: color, symbolName: "repeat")
             caption(String(localized: "Repeat", bundle: .avoKit), below: frame(of: control), color: color)
@@ -357,6 +386,37 @@ struct KeymapPainter {
         let size = min(max(min(r.width, r.height) * 0.3, 10), 20)
         keyPlate(around: symbolRect("cursorarrow.click.2", at: c, size: size), color: color)
         symbol("cursorarrow.click.2", at: c, size: size, color: fade(color, passThrough ? 1 : 0.6))
+        tag(String(localized: "Click area", bundle: .avoKit), inside: r, color: color)
+    }
+
+    /// The outline of a click zone on the screen: its rectangle, with round
+    /// corners, or the ellipse in it (as the engine reads it, ClickZone.contains).
+    func zonePath(_ zone: ClickZone) -> NSBezierPath {
+        let r = rect(of: zone.area)
+        switch zone.shape {
+        case .rectangle: return NSBezierPath(rect: r)
+        case .ellipse: return NSBezierPath(ovalIn: r)
+        case .rounded:
+            let radius = min(r.width, r.height) * CGFloat(ClickZone.cornerFraction)
+            return NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius)
+        }
+    }
+
+    /// A control's click zone (editor), under the controls: a faint fill in
+    /// a dotted outline of its shape, with a click mark in a corner, named
+    /// while it is selected or under the pointer.
+    func drawClickZone(_ control: Control, selected: Bool, hovered: Bool) {
+        guard let zone = control.clickZone else { return }
+        let color = selected ? Self.selection : Self.ink
+        let r = rect(of: zone.area)
+        fade(color, (selected ? 0.16 : hovered ? 0.12 : 0.07) * opacity).setFill()
+        zonePath(zone).fill()
+        let outline = zonePath(zone)
+        outline.setLineDash([2, 3], count: 2, phase: 0)
+        line(outline, color: fade(color, selected ? 1 : hovered ? 0.8 : 0.5), width: selected ? 2 : 1.5)
+        let mark = CGPoint(x: r.maxX - 9, y: r.minY + 9)
+        symbol("cursorarrow.click", at: mark, size: 10, color: fade(color, selected ? 1 : 0.7))
+        guard selected || hovered else { return }
         tag(String(localized: "Click area", bundle: .avoKit), inside: r, color: color)
     }
 
@@ -711,6 +771,19 @@ struct KeymapPainter {
         case .hotkey, .clickArea:
             // They touch nothing on the game: no cap over it.
             break
+        case let .scrollBar(from, to, _, _):
+            let path = NSBezierPath()
+            path.move(to: point(from))
+            path.line(to: point(to))
+            path.lineCapStyle = .round
+            twoToneStroke(path, width: 2)
+            let size = capFontSize(radius: bubbleRadius(control))
+            keyCap(String(localized: "Wheel", bundle: .avoKit), symbol: control.isVerticalScrollBar ? "arrow.up.and.down" : "arrow.left.and.right",
+                   at: c, size: size)
+            if let reset = control.reset {
+                let f = frame(of: control)
+                keyCap(reset.shortLabel, symbol: "arrow.counterclockwise", at: CGPoint(x: f.midX, y: f.minY - size), size: size)
+            }
         }
     }
 

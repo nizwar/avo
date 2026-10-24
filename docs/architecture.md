@@ -653,6 +653,19 @@ inventory's Close button is clicked). Before actions, Avo saved
 actions of the control on exactly their keys in exactly their modes, else
 as hotkeys, and are saved so.
 
+**Scroll bars and click zones.** A `scroll_bar` (`from`, `to`, `rest`,
+`step`, an optional `reset` key) drags a slider of the game, a map's zoom,
+with the wheel: each notch puts a finger on the thumb where Avo last left it
+(or at `rest`, a fraction of the track from `from`), glides it a `step`
+towards `to` for a notch up (back for one down), never past an end, and lifts
+it 0.2 s after the last notch. A new mode starts every scroll bar from
+`rest`, and its `reset` key drags the thumb back there. Any control with a key
+of its own may also have a `click_zone` (`area`, and a `shape`: `rectangle`,
+`rounded` or `ellipse`): a left click inside it with the mouse free presses
+the control as its key would, held while the button is down, its actions run
+once, and the click itself never reaches the game, so the game's button is
+touched once.
+
 **Shared keys.** A key, mouse button or controller button may drive any
 number of controls: F can press the game's Enter button and a hotkey can
 switch the mode on it too. On a press, the controls that touch the screen go
