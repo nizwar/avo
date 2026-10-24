@@ -40,10 +40,14 @@ export function fontSetName(value) {
   throw new Error(`site.config.mjs: fonts must be one of ${Object.entries(FONT_SETS).map(([k, v]) => `'${k}' (${v.letter})`).join(', ')}`);
 }
 
+// `og`: the social preview image, assets/img/og/<og>-<lang>.jpg (tools/og-image.html), and its description.
 const PAGES = [
-  { id: 'home', template: 'index.html', paths: { en: '', id: 'id/' }, title: 'meta.homeTitle', description: 'meta.homeDescription' },
-  { id: 'hub', template: 'hub.html', paths: { en: 'hub/', id: 'id/hub/' }, title: 'meta.hubTitle', description: 'meta.hubDescription' },
-  { id: '404', template: '404.html', paths: { en: '404.html' }, title: 'meta.notFoundTitle', description: 'meta.homeDescription' },
+  { id: 'home', template: 'index.html', paths: { en: '', id: 'id/' }, title: 'meta.homeTitle', description: 'meta.homeDescription',
+    og: 'og', ogAlt: 'meta.ogAlt' },
+  { id: 'hub', template: 'hub.html', paths: { en: 'hub/', id: 'id/hub/' }, title: 'meta.hubTitle', description: 'meta.hubDescription',
+    og: 'og-hub', ogAlt: 'meta.hubOgAlt' },
+  { id: '404', template: '404.html', paths: { en: '404.html' }, title: 'meta.notFoundTitle', description: 'meta.homeDescription',
+    og: 'og', ogAlt: 'meta.ogAlt' },
 ];
 
 // ------------------------------------------------------------------ helpers
@@ -360,7 +364,7 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
             inLanguage: lang,
           };
 
-      const ogName = `og-${lang}.jpg`;
+      const ogName = `${page.og}-${lang}.jpg`;
       const ctx = {
         page: `${page.template} (${lang})`,
         partials,
@@ -378,6 +382,7 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
           ogLocale: lang === 'en' ? 'en_US' : 'id_ID',
           ogLocaleAlt: lang === 'en' ? 'id_ID' : 'en_US',
           ogImage: `${siteUrl}/assets/img/og/${ogName}`,
+          ogAlt: stripTags(t(page.ogAlt)),
           cssVersion,
           jsVersion,
           homeHref: hrefTo(homePath),

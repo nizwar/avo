@@ -416,6 +416,8 @@ function makeDock(dock, hovered) {
         slot.el.style.transform = s > 1.001 || Math.abs(dx) > 0.05 ? `translate(${round(dx, 2)}px, ${round(-(s - 1) * 18, 2)}px) scale(${round(s)})` : '';
       });
       dock.style.setProperty('--dock-grow', `${round(grown, 2)}px`);
+      // Back at rest: no trace of the magnification is left behind.
+      if (!inside && !busy) this.reset();
       return busy;
     },
     reset() {
