@@ -2544,13 +2544,19 @@ a.channel:hover {
   margin-top: 0;
 }
 
-.hub-notes {
+/* (.plain-list sets no margin; these notes keep their distance from the steps.) */
+.plain-list.hub-notes {
   max-width: 860px;
   margin-top: 56px;
 }
 
-/* A command to copy stays whole: it never breaks at its hyphens. */
+/* A command to copy breaks only at its spaces, never at its hyphens: the
+   part that must stay whole is in .nowrap. */
 .req-list code {
+  white-space: normal;
+}
+
+.nowrap {
   white-space: nowrap;
 }
 
@@ -2614,6 +2620,13 @@ a.channel:hover {
   .hub-paths li {
     padding: 7px 13px 7px 11px;
     font-size: 0.8rem;
+  }
+}
+
+/* On the narrowest phones the chips would cover the drawn phone's first app icon. */
+@media (max-width: 380px) {
+  .hub-paths {
+    bottom: 20%;
   }
 }
 

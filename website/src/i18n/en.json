@@ -4,9 +4,10 @@
     "homeTitle": "Avo: Android apps and games on your Mac",
     "homeDescription": "Use Android apps and play Android games on your Mac, each in its own window. Free and open source, for Macs with Apple chips.",
     "hubTitle": "Avo Hub: your Android phone on your Mac",
-    "hubDescription": "Avo Hub brings your Android phone to your Mac: its screen, notifications, messages, photos and files, over a cable, Wi‑Fi or the internet. A companion to Avo, in development.",
+    "hubDescription": "Avo Hub brings your Android phone to your Mac: its screen, notifications, messages, photos and files, over a cable, Wi‑Fi or the internet. In development.",
     "notFoundTitle": "Page not found | Avo",
-    "ogAlt": "The Avo app icon on a dark green background."
+    "ogAlt": "The Avo app icon on a dark green background.",
+    "hubOgAlt": "The Avo Hub app icon on a dark green background."
   },
   "common": {
     "skip": "Skip to content",
@@ -286,7 +287,7 @@
     "features": {
       "kicker": "What you can do",
       "title": "Your phone, without picking it up.",
-      "lede": "At your desk or away from home, Avo Hub reaches your phone over a cable, the same Wi‑Fi or the internet.",
+      "lede": "Reply to a text, save a photo or find a misplaced phone, all from the Mac in front of you.",
       "screenTitle": "Your phone's screen in a window",
       "screenText": "Use the phone with your Mac's mouse, trackpad and keyboard, and hear its sound.",
       "notifTitle": "Notifications",
@@ -298,7 +299,7 @@
       "findTitle": "Find your phone",
       "findText": "Ring it at full volume, even on silent. Its battery and signal stay in the menu bar.",
       "remoteTitle": "Control your Mac from the phone",
-      "remoteText": "Remote Screen works the other way round: your Mac's screen on the phone, your finger as the trackpad. It's off until you turn it on.",
+      "remoteText": "Remote Screen works the other way around: your Mac's screen on the phone, your finger as the trackpad. It's off until you turn it on.",
       "also": "While the phone's screen is open on your Mac, copy on one and paste on the other. Using the phone's camera as a webcam in Mac apps is on its way too.",
       "status": "Avo Hub is still in development. These features are built and being tested, and may change before the first release."
     },
@@ -317,12 +318,12 @@
       "kicker": "How it works",
       "title": "Up and running in three steps.",
       "step1Title": "Install on the Mac, then the phone",
-      "step1Text": "Plug your phone into the Mac with a USB cable, and Avo Hub puts its phone app on it. The setup assistant shows you every step.",
+      "step1Text": "Turn on USB debugging on the phone and plug it into your Mac. Avo Hub puts its phone app on it, and the setup assistant walks you through each step.",
       "step2Title": "Pair with a QR code",
-      "step2Text": "Scan the code on your Mac with the phone. When both show the same six digits, you're paired.",
+      "step2Text": "Scan the code on your Mac with the phone. If both show the same six digits, confirm on both and you're paired.",
       "step3Title": "Connected wherever you are",
-      "step3Text": "The cable first, then the same Wi‑Fi, then the internet when you're out. Avo Hub switches by itself.",
-      "readiness": "Every phone brand has its own battery savers and settings that get in the way. Readiness, on the phone, finds each one and shows you what to do.",
+      "step3Text": "At home it uses the cable or the same Wi‑Fi; when you're out, the internet. Avo Hub switches by itself.",
+      "readiness": "Many phone brands add battery savers and settings that get in the way. The Readiness check on the phone finds each one and shows you what to do.",
       "privacy": "Your phone decides what each Mac may do, feature by feature, and keeps a record of it. There's no account, and over the internet everything travels encrypted."
     },
     "req": {
@@ -332,14 +333,14 @@
       "macText": "M1 or newer, with macOS 15 Sequoia or newer.",
       "phoneTitle": "An Android phone, any brand",
       "phoneText": "Android 11 or newer, and a USB cable that carries data, not just power.",
-      "toolsTitle": "Android platform tools",
-      "toolsText": "On your Mac, for what goes over the cable: installing the phone app and turning on full control (tapping and typing from the Mac). Install them with <code>brew install android-platform-tools</code>.",
+      "toolsTitle": "Android platform-tools",
+      "toolsText": "On your Mac, for what goes over the cable: installing the phone app and turning on full control (tapping and typing from the Mac). Install them with <code>brew install <span class=\"nowrap\">android-platform-tools</span></code>.",
       "note": "Apps that protect their screen, such as some banking and streaming apps, show black in the window."
     },
     "get": {
       "kicker": "Status",
       "titleUnreleased": "Coming soon.",
-      "textUnreleased": "Avo Hub is in development, and there's nothing to install yet. The first preview will be a disk image for your Mac, which then puts the app on your phone over USB. Follow along on GitHub, or build it from source.",
+      "textUnreleased": "Avo Hub is in development, and there's nothing to install yet. The first preview will be a disk image for your Mac; Avo Hub then puts its app on your phone over USB. Follow along on GitHub, or build it from source.",
       "titleReleased": "Try the preview.",
       "textReleased": "Download Avo Hub for your Mac. When you set it up, it puts the app on your phone over USB.",
       "avoQuestion": "Want Android apps on your Mac without a phone?",

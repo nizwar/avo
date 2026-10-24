@@ -5,7 +5,8 @@
          --allow-file-access-from-files --window-size=1200,630 --screenshot=/tmp/og-en.png \
          "file://$PWD/tools/og-image.html?lang=en"
        sips -s format jpeg -s formatOptions 86 /tmp/og-en.png --out src/assets/img/og/og-en.jpg
-     lang: en | id. Files: og-en, og-id. -->
+     lang: en | id. page: avo (the default) | hub, for Avo Hub's page (its mark and icon are
+     in tools/og-hub/). Files: og-en, og-id, og-hub-en, og-hub-id. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -45,7 +46,7 @@
   <rect width="1200" height="630" filter="url(#f)"/>
 </svg>
 <div class="copy">
-  <div class="brand"><img src="../src/assets/img/avo-mark.svg" alt=""><span>Avo</span></div>
+  <div class="brand"><img id="brandMark" src="../src/assets/img/avo-mark.svg" alt=""><span id="brandName">Avo</span></div>
   <h1 id="title"></h1>
   <p id="line"></p>
 </div>
@@ -54,10 +55,19 @@
 <script>
   const q = new URLSearchParams(location.search);
   const lang = q.get('lang') || 'en';
-  const text = {
+  const hub = q.get('page') === 'hub';
+  const text = (hub ? {
+    en: ['Your Android phone, at home on your Mac.', 'Its screen, notifications, messages, photos and files, over a cable, Wi\u2011Fi or the internet.', ['In development', 'No account', 'For Apple chips']],
+    id: ['Ponsel Android kamu, menyatu dengan Mac.', 'Layar, notifikasi, pesan, foto, dan file, lewat kabel, Wi\u2011Fi, atau internet.', ['Masih dikembangkan', 'Tanpa akun', 'Untuk chip Apple']],
+  } : {
     en: ['Android apps and games, right on your Mac.', 'Each app in its own window. Play with keyboard, mouse or controller.', ['Free', 'Open source', 'For Apple chips']],
     id: ['Aplikasi dan game Android, langsung di Mac kamu.', 'Setiap aplikasi di jendelanya sendiri. Main pakai keyboard, mouse, atau controller.', ['Gratis', 'Open source', 'Untuk chip Apple']],
-  }[lang];
+  })[lang];
+  if (hub) {
+    document.getElementById('brandMark').src = 'og-hub/avo-hub-mark.svg';
+    document.getElementById('brandName').textContent = 'Avo Hub';
+    document.getElementById('mark').src = 'og-hub/avo-hub-icon-macos.svg';
+  }
   document.documentElement.lang = lang;
   document.getElementById('title').textContent = text[0];
   document.getElementById('line').textContent = text[1];
