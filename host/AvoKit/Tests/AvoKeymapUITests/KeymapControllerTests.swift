@@ -1,5 +1,6 @@
 import AppKit
 import AvoKeymap
+import QuartzCore
 import AvoProtocol
 import Foundation
 import Testing
@@ -54,6 +55,21 @@ private final class Host {
 private let jump = KeymapProfile(package: "com.example.game", name: "Test",
                                  controls: [Control(id: "jump", kind: .tap(NormalizedPoint(0.5, 0.5)), triggers: [.key(.space)])])
 
+/// W held walks (a hold, so its touch stays down while the key does).
+private let walk = KeymapProfile(package: "com.example.game", name: "Walk",
+                                 controls: [Control(id: "walk", kind: .hold(NormalizedPoint(0.25, 0.75)), triggers: [.key(.w)])])
+
+/// The keyboard and the mouse as a test says they are.
+@MainActor
+private final class FakeHardware {
+    var keysDown: Set<UInt16> = []
+    var buttons = 0
+
+    var hardware: KeymapController.Hardware {
+        KeymapController.Hardware(isKeyDown: { [unowned self] in keysDown.contains($0) }, mouseButtons: { [unowned self] in buttons })
+    }
+}
+
 @MainActor
 @Suite("Key mapping over a window's own view and store")
 struct KeymapControllerTests {
@@ -93,6 +109,66 @@ struct KeymapControllerTests {
         #expect(saved.controls.map(\.id) == ["jump"])
         #expect(keymap.profile?.controls.map(\.id) == ["jump"])
         #expect(keymap.gameMode && host.gameMode)
+    }
+
+    @Test("A key the keyboard let go whose keyUp never came is released, and its late keyUp goes nowhere")
+    func keyLetGoUnseenIsReleased() async throws {
+        let host = Host(gameMode: true, bundled: walk)
+        let keymap = host.controller()
+        defer { keymap.stop() }
+        let fake = FakeHardware()
+        keymap.hardware = fake.hardware
+        let w = try #require(KeyboardMapping.macKeyCode(for: .w))
+        fake.keysDown = [w]
+        #expect(keymap.key(.w, down: true, isRepeat: false))
+        #expect(host.touches == ["7 down 0@600,810"])
+        // Past a tap's 40 ms, the key comes up without its keyUp (a system gesture took it).
+        try await Task.sleep(for: .milliseconds(60))
+        fake.keysDown = []
+        keymap.releaseUnseen(at: CACurrentMediaTime() + 1)
+        #expect(host.touches == ["7 down 0@600,810", "7 up 0@600,810"])
+        // When the keyUp does come after all, it changes nothing and reaches nothing.
+        #expect(keymap.key(.w, down: false, isRepeat: false))
+        #expect(host.touches.count == 2)
+    }
+
+    @Test("A press the keyboard never showed down is left to its own release")
+    func unseenPressIsLeftAlone() async throws {
+        let host = Host(gameMode: true, bundled: walk)
+        let keymap = host.controller()
+        defer { keymap.stop() }
+        let fake = FakeHardware()
+        keymap.hardware = fake.hardware
+        // The keyboard's state reads nothing down (no access to it, a key it doesn't see).
+        #expect(keymap.key(.w, down: true, isRepeat: false))
+        try await Task.sleep(for: .milliseconds(60))
+        keymap.releaseUnseen(at: CACurrentMediaTime() + 1)
+        #expect(host.touches == ["7 down 0@600,810"])
+        #expect(keymap.key(.w, down: false, isRepeat: false))
+        #expect(host.touches == ["7 down 0@600,810", "7 up 0@600,810"])
+    }
+
+    @Test("A click's finger whose button came up without a mouseUp is lifted")
+    func clickLetGoUnseenIsLifted() async throws {
+        let host = Host(gameMode: true, bundled: walk)
+        let keymap = host.controller()
+        defer { keymap.stop() }
+        let fake = FakeHardware()
+        keymap.hardware = fake.hardware
+        // A click lands where the cursor is in the view's window.
+        _ = NSApplication.shared
+        let window = NSWindow(contentRect: host.view.frame, styleMask: [.borderless], backing: .buffered, defer: true)
+        window.contentView = host.view
+        defer { window.contentView = nil }
+        fake.buttons = 1
+        #expect(keymap.mouse(.left, down: true))
+        #expect(host.touches.count == 1)
+        fake.buttons = 0
+        keymap.releaseUnseen(at: CACurrentMediaTime() + 1)
+        #expect(host.touches.count == 2)
+        #expect(host.touches.last?.hasPrefix("7 up") == true)
+        #expect(keymap.mouse(.left, down: false))
+        #expect(host.touches.count == 2)
     }
 
     @Test("Without a profile, Game Mode says how to set one up and maps nothing")
