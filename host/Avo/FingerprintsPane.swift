@@ -1,3 +1,4 @@
+import AvoHazeUI
 import AvoKit
 import AvoWindowHost
 import SwiftUI
