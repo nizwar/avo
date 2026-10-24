@@ -9,7 +9,7 @@ import path from 'node:path';
 import { build } from '../tools/build.mjs';
 
 let out;
-const PAGES = ['index.html', 'id/index.html', '404.html'];
+const PAGES = ['index.html', 'id/index.html', 'hub/index.html', 'id/hub/index.html', '404.html'];
 const read = (rel) => readFileSync(path.join(out, rel), 'utf8');
 
 function files(dir, base = dir) {
@@ -37,6 +37,44 @@ test('every page exists in both languages with the right lang and alternates', (
     assert.match(html, /<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self';/);
   }
   assert.match(read('id/index.html'), /<h1 id="hero-title" class="display">Aplikasi dan game Android, langsung di Mac kamu\.<\/h1>/);
+});
+
+test('Avo Hub has its page in both languages, in the menu, honest about its release', async () => {
+  const en = read('hub/index.html');
+  const id = read('id/hub/index.html');
+  assert.match(en, /<html lang="en">/);
+  assert.match(id, /<html lang="id">/);
+  assert.match(en, /<link rel="canonical" href="https:\/\/[^"]+\/hub\/">/);
+  assert.match(en, /<link rel="alternate" hreflang="id" href="https:\/\/[^"]+\/id\/hub\/">/);
+  assert.match(id, /<link rel="alternate" hreflang="en" href="https:\/\/[^"]+\/hub\/">/);
+  assert.match(en, /<a class="lang-switch" href="\.\.\/id\/hub\/"/);
+  assert.match(id, /<a class="lang-switch" href="\.\.\/\.\.\/hub\/"/);
+  assert.match(en, /<h1 id="hero-title" class="display">Your Android phone, at home on your Mac\.<\/h1>/);
+  assert.match(id, /<h1 id="hero-title" class="display">Ponsel Android kamu, menyatu dengan Mac\.<\/h1>/);
+  assert.match(en, /"name":"Avo Hub"/);
+  // Every page's menu leads to it, and on its own page the link says so.
+  for (const page of PAGES) assert.match(read(page), /<li><a href="[^"]*hub\/"( aria-current="page")?>Avo Hub<\/a><\/li>/, page);
+  assert.match(en, /<a href="\.\.\/hub\/" aria-current="page">Avo Hub<\/a>/);
+  assert.match(read('sitemap.xml'), /<loc>https:\/\/[^<]+\/id\/hub\/<\/loc>/);
+
+  // Not released: no download, GitHub and building from source instead.
+  assert.match(en, /In development: not released yet/);
+  assert.match(en, /href="https:\/\/github\.com\/nizwar\/avo_hub"/);
+  assert.match(en, /href="https:\/\/github\.com\/nizwar\/avo_hub#building-from-source"/);
+  assert.doesNotMatch(en, /Download for Mac/);
+
+  const dir = await mkdtemp(path.join(tmpdir(), 'avo-site-'));
+  try {
+    const downloadUrl = 'https://github.com/nizwar/avo_hub/releases/download/v0.1.0/AvoHub-0.1.0-b2.dmg';
+    await build({ outDir: dir, quiet: true, overrides: { hub: { release: { available: true, version: '0.1.0 Preview 1', downloadUrl } } } });
+    const released = readFileSync(path.join(dir, 'hub/index.html'), 'utf8');
+    assert.match(released, /Version 0\.1\.0 Preview 1 is out/);
+    assert.match(released, /Download for Mac/);
+    assert.ok(released.includes(`href="${downloadUrl}"`));
+    assert.doesNotMatch(released, /not released yet|Coming soon/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test('no emoji anywhere in the built site', () => {

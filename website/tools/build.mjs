@@ -42,6 +42,7 @@ export function fontSetName(value) {
 
 const PAGES = [
   { id: 'home', template: 'index.html', paths: { en: '', id: 'id/' }, title: 'meta.homeTitle', description: 'meta.homeDescription' },
+  { id: 'hub', template: 'hub.html', paths: { en: 'hub/', id: 'id/hub/' }, title: 'meta.hubTitle', description: 'meta.hubDescription' },
   { id: '404', template: '404.html', paths: { en: '404.html' }, title: 'meta.notFoundTitle', description: 'meta.homeDescription' },
 ];
 
@@ -117,6 +118,8 @@ function checkConfig(config) {
   url(config.siteUrl, 'siteUrl');
   url(config.githubUrl, 'githubUrl');
   url(config.release?.downloadUrl, 'release.downloadUrl', { optional: true });
+  url(config.hub?.githubUrl, 'hub.githubUrl');
+  url(config.hub?.release?.downloadUrl, 'hub.release.downloadUrl', { optional: true });
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(config.contact?.email || '')) errors.push('contact.email is not an email address');
   try {
     fontSetName(config.fonts);
@@ -248,6 +251,8 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
   const basePath = new URL(`${siteUrl}/`).pathname;
   const githubUrl = config.githubUrl.replace(/\/+$/, '');
   const blobUrl = `${githubUrl}/blob/${config.githubBranch || 'main'}`;
+  const hubGithubUrl = config.hub.githubUrl.replace(/\/+$/, '');
+  const hubRelease = config.hub.release || {};
   const csp = [
     "default-src 'self'",
     "script-src 'self'",
@@ -274,8 +279,9 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
       const root = is404 ? basePath : relativeRoot(outPath);
       const dict = dicts[lang];
       const homePath = lang === 'en' ? '' : 'id/';
+      const hubPath = lang === 'en' ? 'hub/' : 'id/hub/';
       const hrefTo = (target) => `${root}${target}` || './';
-      const tokens = { github: githubUrl, blob: blobUrl, contactEmail: config.contact.email };
+      const tokens = { github: githubUrl, blob: blobUrl, contactEmail: config.contact.email, hubGithub: hubGithubUrl };
       const text = (key, extra = {}) => lookup(dict, key, lang).replace(/\{(\w+)\}/g, (m, name) => (name in extra ? extra[name] : name in tokens ? escapeHtml(tokens[name]) : m));
       const t = (key, extra) => text(key, extra);
       const counterpart = page.paths[other] ?? null;
@@ -288,6 +294,7 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
         [`${navHome}#how`, t('nav.how')],
         [`${navHome}#faq`, t('nav.faq')],
         [`${navHome}#support`, t('nav.support')],
+        [hrefTo(hubPath), t('nav.hub'), page.id === 'hub' ? 'page' : null],
       ];
 
       const release = config.release || {};
@@ -307,23 +314,51 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
       // What the download is, under both buttons (beside one, it pushed the other away).
       const heroMeta = release.available ? `<p class="cta-meta">${t('release.downloadMeta')}</p>` : '';
 
+      // Avo Hub's page: the same switches, from config.hub.release.
+      const hubDownloadUrl = hubRelease.downloadUrl || `${hubGithubUrl}/releases/latest`;
+      const hubPill = hubRelease.available
+        ? `<p class="status-pill is-released">${escapeHtml(stripTags(t('hub.statusReleased', { version: escapeHtml(hubRelease.version || '') })))}</p>`
+        : `<p class="status-pill" title="${escapeHtml(stripTags(t('hub.unreleasedNote')))}">${t('hub.statusUnreleased')}</p>`;
+      const hubCtas = hubRelease.available
+        ? [
+            `<a class="btn btn-primary" href="${escapeHtml(hubDownloadUrl)}"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-down"/></svg>${t('hub.download')}</a>`,
+            `<a class="btn btn-quiet" href="${escapeHtml(hubGithubUrl)}">${t('hub.watch')}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></a>`,
+          ].join('\n')
+        : [
+            `<a class="btn btn-primary" href="${escapeHtml(hubGithubUrl)}">${t('hub.watch')}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></a>`,
+            `<a class="btn btn-quiet" href="${escapeHtml(hubGithubUrl)}#building-from-source">${t('hub.build')}</a>`,
+          ].join('\n');
+      const hubMeta = hubRelease.available ? `<p class="cta-meta">${t('hub.downloadMeta')}</p>` : '';
+
       const supportChannels = config.support.channels.length ? channelList(config.support.channels, t) : `<p class="note">${t('support.noChannels')}</p>`;
       const maintainer = config.maintainer?.name;
       const builtText = maintainer ? t('built.textNamed', { maintainer: escapeHtml(maintainer) }) : t('built.textAnon');
 
-      const jsonLd = {
-        '@context': 'https://schema.org',
-        '@type': 'SoftwareApplication',
-        name: 'Avo',
-        description: t('meta.homeDescription'),
-        url: canonical,
-        applicationCategory: 'UtilitiesApplication',
-        operatingSystem: 'macOS 15 or later, Apple silicon',
-        isAccessibleForFree: true,
-        license: 'https://www.apache.org/licenses/LICENSE-2.0',
-        offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-        inLanguage: lang,
-      };
+      const jsonLd = page.id === 'hub'
+        ? {
+            '@context': 'https://schema.org',
+            '@type': 'SoftwareApplication',
+            name: 'Avo Hub',
+            description: t('meta.hubDescription'),
+            url: canonical,
+            applicationCategory: 'UtilitiesApplication',
+            operatingSystem: 'macOS 15 or later, Apple silicon; Android 11 or later',
+            license: 'https://www.apache.org/licenses/LICENSE-2.0',
+            inLanguage: lang,
+          }
+        : {
+            '@context': 'https://schema.org',
+            '@type': 'SoftwareApplication',
+            name: 'Avo',
+            description: t('meta.homeDescription'),
+            url: canonical,
+            applicationCategory: 'UtilitiesApplication',
+            operatingSystem: 'macOS 15 or later, Apple silicon',
+            isAccessibleForFree: true,
+            license: 'https://www.apache.org/licenses/LICENSE-2.0',
+            offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+            inLanguage: lang,
+          };
 
       const ogName = `og-${lang}.jpg`;
       const ctx = {
@@ -346,6 +381,7 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
           cssVersion,
           jsVersion,
           homeHref: hrefTo(homePath),
+          hubHref: hrefTo(hubPath),
           langHref: counterpart !== null ? hrefTo(counterpart) : hrefTo(lang === 'en' ? 'id/' : ''),
           githubUrl,
           blobUrl,
@@ -361,6 +397,11 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
           releasePill,
           heroCtas,
           heroMeta,
+          hubPill,
+          hubCtas,
+          hubMeta,
+          hubGetTitle: t(hubRelease.available ? 'hub.get.titleReleased' : 'hub.get.titleUnreleased'),
+          hubGetText: t(hubRelease.available ? 'hub.get.textReleased' : 'hub.get.textUnreleased'),
           supportChannels,
           builtText,
           copyright: t('footer.copyright', { year }),

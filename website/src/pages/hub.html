@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="{{v:lang}}">
+<head>
+{{> head}}
+</head>
+<body class="page page-hub">
+{{> sprite}}
+{{> header}}
+<main id="main">
+
+  <section class="hero" aria-labelledby="hero-title" data-hero>
+    <div class="hero-sky" aria-hidden="true"></div>
+    <canvas class="haze-canvas" data-haze="hero" aria-hidden="true"></canvas>
+    <div class="hero-fx" aria-hidden="true"><div class="hero-light"></div></div>
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        {{h:hubPill}}
+        <h1 id="hero-title" class="display">{{t:hub.hero.title}}</h1>
+        <p class="lede">{{t:hub.hero.lede}}</p>
+        <div class="cta-row">
+{{h:hubCtas}}
+        </div>
+{{h:hubMeta}}
+        <ul class="hero-points">
+          <li>{{t:hub.hero.pointOpen}}</li>
+          <li>{{t:hub.hero.pointBrand}}</li>
+          <li>{{t:hub.hero.pointAccount}}</li>
+        </ul>
+      </div>
+
+      <!-- Drawn, not a screenshot: a phone's screen in its own Mac window, as
+           Avo Hub shows it, with a notification from the phone and the way
+           the two are connected. -->
+      <div class="hero-visual">
+        <div class="hero-shot hub-stage" role="img" aria-label="{{a:hub.hero.artAlt}}">
+          <div class="hub-mirror" aria-hidden="true">
+            <div class="hub-bar">
+              <span class="hub-lights"><i></i><i></i><i></i></span>
+              <span class="hub-name">{{t:hub.hero.artPhone}}</span>
+              <span class="hub-signal"><i></i><i></i><i></i></span>
+            </div>
+            <div class="hub-screen">
+              <p class="hub-clock">{{t:hub.hero.artTime}}</p>
+              <div class="hub-hotseat">
+                <svg><use href="#app-messages"/></svg>
+                <svg><use href="#app-maps"/></svg>
+                <svg><use href="#app-game"/></svg>
+                <svg><use href="#app-notes"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="notif notif-static hub-notif" aria-hidden="true">
+            <svg class="notif-icon"><use href="#app-messages"/></svg>
+            <div class="notif-text"><p class="notif-app">{{t:hub.hero.artNotifApp}}</p><p class="notif-body">{{t:hub.hero.artNotifBody}}</p></div>
+          </div>
+          <ul class="hub-paths" aria-hidden="true">
+            <li>{{t:hub.hero.artPathCable}}</li>
+            <li class="is-on">{{t:hub.hero.artPathWifi}}</li>
+            <li>{{t:hub.hero.artPathNet}}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features" aria-labelledby="features-title">
+    <div class="glow glow-gaming" aria-hidden="true"></div>
+    <div class="wrap">
+      <header class="section-head">
+        <p class="kicker">{{t:hub.features.kicker}}</p>
+        <h2 id="features-title" class="display">{{t:hub.features.title}}</h2>
+        <p class="lede">{{t:hub.features.lede}}</p>
+      </header>
+      <ul class="feature-cards feature-cards-even">
+        <li class="feature-card" data-tilt="card"><span class="feature-icon" data-tilt-depth aria-hidden="true"><svg class="icon"><use href="#i-phone"/></svg></span><h3>{{t:hub.features.screenTitle}}</h3><p>{{t:hub.features.screenText}}</p></li>
+        <li class="feature-card" data-tilt="card"><span class="feature-icon" data-tilt-depth aria-hidden="true"><svg class="icon"><use href="#i-bell"/></svg></span><h3>{{t:hub.features.notifTitle}}</h3><p>{{t:hub.features.notifText}}</p></li>
+        <li class="feature-card" data-tilt="card"><span class="feature-icon" data-tilt-depth aria-hidden="true"><svg class="icon"><use href="#i-chat"/></svg></span><h3>{{t:hub.features.messagesTitle}}</h3><p>{{t:hub.features.messagesText}}</p></li>
+        <li class="feature-card" data-tilt="card"><span class="feature-icon" data-tilt-depth aria-hidden="true"><svg class="icon"><use href="#i-photo"/></svg></span><h3>{{t:hub.features.filesTitle}}</h3><p>{{t:hub.features.filesText}}</p></li>
+        <li class="feature-card" data-tilt="card"><span class="feature-icon" data-tilt-depth aria-hidden="true"><svg class="icon"><use href="#i-ring"/></svg></span><h3>{{t:hub.features.findTitle}}</h3><p>{{t:hub.features.findText}}</p></li>
+        <li class="feature-card" data-tilt="card"><span class="feature-icon" data-tilt-depth aria-hidden="true"><svg class="icon"><use href="#i-display"/></svg></span><h3>{{t:hub.features.remoteTitle}}</h3><p>{{t:hub.features.remoteText}}</p></li>
+      </ul>
+      <p class="also">{{t:hub.features.also}}</p>
+      <p class="status-note">{{t:hub.features.status}}</p>
+    </div>
+  </section>
+
+  <section class="section" id="avo" aria-labelledby="avo-title">
+    <div class="glow glow-mac" aria-hidden="true"></div>
+    <div class="wrap">
+      <header class="section-head">
+        <p class="kicker">{{t:hub.avo.kicker}}</p>
+        <h2 id="avo-title" class="display">{{t:hub.avo.title}}</h2>
+        <p class="lede">{{t:hub.avo.lede}}</p>
+      </header>
+      <ul class="feature-cards">
+        <li class="feature-card" data-tilt="card"><span class="feature-icon" data-tilt-depth aria-hidden="true"><svg class="icon"><use href="#i-keys"/></svg></span><h3>{{t:hub.avo.keysTitle}}</h3><p>{{t:hub.avo.keysText}}</p></li>
+        <li class="feature-card" data-tilt="card"><span class="feature-icon" data-tilt-depth aria-hidden="true"><svg class="icon"><use href="#i-spark"/></svg></span><h3>{{t:hub.avo.lookTitle}}</h3><p>{{t:hub.avo.lookText}}</p></li>
+        <li class="feature-card" data-tilt="card"><span class="feature-icon" data-tilt-depth aria-hidden="true"><svg class="icon"><use href="#i-code"/></svg></span><h3>{{t:hub.avo.openTitle}}</h3><p>{{t:hub.avo.openText}}</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section how" id="how" aria-labelledby="how-title">
+    <div class="wrap">
+      <header class="section-head">
+        <p class="kicker">{{t:hub.how.kicker}}</p>
+        <h2 id="how-title" class="display">{{t:hub.how.title}}</h2>
+      </header>
+      <ol class="steps">
+        <li><h3>{{t:hub.how.step1Title}}</h3><p>{{t:hub.how.step1Text}}</p></li>
+        <li><h3>{{t:hub.how.step2Title}}</h3><p>{{t:hub.how.step2Text}}</p></li>
+        <li><h3>{{t:hub.how.step3Title}}</h3><p>{{t:hub.how.step3Text}}</p></li>
+      </ol>
+      <ul class="plain-list hub-notes">
+        <li>{{t:hub.how.readiness}}</li>
+        <li>{{t:hub.how.privacy}}</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section req" id="requirements" aria-labelledby="req-title">
+    <div class="wrap">
+      <header class="section-head">
+        <p class="kicker">{{t:hub.req.kicker}}</p>
+        <h2 id="req-title" class="display">{{t:hub.req.title}}</h2>
+      </header>
+      <dl class="req-list">
+        <div><dt>{{t:hub.req.macTitle}}</dt><dd>{{t:hub.req.macText}}</dd></div>
+        <div><dt>{{t:hub.req.phoneTitle}}</dt><dd>{{t:hub.req.phoneText}}</dd></div>
+        <div><dt>{{t:hub.req.toolsTitle}}</dt><dd>{{t:hub.req.toolsText}}</dd></div>
+      </dl>
+      <p class="status-note">{{t:hub.req.note}}</p>
+    </div>
+  </section>
+
+  <section class="section hub-get" id="get" aria-labelledby="get-title">
+    <div class="glow glow-support" aria-hidden="true"></div>
+    <div class="wrap">
+      <header class="section-head section-head-center">
+        <p class="kicker">{{t:hub.get.kicker}}</p>
+        <h2 id="get-title" class="display">{{h:hubGetTitle}}</h2>
+        <p class="lede">{{h:hubGetText}}</p>
+      </header>
+      <div class="cta-row">
+{{h:hubCtas}}
+      </div>
+{{h:hubMeta}}
+      <p class="hub-avo-note">{{t:hub.get.avoQuestion}} <a href="{{v:homeHref}}">{{t:hub.get.avoLink}}</a></p>
+    </div>
+  </section>
+
+</main>
+{{> footer}}
+<script type="module" src="{{v:root}}assets/js/site.js?v={{v:jsVersion}}"></script>
+</body>
+</html>

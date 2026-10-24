@@ -24,6 +24,20 @@ export default {
     downloadUrl: 'https://github.com/nizwar/avo/releases/download/v0.3.1-preview.4/Avo-0.3.1-b113.dmg',
   },
 
+  // Avo Hub, Avo's sibling app that connects the phone in your pocket, has a
+  // page of its own (/hub) and its own repository. Its release works like
+  // `release` above: while `available` is false the page says it isn't out
+  // yet and points to GitHub; set `available`, `version` and `downloadUrl`
+  // when a preview is published.
+  hub: {
+    githubUrl: 'https://github.com/nizwar/avo_hub',
+    release: {
+      available: false,
+      version: null,
+      downloadUrl: null,
+    },
+  },
+
   // Typefaces, one switch for the whole site (only the chosen set is published):
   //   'hubot-mona' (A) Hubot Sans headings, Mona Sans text, Mona Sans Mono labels
   //   'geist'      (B) Geist and Geist Mono

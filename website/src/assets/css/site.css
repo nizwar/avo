@@ -2333,6 +2333,298 @@ a.channel:hover {
   margin-top: 0;
 }
 
+/* ------------------------------------------------------------- Avo Hub */
+
+/* The hero's picture on /hub, drawn rather than captured, so it stays sharp
+   and speaks the page's language: a phone's screen in its own Mac window, as
+   Avo Hub shows it, a notification from the phone, and the ways the two can
+   be connected. The stage is the hero's .hero-shot, so it leans with the
+   pointer like the home page's screenshot. */
+
+.hub-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 560px;
+  padding: 36px 0;
+}
+
+/* Narrower than a screenshot at every width, so the notification and the
+   ways of connecting stay close to the window. */
+.hero-shot.hub-stage {
+  max-width: 560px;
+}
+
+/* The pointer's light is for screenshots; the window here has its own. */
+.hub-stage > .glare {
+  display: none;
+}
+
+.hub-mirror {
+  position: relative;
+  width: 272px;
+  padding: 0 8px 8px;
+  border-radius: 38px;
+  background: linear-gradient(180deg, #1f2c19, #121a0f);
+  box-shadow:
+    inset 0 0 0 1px rgba(216, 232, 167, 0.13),
+    0 44px 80px -30px rgba(0, 0, 0, 0.85),
+    0 12px 28px -12px rgba(0, 0, 0, 0.55);
+}
+
+.hub-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 11px;
+}
+
+.hub-lights {
+  display: flex;
+  gap: 6px;
+}
+
+.hub-lights i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff5f57;
+}
+
+.hub-lights i:nth-child(2) {
+  background: #febc2e;
+}
+
+.hub-lights i:nth-child(3) {
+  background: #28c840;
+}
+
+.hub-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font: 600 0.82rem/1 var(--font-sans);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Three bars: a quick connection (Avo Hub's bars go by latency). */
+.hub-signal {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 11px;
+}
+
+.hub-signal i {
+  width: 3px;
+  height: 5px;
+  border-radius: 1px;
+  background: var(--flesh);
+}
+
+.hub-signal i:nth-child(2) {
+  height: 8px;
+}
+
+.hub-signal i:nth-child(3) {
+  height: 11px;
+}
+
+.hub-screen {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  aspect-ratio: 9 / 19.5;
+  padding: 26% 8% 8%;
+  border-radius: 31px;
+  overflow: hidden;
+  background:
+    radial-gradient(80% 45% at 25% 18%, rgba(234, 169, 112, 0.4), transparent 72%),
+    radial-gradient(90% 55% at 85% 80%, rgba(216, 232, 167, 0.2), transparent 70%),
+    linear-gradient(165deg, #3b5a2a, #16230f 72%);
+  container-type: inline-size;
+}
+
+.hub-clock {
+  color: var(--cream);
+  font-family: var(--font-display);
+  font-size: 23cqw;
+  font-weight: var(--display-weight);
+  font-stretch: var(--display-stretch);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  text-align: center;
+}
+
+.hub-hotseat {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5cqw;
+  padding: 4cqw;
+  border-radius: 10cqw;
+  background: rgba(10, 17, 8, 0.32);
+}
+
+.hub-hotseat svg {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.hub-stage .hub-notif {
+  position: absolute;
+  top: 34%;
+  right: -2%;
+  z-index: 2;
+  width: min(300px, 62%);
+  animation: notif-in 0.9s var(--ease-out) 0.9s both;
+}
+
+.hub-paths {
+  position: absolute;
+  left: -2%;
+  bottom: 15%;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  animation: rise-in 0.9s var(--ease-out) 1.1s both;
+}
+
+.hub-paths li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 15px 8px 13px;
+  border-radius: 999px;
+  background: rgba(14, 22, 11, 0.86);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: inset 0 0 0 1px rgba(216, 232, 167, 0.1), 0 12px 26px -12px rgba(0, 0, 0, 0.7);
+  color: var(--ink-3);
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.hub-paths li::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(216, 232, 167, 0.25);
+}
+
+.hub-paths li.is-on {
+  color: var(--ink);
+}
+
+.hub-paths li.is-on::before {
+  background: var(--flesh);
+  box-shadow: 0 0 0 4px rgba(216, 232, 167, 0.18);
+}
+
+/* Six cards in two even rows (the home page's five sit three over two).
+   Narrower, the cards' own responsive rules take over. */
+@media (min-width: 901px) {
+  .feature-cards-even > .feature-card {
+    grid-column: span 2;
+  }
+}
+
+.section-head + .feature-cards {
+  margin-top: 0;
+}
+
+.hub-notes {
+  max-width: 860px;
+  margin-top: 56px;
+}
+
+/* A command to copy stays whole: it never breaks at its hyphens. */
+.req-list code {
+  white-space: nowrap;
+}
+
+.hub-get .section-head {
+  margin-bottom: 0;
+}
+
+.hub-get .cta-row {
+  justify-content: center;
+}
+
+.hub-get .cta-meta {
+  padding-left: 0;
+  text-align: center;
+}
+
+.hub-avo-note {
+  margin-top: 30px;
+  color: var(--ink-3);
+  text-align: center;
+}
+
+@media (max-width: 1080px) {
+  .hub-stage {
+    min-height: 520px;
+  }
+}
+
+@media (max-width: 900px) {
+  .feature-cards-even > .feature-card:last-child {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .hub-stage {
+    min-height: 0;
+    padding: 24px 0 8px;
+  }
+
+  .hub-mirror {
+    width: 204px;
+    border-radius: 32px;
+  }
+
+  .hub-screen {
+    border-radius: 25px;
+  }
+
+  .hub-stage .hub-notif {
+    top: 33%;
+    right: 0;
+    width: min(250px, 72%);
+  }
+
+  .hub-paths {
+    left: 0;
+    bottom: 10%;
+  }
+
+  .hub-paths li {
+    padding: 7px 13px 7px 11px;
+    font-size: 0.8rem;
+  }
+}
+
+/* They would only wait their delay and then appear. */
+@media (prefers-reduced-motion: reduce) {
+  .hub-stage .hub-notif,
+  .hub-paths {
+    animation: none;
+  }
+}
+
 /* ----------------------------------------------------------------- 404 */
 
 .not-found {

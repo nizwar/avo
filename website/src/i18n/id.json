@@ -3,6 +3,8 @@
     "siteName": "Avo",
     "homeTitle": "Avo: aplikasi dan game Android di Mac",
     "homeDescription": "Pakai aplikasi dan main game Android di Mac, masing-masing di jendelanya sendiri. Gratis dan open source, untuk Mac dengan chip Apple.",
+    "hubTitle": "Avo Hub: ponsel Android kamu di Mac",
+    "hubDescription": "Avo Hub menyambungkan ponsel Android ke Mac: layar, notifikasi, pesan, foto, dan file, lewat kabel, Wi‑Fi, atau internet. Pendamping Avo yang masih dikembangkan.",
     "notFoundTitle": "Halaman tidak ditemukan | Avo",
     "ogAlt": "Ikon aplikasi Avo di atas latar hijau tua."
   },
@@ -23,7 +25,8 @@
     "mac": "Di Mac",
     "how": "Cara kerja",
     "faq": "Tanya jawab",
-    "support": "Dukung"
+    "support": "Dukung",
+    "hub": "Avo Hub"
   },
   "release": {
     "statusUnreleased": "Masih tahap awal, baru build pratinjau",
@@ -256,5 +259,91 @@
     "title": "Halaman ini tidak ada.",
     "text": "Mungkin tautannya sudah lama.",
     "home": "Ke beranda"
+  },
+  "hub": {
+    "statusUnreleased": "Masih dikembangkan, belum dirilis",
+    "statusReleased": "Versi {version} sudah tersedia",
+    "unreleasedNote": "Belum ada yang bisa dipasang. Ikuti Avo Hub di GitHub supaya tahu kapan pratinjau pertamanya keluar.",
+    "watch": "Ikuti di GitHub",
+    "build": "Build sendiri",
+    "download": "Unduh untuk Mac",
+    "downloadMeta": "Pratinjau · macOS 15 atau lebih baru · Apple silicon",
+    "hero": {
+      "title": "Ponsel Android kamu, menyatu dengan Mac.",
+      "lede": "Avo Hub menyambungkan ponsel yang sudah kamu punya ke Mac: layarnya, notifikasi, pesan, foto, dan file. Lewat kabel, Wi‑Fi yang sama, atau internet.",
+      "pointOpen": "Open source",
+      "pointBrand": "Merek apa pun, Android 11 ke atas",
+      "pointAccount": "Tanpa akun",
+      "artAlt": "Layar ponsel di jendela Mac tersendiri, di samping notifikasi pesan dari ponsel. Ponsel tersambung lewat Wi‑Fi yang sama.",
+      "artPhone": "Pixel 9",
+      "artTime": "9.41",
+      "artNotifApp": "Pesan",
+      "artNotifBody": "Dimas: aku sudah di jalan",
+      "artPathCable": "Kabel",
+      "artPathWifi": "Wi‑Fi yang sama",
+      "artPathNet": "Internet"
+    },
+    "features": {
+      "kicker": "Yang bisa kamu lakukan",
+      "title": "Urusan ponsel, beres dari Mac.",
+      "lede": "Di meja kerja atau jauh dari rumah, Avo Hub menjangkau ponselmu lewat kabel, Wi‑Fi yang sama, atau internet.",
+      "screenTitle": "Layar ponsel di jendela Mac",
+      "screenText": "Pakai ponsel dengan mouse, trackpad, dan keyboard Mac, lengkap dengan suaranya.",
+      "notifTitle": "Notifikasi",
+      "notifText": "Notifikasi ponsel muncul di Pusat Notifikasi. Balas, tutup, atau salin kode OTP langsung dari Mac.",
+      "messagesTitle": "Pesan dan kontak",
+      "messagesText": "Baca dan balas SMS dari Mac, dan cari kontak kapan saja.",
+      "filesTitle": "Foto dan file",
+      "filesText": "Jelajahi galeri dan folder, simpan foto aslinya ke Mac, dan kirim file ke ponsel.",
+      "findTitle": "Cari ponsel",
+      "findText": "Bunyikan dengan volume penuh, walau sedang senyap. Baterai dan sinyalnya selalu tampil di bar menu.",
+      "remoteTitle": "Kendalikan Mac dari ponsel",
+      "remoteText": "Remote Screen bekerja sebaliknya: layar Mac tampil di ponsel, dan jarimu jadi trackpad. Fitur ini mati sampai kamu menyalakannya.",
+      "also": "Selama layar ponsel terbuka di Mac, salin di satu perangkat lalu tempel di perangkat lainnya. Kamera ponsel sebagai webcam untuk aplikasi Mac juga sedang disiapkan.",
+      "status": "Avo Hub masih dikembangkan. Fitur-fitur ini sudah dibuat dan sedang diuji, dan masih bisa berubah sebelum rilis pertama."
+    },
+    "avo": {
+      "kicker": "Bersama Avo",
+      "title": "Dibuat untuk melengkapi Avo.",
+      "lede": "Avo menjalankan aplikasi dan game Android di Mac, tanpa perlu ponsel. Avo Hub menyambungkan ponsel yang ada di sakumu. Keduanya aplikasi terpisah: pakai salah satu, atau dua-duanya.",
+      "keysTitle": "Tata letak tombolmu ikut terbawa",
+      "keysText": "Main game di ponsel dari Mac dengan pemetaan tombol Avo: keyboard, bidik pakai mouse, dan controller. Game yang sudah kamu atur di Avo langsung memakai tata letak yang sama.",
+      "lookTitle": "Tampilan yang sama",
+      "lookText": "Avo Hub memakai desain Avo, di Mac maupun di ponsel.",
+      "openTitle": "Open source, seperti Avo",
+      "openText": "Lisensinya sama, Apache 2.0, dan semua kodenya ada <a href=\"{hubGithub}\">di GitHub</a>."
+    },
+    "how": {
+      "kicker": "Cara kerja",
+      "title": "Siap dipakai dalam tiga langkah.",
+      "step1Title": "Pasang di Mac, lalu di ponsel",
+      "step1Text": "Colokkan ponsel ke Mac dengan kabel USB, lalu Avo Hub memasang aplikasinya di ponsel. Asisten pengaturan menunjukkan setiap langkahnya.",
+      "step2Title": "Pasangkan dengan kode QR",
+      "step2Text": "Pindai kode di layar Mac dengan ponsel. Kalau keduanya menunjukkan enam angka yang sama, ponsel dan Mac sudah terhubung.",
+      "step3Title": "Tersambung di mana pun",
+      "step3Text": "Lewat kabel dulu, lalu Wi‑Fi yang sama, lalu internet saat kamu di luar. Avo Hub berpindah jalur sendiri.",
+      "readiness": "Setiap merek ponsel punya penghemat baterai dan setelan sendiri yang bisa mengganggu. Cek Kesiapan di ponsel menemukan semuanya dan menunjukkan apa yang perlu kamu lakukan.",
+      "privacy": "Ponselmu yang menentukan apa saja yang boleh dilakukan setiap Mac, per fitur, dan semuanya tercatat. Tidak perlu akun, dan lewat internet semua data dikirim terenkripsi."
+    },
+    "req": {
+      "kicker": "Sebelum mulai",
+      "title": "Yang kamu butuhkan",
+      "macTitle": "Mac dengan chip Apple",
+      "macText": "M1 atau yang lebih baru, dengan macOS 15 Sequoia atau lebih baru.",
+      "phoneTitle": "Ponsel Android merek apa pun",
+      "phoneText": "Android 11 atau lebih baru, dan kabel USB yang bisa membawa data, bukan cuma untuk mengisi daya.",
+      "toolsTitle": "Android platform-tools",
+      "toolsText": "Di Mac, untuk semua yang lewat kabel: memasang aplikasi ponsel dan menyalakan kontrol penuh (mengetuk dan mengetik dari Mac). Pasang dengan <code>brew install android-platform-tools</code>.",
+      "note": "Aplikasi yang melindungi layarnya, seperti sebagian aplikasi bank dan streaming, tampil hitam di jendela."
+    },
+    "get": {
+      "kicker": "Status",
+      "titleUnreleased": "Segera hadir.",
+      "textUnreleased": "Avo Hub masih dikembangkan, jadi belum ada yang bisa dipasang. Pratinjau pertamanya nanti berupa disk image untuk Mac, lalu Mac memasang aplikasinya di ponselmu lewat USB. Ikuti perkembangannya di GitHub, atau build sendiri dari kode sumbernya.",
+      "titleReleased": "Coba pratinjaunya.",
+      "textReleased": "Unduh Avo Hub untuk Mac. Saat penyiapan, Avo Hub memasang aplikasinya di ponselmu lewat USB.",
+      "avoQuestion": "Mau pakai aplikasi Android di Mac tanpa ponsel?",
+      "avoLink": "Coba Avo"
+    }
   }
 }
