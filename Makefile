@@ -17,6 +17,7 @@ help:
 
 test:
 	cd host/AvoKit && swift test
+	cd vendor/avo_kit && swift test
 
 project:
 	cd host && xcodegen generate

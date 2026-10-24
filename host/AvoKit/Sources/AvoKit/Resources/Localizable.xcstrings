@@ -11,26 +11,6 @@
         }
       }
     },
-    "%@ Copy" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Salinan %@"
-          }
-        }
-      }
-    },
-    "%@ cannot drive that." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ tidak bisa menggerakkan itu."
-          }
-        }
-      }
-    },
     "%@ does not exist." : {
       "localizations" : {
         "id" : {
@@ -57,16 +37,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ tidak tampak seperti bagian dari image Android."
-          }
-        }
-      }
-    },
-    "%@ drags the thumb back to where it rests." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ menggeser jempol kembali ke posisi diamnya."
           }
         }
       }
@@ -107,32 +77,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ berisi data Android lain, bukan data yang dipakai Avo di sana. Pilih lagi di Pengaturan › Storage untuk memakainya."
-          }
-        }
-      }
-    },
-    "%@ is a direction of this joystick: press another key to run." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ adalah arah joystick ini: tekan tombol lain untuk lari."
-          }
-        }
-      }
-    },
-    "%@ is a direction of “%@”." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ is a direction of “%2$@”."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ adalah salah satu arah “%2$@”."
           }
         }
       }
@@ -214,36 +158,6 @@
         }
       }
     },
-    "%@ locks the mouse to aim with the eye, and frees it again." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ mengunci mouse untuk membidik dengan mata, dan melepasnya lagi."
-          }
-        }
-      }
-    },
-    "%@ resets" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ me-reset"
-          }
-        }
-      }
-    },
-    "%@ runs" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ lari"
-          }
-        }
-      }
-    },
     "%@ timed out." : {
       "localizations" : {
         "id" : {
@@ -254,526 +168,12 @@
         }
       }
     },
-    "%@ turns the eye now. Drag its area over the part of the game that turns the camera." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sekarang %@ memutar mata. Seret areanya ke bagian game yang memutar kamera."
-          }
-        }
-      }
-    },
-    "%@: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@: %2$@"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@: %2$@"
-          }
-        }
-      }
-    },
-    "%@: a joystick or the eye cannot do actions" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: joystick atau mata tidak bisa menjalankan aksi"
-          }
-        }
-      }
-    },
-    "%@: a step must be 1 to 50% of the track" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: langkah harus 1 sampai 50% dari jalur"
-          }
-        }
-      }
-    },
-    "%@: aim area is invalid" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: area bidik tidak valid"
-          }
-        }
-      }
-    },
-    "%@: anchor reach must be between 0.03 and 1" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: jangkauan jangkar harus antara 0,03 dan 1"
-          }
-        }
-      }
-    },
-    "%@: click area is invalid" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: area klik tidak valid"
-          }
-        }
-      }
-    },
-    "%@: curve exponent must be between 0.5 and 3" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: eksponen kurva harus antara 0,5 dan 3"
-          }
-        }
-      }
-    },
-    "%@: deadzone must be between 0 and 50" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: deadzone harus antara 0 dan 50"
-          }
-        }
-      }
-    },
-    "%@: does nothing yet: add an action" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: belum melakukan apa pun: tambahkan aksi"
-          }
-        }
-      }
-    },
-    "%@: drag it onto the game" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: seret ke game"
-          }
-        }
-      }
-    },
-    "%@: holds must last at least %lld ms" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@: holds must last at least %2$lld ms"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: tahan minimal %lld ms"
-          }
-        }
-      }
-    },
-    "%@: locking or freeing the mouse needs the eye (mouse look)" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: mengunci atau melepaskan mouse butuh mata (lihat dengan mouse)"
-          }
-        }
-      }
-    },
-    "%@: macros are not allowed in FPS mode (no recoil or fire macros)" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: makro tidak diizinkan di mode FPS (tanpa makro recoil atau tembak)"
-          }
-        }
-      }
-    },
-    "%@: macros may run at most 10 s" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: makro paling lama 10 detik"
-          }
-        }
-      }
-    },
-    "%@: macros need 1–32 steps" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: makro butuh 1–32 langkah"
-          }
-        }
-      }
-    },
-    "%@: needs a trigger" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: butuh pemicu"
-          }
-        }
-      }
-    },
-    "%@: no mode %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@: no mode %2$@"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@: tidak ada mode %2$@"
-          }
-        }
-      }
-    },
-    "%@: no mode %@ to switch to" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@: no mode %2$@ to switch to"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@: tidak ada mode %2$@ untuk dituju"
-          }
-        }
-      }
-    },
-    "%@: position %@, %@ is outside the screen" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@: position %2$@, %3$@ is outside the screen"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: posisi %@, %@ berada di luar layar"
-          }
-        }
-      }
-    },
-    "%@: radius must be between 0.01 and 0.5" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: radius harus antara 0,01 dan 0,5"
-          }
-        }
-      }
-    },
-    "%@: reach must be between 0.05 and 2" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: jangkauan harus antara 0,05 dan 2"
-          }
-        }
-      }
-    },
-    "%@: repeat interval must be at least 50 ms" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: interval ulang minimal 50 ms"
-          }
-        }
-      }
-    },
-    "%@: repeated taps are not allowed in FPS mode (no automatic rapid fire)" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: ketukan berulang tidak diizinkan di mode FPS (tanpa rapid fire otomatis)"
-          }
-        }
-      }
-    },
-    "%@: running reach must be 1 to 4 times the joystick's" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: jangkauan lari harus 1 sampai 4 kali jangkauan joystick"
-          }
-        }
-      }
-    },
-    "%@: scroll triggers only work with tap, swipe, macro and hotkey controls" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: pemicu gulir hanya bisa untuk kontrol ketuk, geser, makro, dan hotkey"
-          }
-        }
-      }
-    },
-    "%@: select a control on the game first, or drag %@ onto the game." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@: select a control on the game first, or drag %2$@ onto the game."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@: pilih dulu kontrol di game, atau seret %2$@ ke game."
-          }
-        }
-      }
-    },
-    "%@: sensitivity must be between 0.01 and 20" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: sensitivitas harus antara 0,01 dan 20"
-          }
-        }
-      }
-    },
-    "%@: size must be between %lf and %lf" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@: size must be between %2$lf and %3$lf"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@: ukuran harus antara %2$lf dan %3$lf"
-          }
-        }
-      }
-    },
-    "%@: swipe duration must be 30–2000 ms" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: durasi geser harus 30–2000 ms"
-          }
-        }
-      }
-    },
-    "%@: swipes may not touch the aim area (no recoil compensation)" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: geser tidak boleh menyentuh area bidik (tanpa kompensasi recoil)"
-          }
-        }
-      }
-    },
-    "%@: the key to run is also a direction" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: tombol lari juga dipakai sebagai arah"
-          }
-        }
-      }
-    },
-    "%@: the rest point must be on the track" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: posisi diam harus berada di jalur"
-          }
-        }
-      }
-    },
-    "%@: the scroll bar's track is too short" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: jalur scroll bar terlalu pendek"
-          }
-        }
-      }
-    },
-    "%@: the wheel cannot be held to run" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: roda mouse tidak bisa ditahan untuk lari"
-          }
-        }
-      }
-    },
-    "%@: the wheel cannot reset a scroll bar" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: roda mouse tidak bisa me-reset scroll bar"
-          }
-        }
-      }
-    },
-    "%@: this kind of control cannot be clicked" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: jenis kontrol ini tidak bisa diklik"
-          }
-        }
-      }
-    },
-    "%@: touch-down point must be inside the aim area" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: titik sentuh harus berada di dalam area bidik"
-          }
-        }
-      }
-    },
-    "%@: waits must be at least %lld ms" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@: waits must be at least %2$lld ms"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@: jeda minimal %lld ms"
-          }
-        }
-      }
-    },
-    "%lld controls that act only there or switch to it go too. Cancel in the editor still undoes it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld kontrol yang hanya aktif di sana atau beralih ke sana ikut terhapus. Batal di editor masih bisa mengurungkannya."
-          }
-        }
-      }
-    },
-    "%lld ms" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld ms"
-          }
-        }
-      }
-    },
-    "%lld%% × %lld%% of the screen" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld%% × %2$lld%% of the screen"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld%% × %2$lld%% layar"
-          }
-        }
-      }
-    },
     "A %lld GB disk takes its full size on “%@”, which has %@ free." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Disk %1$lld GB langsung memakai seluruh ukurannya di “%2$@”, yang hanya punya %3$@ ruang kosong."
-          }
-        }
-      }
-    },
-    "A click area needs no key: it acts when it is clicked while the mouse is free." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Area klik tidak perlu tombol: ia bekerja saat diklik ketika mouse bebas."
-          }
-        }
-      }
-    },
-    "A click inside the area presses “%@” now. Drag the area or its edges over the game’s button." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik di dalam area sekarang menekan “%@”. Seret area atau tepinya ke atas tombol game."
-          }
-        }
-      }
-    },
-    "A click with the mouse free inside its area presses this control, as its key would: the game’s button is touched once, and its actions run once. Drag the area or its edges on the game." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik dengan mouse bebas di dalam areanya menekan kontrol ini, sama seperti tombolnya: tombol game disentuh sekali, dan aksinya berjalan sekali. Seret area atau tepinya di game."
-          }
-        }
-      }
-    },
-    "A copy of “%@”, with its controls: type its name in its tab." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Salinan “%@” beserta kontrolnya: ketik namanya di tabnya."
           }
         }
       }
@@ -798,288 +198,12 @@
         }
       }
     },
-    "A joystick follows a stick or the d-pad." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Joystick mengikuti stik atau d-pad."
-          }
-        }
-      }
-    },
-    "A light pulse when a button touches the screen" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Getaran ringan saat tombol menyentuh layar"
-          }
-        }
-      }
-    },
-    "A mode is another set of controls for another situation in the game (on foot, in a vehicle, an inventory). A control’s Switch Mode action changes to it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mode adalah kumpulan kontrol lain untuk situasi lain di game (jalan kaki, di kendaraan, inventaris). Aksi Ganti Mode pada sebuah kontrol berpindah ke sana."
-          }
-        }
-      }
-    },
-    "A new mode, and the switch to it: name the mode in its tab, then add its controls." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mode baru, beserta perpindahan ke sana: beri nama mode di tabnya, lalu tambahkan kontrolnya."
-          }
-        }
-      }
-    },
-    "A new mode, empty: add its controls." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mode baru, masih kosong: tambahkan kontrolnya."
-          }
-        }
-      }
-    },
-    "A scroll bar follows the wheel. To give it a reset key, click Reset key in the panel, then press the key." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scroll bar mengikuti roda mouse. Untuk memberi tombol reset, klik Tombol reset di panel, lalu tekan tombolnya."
-          }
-        }
-      }
-    },
-    "A stick drives a joystick or the eye. To use pressing it down (%@) here, press the stick down." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stik menggerakkan joystick atau mata. Untuk memakai tekanan stik (%@) di sini, tekan stiknya ke bawah."
-          }
-        }
-      }
-    },
-    "A stick drives a joystick or the eye; drop it on the game to place one." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stik menggerakkan joystick atau mata; lepaskan di game untuk menaruhnya."
-          }
-        }
-      }
-    },
-    "A tap on %@, together with %@. Click the next button of the game and press its key." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "A tap on %1$@, together with %2$@. Click the next button of the game and press its key."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ketuk dengan %1$@, bersama %2$@. Klik tombol game berikutnya, lalu tekan tombolnya."
-          }
-        }
-      }
-    },
-    "A tap on %@. Click the next button of the game and press its key." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ketuk dengan %@. Klik tombol game berikutnya, lalu tekan tombolnya."
-          }
-        }
-      }
-    },
-    "Above 1×, a smaller push reaches the joystick’s edge, and the eye turns faster." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Di atas 1×, dorongan yang lebih kecil sudah mencapai tepi joystick, dan mata berputar lebih cepat."
-          }
-        }
-      }
-    },
-    "Across" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mendatar"
-          }
-        }
-      }
-    },
-    "Add Action" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tambah Aksi"
-          }
-        }
-      }
-    },
-    "Add Mode" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tambah Mode"
-          }
-        }
-      }
-    },
-    "Add a Control" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tambah Kontrol"
-          }
-        }
-      }
-    },
-    "Add to Layout" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tambahkan ke Tata Letak"
-          }
-        }
-      }
-    },
-    "Add what it does: switch to another mode, or free or lock the mouse." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tambahkan apa yang dilakukannya: ganti ke mode lain, atau lepaskan atau kunci mouse."
-          }
-        }
-      }
-    },
-    "Aim" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bidik"
-          }
-        }
-      }
-    },
-    "Aim Down Sights" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bidik (ADS)"
-          }
-        }
-      }
-    },
-    "Aim Down Sights: its button aims, and the eye turns at its aiming sensitivity meanwhile." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bidik (ADS): tombolnya membidik, dan selama itu mata berputar dengan sensitivitas saat membidik."
-          }
-        }
-      }
-    },
-    "Aim down sights" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bidik (ADS)"
-          }
-        }
-      }
-    },
-    "Aiming" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Membidik"
-          }
-        }
-      }
-    },
-    "Aiming sensitivity" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sensitivitas saat membidik"
-          }
-        }
-      }
-    },
     "Allow Avo in System Settings › Privacy & Security › Camera, or choose another camera in Avo › Settings › Devices." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Izinkan Avo di Pengaturan Sistem › Privasi & Keamanan › Kamera, atau pilih kamera lain di Avo › Pengaturan › Perangkat."
-          }
-        }
-      }
-    },
-    "Anchor" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jangkar"
-          }
-        }
-      }
-    },
-    "Anchor Tap" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ketuk Jangkar"
-          }
-        }
-      }
-    },
-    "Anchor Tap: while its key is held, the mouse moves the finger from its point, within a circle (emote wheels, aiming a skill)." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ketuk Jangkar: selama tombolnya ditahan, mouse menggeser jari dari titiknya, di dalam lingkaran (roda emoji, membidik skill)."
-          }
-        }
-      }
-    },
-    "Anchor tap" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ketuk jangkar"
           }
         }
       }
@@ -1620,26 +744,6 @@
         }
       }
     },
-    "Area shape" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bentuk area"
-          }
-        }
-      }
-    },
-    "As It Was" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seperti Sebelumnya"
-          }
-        }
-      }
-    },
     "Avo cannot set this Android’s volume." : {
       "localizations" : {
         "id" : {
@@ -1850,52 +954,12 @@
         }
       }
     },
-    "Before turning on root" : {
+    "Before changing the device profile" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sebelum mengaktifkan root"
-          }
-        }
-      }
-    },
-    "Before starting another Android version" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sebelum memulai versi Android lain"
-          }
-        }
-      }
-    },
-    "Before starting %@" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sebelum memulai %@"
-          }
-        }
-      }
-    },
-    "Before restoring a checkpoint" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sebelum memulihkan checkpoint"
-          }
-        }
-      }
-    },
-    "Before removing Google apps" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sebelum menghapus aplikasi Google"
+            "value" : "Sebelum mengganti profil perangkat"
           }
         }
       }
@@ -1910,22 +974,52 @@
         }
       }
     },
-    "Before changing the device profile" : {
+    "Before removing Google apps" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sebelum mengganti profil perangkat"
+            "value" : "Sebelum menghapus aplikasi Google"
           }
         }
       }
     },
-    "Bind to “%@”" : {
+    "Before restoring a checkpoint" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ikat ke “%@”"
+            "value" : "Sebelum memulihkan checkpoint"
+          }
+        }
+      }
+    },
+    "Before starting %@" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sebelum memulai %@"
+          }
+        }
+      }
+    },
+    "Before starting another Android version" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sebelum memulai versi Android lain"
+          }
+        }
+      }
+    },
+    "Before turning on root" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sebelum mengaktifkan root"
           }
         }
       }
@@ -1940,42 +1034,12 @@
         }
       }
     },
-    "Button %@" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tombol %@"
-          }
-        }
-      }
-    },
-    "Buttons" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tombol"
-          }
-        }
-      }
-    },
     "CPU cores must be between 1 and %lld." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Jumlah core CPU harus antara 1 dan %lld."
-          }
-        }
-      }
-    },
-    "Cancel" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Batal"
           }
         }
       }
@@ -1990,32 +1054,22 @@
         }
       }
     },
-    "Checkpoints need Android’s data on an APFS drive; it is on a drive formatted as %@. Move it in Settings › Storage › Location to use checkpoints." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Checkpoint memerlukan data Android di drive APFS; saat ini data ada di drive berformat %@. Pindahkan di Pengaturan › Storage › Lokasi untuk memakai checkpoint."
-          }
-        }
-      }
-    },
-    "Cast towards the cursor" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lontarkan ke arah kursor"
-          }
-        }
-      }
-    },
     "Checkpoint" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Checkpoint"
+          }
+        }
+      }
+    },
+    "Checkpoints need Android’s data on an APFS drive; it is on a drive formatted as %@. Move it in Settings › Storage › Location to use checkpoints." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checkpoint memerlukan data Android di drive APFS; saat ini data ada di drive berformat %@. Pindahkan di Pengaturan › Storage › Lokasi untuk memakai checkpoint."
           }
         }
       }
@@ -2060,262 +1114,12 @@
         }
       }
     },
-    "Choose the mouse button for this button of the game, or press a key." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pilih tombol mouse untuk tombol game ini, atau tekan sebuah tombol."
-          }
-        }
-      }
-    },
-    "Circle size" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ukuran lingkaran"
-          }
-        }
-      }
-    },
-    "Click Area" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Area Klik"
-          }
-        }
-      }
-    },
-    "Click Area: a part of the game that, clicked while the mouse is free, does its actions (back to combat when you close the inventory)." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Area Klik: bagian game yang, jika diklik saat mouse bebas, menjalankan aksinya (kembali ke pertempuran saat kamu menutup inventaris)."
-          }
-        }
-      }
-    },
-    "Click a button of the game, then press its key." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik tombol di game, lalu tekan tombolnya."
-          }
-        }
-      }
-    },
-    "Click a button or stick to place its control, or drag it to where it goes on the game (onto a control to bind it). With a control selected, press a button on the controller or click it here to bind it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik tombol atau stick untuk menaruh kontrolnya, atau seret ke tempatnya di game (ke sebuah kontrol untuk mengikatnya). Saat sebuah kontrol dipilih, tekan tombol di controller atau klik di sini untuk mengikatnya."
-          }
-        }
-      }
-    },
-    "Click area" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Area klik"
-          }
-        }
-      }
-    },
-    "Click it, then press the key for this direction" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik, lalu tekan tombol untuk arah ini"
-          }
-        }
-      }
-    },
-    "Click it, then press the key that resets the scroll bar." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik, lalu tekan tombol yang me-reset scroll bar."
-          }
-        }
-      }
-    },
-    "Click it, then press the key to hold for running (Shift, for example)." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik, lalu tekan tombol yang ditahan untuk lari (misalnya Shift)."
-          }
-        }
-      }
-    },
-    "Click one to add it, or drag it onto the game’s button. A tap is quickest: click the game’s button, then press its key." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik untuk menambahkannya, atau seret ke tombol game. Ketuk paling cepat: klik tombol game, lalu tekan tombolnya."
-          }
-        }
-      }
-    },
-    "Click to add it, or drag it onto the game’s button." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik untuk menambahkannya, atau seret ke tombol game."
-          }
-        }
-      }
-    },
-    "Click to add it: it shows in the list of controls, not on the game." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik untuk menambahkannya: ia muncul di daftar kontrol, bukan di game."
-          }
-        }
-      }
-    },
-    "Clicked while the mouse is free, the area does these in order. Switch Mode changes to another set of controls; Free and Lock the Mouse change what the mouse does with the eye." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jika diklik saat mouse bebas, area ini menjalankan semua ini berurutan. Ganti Mode berpindah ke kumpulan kontrol lain; Lepaskan dan Kunci Mouse mengubah apa yang dilakukan mouse dengan mata."
-          }
-        }
-      }
-    },
-    "Clicking the game presses it" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik di game juga menekannya"
-          }
-        }
-      }
-    },
-    "Clicks on the game no longer press “%@”." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik di game tidak lagi menekan “%@”."
-          }
-        }
-      }
-    },
-    "Close without saving" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tutup tanpa menyimpan"
-          }
-        }
-      }
-    },
     "Connect it again, or choose another camera in Avo › Settings › Devices." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sambungkan lagi, atau pilih kamera lain di Avo › Pengaturan › Perangkat."
-          }
-        }
-      }
-    },
-    "Connect one over Bluetooth or USB" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sambungkan lewat Bluetooth atau USB"
-          }
-        }
-      }
-    },
-    "Connected" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tersambung"
-          }
-        }
-      }
-    },
-    "Connected · battery %lld%%" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tersambung · baterai %lld%%"
-          }
-        }
-      }
-    },
-    "Connected · charging" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tersambung · mengisi daya"
-          }
-        }
-      }
-    },
-    "Controller" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kontroler"
-          }
-        }
-      }
-    },
-    "Controller panel" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Panel kontroler"
-          }
-        }
-      }
-    },
-    "Controller to show" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kontroler yang ditampilkan"
-          }
-        }
-      }
-    },
-    "Controls" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kontrol"
           }
         }
       }
@@ -2340,302 +1144,6 @@
         }
       }
     },
-    "Could not save: %@" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tidak bisa menyimpan: %@"
-          }
-        }
-      }
-    },
-    "Cursor range" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jarak kursor"
-          }
-        }
-      }
-    },
-    "Custom (%lld%%)" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kustom (%lld%%)"
-          }
-        }
-      }
-    },
-    "D-pad" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "D-pad"
-          }
-        }
-      }
-    },
-    "D-pad %@: %@. Next key sets %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "D-pad %1$@: %2$@. Next key sets %3$@."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "D-pad %@: %@. Tombol berikutnya untuk %@."
-          }
-        }
-      }
-    },
-    "D-pad (all four directions)" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "D-pad (keempat arah)"
-          }
-        }
-      }
-    },
-    "Dead zone" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zona mati"
-          }
-        }
-      }
-    },
-    "Default" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bawaan"
-          }
-        }
-      }
-    },
-    "Default Swipe Area (Right Side)" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Area Geser Bawaan (Sisi Kanan)"
-          }
-        }
-      }
-    },
-    "Delete Mode" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hapus Mode"
-          }
-        }
-      }
-    },
-    "Delete Mode…" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hapus Mode…"
-          }
-        }
-      }
-    },
-    "Delete the mode “%@”?" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hapus mode “%@”?"
-          }
-        }
-      }
-    },
-    "Delete “%@”" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hapus “%@”"
-          }
-        }
-      }
-    },
-    "Deleted the preset “%@”. Cancel undoes it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preset “%@” dihapus. Batal akan mengurungkannya."
-          }
-        }
-      }
-    },
-    "Deselect" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Batal Pilih"
-          }
-        }
-      }
-    },
-    "Direction" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Arah"
-          }
-        }
-      }
-    },
-    "Discard" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Buang"
-          }
-        }
-      }
-    },
-    "Discard your key mapping changes?" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Buang perubahan pemetaan tombol?"
-          }
-        }
-      }
-    },
-    "Done" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Selesai"
-          }
-        }
-      }
-    },
-    "Down" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bawah"
-          }
-        }
-      }
-    },
-    "Drag distance" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jarak seret"
-          }
-        }
-      }
-    },
-    "Drag the track over the game’s slider and its ends to the slider’s ends; the ● is where the thumb rests." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seret jalurnya ke atas slider game dan ujungnya ke ujung slider; ● adalah posisi diam jempolnya."
-          }
-        }
-      }
-    },
-    "Drives %@." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Menggerakkan %@."
-          }
-        }
-      }
-    },
-    "Drives nothing yet: drag it onto a joystick or the eye, or onto the game." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Belum menggerakkan apa pun: seret ke joystick atau mata, atau ke game."
-          }
-        }
-      }
-    },
-    "Duplicate" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Duplikat"
-          }
-        }
-      }
-    },
-    "Duration" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Durasi"
-          }
-        }
-      }
-    },
-    "Earlier" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lebih awal"
-          }
-        }
-      }
-    },
-    "Editing “%@”." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mengedit “%@”."
-          }
-        }
-      }
-    },
-    "Editor opacity" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Opasitas editor"
-          }
-        }
-      }
-    },
     "Eject “%@” only while Android is stopped. If you eject it while Android runs, Avo stops Android first and asks you to eject again." : {
       "localizations" : {
         "id" : {
@@ -2656,142 +1164,12 @@
         }
       }
     },
-    "Every Mode" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Semua Mode"
-          }
-        }
-      }
-    },
-    "Every button and stick comes off its controls, and the sticks go back to their standard settings. Saved presets stay, and Cancel in the editor still undoes it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Semua tombol dan stik dilepas dari kontrolnya, dan stik kembali ke pengaturan standar. Preset tersimpan tetap ada, dan Batal di editor masih bisa mengurungkannya."
-          }
-        }
-      }
-    },
-    "Every button and stick comes off its controls, the sticks go back to their standard settings, and the controls only the controller worked are removed (%lld). Saved presets stay, and Cancel in the editor still undoes it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Semua tombol dan stik dilepas dari kontrolnya, stik kembali ke pengaturan standar, dan kontrol yang hanya dijalankan kontroler dihapus (%lld). Preset tersimpan tetap ada, dan Batal di editor masih bisa mengurungkannya."
-          }
-        }
-      }
-    },
-    "Every mode" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Semua mode"
-          }
-        }
-      }
-    },
-    "Export…" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ekspor…"
-          }
-        }
-      }
-    },
-    "Eye" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mata"
-          }
-        }
-      }
-    },
-    "Eye (Mouse Look)" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mata (Lihat dengan Mouse)"
-          }
-        }
-      }
-    },
-    "Eye · mouse look" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mata · lihat dengan mouse"
-          }
-        }
-      }
-    },
-    "Eye · stick look" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mata · lihat dengan stik"
-          }
-        }
-      }
-    },
-    "Eye: with the mouse locked, moving the mouse turns the game’s camera. One per layout." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mata: selama mouse terkunci, menggerakkan mouse memutar kamera game. Satu per tata letak."
-          }
-        }
-      }
-    },
-    "FPS" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "FPS"
-          }
-        }
-      }
-    },
-    "FPS Shooter" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tembak-menembak FPS"
-          }
-        }
-      }
-    },
     "FPS limit must be 30, or between 60 and 120." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Batas FPS harus 30, atau antara 60 dan 120."
-          }
-        }
-      }
-    },
-    "FPS mode supports one aim control" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mode FPS hanya mendukung satu kontrol bidik"
           }
         }
       }
@@ -2806,122 +1184,12 @@
         }
       }
     },
-    "Finger reach" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jangkauan jari"
-          }
-        }
-      }
-    },
-    "For pressing the stick down (%@):" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Untuk menekan stik ke bawah (%@):"
-          }
-        }
-      }
-    },
-    "Free" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bebas"
-          }
-        }
-      }
-    },
-    "Free the Mouse" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lepaskan Mouse"
-          }
-        }
-      }
-    },
-    "Free the mouse" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lepaskan mouse"
-          }
-        }
-      }
-    },
     "Front camera" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kamera depan"
-          }
-        }
-      }
-    },
-    "Full (%lld%%)" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Penuh (%lld%%)"
-          }
-        }
-      }
-    },
-    "Full height" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Setinggi layar"
-          }
-        }
-      }
-    },
-    "Full-Height Swipe Area" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Area Geser Setinggi Layar"
-          }
-        }
-      }
-    },
-    "Game Mode off: keys and clicks go to the app. ⌘G turns it on." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mode Game mati: tombol dan klik langsung ke app. ⌘G menyalakannya."
-          }
-        }
-      }
-    },
-    "Game Mode on: the key mapping is active. ⌘G turns it off." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mode Game menyala: pemetaan tombol aktif. ⌘G mematikannya."
-          }
-        }
-      }
-    },
-    "General" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Umum"
           }
         }
       }
@@ -3108,226 +1376,6 @@
         }
       }
     },
-    "Hero" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hero"
-          }
-        }
-      }
-    },
-    "Hero: where your character stands on the screen. Move by mouse and smart cast aim from here towards the cursor." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hero: tempat karakter Anda berdiri di layar. Gerak dengan mouse dan smart cast membidik dari sini ke arah kursor."
-          }
-        }
-      }
-    },
-    "Hide the list of controls" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sembunyikan daftar kontrol"
-          }
-        }
-      }
-    },
-    "High (%lld%%)" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tinggi (%lld%%)"
-          }
-        }
-      }
-    },
-    "Hold it to push the joystick further, for games that run when it is pushed all the way. Click the key, then press another to change it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tahan untuk mendorong joystick lebih jauh, untuk game yang berlari saat joystick didorong penuh. Klik tombolnya, lalu tekan tombol lain untuk menggantinya."
-          }
-        }
-      }
-    },
-    "Hold it, the mouse moving the finger" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tahan, mouse menggerakkan jarinya"
-          }
-        }
-      }
-    },
-    "Hold to aim" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tahan untuk membidik"
-          }
-        }
-      }
-    },
-    "Hold to aim: it aims while the key is held. Press to toggle: one press aims, the next stops." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tahan untuk membidik: membidik selama tombol ditahan. Tekan untuk beralih: sekali tekan membidik, tekan lagi berhenti."
-          }
-        }
-      }
-    },
-    "Holding %@ runs: the joystick goes further meanwhile. Set how far in the panel." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Menahan %@ berarti lari: selama itu joystick terdorong lebih jauh. Atur seberapa jauh di panel."
-          }
-        }
-      }
-    },
-    "Hotkey" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hotkey"
-          }
-        }
-      }
-    },
-    "Hotkey: a key that touches nothing, only does its actions (switch the mode, free the mouse)." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hotkey: tombol yang tidak menyentuh apa pun, hanya menjalankan aksinya (ganti mode, lepaskan mouse)."
-          }
-        }
-      }
-    },
-    "How far from your hero the cursor must be for a full drag." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seberapa jauh kursor dari hero Anda untuk seretan penuh."
-          }
-        }
-      }
-    },
-    "How far one notch of the wheel drags the thumb, of the track’s length." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seberapa jauh satu notch roda menggeser jempol, dari panjang jalur."
-          }
-        }
-      }
-    },
-    "How far the joystick is pushed while the run key is held, compared with its size." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seberapa jauh joystick terdorong selama tombol lari ditahan, dibanding ukurannya."
-          }
-        }
-      }
-    },
-    "How far the mouse may move the finger from its point." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seberapa jauh mouse boleh menggeser jari dari titiknya."
-          }
-        }
-      }
-    },
-    "How far the skill button is dragged." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seberapa jauh tombol skill diseret."
-          }
-        }
-      }
-    },
-    "How fast the eye turns while Aim Down Sights is held." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seberapa cepat mata berputar selama Bidik (ADS) ditahan."
-          }
-        }
-      }
-    },
-    "Imported “%@”. Press Done to use it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@” diimpor. Tekan Selesai untuk memakainya."
-          }
-        }
-      }
-    },
-    "Import…" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Impor…"
-          }
-        }
-      }
-    },
-    "In a circle" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dalam lingkaran"
-          }
-        }
-      }
-    },
-    "Insert the %@ template?" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sisipkan templat %@?"
-          }
-        }
-      }
-    },
-    "Inserted the %@ template. Its positions are a starting point: drag each control onto the game's own button." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Templat %@ disisipkan. Posisinya hanya titik awal: seret tiap kontrol ke tombol milik game."
-          }
-        }
-      }
-    },
     "Install stopped. Android was not changed." : {
       "localizations" : {
         "id" : {
@@ -3358,52 +1406,12 @@
         }
       }
     },
-    "Inverted" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Terbalik"
-          }
-        }
-      }
-    },
-    "It is the layout’s only mode: the layout is one set of controls again, and they all stay. Cancel in the editor still undoes it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ini satu-satunya mode di tata letak: tata letak kembali menjadi satu kumpulan kontrol, dan semuanya tetap ada. Batal di editor masih bisa mengurungkannya."
-          }
-        }
-      }
-    },
-    "Its controls stay in the other modes. Cancel in the editor still undoes it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kontrolnya tetap ada di mode lain. Batal di editor masih bisa mengurungkannya."
-          }
-        }
-      }
-    },
     "Its manifest is not one this version of Avo reads." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Manifest-nya tidak bisa dibaca oleh versi Avo ini."
-          }
-        }
-      }
-    },
-    "Its own controls: %lld. Click it again for its menu." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kontrolnya sendiri: %lld. Klik lagi untuk menunya."
           }
         }
       }
@@ -3481,156 +1489,6 @@
         }
       }
     },
-    "Joystick" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Joystick"
-          }
-        }
-      }
-    },
-    "Joystick: four keys (W A S D) or a controller’s stick push the game’s joystick." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Joystick: empat tombol (W A S D) atau stik kontroler mendorong joystick game."
-          }
-        }
-      }
-    },
-    "Keep Editing" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lanjut Edit"
-          }
-        }
-      }
-    },
-    "Key" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tombol"
-          }
-        }
-      }
-    },
-    "Key Mapping" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pemetaan Tombol"
-          }
-        }
-      }
-    },
-    "Key Visibility" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kejelasan Tombol"
-          }
-        }
-      }
-    },
-    "Key mapping panel" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Panel pemetaan tombol"
-          }
-        }
-      }
-    },
-    "Key visibility" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kejelasan tombol"
-          }
-        }
-      }
-    },
-    "Keys" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tombol"
-          }
-        }
-      }
-    },
-    "Kind of control" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jenis kontrol"
-          }
-        }
-      }
-    },
-    "L-Click" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik-Kiri"
-          }
-        }
-      }
-    },
-    "Later" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lebih akhir"
-          }
-        }
-      }
-    },
-    "Layout" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tata Letak"
-          }
-        }
-      }
-    },
-    "Left" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kiri"
-          }
-        }
-      }
-    },
-    "Left Click" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik Kiri"
-          }
-        }
-      }
-    },
     "Left index finger" : {
       "localizations" : {
         "id" : {
@@ -3661,42 +1519,12 @@
         }
       }
     },
-    "Left out: %lld (the layout already has an eye, or the D-pad keys are in use)." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tidak disertakan: %lld (tata letak sudah punya mata, atau tombol D-pad sudah dipakai)."
-          }
-        }
-      }
-    },
-    "Left out: %lld of its bindings, for controls that changed or are gone." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tidak disertakan: %lld ikatannya, untuk kontrol yang berubah atau sudah tidak ada."
-          }
-        }
-      }
-    },
     "Left ring finger" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Jari manis kiri"
-          }
-        }
-      }
-    },
-    "Left stick" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stik kiri"
           }
         }
       }
@@ -3711,142 +1539,12 @@
         }
       }
     },
-    "Let go to choose a control" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lepaskan untuk memilih kontrol"
-          }
-        }
-      }
-    },
-    "Let go to place it here" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lepas untuk menaruhnya di sini"
-          }
-        }
-      }
-    },
-    "Let the Finger Use the Whole Screen" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jari Boleh ke Seluruh Layar"
-          }
-        }
-      }
-    },
-    "Lock or Free the Mouse" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kunci atau Lepaskan Mouse"
-          }
-        }
-      }
-    },
-    "Lock or free the mouse" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kunci atau lepaskan mouse"
-          }
-        }
-      }
-    },
-    "Lock the Mouse" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kunci Mouse"
-          }
-        }
-      }
-    },
-    "Lock the mouse" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kunci mouse"
-          }
-        }
-      }
-    },
-    "Locked to the Eye" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Terkunci ke Mata"
-          }
-        }
-      }
-    },
-    "Low (%lld%%)" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rendah (%lld%%)"
-          }
-        }
-      }
-    },
-    "Lower it to see the game through the editor while you put controls on its buttons." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Turunkan untuk melihat game di balik editor saat Anda memasang kontrol di tombol-tombolnya."
-          }
-        }
-      }
-    },
-    "M-Click" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik-Tengah"
-          }
-        }
-      }
-    },
-    "MOBA" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "MOBA"
-          }
-        }
-      }
-    },
     "Mac OS Extended" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mac OS Diperluas"
-          }
-        }
-      }
-    },
-    "Macro" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Makro"
           }
         }
       }
@@ -3881,232 +1579,12 @@
         }
       }
     },
-    "Medium (%lld%%)" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sedang (%lld%%)"
-          }
-        }
-      }
-    },
-    "Middle Click" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik Tengah"
-          }
-        }
-      }
-    },
-    "Mode" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mode"
-          }
-        }
-      }
-    },
-    "Mode %lld" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mode %lld"
-          }
-        }
-      }
-    },
-    "Mode: %@" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mode: %@"
-          }
-        }
-      }
-    },
-    "Modes" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mode"
-          }
-        }
-      }
-    },
-    "More about this" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Selengkapnya"
-          }
-        }
-      }
-    },
     "More cores than this Mac’s %lld performance cores can slow macOS down." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lebih dari %lld core performa Mac ini bisa membuat macOS melambat."
-          }
-        }
-      }
-    },
-    "Mouse" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mouse"
-          }
-        }
-      }
-    },
-    "Mouse Button 4" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tombol Mouse 4"
-          }
-        }
-      }
-    },
-    "Mouse Button 5" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tombol Mouse 5"
-          }
-        }
-      }
-    },
-    "Mouse When Switching Here" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mouse Saat Pindah ke Sini"
-          }
-        }
-      }
-    },
-    "Mouse button" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tombol mouse"
-          }
-        }
-      }
-    },
-    "Mouse free. Press %@ to aim with it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mouse bebas. Tekan %@ untuk membidik dengannya."
-          }
-        }
-      }
-    },
-    "Mouse lock for the eye" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kunci mouse untuk mata"
-          }
-        }
-      }
-    },
-    "Mouse lock key" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tombol kunci mouse"
-          }
-        }
-      }
-    },
-    "Mouse locked for aiming. Press %@ to free it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mouse terkunci untuk membidik. Tekan %@ untuk melepasnya."
-          }
-        }
-      }
-    },
-    "Move" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gerak"
-          }
-        }
-      }
-    },
-    "Move by Mouse" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gerak dengan Mouse"
-          }
-        }
-      }
-    },
-    "Move by Mouse (MOBA)" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gerak dengan Mouse (MOBA)"
-          }
-        }
-      }
-    },
-    "Move by Mouse: while its button is held, the joystick follows the cursor (MOBA)." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gerak dengan Mouse: selama tombolnya ditahan, joystick mengikuti kursor (MOBA)."
-          }
-        }
-      }
-    },
-    "Move by mouse" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gerak dengan mouse"
-          }
-        }
-      }
-    },
-    "Move towards the cursor" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bergerak ke arah kursor"
           }
         }
       }
@@ -4131,92 +1609,12 @@
         }
       }
     },
-    "My controller layout" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tata letak kontroler saya"
-          }
-        }
-      }
-    },
-    "My layout" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tata letak saya"
-          }
-        }
-      }
-    },
-    "Name" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nama"
-          }
-        }
-      }
-    },
-    "Needs the eye (FPS)" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Perlu mata (FPS)"
-          }
-        }
-      }
-    },
     "Never in it: Android’s data and your apps’ files, the keys Avo uses for ADB, your fingerprints and your accounts. Email addresses, account names, tokens and locations are taken out of the logs, and your home folder shows as ~." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tidak pernah disertakan: data Android dan file aplikasi Anda, kunci yang dipakai Avo untuk ADB, sidik jari Anda, dan akun Anda. Alamat email, nama akun, token, dan lokasi dihapus dari log, dan folder rumah Anda ditampilkan sebagai ~."
-          }
-        }
-      }
-    },
-    "No controller connected" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tidak ada kontroler tersambung"
-          }
-        }
-      }
-    },
-    "No key" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tanpa tombol"
-          }
-        }
-      }
-    },
-    "No reset key" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tanpa tombol reset"
-          }
-        }
-      }
-    },
-    "No run key" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tanpa tombol lari"
           }
         }
       }
@@ -4231,288 +1629,12 @@
         }
       }
     },
-    "Normal" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Normal"
-          }
-        }
-      }
-    },
-    "Off" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nonaktif"
-          }
-        }
-      }
-    },
-    "On" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aktif"
-          }
-        }
-      }
-    },
-    "On: the click also touches the game there (its Close button). Off: it only does the actions." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nyala: klik juga menyentuh game di situ (tombol Tutup-nya). Mati: hanya menjalankan aksinya."
-          }
-        }
-      }
-    },
-    "Place for %@:" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Taruh untuk %@:"
-          }
-        }
-      }
-    },
-    "Placed “%@” for %@. Drag it onto the game’s own button." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Placed “%1$@” for %2$@. Drag it onto the game’s own button."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%1$@” ditaruh untuk %2$@. Seret ke tombol milik game."
-          }
-        }
-      }
-    },
-    "Platformer" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Platformer"
-          }
-        }
-      }
-    },
-    "Play the macro" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jalankan makro"
-          }
-        }
-      }
-    },
     "Port %lld is already in use by another app. Choose another port." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Port %lld sudah dipakai app lain. Pilih port lain."
-          }
-        }
-      }
-    },
-    "Presets" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preset"
-          }
-        }
-      }
-    },
-    "Presets are kept with this game’s key mapping; Done saves them. A name already in use replaces that preset." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preset disimpan bersama pemetaan tombol game ini; Selesai akan menyimpannya. Nama yang sudah dipakai akan menggantikan preset itu."
-          }
-        }
-      }
-    },
-    "Press a key" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tekan tombol"
-          }
-        }
-      }
-    },
-    "Press a key for this button (right-click: a mouse button). Click it again to cancel." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tekan tombol untuk tombol game ini (klik kanan: tombol mouse). Klik lagi untuk membatalkan."
-          }
-        }
-      }
-    },
-    "Press a key, or right-click for a mouse button." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tekan sebuah tombol, atau klik kanan untuk tombol mouse."
-          }
-        }
-      }
-    },
-    "Press four keys in turn, %@ first." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tekan empat tombol bergantian, mulai dari %@."
-          }
-        }
-      }
-    },
-    "Press it to drag the thumb back to where it rests (the map’s zoom back to normal). Click the key, then press another to change it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tekan untuk menggeser jempol kembali ke posisi diamnya (zoom peta kembali normal). Klik tombolnya, lalu tekan tombol lain untuk menggantinya."
-          }
-        }
-      }
-    },
-    "Press its key or controller button. Right-click for a mouse button." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tekan tombolnya atau tombol kontroler. Klik kanan untuk tombol mouse."
-          }
-        }
-      }
-    },
-    "Press its key. Drag ↘ to set how far it reaches." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tekan tombolnya. Seret ↘ untuk mengatur jangkauannya."
-          }
-        }
-      }
-    },
-    "Press the hotkey’s key, then add what it does in the panel." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tekan tombol untuk hotkey ini, lalu tambahkan apa yang dilakukannya di panel."
-          }
-        }
-      }
-    },
-    "Press the key that drags the thumb back to rest." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tekan tombol yang menggeser jempol kembali ke posisi diam."
-          }
-        }
-      }
-    },
-    "Press the key that locks and frees the mouse (F8, for example)." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tekan tombol yang mengunci dan melepaskan mouse (misalnya F8)."
-          }
-        }
-      }
-    },
-    "Press the key to hold for running (Shift, for example)." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tekan tombol yang ditahan untuk lari (misalnya Shift)."
-          }
-        }
-      }
-    },
-    "Press to toggle" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tekan untuk beralih"
-          }
-        }
-      }
-    },
-    "Pressed, the control does these in order: its own touch first, then each action. Switch Mode changes to another set of controls; Free and Lock the Mouse change what the mouse does with the eye." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Saat ditekan, kontrol ini menjalankan semua ini berurutan: sentuhannya sendiri dulu, lalu setiap aksi. Ganti Mode berpindah ke kumpulan kontrol lain; Lepaskan dan Kunci Mouse mengubah apa yang dilakukan mouse dengan mata."
-          }
-        }
-      }
-    },
-    "Pressed, the hotkey does these in order and touches nothing. Switch Mode changes to another set of controls; Free and Lock the Mouse change what the mouse does with the eye." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Saat ditekan, hotkey ini menjalankan semua ini berurutan tanpa menyentuh apa pun. Ganti Mode berpindah ke kumpulan kontrol lain; Lepaskan dan Kunci Mouse mengubah apa yang dilakukan mouse dengan mata."
-          }
-        }
-      }
-    },
-    "Put the area over the game’s button and size it by its edges, then add what a click does in the panel." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Letakkan area di atas tombol game dan atur ukurannya lewat tepinya, lalu tambahkan apa yang dilakukan klik di panel."
-          }
-        }
-      }
-    },
-    "Puts each control on the button games of that kind use, going by its name and key." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Menaruh tiap kontrol di tombol yang biasa dipakai game jenis itu, berdasarkan nama dan tombolnya."
-          }
-        }
-      }
-    },
-    "R-Click" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik-Kanan"
           }
         }
       }
@@ -4537,36 +1659,6 @@
         }
       }
     },
-    "Racing" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Balapan"
-          }
-        }
-      }
-    },
-    "Reach a Circle Around It" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jangkau Lingkaran di Sekitarnya"
-          }
-        }
-      }
-    },
-    "Ready-made for this game’s controls" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Siap pakai untuk kontrol game ini"
-          }
-        }
-      }
-    },
     "Release %@ has no .zip package." : {
       "localizations" : {
         "id" : {
@@ -4577,172 +1669,12 @@
         }
       }
     },
-    "Remove" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hapus"
-          }
-        }
-      }
-    },
-    "Remove All Controls" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hapus Semua Kontrol"
-          }
-        }
-      }
-    },
-    "Remove This Action" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hapus Aksi Ini"
-          }
-        }
-      }
-    },
-    "Removed “%@”." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@” dihapus."
-          }
-        }
-      }
-    },
     "Removing Google apps" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Menghapus aplikasi Google"
-          }
-        }
-      }
-    },
-    "Rename" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ganti Nama"
-          }
-        }
-      }
-    },
-    "Repeat" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ulang"
-          }
-        }
-      }
-    },
-    "Repeat Tap" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ketuk Berulang"
-          }
-        }
-      }
-    },
-    "Repeat Tap: taps again and again while its key is held." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ketuk Berulang: mengetuk terus-menerus selama tombolnya ditahan."
-          }
-        }
-      }
-    },
-    "Repeat every" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ulangi setiap"
-          }
-        }
-      }
-    },
-    "Repeated taps are not allowed with the eye (no automatic rapid fire): Done won’t save until you change this." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ketuk berulang tidak diizinkan bersama mata (tanpa rapid fire otomatis): Selesai tidak akan menyimpan sampai kamu mengubah ini."
-          }
-        }
-      }
-    },
-    "Replace Layout" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ganti Tata Letak"
-          }
-        }
-      }
-    },
-    "Reset" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Atur Ulang"
-          }
-        }
-      }
-    },
-    "Reset Controller Mapping…" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Atur Ulang Pemetaan Kontroler…"
-          }
-        }
-      }
-    },
-    "Reset This Stick" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reset Stik Ini"
-          }
-        }
-      }
-    },
-    "Reset key" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tombol reset"
-          }
-        }
-      }
-    },
-    "Reset the controller mapping?" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Atur ulang pemetaan kontroler?"
           }
         }
       }
@@ -4763,36 +1695,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pemulihan Android"
-          }
-        }
-      }
-    },
-    "Rests at" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Posisi diam"
-          }
-        }
-      }
-    },
-    "Right" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kanan"
-          }
-        }
-      }
-    },
-    "Right Click" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klik Kanan"
           }
         }
       }
@@ -4837,26 +1739,6 @@
         }
       }
     },
-    "Right side" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sisi kanan"
-          }
-        }
-      }
-    },
-    "Right stick" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stik kanan"
-          }
-        }
-      }
-    },
     "Right thumb" : {
       "localizations" : {
         "id" : {
@@ -4877,272 +1759,12 @@
         }
       }
     },
-    "Round" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bulat"
-          }
-        }
-      }
-    },
-    "Rounded" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sudut tumpul"
-          }
-        }
-      }
-    },
-    "Run key" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tombol lari"
-          }
-        }
-      }
-    },
-    "Running reach" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jangkauan saat lari"
-          }
-        }
-      }
-    },
-    "Save Preset" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Simpan Preset"
-          }
-        }
-      }
-    },
-    "Save as Preset…" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Simpan sebagai Preset…"
-          }
-        }
-      }
-    },
-    "Save the controller layout as a preset" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Simpan tata letak kontroler sebagai preset"
-          }
-        }
-      }
-    },
-    "Save the controller layout as it is, to come back to it or to switch between layouts." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Simpan tata letak kontroler apa adanya, untuk kembali ke sana atau berganti antar tata letak."
-          }
-        }
-      }
-    },
-    "Save the key mapping and close the editor" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Simpan pemetaan tombol dan tutup editor"
-          }
-        }
-      }
-    },
-    "Saved for this game" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tersimpan untuk game ini"
-          }
-        }
-      }
-    },
-    "Saved the preset “%@”." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preset “%@” disimpan."
-          }
-        }
-      }
-    },
-    "Scroll" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scroll"
-          }
-        }
-      }
-    },
-    "Scroll Bar" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scroll Bar"
-          }
-        }
-      }
-    },
-    "Scroll Bar: the wheel drags the thumb of a slider of the game (a map’s zoom) a step a notch, within its ends." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scroll Bar: roda mouse menggeser jempol slider game (zoom peta) satu langkah per notch, di antara ujung-ujungnya."
-          }
-        }
-      }
-    },
-    "Scroll bar" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scroll bar"
-          }
-        }
-      }
-    },
-    "Sensitivity" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sensitivitas"
-          }
-        }
-      }
-    },
     "Sharpness must be between 0 and 100." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ketajaman harus antara 0 dan 100."
-          }
-        }
-      }
-    },
-    "Shooter" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tembak-menembak"
-          }
-        }
-      }
-    },
-    "Show keys on game" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tampilkan tombol di game"
-          }
-        }
-      }
-    },
-    "Show the list of controls" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tampilkan daftar kontrol"
-          }
-        }
-      }
-    },
-    "Size" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ukuran"
-          }
-        }
-      }
-    },
-    "Skill" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Skill"
-          }
-        }
-      }
-    },
-    "Small movements around the middle are ignored, so a worn stick’s drift stays out of the game." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gerakan kecil di sekitar tengah diabaikan, jadi drift stik yang aus tidak masuk ke game."
-          }
-        }
-      }
-    },
-    "Smart Cast" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Smart Cast"
-          }
-        }
-      }
-    },
-    "Smart Cast (MOBA)" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Smart Cast (MOBA)"
-          }
-        }
-      }
-    },
-    "Smart Cast: its key drags the skill towards the cursor, and letting go casts (MOBA)." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Smart Cast: tombolnya menyeret skill ke arah kursor, dan melepasnya meluncurkan skill (MOBA)."
-          }
-        }
-      }
-    },
-    "Smart cast" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Smart cast"
           }
         }
       }
@@ -5157,222 +1779,12 @@
         }
       }
     },
-    "Square" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kotak"
-          }
-        }
-      }
-    },
-    "Start the Game in This Mode" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mulai Game di Mode Ini"
-          }
-        }
-      }
-    },
     "Starting Android" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Menjalankan Android"
-          }
-        }
-      }
-    },
-    "Starting layouts for shooters, MOBAs, racing games and platformers" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tata letak awal untuk game tembak-tembakan, MOBA, balap, dan platformer"
-          }
-        }
-      }
-    },
-    "Starting layouts: move each control onto the game's button afterwards" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tata letak awal: setelah itu, pindahkan tiap kontrol ke tombol game"
-          }
-        }
-      }
-    },
-    "Step per notch" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Langkah per notch"
-          }
-        }
-      }
-    },
-    "Stick" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stik"
-          }
-        }
-      }
-    },
-    "Sticks" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stik"
-          }
-        }
-      }
-    },
-    "Still without a key: %lld, because your controls already use theirs. Select each “?” and press a key." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Belum punya tombol: %lld, karena tombolnya sudah dipakai kontrol Anda. Pilih tiap “?” lalu tekan sebuah tombol."
-          }
-        }
-      }
-    },
-    "Swipe" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Geser"
-          }
-        }
-      }
-    },
-    "Swipe area" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Area geser"
-          }
-        }
-      }
-    },
-    "Swipe: its key swipes from one point to another." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Geser: tombolnya menggeser dari satu titik ke titik lain."
-          }
-        }
-      }
-    },
-    "Switch Mode" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ganti Mode"
-          }
-        }
-      }
-    },
-    "Switch to" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ganti ke"
-          }
-        }
-      }
-    },
-    "Switch to a New Mode" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ganti ke Mode Baru"
-          }
-        }
-      }
-    },
-    "Switch to another mode, or free or lock the mouse, after its touch" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ganti ke mode lain, atau lepaskan atau kunci mouse, setelah sentuhannya"
-          }
-        }
-      }
-    },
-    "Switch to “%@”" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ganti ke “%@”"
-          }
-        }
-      }
-    },
-    "Tap" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ketuk"
-          }
-        }
-      }
-    },
-    "Tap it again and again" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ketuk terus-menerus"
-          }
-        }
-      }
-    },
-    "Tap the game’s button" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ketuk tombol game"
-          }
-        }
-      }
-    },
-    "Tap: its key touches the game’s button while it is held." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ketuk: tombolnya menyentuh tombol game selama ditahan."
-          }
-        }
-      }
-    },
-    "Templates" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Templat"
           }
         }
       }
@@ -5593,58 +2005,12 @@
         }
       }
     },
-    "The controller is laid out as in %@ games: %lld controls. Cancel undoes it." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "The controller is laid out as in %1$@ games: %2$lld controls. Cancel undoes it."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kontroler ditata seperti di game %1$@: %2$lld kontrol. Batal akan mengurungkannya."
-          }
-        }
-      }
-    },
-    "The controller mapping is reset." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pemetaan kontroler sudah diatur ulang."
-          }
-        }
-      }
-    },
     "The copy of %@ does not match Android’s data. Nothing changed; Android’s data stays where it was." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Salinan %@ tidak cocok dengan data Android. Tidak ada yang berubah; data Android tetap di tempatnya."
-          }
-        }
-      }
-    },
-    "The d-pad pushes a joystick; drop it on the game to place one." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "D-pad mendorong joystick; lepaskan di game untuk menaruhnya."
-          }
-        }
-      }
-    },
-    "The d-pad pushes “%@” too." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "D-pad juga mendorong “%@”."
           }
         }
       }
@@ -5721,16 +2087,6 @@
         }
       }
     },
-    "The eye follows a stick: drop one on it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mata mengikuti stik: lepaskan stik di atasnya."
-          }
-        }
-      }
-    },
     "The file is not an APK, XAPK, APKM or APKS package." : {
       "localizations" : {
         "id" : {
@@ -5767,46 +2123,6 @@
         }
       }
     },
-    "The finger may now go anywhere on the screen." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kini jari boleh ke mana saja di layar."
-          }
-        }
-      }
-    },
-    "The finger stays in the circle. Drag ↘ to set how far it reaches." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jari tetap di dalam lingkaran. Seret ↘ untuk mengatur jangkauannya."
-          }
-        }
-      }
-    },
-    "The game starts in this mode. Its own controls: %lld. Click it again for its menu." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Game dimulai di mode ini. Kontrolnya sendiri: %lld. Klik lagi untuk menunya."
-          }
-        }
-      }
-    },
-    "The game starts in “%@” now." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sekarang game dimulai di “%@”."
-          }
-        }
-      }
-    },
     "The image manifest does not cover %@." : {
       "localizations" : {
         "id" : {
@@ -5833,62 +2149,12 @@
         }
       }
     },
-    "The key that locks the mouse to the eye, and frees it again. Press another key to change it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tombol yang mengunci mouse ke mata dan melepasnya lagi. Tekan tombol lain untuk menggantinya."
-          }
-        }
-      }
-    },
-    "The keys show on the game’s buttons while you play." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tombol tampil di atas tombol game saat Anda bermain."
-          }
-        }
-      }
-    },
     "The languages for this translation aren’t downloaded." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bahasa untuk terjemahan ini belum diunduh."
-          }
-        }
-      }
-    },
-    "The mode it switches to" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mode tujuan perpindahannya"
-          }
-        }
-      }
-    },
-    "The modes this control works in." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mode tempat kontrol ini bekerja."
-          }
-        }
-      }
-    },
-    "The mode’s name" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nama mode"
           }
         }
       }
@@ -6091,36 +2357,6 @@
         }
       }
     },
-    "The wheel cannot be held to run: press a key or a button." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Roda mouse tidak bisa ditahan untuk lari: tekan sebuah tombol."
-          }
-        }
-      }
-    },
-    "The wheel drags the scroll bar: press a key to reset it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Roda mouse menggeser scroll bar: tekan tombol keyboard untuk me-resetnya."
-          }
-        }
-      }
-    },
-    "The wheel works with Tap, Swipe and Hotkey only." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Roda mouse hanya bisa untuk Ketuk, Geser, dan Hotkey."
-          }
-        }
-      }
-    },
     "The zip has no %@, so it isn’t an Android image Avo can use." : {
       "localizations" : {
         "id" : {
@@ -6157,16 +2393,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tidak ada data Android di folder ini."
-          }
-        }
-      }
-    },
-    "There is one eye per layout; this is it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Satu tata letak hanya punya satu mata; ini dia."
           }
         }
       }
@@ -6307,16 +2533,6 @@
         }
       }
     },
-    "This app has no key mapping yet. Press ⇧⌘K to set one up." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aplikasi ini belum punya pemetaan tombol. Tekan ⇧⌘K untuk membuatnya."
-          }
-        }
-      }
-    },
     "This app needs Android API %lld; the Android image provides API %lld." : {
       "localizations" : {
         "en" : {
@@ -6343,36 +2559,6 @@
         }
       }
     },
-    "This control has no key yet. Press its key or controller button, or right-click for a mouse button." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kontrol ini belum punya tombol. Tekan tombolnya di keyboard atau controller, atau klik kanan untuk tombol mouse."
-          }
-        }
-      }
-    },
-    "This controller cannot vibrate" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kontroler ini tidak bisa bergetar"
-          }
-        }
-      }
-    },
-    "This engine cannot hold Android still. Stop Android first." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Engine ini tidak bisa menghentikan Android sejenak. Hentikan Android terlebih dahulu."
-          }
-        }
-      }
-    },
     "This checkpoint’s data is from %@, newer than the Android that starts now (%@). Choose %@ under Android version first." : {
       "localizations" : {
         "en" : {
@@ -6385,6 +2571,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Data checkpoint ini dari %1$@, lebih baru daripada Android yang dimulai sekarang (%2$@). Pilih dulu %3$@ di Versi Android."
+          }
+        }
+      }
+    },
+    "This engine cannot hold Android still. Stop Android first." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Engine ini tidak bisa menghentikan Android sejenak. Hentikan Android terlebih dahulu."
           }
         }
       }
@@ -6419,16 +2615,6 @@
         }
       }
     },
-    "This file isn’t an Avo key mapping." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "File ini bukan pemetaan tombol Avo."
-          }
-        }
-      }
-    },
     "This folder already holds Android data. Use it, or choose another folder." : {
       "localizations" : {
         "id" : {
@@ -6445,46 +2631,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ini bukan paket MindTheGapps: build.prop atau folder system tidak ada. Pilih file .zip-nya, atau folder hasil ekstraknya."
-          }
-        }
-      }
-    },
-    "This layout already has controls. Add the template's controls next to them (keys you already use stay with your controls), or replace the layout with the template. Its positions are only a starting point, and Cancel in the editor still undoes everything." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tata letak ini sudah berisi kontrol. Tambahkan kontrol templat di sampingnya (tombol yang sudah Anda pakai tetap pada kontrol Anda), atau ganti tata letak dengan templat. Posisinya hanya titik awal, dan Batal di editor tetap membatalkan semuanya."
-          }
-        }
-      }
-    },
-    "This layout has controls from a newer version of Avo (%@). They are not shown here, and saving leaves them out." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tata letak ini berisi kontrol dari versi Avo yang lebih baru (%@). Kontrol itu tidak ditampilkan di sini dan tidak ikut disimpan."
-          }
-        }
-      }
-    },
-    "This needs the eye (mouse look): add it from FPS, or Done won’t save." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ini perlu mata (mouse look): tambahkan dari FPS, atau Selesai tidak akan menyimpan."
-          }
-        }
-      }
-    },
-    "This profile has problems." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Profil ini bermasalah."
           }
         }
       }
@@ -6509,62 +2655,12 @@
         }
       }
     },
-    "To save them, choose Keep Editing, then Done." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Untuk menyimpannya, pilih Lanjut Edit, lalu Selesai."
-          }
-        }
-      }
-    },
     "Too many wrong tries. Android accepts the next one in about a minute." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Terlalu banyak percobaan yang salah. Android menerima percobaan berikutnya sekitar satu menit lagi."
-          }
-        }
-      }
-    },
-    "Touch in the Middle" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sentuh di Tengah"
-          }
-        }
-      }
-    },
-    "Touch in the middle" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sentuh di tengah"
-          }
-        }
-      }
-    },
-    "Touch the game where clicked" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sentuh game di tempat yang diklik"
-          }
-        }
-      }
-    },
-    "Type" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jenis"
           }
         }
       }
@@ -6579,46 +2675,6 @@
         }
       }
     },
-    "Up" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Atas"
-          }
-        }
-      }
-    },
-    "Up and down" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Naik turun"
-          }
-        }
-      }
-    },
-    "Use" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pakai"
-          }
-        }
-      }
-    },
-    "Use a mouse button or the wheel instead of a key" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pakai tombol mouse atau roda, bukan tombol keyboard"
-          }
-        }
-      }
-    },
     "Use a shorter name (up to %lld characters)." : {
       "localizations" : {
         "id" : {
@@ -6629,52 +2685,12 @@
         }
       }
     },
-    "Using the preset “%@”." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Memakai preset “%@”."
-          }
-        }
-      }
-    },
     "Versions of Avo, macOS and Android, and this Mac’s model, memory and cores" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Versi Avo, macOS, dan Android, serta model, memori, dan core Mac ini"
-          }
-        }
-      }
-    },
-    "Vertical look" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lihat atas-bawah"
-          }
-        }
-      }
-    },
-    "Vibrate on press" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Getar saat ditekan"
-          }
-        }
-      }
-    },
-    "Visibility" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kejelasan"
           }
         }
       }
@@ -6699,152 +2715,12 @@
         }
       }
     },
-    "What it does" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yang dilakukannya"
-          }
-        }
-      }
-    },
-    "Wheel" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Roda"
-          }
-        }
-      }
-    },
-    "Wheel Down" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Roda Turun"
-          }
-        }
-      }
-    },
-    "Wheel Up" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Roda Naik"
-          }
-        }
-      }
-    },
-    "Wheel up drags it" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Roda ke atas menggeser ke"
-          }
-        }
-      }
-    },
-    "Wheel↑" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Roda↑"
-          }
-        }
-      }
-    },
-    "Wheel↓" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Roda↓"
-          }
-        }
-      }
-    },
-    "Where the finger swipes to turn the camera. While the eye is selected, drag the area or its edges on the game." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tempat jari menggeser untuk memutar kamera. Selama mata dipilih, seret area atau tepinya di game."
-          }
-        }
-      }
-    },
-    "Where the thumb is when the game starts, in a new mode, and after its reset key: 0% is the wheel-down end." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Posisi jempol saat game mulai, di mode baru, dan setelah tombol reset: 0% adalah ujung roda-ke-bawah."
-          }
-        }
-      }
-    },
-    "Which way a turn of the wheel up drags the thumb; down drags it back." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ke arah mana putaran roda ke atas menggeser jempol; ke bawah menggesernya kembali."
-          }
-        }
-      }
-    },
-    "Whole screen" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seluruh layar"
-          }
-        }
-      }
-    },
     "Windows must be at least 240 × 240 points." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Jendela minimal 240 × 240 poin."
-          }
-        }
-      }
-    },
-    "Works In" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Berlaku di"
-          }
-        }
-      }
-    },
-    "Works in" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Berlaku di"
-          }
-        }
-      }
-    },
-    "Your controls are in “Default” now. This new mode starts empty." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kontrol Anda sekarang ada di “Bawaan”. Mode baru ini dimulai kosong."
           }
         }
       }
@@ -6930,112 +2806,6 @@
         }
       }
     },
-    "down" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "bawah"
-          }
-        }
-      }
-    },
-    "duplicate control id %@" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "id kontrol ganda %@"
-          }
-        }
-      }
-    },
-    "duplicate or empty mode id %@" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "id mode %@ ganda atau kosong"
-          }
-        }
-      }
-    },
-    "fps.aim_control must name an aim control" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "fps.aim_control harus menunjuk kontrol bidik"
-          }
-        }
-      }
-    },
-    "free the mouse" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "lepaskan mouse"
-          }
-        }
-      }
-    },
-    "left" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kiri"
-          }
-        }
-      }
-    },
-    "left stick: dead zone must be between %lld%% and %lld%%" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "left stick: dead zone must be between %1$lld%% and %2$lld%%"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "stik kiri: zona mati harus antara %1$lld%% dan %2$lld%%"
-          }
-        }
-      }
-    },
-    "left stick: sensitivity must be between 0.25× and 4×" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "stik kiri: sensitivitas harus antara 0,25× dan 4×"
-          }
-        }
-      }
-    },
-    "lock or free the mouse" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kunci atau lepaskan mouse"
-          }
-        }
-      }
-    },
-    "lock the mouse" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kunci mouse"
-          }
-        }
-      }
-    },
     "macOS can’t translate between these languages." : {
       "localizations" : {
         "id" : {
@@ -7066,42 +2836,12 @@
         }
       }
     },
-    "macOS keeps the Home button for itself" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "macOS memakai tombol Home untuk dirinya sendiri"
-          }
-        }
-      }
-    },
-    "mode %@ has no name" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "mode %@ tidak punya nama"
-          }
-        }
-      }
-    },
     "no answer" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "tidak ada jawaban"
-          }
-        }
-      }
-    },
-    "package is empty" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "package kosong"
           }
         }
       }
@@ -7126,52 +2866,6 @@
         }
       }
     },
-    "right" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kanan"
-          }
-        }
-      }
-    },
-    "right stick: dead zone must be between %lld%% and %lld%%" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "right stick: dead zone must be between %1$lld%% and %2$lld%%"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "stik kanan: zona mati harus antara %1$lld%% dan %2$lld%%"
-          }
-        }
-      }
-    },
-    "right stick: sensitivity must be between 0.25× and 4×" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "stik kanan: sensitivitas harus antara 0,25× dan 4×"
-          }
-        }
-      }
-    },
-    "switch to “%@”" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ganti ke “%@”"
-          }
-        }
-      }
-    },
     "the app has no 64-bit ARM code" : {
       "localizations" : {
         "id" : {
@@ -7192,38 +2886,12 @@
         }
       }
     },
-    "the d-pad" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "d-pad"
-          }
-        }
-      }
-    },
     "the files were copied, but Android does not list Google Play services and the Play Store." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "file sudah disalin, tetapi Android tidak mencantumkan Layanan Google Play dan Play Store."
-          }
-        }
-      }
-    },
-    "the hero point %@, %@ is outside the screen" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "the hero point %1$@, %2$@ is outside the screen"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "titik hero %@, %@ berada di luar layar"
           }
         }
       }
@@ -7238,104 +2906,12 @@
         }
       }
     },
-    "the left stick" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "stik kiri"
-          }
-        }
-      }
-    },
-    "the mouse lock" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kunci mouse"
-          }
-        }
-      }
-    },
     "the package is not signed" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "paket tidak ditandatangani"
-          }
-        }
-      }
-    },
-    "the right stick" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "stik kanan"
-          }
-        }
-      }
-    },
-    "unsupported schema %lld" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "schema %lld tidak didukung"
-          }
-        }
-      }
-    },
-    "up" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "atas"
-          }
-        }
-      }
-    },
-    "“%@” acts in %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "“%1$@” acts in %2$@."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%1$@” aktif di %2$@."
-          }
-        }
-      }
-    },
-    "“%@” acts in every mode." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@” aktif di semua mode."
-          }
-        }
-      }
-    },
-    "“%@” follows %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "“%1$@” follows %2$@."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%1$@” mengikuti %2$@."
           }
         }
       }
@@ -7386,70 +2962,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“%@” hanya bisa dibaca."
-          }
-        }
-      }
-    },
-    "“%@” no longer does: %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "“%1$@” no longer does: %2$@."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%1$@” tidak lagi melakukan: %2$@."
-          }
-        }
-      }
-    },
-    "“%@” now also does: %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "“%1$@” now also does: %2$@."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%1$@” sekarang juga melakukan: %2$@."
-          }
-        }
-      }
-    },
-    "“%@” responds to %@, together with %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "“%1$@” responds to %2$@, together with %3$@."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%1$@” merespons %2$@, bersama %3$@."
-          }
-        }
-      }
-    },
-    "“%@” responds to %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "“%1$@” responds to %2$@."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@” merespons %@."
           }
         }
       }

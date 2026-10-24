@@ -20,6 +20,7 @@ the AvoKit package), embedded once in `Avo.app/Contents/Frameworks`.
 xcodegen generate                        # after changing project.yml
 xcodebuild -project Avo.xcodeproj -scheme Avo build
 cd AvoKit && swift test                  # core tests, no Xcode project needed
+cd ../vendor/avo_kit && swift test       # the key mapping and haze UI (avo_kit)
 ```
 
 To sign with your team, create `Config/Local.xcconfig` (ignored by git):
