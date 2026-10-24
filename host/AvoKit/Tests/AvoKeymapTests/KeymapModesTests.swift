@@ -28,10 +28,8 @@ private let modes = [KeymapMode(id: "foot", name: "On foot"), KeymapMode(id: "ve
 /// the mode follows; WASD walk or drive.
 private func vehicleLayout() -> KeymapProfile {
     KeymapProfile(package: "com.example.pubg", name: "Modes", controls: [
-        Control(id: "enter", kind: .tap(NormalizedPoint(0.8, 0.6)), triggers: [.key(.f)], modes: ["foot"]),
-        Control(id: "to-vehicle", kind: .switchMode("vehicle", position: NormalizedPoint(0.85, 0.6)), triggers: [.key(.f)], modes: ["foot"]),
-        Control(id: "exit", kind: .tap(NormalizedPoint(0.8, 0.7)), triggers: [.key(.f)], modes: ["vehicle"]),
-        Control(id: "to-foot", kind: .switchMode("foot", position: NormalizedPoint(0.85, 0.7)), triggers: [.key(.f)], modes: ["vehicle"]),
+        Control(id: "enter", kind: .tap(NormalizedPoint(0.8, 0.6)), triggers: [.key(.f)], modes: ["foot"], actions: [.switchMode("vehicle")]),
+        Control(id: "exit", kind: .tap(NormalizedPoint(0.8, 0.7)), triggers: [.key(.f)], modes: ["vehicle"], actions: [.switchMode("foot")]),
         Control(id: "jump", kind: .tap(NormalizedPoint(0.9, 0.8)), triggers: [.key(.space)], modes: ["foot"]),
         Control(id: "walk", kind: .dpad(center: NormalizedPoint(0.2, 0.7), radius: 0.1, up: .key(.w), down: .key(.s), left: .key(.a),
                                         right: .key(.d), stick: .left), modes: ["foot"]),
@@ -104,8 +102,8 @@ private func vehicleLayout() -> KeymapProfile {
     @Test func aModeLocksOrFreesTheMouse() {
         let profile = KeymapProfile(package: "x", name: "x", controls: [
             eye(modes: ["combat"]),
-            Control(id: "open", kind: .switchMode("bag", position: NormalizedPoint(0.1, 0.2)), triggers: [.key(.tab)], modes: ["combat"]),
-            Control(id: "close", kind: .switchMode("combat", position: NormalizedPoint(0.1, 0.2)), triggers: [.key(.tab)], modes: ["bag"]),
+            Control(id: "open", kind: .hotkey, triggers: [.key(.tab)], modes: ["combat"], actions: [.switchMode("bag")]),
+            Control(id: "close", kind: .hotkey, triggers: [.key(.tab)], modes: ["bag"], actions: [.switchMode("combat")]),
         ], fps: FPSSettings(aimControl: "eye"),
         modes: [KeymapMode(id: "combat", name: "Combat", mouseLook: true), KeymapMode(id: "bag", name: "Inventory", mouseLook: false)])
         #expect(profile.validate().isEmpty)
@@ -124,9 +122,8 @@ private func vehicleLayout() -> KeymapProfile {
     @Test func keysThatFreeOrLockTheMouse() {
         let profile = KeymapProfile(package: "x", name: "x", controls: [
             eye(),
-            Control(id: "map", kind: .tap(NormalizedPoint(0.9, 0.1)), triggers: [.key(.m)]),
-            Control(id: "free", kind: .mouseLook(lock: false, position: NormalizedPoint(0.95, 0.1)), triggers: [.key(.m)]),
-            Control(id: "lock", kind: .mouseLook(lock: true, position: NormalizedPoint(0.5, 0.5)), triggers: [.mouse(.right)]),
+            Control(id: "map", kind: .tap(NormalizedPoint(0.9, 0.1)), triggers: [.key(.m)], actions: [.freeMouse]),
+            Control(id: "lock", kind: .hotkey, triggers: [.mouse(.right)], actions: [.lockMouse]),
         ], fps: FPSSettings(aimControl: "eye"))
         #expect(profile.validate().isEmpty)
         var e = engine(profile)
@@ -143,9 +140,9 @@ private func vehicleLayout() -> KeymapProfile {
     @Test func modesAreValidated() {
         let profile = KeymapProfile(package: "x", name: "x", controls: [
             Control(id: "a", kind: .tap(NormalizedPoint(0.5, 0.5)), triggers: [.key(.f)], modes: ["swim"]),
-            Control(id: "b", kind: .switchMode("fly", position: NormalizedPoint(0.5, 0.5)), triggers: [.key(.g)]),
-            Control(id: "c", kind: .switchMode("foot", position: NormalizedPoint(0.85, 0.7))),
-            Control(id: "d", kind: .mouseLook(lock: false, position: NormalizedPoint(0.95, 0.1)), triggers: [.key(.h)]),
+            Control(id: "b", kind: .tap(NormalizedPoint(0.5, 0.5)), triggers: [.key(.g)], actions: [.switchMode("fly")]),
+            Control(id: "c", kind: .hotkey, actions: [.switchMode("foot")]),
+            Control(id: "d", kind: .hotkey, triggers: [.key(.h)], actions: [.freeMouse]),
         ], modes: modes + [KeymapMode(id: "foot", name: " ")])
         let problems = profile.validate()
         #expect(problems.contains("duplicate or empty mode id foot"))
@@ -162,7 +159,7 @@ private func vehicleLayout() -> KeymapProfile {
         let data = try profile.encoded()
         #expect(try KeymapProfile.decode(data) == profile)
         let json = String(decoding: data, as: UTF8.self)
-        #expect(json.contains("\"type\" : \"switch_mode\""))
+        #expect(json.contains("\"switch_mode\" : \"vehicle\""))
         #expect(json.contains("\"modes\" : ["))
         // A layout without modes writes none.
         let plain = try KeymapProfile(package: "x", name: "x", controls: []).encoded()
@@ -174,8 +171,8 @@ private func vehicleLayout() -> KeymapProfile {
     @Test func theControllerFollowsTheModes() throws {
         var profile = vehicleLayout()
         try profile.bind(.button(.y), to: "enter")
-        try profile.bind(.button(.y), to: "to-vehicle")
-        #expect(profile.controls(boundTo: .button(.y)).map(\.id) == ["enter", "to-vehicle"])
+        try profile.bind(.button(.y), to: "jump")
+        #expect(profile.controls(boundTo: .button(.y)).map(\.id) == ["enter", "jump"])
         try profile.bind(.stick(.right), to: "drive")
         try profile.bind(.stick(.right), to: "walk")
         // Different modes: both keep it.

@@ -317,7 +317,7 @@ private func summary(_ events: [TouchEvent]) -> [String] {
         #expect(!problems.contains { $0.contains("bound more than once") })
         #expect(problems.contains("duplicate control id b"))
         #expect(problems.contains("b: repeat interval must be at least 50 ms"))
-        #expect(problems.contains("c: scroll triggers only work with tap, swipe, macro, mode switch and mouse lock controls"))
+        #expect(problems.contains("c: scroll triggers only work with tap, swipe, macro and hotkey controls"))
     }
 
     @Test func layersMayReuseTriggers() {

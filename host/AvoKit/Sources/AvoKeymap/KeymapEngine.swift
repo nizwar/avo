@@ -122,6 +122,8 @@ public struct KeymapEngine: Sendable {
     private var cursor: (x: Double, y: Double)?
     /// The touch of a click that no control took (`fingerDown`).
     private var clickFinger: Int?
+    /// A click that a click area kept from the game: its release is taken too.
+    private var clickSwallowed = false
 
     private struct GlideTouch: Sendable {
         var x: Double
@@ -185,12 +187,23 @@ public struct KeymapEngine: Sendable {
             return output
         case let .fingerDown(x, y):
             output.consumed = true
+            // The click areas under it do their actions, and one may keep
+            // the click from the game.
+            if clickAreas(at: x, y, output: &output) {
+                clickSwallowed = true
+                break
+            }
             if let clickFinger {
                 move(clickFinger, x: clampX(x), y: clampY(y))
             } else {
                 clickFinger = down(x: clampX(x), y: clampY(y))
             }
         case let .fingerUp(x, y):
+            if clickSwallowed {
+                clickSwallowed = false
+                output.consumed = true
+                break
+            }
             guard let touch = clickFinger else { break }
             output.consumed = true
             clickFinger = nil
@@ -241,6 +254,7 @@ public struct KeymapEngine: Sendable {
         stickRestingSince.removeAll()
         cursor = nil
         clickFinger = nil
+        clickSwallowed = false
         adsActive = false
         pointerLocked = false
         flushMoves()
@@ -254,8 +268,14 @@ public struct KeymapEngine: Sendable {
         guard profile.fps != nil, locked != pointerLocked else { return [] }
         pointerLocked = locked
         // Leave the layer: lift touches of controls that are no longer active.
+        // A tap or hold of no layer (out of the mode its own action left:
+        // the inventory's button that also frees the mouse) lifts with its key.
         for (controlID, touchID) in held {
             guard let control = profile.controls.first(where: { $0.id == controlID }), !isActive(control) || isFPSAim(control) else { continue }
+            switch control.kind {
+            case .tap where control.layer == nil, .hold where control.layer == nil: continue
+            default: break
+            }
             lift(touchID)
             held[controlID] = nil
             anchors[controlID] = nil
@@ -353,17 +373,39 @@ public struct KeymapEngine: Sendable {
         // In cursor mode an unbound left click is a normal touch at the cursor (handled by the host).
         guard !matches.isEmpty else { return toggled }
         pressed.insert(trigger)
-        // The game's buttons first, then the switches: Enter vehicle is
+        // The game's buttons first, then their actions: Enter vehicle is
         // pressed in the mode it belongs to, and lifts with its key.
         for control in matches where control.touchesTheScreen { activate(control, trigger: trigger, at: now) }
-        for control in matches {
-            switch control.kind {
-            case .switchMode(let target, _): enterMode(target, output: &output)
-            case .mouseLook(let lock, _): lockPointer(lock, output: &output)
-            default: break
+        for control in matches { run(control.actions, output: &output) }
+        return true
+    }
+
+    /// A control's actions, in its order.
+    private mutating func run(_ actions: [ControlAction], output: inout Output) {
+        for action in actions {
+            switch action {
+            case .switchMode(let target): enterMode(target, output: &output)
+            case .lockMouse: lockPointer(true, output: &output)
+            case .freeMouse: lockPointer(false, output: &output)
+            case .toggleMouse: lockPointer(!pointerLocked, output: &output)
             }
         }
-        return true
+    }
+
+    /// A click at (x, y) in pixels with the mouse free: the click areas of
+    /// this mode under it do their actions, in the layout's order (those
+    /// under it as it was clicked: a switch to another mode does not bring
+    /// its areas in). True when one of them keeps the click from the game.
+    private mutating func clickAreas(at x: Double, _ y: Double, output: inout Output) -> Bool {
+        guard !pointerLocked, width > 0, height > 0 else { return false }
+        let point = NormalizedPoint(x / width, y / height)
+        let hit = controls.filter { control in
+            guard case .clickArea(let area, _) = control.kind else { return false }
+            return isActive(control) && area.contains(point)
+        }
+        guard !hit.isEmpty else { return false }
+        for control in hit { run(control.actions, output: &output) }
+        return hit.contains { if case .clickArea(_, false) = $0.kind { true } else { false } }
     }
 
     /// The pointer locked to the eye or freed, as the cursor toggle does.
@@ -497,8 +539,8 @@ public struct KeymapEngine: Sendable {
             let x = origin.x * width, y = origin.y * height
             glides[control.id] = GlideTouch(x: x, y: y, targetX: x, targetY: y)
             aimAtCursor(control, now: true)
-        case .switchMode, .mouseLook:
-            // Handled by `press`: they touch nothing.
+        case .hotkey, .clickArea:
+            // They touch nothing: `press` does their actions.
             break
         }
     }

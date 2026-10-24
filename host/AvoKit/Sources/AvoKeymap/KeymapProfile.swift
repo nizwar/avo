@@ -180,6 +180,62 @@ public enum MacroStep: Hashable, Sendable, Codable {
     }
 }
 
+/// Something a control does besides its touch, when its key is pressed (a
+/// click area: when it is clicked), in the order the control lists them:
+/// F presses the game's Enter vehicle button and switches the layout to the
+/// vehicle mode. Encoded as `{"switch_mode": "vehicle"}`, `{"mouse": "free"}`.
+public enum ControlAction: Hashable, Sendable, Codable {
+    /// Turns the layout to another of its modes (`KeymapProfile.modes`): its id.
+    case switchMode(String)
+    /// Locks the mouse to the eye for mouse look.
+    case lockMouse
+    /// Frees the mouse from the eye, for the cursor (a map, an inventory).
+    case freeMouse
+    /// Locks the mouse when it is free, frees it when it is locked (the eye's own key does this too).
+    case toggleMouse
+
+    private enum CodingKeys: String, CodingKey { case switchMode = "switch_mode", mouse }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        if let mode = try c.decodeIfPresent(String.self, forKey: .switchMode) {
+            self = .switchMode(mode)
+            return
+        }
+        switch try c.decode(String.self, forKey: .mouse) {
+        case "lock": self = .lockMouse
+        case "free": self = .freeMouse
+        case "toggle": self = .toggleMouse
+        case let other: throw DecodingError.dataCorruptedError(forKey: .mouse, in: c, debugDescription: "unknown mouse action \(other)")
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .switchMode(let mode): try c.encode(mode, forKey: .switchMode)
+        case .lockMouse: try c.encode("lock", forKey: .mouse)
+        case .freeMouse: try c.encode("free", forKey: .mouse)
+        case .toggleMouse: try c.encode("toggle", forKey: .mouse)
+        }
+    }
+
+    /// Locking or freeing the mouse, which needs the eye.
+    public var isMouse: Bool {
+        if case .switchMode = self { false } else { true }
+    }
+}
+
+/// One entry of a control's `actions`: an action, or nil for one this
+/// version does not know (a newer Avo wrote it), left out so the rest loads.
+private struct ActionEntry: Decodable {
+    var action: ControlAction?
+
+    init(from decoder: any Decoder) throws {
+        action = try? ControlAction(from: decoder)
+    }
+}
+
 /// One on-screen control of a keymap profile (spec §5: tap, hold, D-pad,
 /// mouse aim, swipe, repeated tap and simple macros, plus the MOBA controls
 /// that aim at the cursor).
@@ -221,16 +277,14 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         /// cursor's distance from the hero and is a full `radius` at `reach`
         /// (the skill's range on screen), never longer.
         case smartCast(NormalizedPoint, radius: Double, reach: Double)
-        /// Turns the layout to another of its modes (`KeymapProfile.modes`):
-        /// its id. Another control on the same key presses the game's own
-        /// button for it (Enter vehicle). It touches nothing: `position` is
-        /// where the editor shows it, beside that button.
-        case switchMode(String, position: NormalizedPoint)
-        /// Locks the mouse to the eye for mouse look (`lock`), or frees it
-        /// for the cursor: the FPS cursor toggle one way, for keys that also
-        /// open an inventory or a map. It touches nothing: `position` is
-        /// where the editor shows it.
-        case mouseLook(lock: Bool, position: NormalizedPoint)
+        /// A key that touches nothing: it only does its `actions` (switch
+        /// the mode, free the mouse). It has no place on the game.
+        case hotkey
+        /// A part of the screen that does its `actions` when it is clicked
+        /// while the mouse is free (the game's Close button of an
+        /// inventory: back to combat, the mouse locked to the eye). With
+        /// `passThrough` the click also touches the game there.
+        case clickArea(NormalizedRect, passThrough: Bool)
     }
 
     public var id: String
@@ -253,6 +307,9 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
     /// A D-pad control pushed further while a key is held (running).
     /// Older versions of Avo leave it out and the joystick still walks.
     public var run: JoystickRun?
+    /// What it does besides its touch, in order (`canCarryActions`).
+    /// Older versions of Avo leave them out, and the touch still works.
+    public var actions: [ControlAction]
 
     public static let defaultSize = 0.035
     public static let sizeRange = 0.012...0.3
@@ -281,9 +338,14 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
     /// as a fraction of the area's width and height: from there the finger
     /// always has some way to go before it starts over.
     public static let eyeOriginInset = 0.1
+    /// A new click area: about a button's size around where it goes.
+    public static let defaultClickAreaSize = (width: 0.1, height: 0.12)
+    /// The shortest side the editor gives a click area, as a fraction of
+    /// the display height: the game's smallest buttons (a close ×).
+    public static let minimumClickAreaSide = 0.04
 
     public init(id: String, kind: Kind, triggers: [Trigger] = [], layer: ControlLayer? = nil, modes: [String]? = nil,
-                size: Double? = nil, dpadButtons: Bool = false, run: JoystickRun? = nil) {
+                size: Double? = nil, dpadButtons: Bool = false, run: JoystickRun? = nil, actions: [ControlAction] = []) {
         self.id = id
         self.kind = kind
         self.triggers = triggers
@@ -292,20 +354,25 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         self.size = size
         self.dpadButtons = dpadButtons
         self.run = run
+        self.actions = actions
     }
 
     // Flat JSON: {"type": "tap", "id": "jump", "triggers": ["key:Space"], "position": [0.9, 0.7]}
     private enum CodingKeys: String, CodingKey {
         case type, id, triggers, layer, modes, size, position, center, radius, up, down, left, right, stick, dpadButtons = "dpad_buttons"
         case area, sensitivity, adsSensitivity = "ads_sensitivity", exponent, deadzone, invertY = "invert_y", origin
-        case toggle, from, to, ms, interval, steps, reach, mode, lock, run
+        case toggle, from, to, ms, interval, steps, reach, mode, lock, run, actions, passThrough = "pass_through"
     }
 
     /// The `type` values this version reads; KeymapProfile skips the others.
-    static let knownTypes: Set<String> = [
+    /// `switch_mode` and `mouse_look` are Avo's controls before actions: a
+    /// key that only switched the mode or locked or freed the mouse, read
+    /// as a hotkey with that action (`legacyTypes`).
+    static let knownTypes = Set<String>([
         "tap", "hold", "dpad", "aim", "ads", "swipe", "repeat_tap", "macro", "anchor", "moba_move", "smart_cast",
-        "switch_mode", "mouse_look",
-    ]
+        "hotkey", "click_area",
+    ]).union(legacyTypes)
+    static let legacyTypes: Set<String> = ["switch_mode", "mouse_look"]
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -316,6 +383,8 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         size = try c.decodeIfPresent(Double.self, forKey: .size)
         dpadButtons = false
         run = nil
+        // Newer than the controls: a list this version cannot read leaves them out.
+        actions = ((try? c.decodeIfPresent([ActionEntry].self, forKey: .actions)) ?? nil)?.compactMap(\.action) ?? []
         let type = try c.decode(String.self, forKey: .type)
         switch type {
         case "tap": kind = .tap(try c.decode(NormalizedPoint.self, forKey: .position))
@@ -371,12 +440,17 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
             kind = .smartCast(try c.decode(NormalizedPoint.self, forKey: .position),
                               radius: try c.decodeIfPresent(Double.self, forKey: .radius) ?? Self.defaultCastRadius,
                               reach: try c.decodeIfPresent(Double.self, forKey: .reach) ?? Self.defaultCastReach)
+        case "hotkey":
+            kind = .hotkey
+        case "click_area":
+            kind = .clickArea(try c.decode(NormalizedRect.self, forKey: .area),
+                              passThrough: try c.decodeIfPresent(Bool.self, forKey: .passThrough) ?? true)
         case "switch_mode":
-            kind = .switchMode(try c.decode(String.self, forKey: .mode),
-                               position: try c.decodeIfPresent(NormalizedPoint.self, forKey: .position) ?? NormalizedPoint(0.5, 0.5))
+            kind = .hotkey
+            actions = [.switchMode(try c.decode(String.self, forKey: .mode))]
         case "mouse_look":
-            kind = .mouseLook(lock: try c.decodeIfPresent(Bool.self, forKey: .lock) ?? false,
-                              position: try c.decodeIfPresent(NormalizedPoint.self, forKey: .position) ?? NormalizedPoint(0.5, 0.5))
+            kind = .hotkey
+            actions = [try c.decodeIfPresent(Bool.self, forKey: .lock) ?? false ? .lockMouse : .freeMouse]
         default:
             throw DecodingError.dataCorruptedError(forKey: .type, in: c, debugDescription: "unknown control type \(type)")
         }
@@ -389,6 +463,7 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         try c.encodeIfPresent(layer, forKey: .layer)
         try c.encodeIfPresent(modes, forKey: .modes)
         try c.encodeIfPresent(size, forKey: .size)
+        if !actions.isEmpty { try c.encode(actions, forKey: .actions) }
         switch kind {
         case .tap(let point):
             try c.encode("tap", forKey: .type)
@@ -446,14 +521,12 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
             try c.encode(point, forKey: .position)
             try c.encode(radius, forKey: .radius)
             try c.encode(reach, forKey: .reach)
-        case let .switchMode(mode, position):
-            try c.encode("switch_mode", forKey: .type)
-            try c.encode(mode, forKey: .mode)
-            try c.encode(position, forKey: .position)
-        case let .mouseLook(lock, position):
-            try c.encode("mouse_look", forKey: .type)
-            try c.encode(lock, forKey: .lock)
-            try c.encode(position, forKey: .position)
+        case .hotkey:
+            try c.encode("hotkey", forKey: .type)
+        case let .clickArea(area, passThrough):
+            try c.encode("click_area", forKey: .type)
+            try c.encode(area, forKey: .area)
+            try c.encode(passThrough, forKey: .passThrough)
         }
     }
 
@@ -465,6 +538,8 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
             let buttons = dpadButtons ? GamepadElement.dpadButtons.map(Trigger.gamepad).filter { !directions.contains($0) } : []
             return directions + buttons + (run.map { [$0.trigger] } ?? [])
         }
+        // Clicked, not pressed.
+        if case .clickArea = kind { return [] }
         return triggers
     }
 
@@ -482,13 +557,27 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         return modes.contains(mode)
     }
 
-    /// Something the player may put on the game's buttons (the others
-    /// switch the layout or the mouse and touch nothing).
+    /// Something the player may put on the game's buttons (a hotkey only
+    /// does its actions; a click area is clicked, and touches nothing itself).
     public var touchesTheScreen: Bool {
         switch kind {
-        case .switchMode, .mouseLook: false
+        case .hotkey, .clickArea: false
         default: true
         }
+    }
+
+    /// Does `actions` on its press: everything but a joystick, which has a
+    /// key for each way, and the eye, which follows the mouse.
+    public var canCarryActions: Bool {
+        switch kind {
+        case .dpad, .aim: false
+        default: true
+        }
+    }
+
+    /// Shown and placed on the game (a hotkey has no place there).
+    public var isOnGame: Bool {
+        if case .hotkey = kind { false } else { true }
     }
 }
 
@@ -530,6 +619,33 @@ extension Control {
         kind = .aim(area: moved, sensitivity: sensitivity, adsSensitivity: ads, exponent: exponent, deadzone: deadzone,
                     invertY: invertY, stick: stick, origin: origin.map { moved.clamp(NormalizedPoint($0.x + ox, $0.y + oy)) })
     }
+
+    /// The rectangle the editor sizes on the game: an eye's swipe area or
+    /// a click area; nil for the other kinds.
+    public var area: NormalizedRect? {
+        switch kind {
+        case let .aim(area, _, _, _, _, _, _, _), let .clickArea(area, _): area
+        default: nil
+        }
+    }
+
+    /// Gives an eye or a click area `area` (an eye keeps its point inside).
+    public mutating func setArea(_ area: NormalizedRect) {
+        switch kind {
+        case .aim: setFingerArea(area)
+        case .clickArea(_, let passThrough): kind = .clickArea(area, passThrough: passThrough)
+        default: break
+        }
+    }
+
+    /// Moves an eye's or a click area's rectangle, as far as the screen allows.
+    public mutating func moveArea(dx: Double, dy: Double) {
+        switch kind {
+        case .aim: moveFinger(dx: dx, dy: dy)
+        case let .clickArea(area, passThrough): kind = .clickArea(area.offsetBy(dx: dx, dy: dy), passThrough: passThrough)
+        default: break
+        }
+    }
 }
 
 /// One entry of a profile's `controls`: a control, or the type of a control
@@ -537,6 +653,8 @@ extension Control {
 private struct ControlEntry: Decodable {
     var control: Control?
     var unsupportedType: String?
+    /// A Switch Mode or Free/Lock the Mouse control of Avo before actions, read as a hotkey.
+    var legacy = false
 
     private enum CodingKeys: String, CodingKey { case type }
 
@@ -544,9 +662,49 @@ private struct ControlEntry: Decodable {
         let type = try decoder.container(keyedBy: CodingKeys.self).decode(String.self, forKey: .type)
         if Control.knownTypes.contains(type) {
             control = try Control(from: decoder)
+            legacy = Control.legacyTypes.contains(type)
         } else {
             unsupportedType = type
         }
+    }
+}
+
+extension KeymapProfile {
+    /// Avo's controls before actions, made actions: a Switch Mode or a
+    /// Free/Lock the Mouse control on exactly the keys of a control of the
+    /// game in exactly its modes (F: the game's Enter vehicle button, and
+    /// the switch to the vehicle) becomes that control's action; others on
+    /// the same keys in the same modes join one hotkey, in their order. A
+    /// press does what it did: the touches first, then the actions.
+    static func mergingLegacyControls(_ controls: [Control], legacy: Set<Int>) -> [Control] {
+        func same(_ a: Control, _ b: Control) -> Bool {
+            !a.triggers.isEmpty && Set(a.triggers) == Set(b.triggers) && a.modes.map(Set.init) == b.modes.map(Set.init)
+        }
+        // The game's button for each (anywhere in the layout: a switch may come before its button).
+        var carried: [Int: [ControlAction]] = [:]
+        var absorbed = Set<Int>()
+        for index in controls.indices where legacy.contains(index) {
+            let control = controls[index]
+            guard let host = controls.indices.first(where: { !legacy.contains($0) && controls[$0].touchesTheScreen
+                && controls[$0].canCarryActions && same(controls[$0], control) }) else { continue }
+            carried[host, default: []] += control.actions
+            absorbed.insert(index)
+        }
+        var merged: [Control] = []
+        var hotkeys: [Int] = []
+        for (index, control) in controls.enumerated() where !absorbed.contains(index) {
+            if !legacy.contains(index) {
+                var control = control
+                control.actions += carried[index] ?? []
+                merged.append(control)
+            } else if let at = hotkeys.first(where: { same(merged[$0], control) }) {
+                merged[at].actions += control.actions
+            } else {
+                hotkeys.append(merged.count)
+                merged.append(control)
+            }
+        }
+        return merged
     }
 }
 
@@ -597,7 +755,7 @@ public struct JoystickRun: Hashable, Sendable, Codable {
 
 /// One of a layout's modes, such as on foot and in a vehicle: controls act
 /// in some modes or all of them (`Control.modes`), keys and controller
-/// alike, and a Switch Mode control turns the layout to another. A game
+/// alike, and a control's Switch Mode action turns the layout to another. A game
 /// starts in the first.
 public struct KeymapMode: Hashable, Sendable, Codable, Identifiable {
     public var id: String
@@ -678,7 +836,9 @@ public struct KeymapProfile: Hashable, Sendable, Codable {
         // A control kind from a newer Avo is skipped instead of failing the
         // whole profile; a broken control of a known kind still fails it.
         let entries = try c.decode([ControlEntry].self, forKey: .controls)
-        controls = entries.compactMap(\.control)
+        let known = entries.filter { $0.control != nil }
+        controls = Self.mergingLegacyControls(known.compactMap(\.control),
+                                              legacy: Set(known.indices.filter { known[$0].legacy }))
         unsupportedControls = entries.compactMap(\.unsupportedType)
         fps = try c.decodeIfPresent(FPSSettings.self, forKey: .fps)
         hero = try c.decodeIfPresent(NormalizedPoint.self, forKey: .hero)
@@ -752,10 +912,10 @@ extension KeymapProfile {
             for mode in control.modes ?? [] where !modeIDs.contains(mode) {
                 problems.append(String(localized: "\(control.id): no mode \(mode)", bundle: .avoKit))
             }
-            if case .switchMode(let mode, _) = control.kind, !modeIDs.contains(mode) {
+            for case .switchMode(let mode) in control.actions where !modeIDs.contains(mode) {
                 problems.append(String(localized: "\(control.id): no mode \(mode) to switch to", bundle: .avoKit))
             }
-            if case .mouseLook = control.kind, fps == nil {
+            if control.actions.contains(where: \.isMouse), fps == nil {
                 problems.append(String(localized: "\(control.id): locking or freeing the mouse needs the eye (mouse look)", bundle: .avoKit))
             }
         }
@@ -798,9 +958,12 @@ extension KeymapProfile {
             if case .anchor(_, let radius?) = control.kind, !Control.anchorRadiusRange.contains(radius) {
                 problems.append(String(localized: "\(name): anchor reach must be between 0.03 and 1", bundle: .avoKit))
             }
-        case .switchMode(_, let p), .mouseLook(_, let p):
-            point(p)
+        case .hotkey:
             if control.triggers.isEmpty { problems.append(String(localized: "\(name): needs a trigger", bundle: .avoKit)) }
+            if control.actions.isEmpty { problems.append(String(localized: "\(name): does nothing yet: add an action", bundle: .avoKit)) }
+        case let .clickArea(area, _):
+            if !area.isValid { problems.append(String(localized: "\(name): click area is invalid", bundle: .avoKit)) }
+            if control.actions.isEmpty { problems.append(String(localized: "\(name): does nothing yet: add an action", bundle: .avoKit)) }
         case let .repeatTap(p, interval):
             point(p)
             if control.triggers.isEmpty { problems.append(String(localized: "\(name): needs a trigger", bundle: .avoKit)) }
@@ -861,9 +1024,12 @@ extension KeymapProfile {
         }
         if control.allTriggers.contains(where: \.isMomentary) {
             switch control.kind {
-            case .tap, .swipe, .macro, .switchMode, .mouseLook: break
-            default: problems.append(String(localized: "\(name): scroll triggers only work with tap, swipe, macro, mode switch and mouse lock controls", bundle: .avoKit))
+            case .tap, .swipe, .macro, .hotkey: break
+            default: problems.append(String(localized: "\(name): scroll triggers only work with tap, swipe, macro and hotkey controls", bundle: .avoKit))
             }
+        }
+        if !control.actions.isEmpty, !control.canCarryActions {
+            problems.append(String(localized: "\(name): a joystick or the eye cannot do actions", bundle: .avoKit))
         }
         return problems
     }

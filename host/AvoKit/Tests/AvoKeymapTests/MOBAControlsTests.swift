@@ -330,7 +330,7 @@ private let skill = Control(id: "skill", kind: .smartCast(NormalizedPoint(0.8, 0
         #expect(problems.contains("a: needs a trigger"))
         #expect(problems.contains("a: radius must be between 0.01 and 0.5"))
         #expect(problems.contains("b: reach must be between 0.05 and 2"))
-        #expect(problems.contains("c: scroll triggers only work with tap, swipe, macro, mode switch and mouse lock controls"))
+        #expect(problems.contains("c: scroll triggers only work with tap, swipe, macro and hotkey controls"))
         #expect(problems.contains("the hero point 1.2, 0.5 is outside the screen"))
     }
 }
