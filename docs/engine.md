@@ -613,6 +613,34 @@ driver straight from libEGL's dispatch tables, so the GLES layer swaps
 `glGetString` in those two tables on the app's first `eglMakeCurrent`
 (`guest/gpuprofile/src/gles_layer.c`).
 
+**ANGLE wrapper.** On a GPU start that emulates a GPU, the GLES strings come
+from inside ANGLE instead (`GuestGLESWrapper`, `guest/glwrap`): a
+`post-fs-data` init file bind-mounts Avo's `libGLESv2_angle.so` over
+ANGLE's in `/system/lib64`, with the real library copied beside it as
+`libGLESv2_angle.avoreal.so`, which the wrapper needs by that name. It
+defines only `glGetString` and ANGLE's `GL_GetString` (what
+`libGLESv1_CM_angle.so`'s ES 1 `glGetString` calls); libEGL fills the
+dispatch tables with `dlsym` on the driver, which searches the wrapper and
+then what it needs, so every other function is the real library's. The
+strings and who sees them are the GLES layer's (`gles_profile.h`). Like the
+Vulkan driver wrapper it needs the overlays of a `remount` and the known
+vendor build (and ANGLE's SHA-256), is installed once Android is ready on a
+boot that emulates a GPU (or when Settings ask the next start for one),
+applies from the next start, and is left out by the engine
+(`ro.boot.avo.glwrap`) after a GPU start that failed with it. A boot it runs
+takes the GLES layer out of `/data/local/debug` and leaves
+`debug.gles.layers` unset; with both wrappers running, nothing of the
+profile sits in `/data/local/debug`. Verified in a test VM (runtime bind
+mount of the same files): an app uid reads the profile's vendor, renderer
+and version through libGLESv2, libGLESv1_CM (ES 1) and `eglGetProcAddress`,
+the shell and SurfaceFlinger read ANGLE's, and a framework restart is clean.
+
+`ro.debuggable` stays honest (1) even then. On this image a non-debuggable
+build makes adbd drop the capability bounding set, so `su` from adb fails
+(`setgid failed: Operation not permitted`) and every root step of
+`HostAgent` with it, and init no longer starts the serial console. Showing
+apps `ro.debuggable=0` needs a root channel that does not come from adbd.
+
 The profile's CPU (`hardware.cpu`: each cluster's MIDR and frequencies) is
 the engine's (`--cpu-clusters`, `vmm/src/cpu.rs`). Each vCPU's `MIDR_EL1` is
 its cluster's, so `/proc/cpuinfo` and `/sys/devices/system/cpu/*/regs` name
