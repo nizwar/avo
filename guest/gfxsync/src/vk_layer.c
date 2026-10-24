@@ -103,6 +103,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/system_properties.h>
 #include <vulkan/vulkan.h>
 
@@ -186,10 +187,18 @@ static bool angle_knows_the_feature(const char* path) {
     return known || inconclusive;
 }
 
+// ANGLE's library as the image ships it: the copy beside Avo's ANGLE wrapper
+// (guest/glwrap) when it is installed, since the wrapper may be mounted over
+// the library's own path and holds none of ANGLE's names.
+static const char* angle_library(void) {
+    static const char real[] = "/system/lib64/libGLESv2_angle.avoreal.so";
+    return access(real, R_OK) == 0 ? real : "/system/lib64/libGLESv2_angle.so";
+}
+
 static void read_image_exposes_es32(void) {
     char value[PROP_VALUE_MAX];
     __system_property_get("debug.avo.gl.es32", value);
-    the_image_exposes_es32 = strcmp(value, "1") == 0 && angle_knows_the_feature("/system/lib64/libGLESv2_angle.so");
+    the_image_exposes_es32 = strcmp(value, "1") == 0 && angle_knows_the_feature(angle_library());
     if (strcmp(value, "1") == 0 && !the_image_exposes_es32) {
         LOG("the daemon named OpenGL ES 3.2, but this image's ANGLE has not the feature; contexts stay at their own cap");
     }
