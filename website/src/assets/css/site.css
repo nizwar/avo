@@ -1569,6 +1569,10 @@ q {
 }
 
 .mini-dock {
+  /* The size of every icon's tile. */
+  --icon: 46px;
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1576,13 +1580,34 @@ q {
      app icon especially) sit on the dock's straight edge, not in the curve. */
   padding: 12px 22px;
   border-radius: 22px;
+}
+
+/* The Dock's backdrop is a layer of its own, so it can widen with the icons
+   when magnified icons push their neighbours aside (motion.js sets
+   --dock-grow, how much wider the row of icons has become). */
+.mini-dock::before {
+  content: '';
+  position: absolute;
+  inset: 0 calc(var(--dock-grow, 0px) / -2);
+  z-index: -1;
+  border-radius: inherit;
   background: rgba(8, 13, 7, 0.55);
 }
 
-.mini-dock img,
 .mini-dock .dock-app svg {
-  width: 46px;
-  height: 46px;
+  width: var(--icon);
+  height: var(--icon);
+}
+
+/* The Avo icon is a real macOS icon: its squircle fills 824 of its 1024
+   units, the rest is margin for its shadow. Drawn that much larger than its
+   place in the row, its squircle is as big as the other tiles, and it grows
+   from the squircle's bottom edge (at 924 of 1024) like them. */
+.mini-dock img {
+  width: calc(var(--icon) * 1024 / 824);
+  height: calc(var(--icon) * 1024 / 824);
+  margin: calc(var(--icon) * -100 / 824);
+  transform-origin: 50% 90.23%;
 }
 
 .mini-dock .dock-app.is-running::after {
@@ -1593,7 +1618,7 @@ q {
 
 .mini-dock .dock-sep {
   width: 1.5px;
-  height: 36px;
+  height: calc(var(--icon) * 0.78);
 }
 
 .notif-static {
@@ -2900,15 +2925,10 @@ html.has-lightbox {
   }
 
   .mini-dock {
+    --icon: 34px;
     gap: 8px;
     padding: 10px 16px;
     border-radius: 18px;
-  }
-
-  .mini-dock img,
-  .mini-dock .dock-app svg {
-    width: 34px;
-    height: 34px;
   }
 
   .mini-dock .dock-app:nth-child(n + 7) {

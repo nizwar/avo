@@ -9,7 +9,8 @@
 //   the haze's own light drifts toward it;
 // - the glows behind the sections drift with the pointer;
 // - the Dock drawn in "On your Mac" magnifies its icons like the real one.
-// Only transform and opacity change, from one requestAnimationFrame loop that
+// Only transform and opacity change (and the width of the Dock's backdrop,
+// a layer out of the flow), from one requestAnimationFrame loop that
 // stops as soon as nothing moves. Each frame reads layout first and writes
 // styles after, and reads it again only after a scroll or resize. Sections
 // off screen are left alone.
@@ -364,10 +365,14 @@ function makeGlows(elements) {
 
 // ------------------------------------------------------------------- dock
 
+// The icons near the pointer grow from the bottom, and, as in the real Dock,
+// they push their neighbours aside rather than cover them: every icon (and
+// the separator) moves over by what the icons before it have grown, the row
+// stays centred, and the backdrop widens with it (--dock-grow).
 function makeDock(dock, hovered) {
-  const icons = [...dock.querySelectorAll(':scope > img, :scope > .dock-app')];
-  const scales = icons.map(() => 1);
-  let centers = [];
+  const items = [...dock.children];
+  const scales = items.map(() => 1);
+  let slots = [];
   let version = -1;
   let inside = false;
 
@@ -375,32 +380,50 @@ function makeDock(dock, hovered) {
     measure() {
       if (version === layoutVersion) return;
       version = layoutVersion;
-      // Scaling from the bottom centre leaves each icon's centre in place.
-      centers = icons.map((icon) => {
-        const r = icon.getBoundingClientRect();
-        return r.left + r.width / 2;
+      // Untransformed places (offsets, not boxes), so a measure taken while
+      // icons are magnified is still right. Icons hidden at this width have
+      // no place.
+      const left = dock.getBoundingClientRect().left;
+      slots = items.flatMap((el, i) => {
+        if (!el.offsetWidth) return [];
+        const s = getComputedStyle(el);
+        // Its place in the row: the box less any negative margin (the Avo
+        // icon is drawn larger than its place).
+        const width = el.offsetWidth + Math.min(0, parseFloat(s.marginLeft) || 0) + Math.min(0, parseFloat(s.marginRight) || 0);
+        return [{ el, i, center: left + el.offsetLeft + el.offsetWidth / 2, width, grows: !el.classList.contains('dock-sep') }];
       });
     },
     update(dt) {
       let busy = false;
-      icons.forEach((icon, i) => {
+      let grown = 0;
+      const extra = slots.map((slot) => {
         let goal = 1;
-        if (inside) {
-          const reach = Math.min(Math.abs(pointer.x - centers[i]) / 130, 1);
+        if (inside && slot.grows) {
+          const reach = Math.min(Math.abs(pointer.x - slot.center) / 130, 1);
           goal = 1 + 0.42 * Math.cos((reach * Math.PI) / 2) ** 2;
         }
-        scales[i] = approach(scales[i], goal, dt, 14);
-        if (!settled(scales[i], goal, 0.001)) busy = true;
-        const s = scales[i];
-        icon.style.transform = s > 1.001 ? `translateY(${round(-(s - 1) * 18, 2)}px) scale(${round(s)})` : '';
+        scales[slot.i] = approach(scales[slot.i], goal, dt, 14);
+        if (!settled(scales[slot.i], goal, 0.001)) busy = true;
+        const more = (scales[slot.i] - 1) * slot.width;
+        grown += more;
+        return more;
       });
+      let before = 0;
+      slots.forEach((slot, n) => {
+        const s = scales[slot.i];
+        const dx = before + extra[n] / 2 - grown / 2;
+        before += extra[n];
+        slot.el.style.transform = s > 1.001 || Math.abs(dx) > 0.05 ? `translate(${round(dx, 2)}px, ${round(-(s - 1) * 18, 2)}px) scale(${round(s)})` : '';
+      });
+      dock.style.setProperty('--dock-grow', `${round(grown, 2)}px`);
       return busy;
     },
     reset() {
-      icons.forEach((icon, i) => {
+      items.forEach((el, i) => {
         scales[i] = 1;
-        icon.style.transform = '';
+        el.style.transform = '';
       });
+      dock.style.removeProperty('--dock-grow');
     },
   };
 
