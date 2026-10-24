@@ -168,6 +168,16 @@
         }
       }
     },
+    "%@: a joystick or the eye cannot do actions" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: joystick atau mata tidak bisa menjalankan aksi"
+          }
+        }
+      }
+    },
     "%@: aim area is invalid" : {
       "localizations" : {
         "id" : {
@@ -188,6 +198,16 @@
         }
       }
     },
+    "%@: click area is invalid" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: area klik tidak valid"
+          }
+        }
+      }
+    },
     "%@: curve exponent must be between 0.5 and 3" : {
       "localizations" : {
         "id" : {
@@ -204,6 +224,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@: deadzone harus antara 0 dan 50"
+          }
+        }
+      }
+    },
+    "%@: does nothing yet: add an action" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: belum melakukan apa pun: tambahkan aksi"
           }
         }
       }
@@ -372,12 +402,12 @@
         }
       }
     },
-    "%@: scroll triggers only work with tap, swipe, macro, mode switch and mouse lock controls" : {
+    "%@: scroll triggers only work with tap, swipe, macro and hotkey controls" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@: pemicu scroll hanya bisa untuk kontrol ketuk, geser, makro, ganti mode, dan kunci mouse"
+            "value" : "%@: pemicu gulir hanya bisa untuk kontrol ketuk, geser, makro, dan hotkey"
           }
         }
       }

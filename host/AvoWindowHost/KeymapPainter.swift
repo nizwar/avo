@@ -28,7 +28,7 @@ struct KeymapPainter {
     /// Where the editor's own bar and inspector cover the game: an
     /// area's name and size stay out from under them.
     var obstacles: [CGRect] = []
-    /// The layout's modes by id, for a Switch Mode control's caption.
+    /// The layout's modes by id, for a Switch Mode action's badge.
     var modeNames: [String: String] = [:]
 
     static let handleRadius: CGFloat = 9
@@ -62,10 +62,12 @@ struct KeymapPainter {
 
     func anchor(of control: Control) -> NormalizedPoint {
         switch control.kind {
-        case .tap(let p), .hold(let p), .ads(let p, _), .repeatTap(let p, _), .anchor(let p, _), .smartCast(let p, _, _),
-             .switchMode(_, let p), .mouseLook(_, let p): p
+        case .tap(let p), .hold(let p), .ads(let p, _), .repeatTap(let p, _), .anchor(let p, _), .smartCast(let p, _, _): p
         case let .dpad(center, _, _, _, _, _, _), let .mobaMove(center, _): center
         case let .aim(area, _, _, _, _, _, _, origin): origin ?? area.center
+        case .clickArea(let area, _): area.center
+        // No place on the game.
+        case .hotkey: NormalizedPoint(0.5, 0.5)
         case let .swipe(from, _, _): from
         case .macro(let steps):
             steps.lazy.compactMap { if case .tap(let p) = $0 { p } else if case .hold(let p, _) = $0 { p } else { nil } }.first
@@ -118,6 +120,8 @@ struct KeymapPainter {
         case .aim:
             let c = point(anchor(of: control)), r = Self.eyeRadius
             return CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)
+        case .clickArea(let area, _):
+            return rect(of: area)
         default:
             let c = point(anchor(of: control)), r = bubbleRadius(control)
             return CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)
@@ -230,14 +234,9 @@ struct KeymapPainter {
             let r = bubbleRadius(control)
             caption(String(localized: "Anchor tap", bundle: .windowHost), below: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r),
                     color: color)
-        case .switchMode(let target, _):
-            bubble(control, at: point(anchor(of: control)), color: color, symbolName: "arrow.triangle.2.circlepath")
-            let name = modeNames[target] ?? target
-            caption(String(localized: "Switch to “\(name)”", bundle: .windowHost), below: frame(of: control), color: color)
-        case .mouseLook(let lock, _):
-            bubble(control, at: point(anchor(of: control)), color: color, symbolName: lock ? "lock" : "cursorarrow")
-            caption(lock ? String(localized: "Lock the mouse", bundle: .windowHost) : String(localized: "Free the mouse", bundle: .windowHost),
-                    below: frame(of: control), color: color)
+        case .hotkey, .clickArea:
+            // A hotkey has no place on the game; a click area is drawn under the controls (drawClickArea).
+            break
         case .repeatTap:
             bubble(control, at: point(anchor(of: control)), color: color, symbolName: "repeat")
             caption(String(localized: "Repeat", bundle: .windowHost), below: frame(of: control), color: color)
@@ -311,9 +310,8 @@ struct KeymapPainter {
 
     // MARK: Areas (editor)
 
-    /// Where an eye's swipe area or an anchor tap's finger area (the whole
-    /// screen when it has none) lies; nil for the other kinds.
-    func areaRect(of control: Control) -> CGRect? { control.fingerArea.map(rect(of:)) }
+    /// Where an eye's swipe area or a click area lies; nil for the other kinds.
+    func areaRect(of control: Control) -> CGRect? { control.area.map(rect(of:)) }
 
     /// The corner and edge handles of an area, kept on the display, each
     /// with the edges it moves (`top` is the one nearer the top of the screen).
@@ -341,6 +339,64 @@ struct KeymapPainter {
         tag(String(localized: "Swipe area", bundle: .windowHost), inside: r, color: color)
     }
 
+    /// A click area, under the controls: a tinted rectangle in a dotted
+    /// frame with a click mark in its middle, named in its corner, and what
+    /// it does under it (its actions' badges).
+    func drawClickArea(_ control: Control, selected: Bool, hovered: Bool) {
+        guard case let .clickArea(area, passThrough) = control.kind else { return }
+        let r = rect(of: area)
+        let color = selected ? Self.selection : Self.ink
+        fade(color, (selected ? 0.2 : hovered ? 0.16 : 0.11) * opacity).setFill()
+        NSBezierPath(roundedRect: r, xRadius: 4, yRadius: 4).fill()
+        let frame = NSBezierPath(roundedRect: r.insetBy(dx: 1, dy: 1), xRadius: 4, yRadius: 4)
+        frame.setLineDash(selected ? [] : [2, 3], count: selected ? 0 : 2, phase: 0)
+        line(frame, color: fade(color, selected ? 1 : hovered ? 0.85 : 0.65), width: selected ? 2 : 1.5)
+        let c = CGPoint(x: r.midX, y: r.midY)
+        let size = min(max(min(r.width, r.height) * 0.3, 10), 20)
+        keyPlate(around: symbolRect("cursorarrow.click.2", at: c, size: size), color: color)
+        symbol("cursorarrow.click.2", at: c, size: size, color: fade(color, passThrough ? 1 : 0.6))
+        tag(String(localized: "Click area", bundle: .windowHost), inside: r, color: color)
+    }
+
+    /// What a control does besides its touch, on the game (editor): a row
+    /// of small badges beside its button, a switch's with its mode's name.
+    func drawActionBadges(_ control: Control) {
+        guard style == .editor, !control.actions.isEmpty else { return }
+        let start: CGPoint
+        switch control.kind {
+        case .clickArea(let area, _):
+            let r = rect(of: area)
+            start = CGPoint(x: r.minX + 9, y: r.minY - 11)
+        case let .mobaMove(center, radius):
+            let c = point(center), r = dpadRadius(radius)
+            start = CGPoint(x: c.x + r * 0.34 + 12, y: c.y)
+        case let .swipe(from, _, _):
+            let c = point(from)
+            start = CGPoint(x: c.x + bubbleRadius(control) + 11, y: c.y)
+        default:
+            let c = point(anchor(of: control))
+            start = CGPoint(x: c.x + bubbleRadius(control) + 11, y: c.y)
+        }
+        var x = start.x
+        for action in control.actions {
+            let name: String? = if case .switchMode(let mode) = action { modeNames[mode] ?? mode } else { nil }
+            let symbolName = action.symbol
+            let text = name.map { String($0.prefix(14)) }
+            let textWidth = text.map { labelRect($0, at: .zero, size: 9.5).width } ?? 0
+            let width: CGFloat = text == nil ? 16 : 16 + textWidth + 6
+            let plate = CGRect(x: x - 8, y: start.y - 8, width: width, height: 16)
+            Self.ink.setFill()
+            NSBezierPath(roundedRect: plate, xRadius: 8, yRadius: 8).fill()
+            NSColor.black.withAlphaComponent(0.45).setStroke()
+            let edge = NSBezierPath(roundedRect: plate.insetBy(dx: 0.5, dy: 0.5), xRadius: 7.5, yRadius: 7.5)
+            edge.lineWidth = 1
+            edge.stroke()
+            symbol(symbolName, at: CGPoint(x: x, y: start.y), size: 8.5, color: .black)
+            if let text { label(text, at: CGPoint(x: x + 8 + textWidth / 2 + 1, y: start.y), color: .black, size: 9.5) }
+            x += width + 3
+        }
+    }
+
     /// The selected area's corner and edge handles; `hot` is the one under the pointer.
     func drawAreaHandles(_ control: Control, hot: NormalizedRect.Edges?) {
         guard let r = areaRect(of: control) else { return }
@@ -358,7 +414,7 @@ struct KeymapPainter {
     /// An area's size while it is dragged, beside the pointer: its width and
     /// height in percent of the screen.
     func drawAreaSize(_ control: Control, near pointer: CGPoint) {
-        guard let area = control.fingerArea else { return }
+        guard let area = control.area else { return }
         let text = Self.sizeText(area)
         let measured = labelRect(text, at: .zero, size: 12)
         let size = CGSize(width: measured.width + 16, height: measured.height + 6)
@@ -650,7 +706,7 @@ struct KeymapPainter {
             keyCap(triggerText(control), symbol: "sparkles", at: c, size: capFontSize(radius: bubbleRadius(control)))
         case .macro, .tap, .hold:
             keyCap(triggerText(control), at: c, size: capFontSize(radius: bubbleRadius(control)))
-        case .switchMode, .mouseLook:
+        case .hotkey, .clickArea:
             // They touch nothing on the game: no cap over it.
             break
         }

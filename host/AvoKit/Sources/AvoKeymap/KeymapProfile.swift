@@ -338,8 +338,8 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
     /// as a fraction of the area's width and height: from there the finger
     /// always has some way to go before it starts over.
     public static let eyeOriginInset = 0.1
-    /// A new click area: about a button's size around where it goes.
-    public static let defaultClickAreaSize = (width: 0.1, height: 0.12)
+    /// A new click area's side, a square about a button's size, as a fraction of the display height.
+    public static let defaultClickAreaSide = 0.12
     /// The shortest side the editor gives a click area, as a fraction of
     /// the display height: the game's smallest buttons (a close ×).
     public static let minimumClickAreaSide = 0.04

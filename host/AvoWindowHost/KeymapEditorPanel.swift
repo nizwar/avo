@@ -14,19 +14,42 @@ import SwiftUI
 
 private func L(_ key: String.LocalizationValue) -> String { String(localized: key, bundle: .windowHost) }
 
-/// A kind of control on the panel, to add.
-enum KeymapPaletteItem: String, CaseIterable, Identifiable, Hashable {
-    case tap, repeatTap, anchor, joystick, swipe
-    case eye, ads, freeMouse, lockMouse
-    case moveByMouse, smartCast
-    case switchMode
+/// The kinds of controls, as the panel groups them: for every game, for
+/// shooters, for MOBAs.
+enum KeymapCategory: String, CaseIterable, Identifiable, Hashable {
+    case general, fps, moba
 
     var id: String { rawValue }
 
-    /// The panel's rows: buttons, shooters, then MOBAs and modes.
-    static let rows: [[KeymapPaletteItem]] = [[.tap, .repeatTap, .anchor, .joystick, .swipe], [.eye, .ads, .freeMouse, .lockMouse],
-                                               [.moveByMouse, .smartCast, .switchMode]]
-    static let columns = 5
+    var title: String {
+        switch self {
+        case .general: L("General")
+        case .fps: L("FPS")
+        case .moba: L("MOBA")
+        }
+    }
+
+    /// Its controls on the panel, in their order.
+    var items: [KeymapPaletteItem] { KeymapPaletteItem.allCases.filter { $0.category == self } }
+}
+
+/// A kind of control on the panel, to add.
+enum KeymapPaletteItem: String, CaseIterable, Identifiable, Hashable {
+    case tap, repeatTap, anchor, joystick, swipe, clickArea, hotkey
+    case eye, ads
+    case moveByMouse, smartCast
+
+    var id: String { rawValue }
+
+    static let columns = 4
+
+    var category: KeymapCategory {
+        switch self {
+        case .tap, .repeatTap, .anchor, .joystick, .swipe, .clickArea, .hotkey: .general
+        case .eye, .ads: .fps
+        case .moveByMouse, .smartCast: .moba
+        }
+    }
 
     /// Its word under its symbol on the panel.
     var caption: String {
@@ -36,13 +59,12 @@ enum KeymapPaletteItem: String, CaseIterable, Identifiable, Hashable {
         case .anchor: L("Anchor")
         case .joystick: L("Joystick")
         case .swipe: L("Swipe")
+        case .clickArea: L("Click Area")
+        case .hotkey: L("Hotkey")
         case .eye: L("Eye")
         case .ads: L("Aim")
-        case .freeMouse: L("Unlock")
-        case .lockMouse: L("Lock")
         case .moveByMouse: L("Move")
         case .smartCast: L("Skill")
-        case .switchMode: L("Switch")
         }
     }
 
@@ -53,13 +75,12 @@ enum KeymapPaletteItem: String, CaseIterable, Identifiable, Hashable {
         case .anchor: L("Anchor Tap")
         case .joystick: L("Joystick")
         case .swipe: L("Swipe")
+        case .clickArea: L("Click Area")
+        case .hotkey: L("Hotkey")
         case .eye: L("Eye (Mouse Look)")
         case .ads: L("Aim Down Sights")
-        case .freeMouse: L("Free the Mouse")
-        case .lockMouse: L("Lock the Mouse")
         case .moveByMouse: L("Move by Mouse (MOBA)")
         case .smartCast: L("Smart Cast (MOBA)")
-        case .switchMode: L("Switch Mode")
         }
     }
 
@@ -70,13 +91,12 @@ enum KeymapPaletteItem: String, CaseIterable, Identifiable, Hashable {
         case .anchor: "arrow.up.and.down.and.arrow.left.and.right"
         case .joystick: "dpad"
         case .swipe: "hand.draw"
+        case .clickArea: "cursorarrow.click.2"
+        case .hotkey: "keyboard"
         case .eye: "eye"
         case .ads: "scope"
-        case .freeMouse: "cursorarrow"
-        case .lockMouse: "lock"
         case .moveByMouse: "cursorarrow.motionlines"
         case .smartCast: "sparkles"
-        case .switchMode: "arrow.triangle.2.circlepath"
         }
     }
 
@@ -88,18 +108,14 @@ enum KeymapPaletteItem: String, CaseIterable, Identifiable, Hashable {
         case .anchor: L("Anchor Tap: while its key is held, the mouse moves the finger from its point, within a circle (emote wheels, aiming a skill).")
         case .joystick: L("Joystick: four keys (W A S D) or a controller’s stick push the game’s joystick.")
         case .swipe: L("Swipe: its key swipes from one point to another.")
+        case .clickArea: L("Click Area: a part of the game that, clicked while the mouse is free, does its actions (back to combat when you close the inventory).")
+        case .hotkey: L("Hotkey: a key that touches nothing, only does its actions (switch the mode, free the mouse).")
         case .eye: L("Eye: with the mouse locked, moving the mouse turns the game’s camera. One per layout.")
         case .ads: L("Aim Down Sights: its button aims, and the eye turns at its aiming sensitivity meanwhile.")
-        case .freeMouse: L("Free the Mouse: its key frees the mouse from the eye, for a map or an inventory.")
-        case .lockMouse: L("Lock the Mouse: its key locks the mouse to the eye again.")
         case .moveByMouse: L("Move by Mouse: while its button is held, the joystick follows the cursor (MOBA).")
         case .smartCast: L("Smart Cast: its key drags the skill towards the cursor, and letting go casts (MOBA).")
-        case .switchMode: L("Switch Mode: its key changes to another mode of the layout (in a vehicle, an inventory).")
         }
     }
-
-    /// Freeing and locking the mouse are the eye's.
-    var needsEye: Bool { self == .freeMouse || self == .lockMouse }
 
     /// What a control on the game is, as the panel's kinds: its help.
     static func item(for control: Control) -> KeymapPaletteItem? {
@@ -109,12 +125,12 @@ enum KeymapPaletteItem: String, CaseIterable, Identifiable, Hashable {
         case .anchor: .anchor
         case .dpad: .joystick
         case .swipe: .swipe
+        case .clickArea: .clickArea
+        case .hotkey: .hotkey
         case .aim: .eye
         case .ads: .ads
-        case .mouseLook(let lock, _): lock ? .lockMouse : .freeMouse
         case .mobaMove: .moveByMouse
         case .smartCast: .smartCast
-        case .switchMode: .switchMode
         case .macro: nil
         }
     }
@@ -133,6 +149,17 @@ final class KeymapEditorModel: ObservableObject {
         var name: String
         /// Its own controls, not counting those that act in every mode.
         var count: Int
+    }
+
+    /// A control of the mode being edited, as the panel lists it.
+    struct Listed: Identifiable, Equatable {
+        let id: String
+        var title: String
+        var symbol: String
+        /// Its keys as they are written ("F", "W A S D"); nil without one.
+        var keys: String?
+        var category: KeymapCategory
+        var actions: [ControlAction]
     }
 
     /// The selected control, as the panel shows it.
@@ -164,9 +191,16 @@ final class KeymapEditorModel: ObservableObject {
     @Published var status = ""
     @Published var problem = false
     @Published var selection: Selection?
+    /// The controls of the mode being edited, the hotkeys among them.
+    @Published var listed: [Listed] = []
+    /// The kind of controls the panel offers to add.
+    @Published var category = KeymapCategory.general
 
     // What the panel asks of the editor.
     var setTab: (Tab) -> Void = { _ in }
+    var setCategory: (KeymapCategory) -> Void = { _ in }
+    /// Selects a control from the list.
+    var select: (String) -> Void = { _ in }
     var add: (KeymapPaletteItem) -> Void = { _ in }
     /// A control dragged from the panel, where the pointer is (the panel's coordinates).
     var drag: (KeymapPaletteItem, DragPhase, CGPoint) -> Void = { _, _, _ in }
@@ -190,6 +224,13 @@ final class KeymapEditorModel: ObservableObject {
     var setActsIn: ([String]?) -> Void = { _ in }
     var setDPadSlot: (Int) -> Void = { _ in }
     var mouseButtons: () -> [HazeMenuEntry] = { [] }
+    /// The actions to add to the selected control.
+    var addActionMenu: () -> [HazeMenuEntry] = { [] }
+    /// The modes its switch at this index may go to instead.
+    var switchTargets: (Int) -> [HazeMenuEntry] = { _ in [] }
+    /// Moves its action at an index up (-1) or down (+1).
+    var moveAction: (Int, Int) -> Void = { _, _ in }
+    var removeAction: (Int) -> Void = { _ in }
     var remove: () -> Void = {}
     var deselect: () -> Void = {}
 }
@@ -222,6 +263,7 @@ struct KeymapEditorPanel: View {
                                     InspectorCard(model: model, selection: selection)
                                 }
                             }
+                            if !model.listed.isEmpty { ControlListSection(model: model) }
                             DisplaySection(model: model)
                             LayoutSection(model: model)
                         }
@@ -307,7 +349,7 @@ private struct ModesSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            SectionLabel(L("Modes"), help: L("A mode is another set of controls for another situation in the game (on foot, in a vehicle, an inventory). A Switch control changes to it with a key or a controller button."))
+            SectionLabel(L("Modes"), help: L("A mode is another set of controls for another situation in the game (on foot, in a vehicle, an inventory). A control’s Switch Mode action changes to it."))
             FlowRows(spacing: 6) {
                 ForEach(Array(model.modes.enumerated()), id: \.element.id) { index, mode in
                     ModeTab(model: model, mode: mode, starts: index == 0)
@@ -318,15 +360,21 @@ private struct ModesSection: View {
     }
 }
 
-/// The controls to add, a row for buttons, shooters, and MOBAs and modes.
+/// The controls to add, by the kind of game: General, FPS, MOBA.
 private struct PaletteSection: View {
     @ObservedObject var model: KeymapEditorModel
 
     var body: some View {
+        let items = model.category.items
+        let rows = stride(from: 0, to: items.count, by: KeymapPaletteItem.columns).map {
+            Array(items[$0..<min($0 + KeymapPaletteItem.columns, items.count)])
+        }
         VStack(alignment: .leading, spacing: 7) {
             SectionLabel(L("Add a Control"),
                          help: L("Click one to add it, or drag it onto the game’s button. A tap is quickest: click the game’s button, then press its key."))
-            ForEach(Array(KeymapPaletteItem.rows.enumerated()), id: \.offset) { _, row in
+            QuickSegmented(label: L("Kind of control"), options: KeymapCategory.allCases.map { ($0, $0.title) },
+                           selection: model.category, fill: true) { model.setCategory($0) }
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 HStack(spacing: 6) {
                     ForEach(row) { item in
                         PaletteTile(model: model, item: item)
@@ -337,6 +385,91 @@ private struct PaletteSection: View {
                 }
             }
         }
+    }
+}
+
+/// The controls of the mode being edited by kind, each with its keys and
+/// what it does besides its touch: a click selects it (the only way to
+/// a hotkey, which has no place on the game).
+private struct ControlListSection: View {
+    @ObservedObject var model: KeymapEditorModel
+    @AppStorage("AvoKeymapControlListShown") private var shown = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Button { shown.toggle() } label: {
+                HStack(spacing: 5) {
+                    Text(verbatim: L("Controls"))
+                        .font(QuickHaze.mona(11.5, 650))
+                        .foregroundStyle(QuickHaze.sectionLabel)
+                    Text(verbatim: "\(model.listed.count)")
+                        .font(QuickHaze.mona(10.5, 650))
+                        .monospacedDigit()
+                        .foregroundStyle(QuickHaze.textTertiary)
+                    Spacer(minLength: 4)
+                    Image(systemName: shown ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(QuickHaze.textTertiary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(shown ? L("Hide the list of controls") : L("Show the list of controls"))
+            .accessibilityAddTraits(.isHeader)
+            if shown {
+                ForEach(KeymapCategory.allCases) { category in
+                    let rows = model.listed.filter { $0.category == category }
+                    if !rows.isEmpty {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(verbatim: category.title)
+                                .font(QuickHaze.mona(10.5, 600))
+                                .foregroundStyle(QuickHaze.textTertiary)
+                                .padding(.leading, 2)
+                                .padding(.bottom, 1)
+                            ForEach(rows) { row in
+                                ControlListRow(model: model, row: row, selected: model.selection?.control.id == row.id)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct ControlListRow: View {
+    @ObservedObject var model: KeymapEditorModel
+    let row: KeymapEditorModel.Listed
+    let selected: Bool
+    @State private var hovering = false
+
+    var body: some View {
+        Button { model.select(row.id) } label: {
+            HStack(spacing: 7) {
+                Image(systemName: row.symbol)
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: 18)
+                Text(verbatim: row.title)
+                    .font(QuickHaze.mona(12, selected ? 620 : 500))
+                    .lineLimit(1)
+                if let keys = row.keys { KeyCap(text: keys) } else { KeyCap(text: "?", waiting: true) }
+                Spacer(minLength: 4)
+                ForEach(Array(row.actions.enumerated()), id: \.offset) { _, action in
+                    Image(systemName: action.symbol)
+                        .font(.system(size: 9.5, weight: .bold))
+                        .foregroundStyle(QuickHaze.accentText)
+                }
+            }
+            .foregroundStyle(selected ? QuickHaze.text : QuickHaze.textSecondary)
+            .padding(.horizontal, 8)
+            .frame(height: 28)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(selected ? QuickHaze.selection : hovering ? QuickHaze.inset : Color.clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
@@ -448,8 +581,7 @@ private struct PaletteTile: View {
     @State private var dragging = false
 
     var body: some View {
-        let enabled = !item.needsEye || model.hasEye
-        let lit = hovering && enabled
+        let lit = hovering
         VStack(spacing: 3) {
             Image(systemName: item.symbol)
                 .font(.system(size: 14, weight: .semibold))
@@ -459,7 +591,7 @@ private struct PaletteTile: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
-        .foregroundStyle(enabled ? (lit ? QuickHaze.accentText : QuickHaze.textSecondary) : QuickHaze.textTertiary.opacity(0.45))
+        .foregroundStyle(lit ? QuickHaze.accentText : QuickHaze.textSecondary)
         .frame(maxWidth: .infinity)
         .frame(height: 46)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(lit ? QuickHaze.selection : QuickHaze.inset))
@@ -470,29 +602,23 @@ private struct PaletteTile: View {
         .animation(.easeOut(duration: 0.12), value: lit)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
-        .help(enabled ? item.help + "\n" + L("Click to add it, or drag it onto the game’s button.")
-                      : item.help + "\n" + L("Add the eye (mouse look) first."))
+        .help(item.help + "\n" + (item == .hotkey ? L("Click to add it: it shows in the list of controls, not on the game.")
+                                                   : L("Click to add it, or drag it onto the game’s button.")))
         .gesture(DragGesture(minimumDistance: 3, coordinateSpace: .named(KeymapEditorPanel.space))
             .onChanged { drag in
-                guard enabled else { return }
                 dragging = true
                 model.drag(item, .moved, drag.location)
             }
             .onEnded { drag in
-                guard enabled else { return }
                 dragging = false
                 model.drag(item, .ended, drag.location)
             })
-        .simultaneousGesture(TapGesture().onEnded {
-            if enabled { model.add(item) }
-        })
+        .simultaneousGesture(TapGesture().onEnded { model.add(item) })
         .accessibilityElement()
         .accessibilityLabel(Text(verbatim: item.title))
         .accessibilityHint(Text(verbatim: item.help))
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction {
-            if enabled { model.add(item) }
-        }
+        .accessibilityAction { model.add(item) }
     }
 }
 
@@ -593,7 +719,7 @@ private struct AddModeButton: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .help(L("A mode is another set of controls for another situation in the game (on foot, in a vehicle, an inventory). A Switch control changes to it with a key or a controller button."))
+        .help(L("A mode is another set of controls for another situation in the game (on foot, in a vehicle, an inventory). A control’s Switch Mode action changes to it."))
         .accessibilityLabel(Text(verbatim: L("Add Mode")))
     }
 }
@@ -628,6 +754,7 @@ private struct InspectorCard: View {
             QuickRows(spacing: 9) {
                 keys
                 InspectorSettings(model: model, selection: selection)
+                if selection.control.canCarryActions { ActionsSection(model: model, control: selection.control) }
                 if !model.modes.isEmpty { worksIn }
             }
         }
@@ -641,7 +768,7 @@ private struct InspectorCard: View {
     /// a mouse button or the wheel instead; the eye's is the mouse lock.
     @ViewBuilder private var keys: some View {
         switch selection.control.kind {
-        case .dpad:
+        case .dpad, .clickArea:
             EmptyView()
         case .aim:
             InspectorRow(label: L("Mouse lock key")) {
@@ -797,23 +924,7 @@ private struct InspectorSettings: View {
                    0.03...0.45, step: 0.01, text: percent(radius), help: L("How far the skill button is dragged."))
             slider(L("Cursor range"), Binding(get: { reach }, set: { value in model.update { $0.setCast(reach: value) } }),
                    Control.castReachRange, step: 0.05, text: percent(reach), help: L("How far from your hero the cursor must be for a full drag."))
-        case .switchMode(let target, _):
-            if !model.modes.isEmpty {
-                InspectorRow(label: L("Switches to")) {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        QuickSegmented(label: L("Switches to"), options: model.modes.map { ($0.id, $0.name) }, selection: target) { mode in
-                            model.update { $0.setSwitchTarget(mode) }
-                        }
-                    }
-                }
-            }
-        case .mouseLook(let lock, _):
-            InspectorRow(label: L("Action")) {
-                QuickSegmented(label: L("Action"), options: [(false, L("Free the mouse")), (true, L("Lock the mouse"))], selection: lock, fill: true) { on in
-                    model.update { $0.setMouseLock(on) }
-                }
-            }
-        case .tap, .hold, .macro:
+        case .tap, .hold, .macro, .hotkey, .clickArea:
             EmptyView()
         }
     }
@@ -862,6 +973,235 @@ private struct InspectorSettings: View {
 
     private func times(_ value: Double) -> String {
         value.formatted(.number.precision(.fractionLength(2))) + "×"
+    }
+}
+
+/// Everything the selected control does when its key is pressed (a click
+/// area: when it is clicked), in order: its own touch, then each action,
+/// each moved up or down or removed, and + Add Action.
+private struct ActionsSection: View {
+    @ObservedObject var model: KeymapEditorModel
+    let control: Control
+
+    var body: some View {
+        let touch = Self.touch(of: control)
+        let steps = (touch == nil ? 0 : 1) + control.actions.count
+        VStack(alignment: .leading, spacing: 6) {
+            QuickLabel(L("What it does"), help: help, font: QuickHaze.mona(12, 600), color: QuickHaze.textSecondary)
+            if steps > 0 {
+                VStack(spacing: 0) {
+                    if let touch { touchRow(touch) }
+                    ForEach(Array(control.actions.enumerated()), id: \.offset) { index, action in
+                        if index > 0 || touch != nil { Divider().overlay(QuickHaze.text.opacity(0.06)) }
+                        ActionRow(model: model, action: action, index: index, number: index + (touch == nil ? 1 : 2),
+                                  count: control.actions.count)
+                    }
+                }
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(QuickHaze.inset))
+                .overlay { RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(QuickHaze.text.opacity(0.06)) }
+            }
+            if control.actions.isEmpty, !control.touchesTheScreen {
+                Text(verbatim: L("Add what it does: switch to another mode, or free or lock the mouse."))
+                    .font(QuickHaze.mona(11.5))
+                    .foregroundStyle(Color(nsColor: .systemYellow))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HazeMenuButton(matchesWidth: true, entries: { model.addActionMenu() }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus").font(.system(size: 10, weight: .bold))
+                    Text(verbatim: L("Add Action")).font(QuickHaze.mona(12, 620)).lineLimit(1)
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).foregroundStyle(QuickHaze.textTertiary)
+                }
+                .foregroundStyle(QuickHaze.accentText)
+                .padding(.horizontal, 10)
+                .frame(maxWidth: .infinity)
+                .frame(height: 26)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(QuickHaze.accent.opacity(0.08)))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(QuickHaze.accent.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 2.5]))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(L("Switch to another mode, or free or lock the mouse, after its touch"))
+        }
+    }
+
+    private var help: String {
+        switch control.kind {
+        case .clickArea:
+            L("Clicked while the mouse is free, the area does these in order. Switch Mode changes to another set of controls; Free and Lock the Mouse change what the mouse does with the eye.")
+        case .hotkey:
+            L("Pressed, the hotkey does these in order and touches nothing. Switch Mode changes to another set of controls; Free and Lock the Mouse change what the mouse does with the eye.")
+        default:
+            L("Pressed, the control does these in order: its own touch first, then each action. Switch Mode changes to another set of controls; Free and Lock the Mouse change what the mouse does with the eye.")
+        }
+    }
+
+    /// Its own touch, the first thing it does; nil for a hotkey.
+    static func touch(of control: Control) -> (title: String, symbol: String)? {
+        switch control.kind {
+        case .tap, .hold: (L("Tap the game’s button"), "hand.tap")
+        case .repeatTap: (L("Tap it again and again"), "repeat")
+        case .anchor: (L("Hold it, the mouse moving the finger"), "arrow.up.and.down.and.arrow.left.and.right")
+        case .swipe: (L("Swipe"), "hand.draw")
+        case .ads: (L("Aim down sights"), "scope")
+        case .macro: (L("Play the macro"), "list.bullet")
+        case .mobaMove: (L("Move towards the cursor"), "cursorarrow.motionlines")
+        case .smartCast: (L("Cast towards the cursor"), "sparkles")
+        case .clickArea: (L("Touch the game where clicked"), "cursorarrow.click.2")
+        case .hotkey, .dpad, .aim: nil
+        }
+    }
+
+    /// The touch, numbered 1; a click area's may be turned off.
+    private func touchRow(_ touch: (title: String, symbol: String)) -> some View {
+        let passThrough: Bool? = if case .clickArea(_, let on) = control.kind { on } else { nil }
+        let off = passThrough == false
+        return HStack(spacing: 8) {
+            StepNumber(number: 1, dim: true)
+            Image(systemName: touch.symbol).font(.system(size: 11, weight: .semibold)).frame(width: 16)
+            Text(verbatim: touch.title)
+                .font(QuickHaze.mona(12, 520))
+                .strikethrough(off)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 4)
+            if let passThrough {
+                Toggle(isOn: Binding(get: { passThrough }, set: { on in model.update { $0.setPassThrough(on) } })) { EmptyView() }
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .labelsHidden()
+                    .help(L("On: the click also touches the game there (its Close button). Off: it only does the actions."))
+                    .accessibilityLabel(Text(verbatim: L("Touch the game where clicked")))
+            }
+        }
+        .foregroundStyle(off ? QuickHaze.textTertiary : QuickHaze.textSecondary)
+        .padding(.horizontal, 9)
+        .frame(minHeight: 32)
+    }
+}
+
+/// One of the selected control's actions: its number, what it does (a
+/// switch's mode, chosen from a menu), and up, down and remove.
+private struct ActionRow: View {
+    @ObservedObject var model: KeymapEditorModel
+    let action: ControlAction
+    let index: Int
+    let number: Int
+    let count: Int
+
+    var body: some View {
+        let needsEye = action.isMouse && !model.hasEye
+        HStack(spacing: 8) {
+            StepNumber(number: number, dim: false)
+            Image(systemName: action.symbol)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(needsEye ? Color(nsColor: .systemYellow) : QuickHaze.accentText)
+                .frame(width: 16)
+            if case .switchMode(let mode) = action {
+                Text(verbatim: L("Switch to")).font(QuickHaze.mona(12, 520)).lineLimit(1).layoutPriority(1)
+                HazeMenuButton(entries: { model.switchTargets(index) }) {
+                    HStack(spacing: 4) {
+                        Text(verbatim: model.modes.first { $0.id == mode }?.name ?? mode).font(QuickHaze.mona(12, 620)).lineLimit(1)
+                        Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).opacity(0.7)
+                    }
+                    .foregroundStyle(QuickHaze.accentText)
+                    .padding(.horizontal, 8)
+                    .frame(height: 22)
+                    .background(Capsule().fill(QuickHaze.segmentSelection))
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .help(L("The mode it switches to"))
+            } else {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(verbatim: action.title)
+                        .font(QuickHaze.mona(12, 520))
+                        .lineLimit(2)
+                    if needsEye {
+                        Text(verbatim: L("Needs the eye (FPS)"))
+                            .font(QuickHaze.mona(10.5, 550))
+                            .foregroundStyle(Color(nsColor: .systemYellow))
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .help(needsEye ? L("This needs the eye (mouse look): add it from FPS, or Done won’t save.") : action.title)
+            }
+            Spacer(minLength: 2)
+            HStack(spacing: 1) {
+                RowIconButton(symbol: "chevron.up", label: L("Earlier"), enabled: index > 0) { model.moveAction(index, -1) }
+                RowIconButton(symbol: "chevron.down", label: L("Later"), enabled: index < count - 1) { model.moveAction(index, 1) }
+                RowIconButton(symbol: "xmark", label: L("Remove This Action"), enabled: true) { model.removeAction(index) }
+            }
+        }
+        .foregroundStyle(QuickHaze.text)
+        .padding(.leading, 9)
+        .padding(.trailing, 4)
+        .frame(minHeight: 32)
+    }
+}
+
+/// A step's number in what a control does.
+private struct StepNumber: View {
+    let number: Int
+    let dim: Bool
+
+    var body: some View {
+        Text(verbatim: "\(number)")
+            .font(QuickHaze.mona(10, 700))
+            .monospacedDigit()
+            .foregroundStyle(dim ? QuickHaze.textTertiary : QuickHaze.onAccent)
+            .frame(width: 17, height: 17)
+            .background(Circle().fill(dim ? Color.white.opacity(0.08) : QuickHaze.accent))
+            .accessibilityHidden(true)
+    }
+}
+
+private struct RowIconButton: View {
+    let symbol: String
+    let label: String
+    let enabled: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 9.5, weight: .bold))
+                .foregroundStyle(enabled ? (hovering ? QuickHaze.text : QuickHaze.textSecondary) : QuickHaze.textTertiary.opacity(0.35))
+                .frame(width: 22, height: 24)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(hovering && enabled ? Color.white.opacity(0.08) : .clear))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .onHover { hovering = $0 }
+        .help(label)
+        .accessibilityLabel(Text(verbatim: label))
+    }
+}
+
+extension ControlAction {
+    /// How the panel and the menus write it ("Free the mouse"); a switch names its mode elsewhere.
+    var title: String {
+        switch self {
+        case .switchMode: L("Switch Mode")
+        case .lockMouse: L("Lock the mouse")
+        case .freeMouse: L("Free the mouse")
+        case .toggleMouse: L("Lock or free the mouse")
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .switchMode: "arrow.triangle.2.circlepath"
+        case .lockMouse: "lock.fill"
+        case .freeMouse: "lock.open.fill"
+        case .toggleMouse: "lock.rotation"
+        }
     }
 }
 
@@ -1087,12 +1427,9 @@ extension Control {
         if case .ads(let p, _) = kind { kind = .ads(p, toggle: toggle) }
     }
 
-    mutating func setSwitchTarget(_ mode: String) {
-        if case .switchMode(_, let p) = kind { kind = .switchMode(mode, position: p) }
-    }
-
-    mutating func setMouseLock(_ lock: Bool) {
-        if case .mouseLook(_, let p) = kind { kind = .mouseLook(lock: lock, position: p) }
+    /// Whether a click area's click also touches the game.
+    mutating func setPassThrough(_ on: Bool) {
+        if case .clickArea(let area, _) = kind { kind = .clickArea(area, passThrough: on) }
     }
 
     /// The eye's sensitivity, its sensitivity while aiming down sights (both

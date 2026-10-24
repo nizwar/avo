@@ -162,6 +162,7 @@ final class KeymapEditorView: NSView {
         connectPanel()
         // The tab the player left the panel on.
         model.tab = UserDefaults.standard.string(forKey: Self.panelTabKey).flatMap(KeymapEditorModel.Tab.init) ?? .controls
+        model.category = Self.category(for: profile)
         if let warning = Self.newerControlsWarning(profile) { setStatus(warning, problem: true) }
     }
 
@@ -279,6 +280,27 @@ final class KeymapEditorView: NSView {
             self?.place(item, at: nil)
             self?.refocus()
         }
+        model.setCategory = { [weak self] category in
+            self?.barModel.category = category
+            UserDefaults.standard.set(category.rawValue, forKey: Self.categoryKey)
+            self?.refocus()
+        }
+        model.select = { [weak self] id in
+            guard let self else { return }
+            if selected == id {
+                selected = nil
+                showHelp()
+            } else {
+                selected = nil
+                select(id)
+            }
+            needsDisplay = true
+            refocus()
+        }
+        model.addActionMenu = { [weak self] in self?.addActionEntries() ?? [] }
+        model.switchTargets = { [weak self] index in self?.switchTargetEntries(index) ?? [] }
+        model.moveAction = { [weak self] index, offset in self?.moveAction(index, by: offset) }
+        model.removeAction = { [weak self] index in self?.removeAction(index) }
         model.drag = { [weak self] item, phase, location in self?.paletteDragged(item, phase, location) }
         model.chooseMode = { [weak self] id in
             self?.chooseMode(id)
@@ -410,6 +432,14 @@ final class KeymapEditorView: NSView {
                                         eyeKey: isEye(control) ? profile.fps?.cursorToggle.shortLabel : nil, dpadSlot: dpadSlot)
         }
         if model.selection != selection { model.selection = selection }
+        let listed = shownControls.map { control in
+            let keys = control.allTriggers.map(\.shortLabel)
+            return KeymapEditorModel.Listed(id: control.id, title: name(of: control), symbol: Self.symbol(of: control),
+                                            keys: isEye(control) ? profile.fps?.cursorToggle.shortLabel
+                                                : keys.isEmpty ? nil : keys.joined(separator: " "),
+                                            category: KeymapPaletteItem.item(for: control)?.category ?? .general, actions: control.actions)
+        }
+        if model.listed != listed { model.listed = listed }
     }
 
     // MARK: Geometry
@@ -428,10 +458,12 @@ final class KeymapEditorView: NSView {
 
     /// The controls of the mode being edited (every control without modes).
     private var shownControls: [Control] { profile.controls.filter { $0.belongs(to: editingMode) } }
+    /// Those of them on the game: all but the hotkeys, which the panel lists.
+    private var placedControls: [Control] { shownControls.filter(\.isOnGame) }
 
     private func hit(at p: CGPoint) -> Hit? {
         func near(_ a: CGPoint, _ r: CGFloat) -> Bool { hypot(a.x - p.x, a.y - p.y) <= r }
-        let newestFirst = Array(shownControls.reversed())
+        let newestFirst = Array(placedControls.reversed())
         // Handles sit on top of everything.
         for control in newestFirst {
             if near(removeHandle(control), Self.handleRadius + 3) { return .remove(control.id) }
@@ -449,6 +481,9 @@ final class KeymapEditorView: NSView {
         if showsHero, near(point(hero), KeymapPainter.heroRadius + 4) { return .hero }
         for control in newestFirst {
             switch control.kind {
+            case .clickArea:
+                // Under the buttons: taken below.
+                continue
             case .aim:
                 if near(point(anchor(of: control)), KeymapPainter.eyeRadius) { return .body(control.id) }
             case let .dpad(center, radius, _, _, _, _, _):
@@ -473,6 +508,10 @@ final class KeymapEditorView: NSView {
             if let edges = edges(of: selectedArea.rect, near: p) { return .areaEdge(selectedArea.id, edges) }
             if selectedArea.movable, selectedArea.rect.contains(p) { return .area(selectedArea.id) }
         }
+        // A click area is the rectangle itself: a click inside picks it.
+        for control in newestFirst {
+            if case .clickArea(let area, _) = control.kind, painter.rect(of: area).contains(p) { return .body(control.id) }
+        }
         return nil
     }
 
@@ -487,17 +526,19 @@ final class KeymapEditorView: NSView {
         return edges.isEmpty ? nil : edges
     }
 
-    /// The eye's swipe area: shown all the time, dragged by its inside while
-    /// the eye is selected (an anchor tap's reach is a circle, sized by its ↘ handle).
+    /// The eye's swipe area and a click area: shown all the time, dragged by
+    /// their inside while selected (an anchor tap's reach is a circle, sized by its ↘ handle).
     private func hasOwnArea(_ control: Control) -> Bool {
-        isEye(control)
+        control.area != nil
     }
 
-    /// The smallest area the editor makes: a square of Control.minimumAreaSide on screen.
-    private var minimumAreaSize: (width: Double, height: Double) {
+    /// The smallest area the editor makes: a square of Control.minimumAreaSide
+    /// on screen (a click area's may be as small as the game's smallest buttons).
+    private func minimumAreaSize(_ control: Control) -> (width: Double, height: Double) {
         let rect = displayRect()
         let aspect = rect.height > 0 && rect.width > 0 ? rect.width / rect.height : 16.0 / 9.0
-        return (Control.minimumAreaSide / aspect, Control.minimumAreaSide)
+        let side = if case .clickArea = control.kind { Control.minimumClickAreaSide } else { Control.minimumAreaSide }
+        return (side / aspect, side)
     }
 
     private func distance(from p: CGPoint, to a: CGPoint, _ b: CGPoint) -> CGFloat {
@@ -523,8 +564,9 @@ final class KeymapEditorView: NSView {
         case .tap: control.kind = .tap(p)
         case .hold: control.kind = .hold(p)
         case .anchor(_, let radius): control.kind = .anchor(p, radius: radius)
-        case .switchMode(let mode, _): control.kind = .switchMode(mode, position: p)
-        case .mouseLook(let lock, _): control.kind = .mouseLook(lock: lock, position: p)
+        case .clickArea(let area, _):
+            // Its middle under the pointer, the same size, on the screen.
+            control.moveArea(dx: p.x - area.center.x, dy: p.y - area.center.y)
         case .ads(_, let toggle): control.kind = .ads(p, toggle: toggle)
         case .repeatTap(_, let interval): control.kind = .repeatTap(p, intervalMilliseconds: interval)
         case let .dpad(_, radius, up, down, left, right, stick):
@@ -542,7 +584,7 @@ final class KeymapEditorView: NSView {
             control.kind = .swipe(from: p, to: NormalizedPoint(min(max(p.x + dx, 0), 1), min(max(p.y + dy, 0), 1)), milliseconds: ms)
         case .mobaMove(_, let radius): control.kind = .mobaMove(center: p, radius: radius)
         case let .smartCast(_, radius, reach): control.kind = .smartCast(p, radius: radius, reach: reach)
-        case .macro: break
+        case .macro, .hotkey: break
         }
     }
 
@@ -573,11 +615,11 @@ final class KeymapEditorView: NSView {
     private func dragArea(_ control: inout Control, edges: NormalizedRect.Edges, from grab: NormalizedPoint, to p: NormalizedPoint) {
         let dx = p.x - grab.x, dy = p.y - grab.y
         guard !edges.isEmpty else {
-            control.moveFinger(dx: dx, dy: dy)
+            control.moveArea(dx: dx, dy: dy)
             return
         }
-        guard let area = control.fingerArea else { return }
-        let minimum = minimumAreaSize
+        guard let area = control.area else { return }
+        let minimum = minimumAreaSize(control)
         var r = area.resized(edges, dx: dx, dy: dy, minWidth: minimum.width, minHeight: minimum.height)
         let rect = displayRect()
         if rect.width > 0, rect.height > 0 {
@@ -587,7 +629,7 @@ final class KeymapEditorView: NSView {
             if edges.contains(.top), r.minY < sy { r.minY = 0 }
             if edges.contains(.bottom), r.maxY > 1 - sy { r.maxY = 1 }
         }
-        control.setFingerArea(r)
+        control.setArea(r)
     }
 
     /// ⌥ + arrow keys: the selected object a step that way (an area with
@@ -608,22 +650,22 @@ final class KeymapEditorView: NSView {
         guard let id = selected, let i = index(of: id) else { return true }
         var control = profile.controls[i]
         if held == [.option] {
-            if control.fingerArea != nil {
-                control.moveFinger(dx: direction.x * Self.keyStep, dy: direction.y * Self.keyStep)
+            if control.area != nil {
+                control.moveArea(dx: direction.x * Self.keyStep, dy: direction.y * Self.keyStep)
             } else {
                 let a = anchor(of: control)
                 move(&control, to: NormalizedPoint(min(max(a.x + direction.x * Self.keyStep, 0), 1),
                                                    min(max(a.y + direction.y * Self.keyStep, 0), 1)))
             }
-        } else if let area = control.fingerArea {
-            let minimum = minimumAreaSize
-            control.setFingerArea(area.grown(dw: direction.x * 2 * Self.keyStep, dh: -direction.y * 2 * Self.keyStep,
-                                             minWidth: minimum.width, minHeight: minimum.height))
+        } else if let area = control.area {
+            let minimum = minimumAreaSize(control)
+            control.setArea(area.grown(dw: direction.x * 2 * Self.keyStep, dh: -direction.y * 2 * Self.keyStep,
+                                       minWidth: minimum.width, minHeight: minimum.height))
         } else {
             step(&control, bigger: direction.x > 0 || direction.y < 0)
         }
         profile.controls[i] = control
-        if let area = control.fingerArea { setStatus(KeymapPainter.sizeText(area)) }
+        if let area = control.area { setStatus(KeymapPainter.sizeText(area)) }
         needsDisplay = true
         return true
     }
@@ -699,13 +741,15 @@ final class KeymapEditorView: NSView {
                 profile.fps?.aimControl = id
             }
             setStatus(String(localized: "\(short(trigger)) locks the mouse to aim with the eye, and frees it again.", bundle: .windowHost))
+        case .clickArea:
+            setStatus(String(localized: "A click area needs no key: it acts when it is clicked while the mouse is free.", bundle: .windowHost))
+            return
         default:
             if trigger.isMomentary {
                 switch control.kind {
-                case .tap, .swipe, .macro, .switchMode, .mouseLook: break
+                case .tap, .swipe, .macro, .hotkey: break
                 default:
-                    setStatus(String(localized: "The wheel works with Tap, Swipe, Switch Mode, and Free or Lock the Mouse only.", bundle: .windowHost),
-                              problem: true)
+                    setStatus(String(localized: "The wheel works with Tap, Swipe and Hotkey only.", bundle: .windowHost), problem: true)
                     return
                 }
             }
@@ -743,8 +787,11 @@ final class KeymapEditorView: NSView {
             setStatus(String(localized: "Press the key that locks and frees the mouse (F8, for example).", bundle: .windowHost))
         case .anchor, .smartCast:
             setStatus(String(localized: "Press its key. Drag ↘ to set how far it reaches.", bundle: .windowHost))
-        case .switchMode:
-            setStatus(String(localized: "Press the key that switches in the game too.", bundle: .windowHost))
+        case .hotkey:
+            setStatus(String(localized: "Press the hotkey’s key, then add what it does in the panel.", bundle: .windowHost))
+        case .clickArea:
+            setStatus(String(localized: "Put the area over the game’s button and size it by its edges, then add what a click does in the panel.",
+                             bundle: .windowHost))
         case .mobaMove:
             setStatus(String(localized: "Press a key, or right-click for a mouse button.", bundle: .windowHost))
         default:
@@ -863,7 +910,7 @@ final class KeymapEditorView: NSView {
     override func mouseUp(with event: NSEvent) {
         // After a resize the status line says the new size (the pointer's label goes).
         if case let .area(id, edges, _, _)? = drag, !edges.isEmpty,
-           let area = profile.controls.first(where: { $0.id == id })?.fingerArea {
+           let area = profile.controls.first(where: { $0.id == id })?.area {
             setStatus(KeymapPainter.sizeText(area))
         }
         drag = nil
@@ -980,8 +1027,7 @@ final class KeymapEditorView: NSView {
         ]
     }
 
-    /// A control's menu items for modes: the modes it acts in, a switch's
-    /// target, which way a mouse control goes.
+    /// A control's menu items for modes: the modes it acts in.
     private func modeItems(for control: Control) -> [NSMenuItem] {
         var items: [NSMenuItem] = []
         func submenu(_ title: String, _ entries: [(title: String, value: String, on: Bool)], _ action: Selector) -> NSMenuItem {
@@ -1006,19 +1052,6 @@ final class KeymapEditorView: NSView {
             let modes = [(String(localized: "Every Mode", bundle: .windowHost), "*", control.modes == nil), ("", "", false)]
                 + profile.modes.map { ($0.name, $0.id, control.modes?.contains($0.id) == true) }
             items.append(submenu(String(localized: "Works In", bundle: .windowHost), modes, #selector(setControlModes(_:))).symbol("square.stack.3d.up"))
-        }
-        if case .switchMode(let target, _) = control.kind, profile.modes.count > 1 {
-            let targets = profile.modes.map { ($0.name, $0.id, $0.id == target) }
-            items.append(submenu(String(localized: "Switches To", bundle: .windowHost), targets, #selector(setSwitchTarget(_:)))
-                .symbol("arrow.triangle.2.circlepath"))
-        }
-        if case .mouseLook(let lock, _) = control.kind {
-            let flip = NSMenuItem(title: lock ? String(localized: "Free the Mouse Instead", bundle: .windowHost)
-                                              : String(localized: "Lock the Mouse Instead", bundle: .windowHost),
-                                  action: #selector(flipMouseLook), keyEquivalent: "")
-            flip.target = self
-            flip.symbol(lock ? "lock.open" : "lock")
-            items.append(flip)
         }
         return items.isEmpty ? [] : [.separator()] + items
     }
@@ -1047,21 +1080,6 @@ final class KeymapEditorView: NSView {
                                 : String(localized: "“\(name(of: control))” acts in \(names.formatted(.list(type: .and))).", bundle: .windowHost))
         // Out of the mode being edited: it goes from view.
         if !control.belongs(to: editingMode) { selected = nil }
-        needsDisplay = true
-    }
-
-    @objc private func setSwitchTarget(_ item: NSMenuItem) {
-        guard let id = selected, let i = index(of: id), let target = item.representedObject as? String,
-              case .switchMode(_, let position) = profile.controls[i].kind else { return }
-        profile.controls[i].kind = .switchMode(target, position: position)
-        prompt(for: profile.controls[i])
-        needsDisplay = true
-    }
-
-    @objc private func flipMouseLook() {
-        guard let id = selected, let i = index(of: id), case let .mouseLook(lock, position) = profile.controls[i].kind else { return }
-        profile.controls[i].kind = .mouseLook(lock: !lock, position: position)
-        prompt(for: profile.controls[i])
         needsDisplay = true
     }
 
@@ -1219,14 +1237,14 @@ final class KeymapEditorView: NSView {
     }
 
     /// Deletes a mode, with the controls that act only there and the
-    /// switches to it, once the player says so. The only mode: the layout
-    /// is one set of controls again, and they all stay.
+    /// switches to it (a hotkey that only switched there goes too), once the
+    /// player says so. The only mode: the layout is one set of controls
+    /// again, and they all stay.
     private func deleteMode(_ id: String) {
         guard let mode = profile.modes.first(where: { $0.id == id }), let window else { return }
         let only = profile.modes.count == 1
         let going = profile.controls.filter { control in
-            if case .switchMode(id, _) = control.kind { return true }
-            return control.modes == [id]
+            control.modes == [id] || Self.onlySwitches(control, to: [id])
         }
         let alert = NSAlert()
         alert.messageText = String(localized: "Delete the mode “\(mode.name)”?", bundle: .windowHost)
@@ -1247,16 +1265,25 @@ final class KeymapEditorView: NSView {
         }
     }
 
+    /// A control that does nothing but switch to `modes` (a hotkey or a
+    /// click area): without those switches it would do nothing.
+    private static func onlySwitches(_ control: Control, to modes: Set<String>) -> Bool {
+        guard !control.touchesTheScreen, !control.actions.isEmpty else { return false }
+        return control.actions.allSatisfy { if case .switchMode(let mode) = $0 { modes.contains(mode) } else { false } }
+    }
+
     private func removeMode(_ id: String) {
+        // Switches to it go, and what did only that.
+        let gone: Set<String> = profile.modes.count == 1 ? Set(profile.modes.map(\.id)) : [id]
+        profile.controls.removeAll { Self.onlySwitches($0, to: gone) }
+        for i in profile.controls.indices {
+            profile.controls[i].actions.removeAll { if case .switchMode(let mode) = $0 { gone.contains(mode) } else { false } }
+        }
         if profile.modes.count == 1 {
             profile.modes = []
             for i in profile.controls.indices { profile.controls[i].modes = nil }
-            profile.controls.removeAll { if case .switchMode = $0.kind { true } else { false } }
         } else {
-            profile.controls.removeAll { control in
-                if case .switchMode(id, _) = control.kind { return true }
-                return control.modes == [id]
-            }
+            profile.controls.removeAll { $0.modes == [id] }
             for i in profile.controls.indices { profile.controls[i].modes?.removeAll { $0 == id } }
             profile.modes.removeAll { $0.id == id }
         }
@@ -1301,7 +1328,7 @@ final class KeymapEditorView: NSView {
     private func changeSelectedArea(_ change: (inout Control) -> Void) {
         guard let id = selected, let i = index(of: id) else { return }
         change(&profile.controls[i])
-        if let area = profile.controls[i].fingerArea { setStatus(KeymapPainter.sizeText(area)) }
+        if let area = profile.controls[i].area { setStatus(KeymapPainter.sizeText(area)) }
         needsDisplay = true
     }
 
@@ -1425,14 +1452,14 @@ final class KeymapEditorView: NSView {
         case .swipe:
             let from = p ?? NormalizedPoint(0.5, 0.6)
             add(.swipe(from: from, to: NormalizedPoint(from.x, max(from.y - 0.2, 0)), milliseconds: 150), prefix: "swipe", exactly: exactly)
+        case .clickArea:
+            addClickArea(at: p)
+        case .hotkey:
+            add(.hotkey, prefix: "hotkey", exactly: true)
         case .eye:
             addEye(at: p)
         case .ads:
             add(.ads(p ?? NormalizedPoint(0.9, 0.45), toggle: false), prefix: "ads", exactly: exactly)
-        case .freeMouse:
-            add(.mouseLook(lock: false, position: p ?? NormalizedPoint(0.08, 0.2)), prefix: "free-mouse", exactly: exactly)
-        case .lockMouse:
-            add(.mouseLook(lock: true, position: p ?? NormalizedPoint(0.08, 0.3)), prefix: "lock-mouse", exactly: exactly)
         case .moveByMouse:
             // Right-click to walk, as in desktop MOBAs.
             add(.mobaMove(center: p ?? NormalizedPoint(0.14, 0.72), radius: Control.defaultJoystickRadius), prefix: "move",
@@ -1440,8 +1467,6 @@ final class KeymapEditorView: NSView {
         case .smartCast:
             add(.smartCast(p ?? NormalizedPoint(0.8, 0.75), radius: Control.defaultCastRadius, reach: Control.defaultCastReach),
                 prefix: "skill", exactly: exactly)
-        case .switchMode:
-            addSwitch(at: p)
         }
     }
 
@@ -1477,7 +1502,7 @@ final class KeymapEditorView: NSView {
         // Not exactly under an older control, or under the hero marker,
         // which is drawn over the controls and takes their clicks.
         if !exactly {
-            var taken = shownControls.map(anchor(of:))
+            var taken = placedControls.map(anchor(of:))
             if showsHero || control.followsCursor { taken.append(hero) }
             let start = anchor(of: control)
             var spot = start, step = 0
@@ -1529,31 +1554,128 @@ final class KeymapEditorView: NSView {
         prompt(for: eye)
     }
 
-    /// A switch to another mode: the one other, or one chosen in a menu; with
-    /// no other yet, a new mode (its name typed in its tab) and the switch to
-    /// it here.
-    private func addSwitch(at p: NormalizedPoint?) {
-        let spot = p ?? NormalizedPoint(0.85, 0.5)
-        let others = profile.modes.filter { $0.id != editingMode }
-        if others.isEmpty {
-            let from = editingMode
-            let mode = createMode()
-            // The switch belongs where the player gets to the new mode from.
-            editingMode = from ?? profile.firstMode
-            add(.switchMode(mode, position: spot), prefix: "switch", exactly: p != nil)
-            barModel.renaming = mode
-            setStatus(String(localized: "A new mode and its Switch: name the mode, then press the Switch’s key.", bundle: .windowHost))
-        } else if others.count == 1 {
-            add(.switchMode(others[0].id, position: spot), prefix: "switch", exactly: p != nil)
-        } else {
-            let entries: [HazeMenuEntry] = [.section(String(localized: "Switch To", bundle: .windowHost))] + others.map { mode in
-                .item(HazeMenuItem(title: mode.name, symbol: KeymapPaletteItem.switchMode.symbol) { [weak self] in
-                    self?.add(.switchMode(mode.id, position: spot), prefix: "switch", exactly: p != nil)
-                    self?.refocus()
-                })
+    /// A click area about a button's size around where it was let go (the
+    /// top right corner, where games put Close, when clicked in the panel).
+    private func addClickArea(at p: NormalizedPoint?) {
+        let rect = displayRect()
+        let aspect = rect.height > 0 && rect.width > 0 ? rect.width / rect.height : 16.0 / 9.0
+        // A square on the screen.
+        let h = Control.defaultClickAreaSide, w = h / aspect
+        let center = p ?? NormalizedPoint(0.9, 0.1)
+        let area = NormalizedRect(0, 0, w, h).offsetBy(dx: center.x - w / 2, dy: center.y - h / 2)
+        add(.clickArea(area, passThrough: true), prefix: "click-area", exactly: p != nil)
+    }
+
+    // MARK: Actions (the panel's What It Does)
+
+    /// The selected control and where it is.
+    private var selectedIndex: Int? { selected.flatMap(index(of:)) }
+
+    /// The modes a switch of `control` may go to: all but the one it only acts in.
+    private func switchTargets(for control: Control) -> [KeymapMode] {
+        profile.modes.filter { control.modes != [$0.id] }
+    }
+
+    /// + Add Action: a switch to each mode it may go to (or to a new one),
+    /// freeing, locking or toggling the mouse (with the eye); those it does already are greyed.
+    private func addActionEntries() -> [HazeMenuEntry] {
+        guard let i = selectedIndex else { return [] }
+        let control = profile.controls[i]
+        func has(_ action: ControlAction) -> Bool { control.actions.contains(action) }
+        var entries: [HazeMenuEntry] = [.section(String(localized: "Mode", bundle: .windowHost))]
+        for mode in switchTargets(for: control) {
+            let action = ControlAction.switchMode(mode.id)
+            entries.append(.item(HazeMenuItem(title: String(localized: "Switch to “\(mode.name)”", bundle: .windowHost), symbol: action.symbol,
+                                              isEnabled: !has(action)) { [weak self] in self?.addAction(action) }))
+        }
+        entries.append(.item(HazeMenuItem(title: String(localized: "Switch to a New Mode", bundle: .windowHost), symbol: "plus.square.on.square") {
+            [weak self] in self?.addSwitchToNewMode()
+        }))
+        entries.append(.section(String(localized: "Mouse", bundle: .windowHost)))
+        let eye = profile.controls.contains(where: isEye)
+        let needsEye = eye ? nil : String(localized: "Needs the eye (FPS)", bundle: .windowHost)
+        for action in [ControlAction.freeMouse, .lockMouse, .toggleMouse] {
+            entries.append(.item(HazeMenuItem(title: Self.menuTitle(of: action), subtitle: needsEye, symbol: action.symbol,
+                                              isEnabled: eye && !has(action)) { [weak self] in self?.addAction(action) }))
+        }
+        return entries
+    }
+
+    private static func menuTitle(of action: ControlAction) -> String {
+        switch action {
+        case .switchMode: String(localized: "Switch Mode", bundle: .windowHost)
+        case .freeMouse: String(localized: "Free the Mouse", bundle: .windowHost)
+        case .lockMouse: String(localized: "Lock the Mouse", bundle: .windowHost)
+        case .toggleMouse: String(localized: "Lock or Free the Mouse", bundle: .windowHost)
+        }
+    }
+
+    private func addAction(_ action: ControlAction) {
+        guard let i = selectedIndex else { return }
+        profile.controls[i].actions.append(action)
+        setStatus(String(localized: "“\(name(of: profile.controls[i]))” now also does: \(describe(action)).", bundle: .windowHost))
+        needsDisplay = true
+        refocus()
+    }
+
+    /// A new mode, and the switch to it on the selected control, which stays
+    /// in view: the new mode's name is typed in its tab.
+    private func addSwitchToNewMode() {
+        guard let id = selected else { return }
+        let from = editingMode
+        let mode = createMode()
+        // The control acted where the player was: there it stays edited, and selected.
+        editingMode = from ?? profile.firstMode
+        if let i = index(of: id) {
+            if profile.controls[i].modes == nil || profile.controls[i].belongs(to: editingMode) {
+                profile.controls[i].actions.append(.switchMode(mode))
             }
-            let at = p.flatMap { p in window.map { $0.convertPoint(toScreen: convert(point(p), to: nil)) } } ?? NSEvent.mouseLocation
-            HazeMenuPresenter.shared.show(entries, at: at)
+            select(id)
+        }
+        barModel.renaming = mode
+        setStatus(String(localized: "A new mode, and the switch to it: name the mode in its tab, then add its controls.", bundle: .windowHost))
+        needsDisplay = true
+    }
+
+    /// The modes the switch at `index` of the selected control may go to instead.
+    private func switchTargetEntries(_ index: Int) -> [HazeMenuEntry] {
+        guard let i = selectedIndex, profile.controls[i].actions.indices.contains(index),
+              case .switchMode(let current) = profile.controls[i].actions[index] else { return [] }
+        return switchTargets(for: profile.controls[i]).map { mode in
+            .item(HazeMenuItem(title: mode.name, state: mode.id == current ? .on : .off) { [weak self] in
+                guard let self, let i = self.selectedIndex, self.profile.controls[i].actions.indices.contains(index) else { return }
+                self.profile.controls[i].actions[index] = .switchMode(mode.id)
+                self.needsDisplay = true
+                self.refocus()
+            })
+        }
+    }
+
+    private func moveAction(_ index: Int, by offset: Int) {
+        guard let i = selectedIndex else { return }
+        let to = index + offset
+        guard profile.controls[i].actions.indices.contains(index), profile.controls[i].actions.indices.contains(to) else { return }
+        profile.controls[i].actions.swapAt(index, to)
+        needsDisplay = true
+        refocus()
+    }
+
+    private func removeAction(_ index: Int) {
+        guard let i = selectedIndex, profile.controls[i].actions.indices.contains(index) else { return }
+        let action = profile.controls[i].actions.remove(at: index)
+        setStatus(String(localized: "“\(name(of: profile.controls[i]))” no longer does: \(describe(action)).", bundle: .windowHost))
+        needsDisplay = true
+        refocus()
+    }
+
+    /// An action in a sentence: "switch to “Vehicle”", "free the mouse".
+    private func describe(_ action: ControlAction) -> String {
+        switch action {
+        case .switchMode(let mode):
+            String(localized: "switch to “\(profile.modes.first { $0.id == mode }?.name ?? mode)”", bundle: .windowHost)
+        case .freeMouse: String(localized: "free the mouse", bundle: .windowHost)
+        case .lockMouse: String(localized: "lock the mouse", bundle: .windowHost)
+        case .toggleMouse: String(localized: "lock or free the mouse", bundle: .windowHost)
         }
     }
 
@@ -1591,15 +1713,21 @@ final class KeymapEditorView: NSView {
         painter.obstacles = panelOutside ? [] : [panel.frame]
         painter.modeNames = Dictionary(profile.modes.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
         let eyeKey = profile.fps?.cursorToggle.shortLabel
-        // Only the mode being edited (all of the layout without modes).
-        let shown = shownControls
+        // Only the mode being edited (all of the layout without modes), and
+        // no hotkeys: they have no place on the game.
+        let shown = placedControls
         // Lit as if selected: where a dragged part of the controller would
         // bind, and what the part under the pointer in the panel drives.
         let dropTarget = padDrag.flatMap { dropTarget(for: $0.element, at: $0.at) }
         let lit = Set(padHover.map { profile.controls(boundTo: $0).map(\.id) } ?? []).union(dropTarget.map { [$0] } ?? [])
-        // Areas under everything: the eye's swipe area.
-        for control in shown where hasOwnArea(control) {
+        // Areas under everything: the eye's swipe area, then the click areas.
+        for control in shown where isEye(control) {
             painter.drawArea(control, selected: control.id == selected || lit.contains(control.id), hovered: control.id == hovered?.controlID)
+        }
+        for control in shown {
+            if case .clickArea = control.kind {
+                painter.drawClickArea(control, selected: control.id == selected, hovered: control.id == hovered?.controlID)
+            }
         }
         // Eyes first: buttons are drawn over their area.
         for control in shown where isEye(control) {
@@ -1609,6 +1737,8 @@ final class KeymapEditorView: NSView {
             painter.draw(control, selected: control.id == selected || lit.contains(control.id),
                          activeSlot: control.id == selected ? dpadSlot : nil)
         }
+        // What each does besides its touch, beside it.
+        for control in shown { painter.drawActionBadges(control) }
         // In a layout with modes, what acts in all of them is marked so.
         if !profile.modes.isEmpty {
             for control in shown where control.modes == nil { painter.drawEveryModeBadge(control) }
@@ -1624,7 +1754,7 @@ final class KeymapEditorView: NSView {
                                 hotRemove: hotRemove, hotResize: hotResize)
         }
         // The selected area's edge and corner handles, and its size beside the pointer while it is dragged.
-        if let id = selected, let control = profile.controls.first(where: { $0.id == id }), control.fingerArea != nil {
+        if let id = selected, let control = profile.controls.first(where: { $0.id == id }), control.area != nil, control.belongs(to: editingMode) {
             let hot: NormalizedRect.Edges? = {
                 if case let .area(_, edges, _, _)? = drag, !edges.isEmpty { return edges }
                 if case let .areaEdge(hoveredID, edges)? = hovered, hoveredID == id { return edges }
@@ -1652,6 +1782,16 @@ final class KeymapEditorView: NSView {
     // MARK: Controller (ControllerPanel.swift)
 
     private static let panelTabKey = "AvoKeymapPanelTab"
+    private static let categoryKey = "AvoKeymapPaletteCategory"
+
+    /// The kind of controls the panel offers first: the layout's own (a
+    /// shooter's with the eye, a MOBA's with its cursor controls), else the
+    /// one the player chose last.
+    private static func category(for profile: KeymapProfile) -> KeymapCategory {
+        if profile.controls.contains(where: KeymapPainter.isEye) { return .fps }
+        if profile.controls.contains(where: \.followsCursor) { return .moba }
+        return UserDefaults.standard.string(forKey: categoryKey).flatMap(KeymapCategory.init) ?? .general
+    }
     /// Every part of a controller, in GamepadButton's order, then the sticks and the d-pad.
     private static let gamepadElements: [GamepadElement] = GamepadButton.allCases.map(GamepadElement.button)
         + GamepadStick.allCases.map(GamepadElement.stick) + [.dpad]
@@ -1843,13 +1983,27 @@ final class KeymapEditorView: NSView {
             item.indentationLevel = 1
             menu.addItem(item)
         }
+        /// The placements by kind of game, under General and FPS when both have some.
+        func addGrouped(_ placements: [GamepadPlacement], for element: GamepadElement) {
+            let groups = KeymapCategory.allCases.map { category in (category, placements.filter { Self.category(of: $0) == category }) }
+                .filter { !$0.1.isEmpty }
+            for (category, members) in groups {
+                if groups.count > 1 {
+                    let item = NSMenuItem(title: category.title, action: nil, keyEquivalent: "")
+                    item.isEnabled = false
+                    item.indentationLevel = 1
+                    menu.addItem(item)
+                }
+                for placement in members { add(placement, for: element) }
+            }
+        }
         header(String(localized: "Place for \(padLabel(element)):", bundle: .windowHost))
-        for placement in GamepadPlacement.choices(for: element) { add(placement, for: element) }
+        addGrouped(GamepadPlacement.choices(for: element), for: element)
         if case .stick(let stick) = element {
             let press = GamepadElement.button(GamepadElement.pressButton(of: stick))
             menu.addItem(.separator())
             header(String(localized: "For pressing the stick down (\(padLabel(press))):", bundle: .windowHost))
-            for placement in GamepadPlacement.choices(for: press) { add(placement, for: press) }
+            addGrouped(GamepadPlacement.choices(for: press), for: press)
         }
         HazeMenuPresenter.shared.popUp(menu, at: p, in: self)
     }
@@ -2096,6 +2250,13 @@ final class KeymapEditorView: NSView {
         }
     }
 
+    private static func category(of placement: GamepadPlacement) -> KeymapCategory {
+        switch placement {
+        case .tap, .repeatTap, .swipe, .anchor, .joystick: .general
+        case .ads, .camera: .fps
+        }
+    }
+
     private static func symbol(of placement: GamepadPlacement) -> String {
         switch placement {
         case .tap: "hand.tap"
@@ -2122,10 +2283,8 @@ final class KeymapEditorView: NSView {
         case .macro: String(localized: "Macro", bundle: .windowHost)
         case .mobaMove: String(localized: "Move by Mouse", bundle: .windowHost)
         case .smartCast: String(localized: "Smart Cast", bundle: .windowHost)
-        case .switchMode(let mode, _):
-            String(localized: "Switch to “\(profile.modes.first { $0.id == mode }?.name ?? mode)”", bundle: .windowHost)
-        case .mouseLook(let lock, _):
-            lock ? String(localized: "Lock the Mouse", bundle: .windowHost) : String(localized: "Free the Mouse", bundle: .windowHost)
+        case .hotkey: String(localized: "Hotkey", bundle: .windowHost)
+        case .clickArea: String(localized: "Click Area", bundle: .windowHost)
         }
     }
 
@@ -2142,8 +2301,8 @@ final class KeymapEditorView: NSView {
         case .macro: "list.bullet"
         case .mobaMove: KeymapPaletteItem.moveByMouse.symbol
         case .smartCast: KeymapPaletteItem.smartCast.symbol
-        case .switchMode: KeymapPaletteItem.switchMode.symbol
-        case .mouseLook(let lock, _): lock ? KeymapPaletteItem.lockMouse.symbol : KeymapPaletteItem.freeMouse.symbol
+        case .hotkey: KeymapPaletteItem.hotkey.symbol
+        case .clickArea: KeymapPaletteItem.clickArea.symbol
         }
     }
 
@@ -2281,7 +2440,7 @@ final class KeymapEditorView: NSView {
     /// eye's lock key) and has none yet.
     private static func needsKey(_ control: Control) -> Bool {
         switch control.kind {
-        case .dpad, .aim: false
+        case .dpad, .aim, .clickArea: false
         default: control.triggers.isEmpty
         }
     }
