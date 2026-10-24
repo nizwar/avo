@@ -31,6 +31,10 @@ export default {
   // when a preview is published.
   hub: {
     githubUrl: 'https://github.com/nizwar/avo_hub',
+    // Whether its repository is public. While false the page shows no GitHub
+    // link and claims no open source (a private repository is empty to
+    // visitors); set it to true once github.com/nizwar/avo_hub is public.
+    openSource: false,
     release: {
       available: false,
       version: null,

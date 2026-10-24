@@ -257,6 +257,8 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
   const blobUrl = `${githubUrl}/blob/${config.githubBranch || 'main'}`;
   const hubGithubUrl = config.hub.githubUrl.replace(/\/+$/, '');
   const hubRelease = config.hub.release || {};
+  // A private repository is empty to visitors: no links to it, no open-source claim.
+  const hubOpen = Boolean(config.hub.openSource);
   const csp = [
     "default-src 'self'",
     "script-src 'self'",
@@ -322,16 +324,24 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
       const hubDownloadUrl = hubRelease.downloadUrl || `${hubGithubUrl}/releases/latest`;
       const hubPill = hubRelease.available
         ? `<p class="status-pill is-released">${escapeHtml(stripTags(t('hub.statusReleased', { version: escapeHtml(hubRelease.version || '') })))}</p>`
-        : `<p class="status-pill" title="${escapeHtml(stripTags(t('hub.unreleasedNote')))}">${t('hub.statusUnreleased')}</p>`;
-      const hubCtas = hubRelease.available
+        : `<p class="status-pill" title="${escapeHtml(stripTags(t(hubOpen ? 'hub.unreleasedNote' : 'hub.unreleasedNotePrivate')))}">${t('hub.statusUnreleased')}</p>`;
+      const hubButtons = hubRelease.available
         ? [
             `<a class="btn btn-primary" href="${escapeHtml(hubDownloadUrl)}"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-down"/></svg>${t('hub.download')}</a>`,
-            `<a class="btn btn-quiet" href="${escapeHtml(hubGithubUrl)}">${t('hub.watch')}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></a>`,
-          ].join('\n')
-        : [
-            `<a class="btn btn-primary" href="${escapeHtml(hubGithubUrl)}">${t('hub.watch')}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></a>`,
-            `<a class="btn btn-quiet" href="${escapeHtml(hubGithubUrl)}#building-from-source">${t('hub.build')}</a>`,
-          ].join('\n');
+            ...(hubOpen ? [`<a class="btn btn-quiet" href="${escapeHtml(hubGithubUrl)}">${t('hub.watch')}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></a>`] : []),
+          ]
+        : hubOpen
+          ? [
+              `<a class="btn btn-primary" href="${escapeHtml(hubGithubUrl)}">${t('hub.watch')}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></a>`,
+              `<a class="btn btn-quiet" href="${escapeHtml(hubGithubUrl)}#building-from-source">${t('hub.build')}</a>`,
+            ]
+          : [];
+      // No row at all without a button (unreleased, the repository private).
+      const hubCtas = hubButtons.length ? `<div class="cta-row">\n${hubButtons.join('\n')}\n</div>` : '';
+      const hubPointOpen = hubOpen ? `<li>${t('hub.hero.pointOpen')}</li>` : '';
+      const hubOpenCard = hubOpen
+        ? `<li class="feature-card" data-tilt="card"><span class="feature-icon" data-tilt-depth aria-hidden="true"><svg class="icon"><use href="#i-code"/></svg></span><h3>${t('hub.avo.openTitle')}</h3><p>${t('hub.avo.openText')}</p></li>`
+        : '';
       const hubMeta = hubRelease.available ? `<p class="cta-meta">${t('hub.downloadMeta')}</p>` : '';
 
       const supportChannels = config.support.channels.length ? channelList(config.support.channels, t) : `<p class="note">${t('support.noChannels')}</p>`;
@@ -347,7 +357,7 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
             url: canonical,
             applicationCategory: 'UtilitiesApplication',
             operatingSystem: 'macOS 15 or later, Apple silicon; Android 11 or later',
-            license: 'https://www.apache.org/licenses/LICENSE-2.0',
+            ...(hubOpen ? { license: 'https://www.apache.org/licenses/LICENSE-2.0' } : {}),
             inLanguage: lang,
           }
         : {
@@ -405,8 +415,10 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
           hubPill,
           hubCtas,
           hubMeta,
+          hubPointOpen,
+          hubOpenCard,
           hubGetTitle: t(hubRelease.available ? 'hub.get.titleReleased' : 'hub.get.titleUnreleased'),
-          hubGetText: t(hubRelease.available ? 'hub.get.textReleased' : 'hub.get.textUnreleased'),
+          hubGetText: t(hubRelease.available ? 'hub.get.textReleased' : hubOpen ? 'hub.get.textUnreleased' : 'hub.get.textUnreleasedPrivate'),
           supportChannels,
           builtText,
           copyright: t('footer.copyright', { year }),
