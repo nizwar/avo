@@ -26,7 +26,9 @@ and security problems in a private report ([SECURITY.md](SECURITY.md)).
 ## Code
 
 - **Host (Swift).** `make test` must pass. Keep platform-independent logic in
-  `host/AvoKit` with tests; AppKit and SwiftUI code goes in the Xcode targets.
+  `host/AvoKit` with tests; AppKit and SwiftUI code goes in the Xcode targets,
+  except the UI Avo Hub shares (`AvoHazeUI` and `AvoKeymapUI` in AvoKit),
+  which keeps its public API small and its host hooks in KeymapHost.swift.
   Swift 6 language mode with strict concurrency. New user-facing strings go
   through the String Catalogs (`make strings` after a build), in English and
   Indonesian.

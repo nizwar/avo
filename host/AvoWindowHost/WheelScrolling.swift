@@ -1,4 +1,5 @@
 import AppKit
+import AvoHazeUI
 import AvoKeymap
 import AvoKit
 import AvoProtocol

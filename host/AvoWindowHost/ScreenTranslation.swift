@@ -1,8 +1,9 @@
 import AppKit
+import AvoHazeUI
 import AvoKit
+import os
 import SwiftUI
 import Translation
-import os
 
 /// Translate Screen (⌘⇧T) in one window: reads the text in the frame on
 /// screen (ScreenTextReader), translates it on the Mac with Apple's

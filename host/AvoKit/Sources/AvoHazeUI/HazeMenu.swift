@@ -98,7 +98,7 @@ public struct HazeMenuHeader {
 public final class HazeMenuPresenter {
     public static let shared = HazeMenuPresenter()
     /// Posted just before a menu takes the keyboard, and once it has gone: a
-    /// transient popover it opens from holds still meanwhile (QuickSettings.swift).
+    /// transient popover it opens from holds still meanwhile (the Window Host's Quick Settings).
     public nonisolated static let willShowNotification = Notification.Name("com.avodroid.HazeMenu.willShow")
     public nonisolated static let didCloseNotification = Notification.Name("com.avodroid.HazeMenu.didClose")
 

@@ -26,6 +26,16 @@ All Swift code shared between targets is one dynamic framework,
 package products separately produced two copies of the same classes in one
 process, which breaks NSXPC class checks.
 
+Two of those modules are UI, so Avo Hub's windows can link the same code as
+Avo's app windows instead of copies of it: `AvoHazeUI` (the haze in small:
+`QuickHaze`, the `Quick*` controls of an app window's panels, and
+`HazeMenu`) and `AvoKeymapUI` (the key mapping a window runs: its
+controller, the editor and its panels, the hints over the game and
+`GamepadHub`). A window gives the key mapping its game view
+(`KeymapDisplay`) and where to keep profiles and Game Mode (`KeymapStore`;
+`KeymapStore.avo` is Avo's), in KeymapHost.swift. Their text is in the
+package's catalog (`Bundle.avoKit`).
+
 ## XPC and caller validation
 
 The daemon vends one Mach service. Each connection declares a role in
@@ -660,7 +670,7 @@ further the cursor is from the hero. Their targets are read once per display
 frame and glide like the D-pad. They follow the free cursor, so with the
 mouse locked in FPS mode they rest.
 
-The editor (KeymapEditorView.swift) is drawn over the game. Its panel
+The editor (KeymapEditorView.swift, in `AvoKeymapUI`) is drawn over the game. Its panel
 (KeymapEditorPanel.swift, in the Quick Settings' haze) stands beside the
 window, in a window of its own (`KeymapSidePanel` in KeymapOverlay.swift, a
 child window with rounded corners), so the game keeps its whole size while
@@ -715,7 +725,7 @@ saving leaves them out), so a profile from a newer Avo still works.
 
 ### Game controllers
 
-`GamepadHub` (Window Host) is the one reader of the Mac's controllers in a
+`GamepadHub` (`AvoKeymapUI`) is the one reader of the Mac's controllers in a
 shim process. GameController keeps one handler per element, so the hub alone
 sets each extended gamepad's `valueChangedHandler`, reads the whole controller
 on every change (`GamepadReading`) and hands the difference
@@ -996,7 +1006,7 @@ sidebar's running apps) answers the same way (`AppTileInteraction.swift`):
   page opens when it closes (with a haptic tick). Leaving the tile first
   cancels.
 - **Right click or Control-click:** the app's menu in the haze
-  (`HazeMenu.swift` in the Window Host, a borderless panel at the pointer
+  (`HazeMenu.swift` in `AvoHazeUI`, a borderless panel at the pointer
   that turns to fit the screen): Open, App/Game Page, Force Stop, Show in Finder, Clear Data… and
   Uninstall… (in the haze's red), confirmed as on the page. The keyboard
   moves through it (arrows, Return or Space, Escape, typing an item's first
@@ -1007,8 +1017,8 @@ sidebar's running apps) answers the same way (`AppTileInteraction.swift`):
   default action opens, with the page and the menu (Show Menu) as actions.
 
 Every menu Avo pops up is such a haze menu (`HazeMenu.swift`, public in
-the Window Host framework, which the Control Panel and the daemon link
-too): the menus of app tiles and pages, the Control Panel's choices
+`AvoHazeUI`, which the Control Panel, the daemon and the Window Host link
+through AvoHostKit): the menus of app tiles and pages, the Control Panel's choices
 (`HazePicker`: a check mark on the choice, sections, options that cannot be
 chosen), an app window's title bar menus and Quick Settings' choices, the
 key mapping editor's panel, mode and context menus, and the menu bar item's

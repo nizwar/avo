@@ -1,5 +1,7 @@
 import AppKit
+import AvoHazeUI
 import AvoKeymap
+import AvoKit
 import SwiftUI
 
 // The controller panel of the key mapping editor (KeymapEditorView): the
@@ -12,7 +14,7 @@ import SwiftUI
 // presets. It is the Controller tab of the editor's panel beside the game
 // (KeymapEditorPanel), in the Quick Settings' haze look.
 
-private func L(_ key: String.LocalizationValue) -> String { String(localized: key, bundle: .windowHost) }
+private func L(_ key: String.LocalizationValue) -> String { String(localized: key, bundle: .avoKit) }
 
 // MARK: - Model
 
