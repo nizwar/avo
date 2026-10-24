@@ -489,11 +489,25 @@ impl Renderer {
 
     fn process(&mut self, queue: usize) {
         let Some(mut attach) = self.attach.take() else { return };
+        // While this thread drains the queue the guest need not kick for
+        // what it adds (a vCPU exit each, a frame's commands come in
+        // bursts): kicks go off with the first request and on again once
+        // the queue is empty, which it then looks at once more.
+        let mut quiet = false;
         loop {
             let chain = {
                 let Some(_held) = attach.lease.hold() else { break };
                 let active = &mut attach.active;
-                active.queues.get_mut(queue).and_then(|q| q.pop(&active.memory))
+                let Some(q) = active.queues.get_mut(queue) else { break };
+                let chain = q.pop(&active.memory);
+                if chain.is_some() != quiet {
+                    quiet = chain.is_some();
+                    q.set_notifications(&active.memory, !quiet);
+                    if !quiet {
+                        continue;
+                    }
+                }
+                chain
             };
             let Some(chain) = chain else { break };
             self.request(&mut attach, queue, &chain);

@@ -7,6 +7,7 @@ const DESC_F_NEXT: u16 = 1;
 const DESC_F_WRITE: u16 = 2;
 const DESC_F_INDIRECT: u16 = 4;
 const AVAIL_F_NO_INTERRUPT: u16 = 1;
+const USED_F_NO_NOTIFY: u16 = 1;
 
 /// The most `Chain::read_all` copies. The lengths are the guest's, and a
 /// chain may name the same RAM over and over, so without a limit it could
@@ -183,6 +184,19 @@ impl Queue {
     /// False when the driver asked not to be interrupted (VRING_AVAIL_F_NO_INTERRUPT).
     pub fn wants_interrupt(&self, memory: &GuestMemory) -> bool {
         memory.read_u16(self.avail_ring).map(|flags| flags & AVAIL_F_NO_INTERRUPT == 0).unwrap_or(true)
+    }
+
+    /// Asks the driver to kick for new requests (`on`), or not to while the
+    /// device drains the queue anyway (VRING_USED_F_NO_NOTIFY): each kick is
+    /// a vCPU exit. A device that turns kicks on again must look at the queue
+    /// once more, for a request that came before the driver saw the flag.
+    pub fn set_notifications(&mut self, memory: &GuestMemory, on: bool) {
+        if !self.is_valid() {
+            return;
+        }
+        memory.write_u16(self.used_ring, if on { 0 } else { USED_F_NO_NOTIFY });
+        // The flag before the next look at the available ring.
+        fence(Ordering::SeqCst);
     }
 }
 
