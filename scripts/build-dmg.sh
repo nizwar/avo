@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Builds a Release Avo.app and packs it into a disk image.
 #
-#   scripts/build-dmg.sh --version 0.1.0 --build 32 [--out DIR] [--identity ID [--notarize]]
+#   scripts/build-dmg.sh --version 0.4.0 --build 125 [--out DIR] [--identity ID [--notarize]]
 #
-#     --version    CFBundleShortVersionString (MARKETING_VERSION)
-#     --build      CFBundleVersion (CURRENT_PROJECT_VERSION); Sparkle compares it
+#     --version    CFBundleShortVersionString (MARKETING_VERSION): X.Y.Z, no
+#                  beta label (docs/versioning.md)
+#     --build      CFBundleVersion (CURRENT_PROJECT_VERSION); Sparkle compares it.
+#                  The next free number, above every release and test build so
+#                  far, never reused (docs/versioning.md)
 #     --out        where Avo-<version>-b<build>.dmg goes (default: build/)
 #     --identity   code signing identity (default: "-", ad hoc), for example
 #                  "Developer ID Application: Name (TEAMID)": then every piece
@@ -47,7 +50,7 @@ while [[ $# -gt 0 ]]; do
     --out) OUT="$2"; shift 2 ;;
     --identity) IDENTITY="$2"; shift 2 ;;
     --notarize) NOTARIZE=1; shift ;;
-    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done

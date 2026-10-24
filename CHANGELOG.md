@@ -1,8 +1,10 @@
 # Changelog
 
 All notable changes to Avo are listed here. Versions follow
-[Semantic Versioning](https://semver.org); preview builds carry a build
-number (`CFBundleVersion`) that only goes up.
+[Semantic Versioning](https://semver.org), and every build carries a build
+number (`CFBundleVersion`) that only goes up; see
+[docs/versioning.md](docs/versioning.md). Releases up to build 113 were
+named "Preview N".
 
 ## 0.3.1 Preview 4 (build 113)
 
