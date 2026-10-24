@@ -67,11 +67,14 @@ public enum HazeMenuEntry: Identifiable {
     case section(String, UUID = UUID())
     /// A line that is not an action ("No fingers registered").
     case note(String, UUID = UUID())
+    /// A line that is not an action, with its icon in the items' icon column
+    /// ("35 ms latency" beside a gauge).
+    case info(String, symbol: String, UUID = UUID())
 
     public var id: UUID {
         switch self {
         case .item(let item): item.id
-        case .separator(let id), .section(_, let id), .note(_, let id): id
+        case .separator(let id), .section(_, let id), .note(_, let id), .info(_, _, let id): id
         }
     }
 
@@ -771,7 +774,11 @@ struct HazeMenuView: View {
         let items = rows.compactMap(\.entry.menuItem)
         let marks = items.contains { $0.state != .off }
         // Illustrations are the top level's; a submenu's rows keep their room.
-        let icons = rows.contains { row in row.depth == 0 && (row.entry.menuItem.map { $0.symbol != nil || $0.image != nil } ?? false) }
+        let icons = rows.contains { row in
+            guard row.depth == 0 else { return false }
+            if case .info = row.entry { return true }
+            return row.entry.menuItem.map { $0.symbol != nil || $0.image != nil } ?? false
+        }
         VStack(alignment: .leading, spacing: 1) {
             if let header {
                 HStack(spacing: 8) {
@@ -884,6 +891,25 @@ struct HazeMenuView: View {
             .padding(.leading, 9 + indent)
             .padding(.trailing, 9)
             .padding(.vertical, 5)
+        case .info(let text, let symbol, _):
+            HStack(spacing: 10) {
+                if marks { Color.clear.frame(width: 12).padding(.trailing, -4) }
+                if icons {
+                    Image(systemName: symbol)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(QuickHaze.textTertiary)
+                        .frame(width: 18)
+                }
+                Text(verbatim: text)
+                    .font(QuickHaze.mona(12.5))
+                    .foregroundStyle(QuickHaze.textSecondary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, 9 + indent)
+            .padding(.trailing, 9)
+            .frame(minHeight: 26)
+            .accessibilityElement(children: .combine)
         }
     }
 
