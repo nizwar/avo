@@ -175,7 +175,7 @@ final class WindowChrome: NSResponder {
         watchOutside(phone)
         hideTimer?.invalidate()
         hideTimer = nil
-        // Full screen's bars are the controller's (`showBars`); a standard window's always show.
+        // Full screen's bars are the controller's (FullScreenBars); a standard window's always show.
         if !fullScreen { setBar(shown: !phone || pointerAboveScreen, animated: false) }
     }
 

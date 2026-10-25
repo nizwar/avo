@@ -43,9 +43,9 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     private var fixedLandscape = false
     /// Entering or leaving full screen: the size settles when it ends.
     private var fullScreenTransition = false
-    /// Full screen's bars are down (`showBars`), and the monitor following the pointer.
-    private var barsShown = false
-    private var fullScreenPointer: Any?
+    /// Full screen's menu bar and title bar, away from the game until the
+    /// pointer reaches the top (avo_kit's FullScreenBars).
+    private let bars: FullScreenBars
     /// A size change came while the window was hidden; done once it shows.
     private var pendingResize = false
     /// Makes only the newest resize end the frame hold.
@@ -489,8 +489,15 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         window.contentMinSize = NSSize(width: 240, height: 240)
         window.backgroundColor = .black
         window.isReleasedWhenClosed = false
+        bars = FullScreenBars(window: window)
         super.init(window: window)
         window.delegate = self
+        // While the mouse is locked for aiming the pointer stays put; Quick
+        // Settings opens under the bar, which stays while it shows; coming
+        // down, the bar's sides fit its full-screen width.
+        bars.pointerLocked = { [weak self] in self?.keymap?.isPointerLocked == true }
+        bars.keepsShown = { [weak self] in self?.quickSettings.isShown == true }
+        bars.willShow = { [weak self] in self?.fitTitlebar() }
 
         let container = NSView()
         displayView.translatesAutoresizingMaskIntoConstraints = false
@@ -915,82 +922,13 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
 
     // Full screen: no re-plug during the animation, and the size settles
     // once at its end. A fixed ratio keeps Android's size there and shows
-    // bars; Match window and follow mode take the screen's shape.
-
-    // Full screen hides the menu bar and the title bar until the pointer
-    // reaches the top of the screen, as in other apps; leaving the top hides
-    // them again. AppKit does that only when macOS hides the menu bar in full
-    // screen; with "show the menu bar" on, it keeps the menu bar and the title
-    // bar (in a window of its own, NSToolbarFullScreenWindow) over the game for
-    // good. So Avo does it itself: the menu bar through the presentation
-    // options, the title bar's window by its alpha (AppKit sets that back after
-    // its own animations, hence `keepBarsHidden`). While the mouse is locked
-    // for aiming the pointer stays put, so nothing comes down.
-
-    static let barsHidden: NSApplication.PresentationOptions = [.fullScreen, .hideDock, .hideMenuBar]
-    static let barsShown: NSApplication.PresentationOptions = [.fullScreen, .autoHideDock, .autoHideMenuBar]
-    /// How close to the top the pointer brings the bars, and how far below it
-    /// takes them away again (the menu bar and the title bar are about 62 pt).
-    static let revealEdge: CGFloat = 2
-    static let concealDistance: CGFloat = 90
+    // bars; Match window and follow mode take the screen's shape. The title
+    // bar stays away until the pointer reaches the top of the screen, as in
+    // other apps (FullScreenBars).
 
     func window(_ window: NSWindow, willUseFullScreenPresentationOptions proposedOptions: NSApplication.PresentationOptions = [])
         -> NSApplication.PresentationOptions {
-        Self.barsHidden
-    }
-
-    /// The title bar's own window while in full screen.
-    private var fullScreenTitlebar: NSWindow? {
-        guard let bar = window?.standardWindowButton(.closeButton)?.window, bar !== window else { return nil }
-        return bar
-    }
-
-    private func showBars(_ shown: Bool) {
-        guard let window, window.styleMask.contains(.fullScreen) else { return }
-        barsShown = shown
-        // The bar's window has its full-screen layout by now.
-        if shown { fitTitlebar() }
-        NSApp.presentationOptions = shown ? Self.barsShown : Self.barsHidden
-        fullScreenTitlebar?.ignoresMouseEvents = !shown
-        fullScreenTitlebar?.alphaValue = shown ? 1 : 0
-        if !shown { keepBarsHidden() }
-    }
-
-    /// AppKit animates the title bar's window after a change and leaves it
-    /// opaque: hide it again once that is over.
-    private func keepBarsHidden() {
-        for delay in [0.15, 0.4, 0.8] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self, !self.barsShown, self.window?.styleMask.contains(.fullScreen) == true,
-                      let bar = self.fullScreenTitlebar else { return }
-                bar.alphaValue = 0
-                bar.ignoresMouseEvents = true
-            }
-        }
-    }
-
-    /// Follows the pointer in full screen: the top edge brings the bars,
-    /// moving back down into the game takes them away.
-    private func watchFullScreenPointer(_ on: Bool) {
-        if let monitor = fullScreenPointer { NSEvent.removeMonitor(monitor) }
-        fullScreenPointer = nil
-        guard on else { return }
-        window?.acceptsMouseMovedEvents = true
-        fullScreenPointer = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged]) { [weak self] event in
-            guard let self, let screen = self.window?.screen, self.window?.styleMask.contains(.fullScreen) == true,
-                  !self.fullScreenTransition, self.keymap?.isPointerLocked != true else { return event }
-            let y = NSEvent.mouseLocation.y
-            if !self.barsShown, y >= screen.frame.maxY - Self.revealEdge {
-                self.showBars(true)
-            } else if self.barsShown, y < screen.frame.maxY - Self.concealDistance,
-                      // Quick Settings and the buttons' menus open under the bar: it stays while they show.
-                      !self.quickSettings.isShown, !HazeMenuPresenter.shared.isShown {
-                self.showBars(false)
-            } else if !self.barsShown, self.fullScreenTitlebar.map({ $0.alphaValue != 0 }) == true {
-                self.keepBarsHidden()
-            }
-            return event
-        }
+        bars.presentationOptions
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {
@@ -1008,21 +946,17 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     func windowDidEnterFullScreen(_ notification: Notification) {
         fullScreenTransitionEnded()
         fitTitlebar()
-        showBars(false)
-        watchFullScreenPointer(true)
+        bars.entered()
     }
 
     func windowWillExitFullScreen(_ notification: Notification) {
         fullScreenTransitionBegan()
-        watchFullScreenPointer(false)
-        barsShown = true
-        fullScreenTitlebar?.ignoresMouseEvents = false
-        fullScreenTitlebar?.alphaValue = 1
+        bars.leaving()
     }
 
     func windowDidExitFullScreen(_ notification: Notification) {
         fullScreenTransitionEnded()
-        NSApp.presentationOptions = []
+        bars.left()
         chrome?.fullScreen = false
     }
 
@@ -1038,40 +972,16 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         fullScreenTransitionEnded()
     }
 
-    // AppKit saves a full-screen window's presentation options when the app
-    // stops being active and restores them when it is active again, so the
-    // menu bar and Dock it auto-hid never linger over another app. Avo sets
-    // those options by hand to hide the bars over a game — the menu bar fully
-    // (`.hideMenuBar`), so it reveals it itself at the very top edge — which
-    // leaves AppKit's save and restore out, so Avo does it. Without this a
-    // shim left `.hideMenuBar` asserted while another app came to the front,
-    // and since the shim runs on with no window and outlives the Control
-    // Panel, the menu bar stayed out of other apps' full screen (a stuck bar,
-    // worst on a notched Mac) until the daemon was killed by hand (#11).
-
-    /// Another app is coming to the front: hand the bars back to the system
-    /// (AppKit's own full-screen options, which only auto-hide), so nothing
-    /// Avo hid lingers over it.
-    func releaseFullScreenBars() {
-        guard let window, window.styleMask.contains(.fullScreen) else { return }
-        NSApp.presentationOptions = Self.barsShown
-    }
-
-    /// Active again: take the bars back over the game, hidden or shown as
-    /// they were.
-    func reclaimFullScreenBars() {
-        guard let window, window.styleMask.contains(.fullScreen), !fullScreenTransition else { return }
-        NSApp.presentationOptions = barsShown ? Self.barsShown : Self.barsHidden
-    }
-
     private func fullScreenTransitionBegan() {
         fullScreenTransition = true
+        bars.inTransition = true
         displayView.renderer.setInteractiveResize(true)
         applyWindowLevel()
     }
 
     private func fullScreenTransitionEnded() {
         fullScreenTransition = false
+        bars.inTransition = false
         // The title bar is the window's again (or the screen's): its sides fit it.
         fitTitlebar()
         displayView.renderer.setInteractiveResize(false)
@@ -1140,7 +1050,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     }
 
     func windowWillClose(_ notification: Notification) {
-        watchFullScreenPointer(false)
+        bars.stop()
         if picture != nil { leavePictureInPicture(show: false) }
         keymap?.stop()
         frameRateHint.stop()
