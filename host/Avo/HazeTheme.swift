@@ -1306,6 +1306,19 @@ struct HazeDriftingGlows: View {
     }
 }
 
+extension View {
+    /// Empty space here moves the window, as in Avo Hub: every place without
+    /// an action of its own. Buttons, fields, tiles and the rest keep their
+    /// clicks (a child's gesture wins over this one), and the window moves
+    /// even while it is in the back. A ScrollView takes its own: its content
+    /// needs this again.
+    func windowDragArea() -> some View {
+        contentShape(Rectangle())
+            .gesture(WindowDragGesture())
+            .allowsWindowActivationEvents(true)
+    }
+}
+
 /// The Library window's haze: Avo's green glowing over near black, its
 /// light leaning toward the pointer.
 struct HazeWindowBackground: View {
@@ -1357,6 +1370,7 @@ private struct HazeFormBody: View {
                     .padding(.top, 10)
                     .padding(.bottom, 40)
             }
+            .windowDragArea()
             .scrollIndicators(.automatic)
             .onAppear { appeared = true }
         }

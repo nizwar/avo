@@ -42,6 +42,7 @@ struct LibraryHome: View {
             // Clear of the status pill over the window's bottom edge.
             .padding(.bottom, 56)
         }
+        .windowDragArea()
         .scrollIndicators(.hidden)
     }
 
@@ -488,6 +489,7 @@ struct LibraryAllCollection: View {
                 .padding(.horizontal, 34)
                 .padding(.bottom, 56)
             }
+            .windowDragArea()
             .scrollIndicators(.hidden)
         }
     }
@@ -539,6 +541,7 @@ struct GamesCollection: View {
                     .padding(.horizontal, 34)
                     .padding(.bottom, 56)
                 }
+                .windowDragArea()
                 .scrollIndicators(.hidden)
             }
         }
@@ -632,6 +635,7 @@ struct AppsCollection: View {
                     .padding(.horizontal, 34)
                     .padding(.bottom, 56)
                 }
+                .windowDragArea()
                 .scrollIndicators(.hidden)
             }
         }
@@ -671,6 +675,7 @@ struct SearchResults: View {
                 .padding(.horizontal, 34)
                 .padding(.bottom, 56)
             }
+            .windowDragArea()
             .scrollIndicators(.hidden)
         }
     }

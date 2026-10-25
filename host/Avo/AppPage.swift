@@ -63,6 +63,7 @@ struct AppPage: View {
                 .animation(.easeOut(duration: 0.7), value: appeared)
             }
         }
+        .windowDragArea()
         .scrollIndicators(.hidden)
         .background(Haze.pageBase)
         .onAppear { appeared = true }

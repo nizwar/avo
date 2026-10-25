@@ -136,6 +136,7 @@ struct LibraryView: View {
         }
         .animation(Haze.Motion.animation(Haze.Motion.content, reduceMotion: reduceMotion), value: router.page)
         .animation(Haze.Motion.animation(Haze.Motion.hover, reduceMotion: reduceMotion), value: dropTargeted)
+        .windowDragArea()
         .ignoresSafeArea()
         .hazeTracksPointer(pointer)
         // The pointer effects rest while the window is in the background.

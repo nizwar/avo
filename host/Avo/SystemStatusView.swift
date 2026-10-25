@@ -556,6 +556,7 @@ private struct ProcessTable: View {
                     }
                     .padding(.vertical, 4)
                 }
+                .windowDragArea()
                 .scrollIndicators(.automatic)
             }
         }

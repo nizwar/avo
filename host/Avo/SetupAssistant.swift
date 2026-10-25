@@ -132,6 +132,7 @@ struct SetupAssistantView: View {
         // smallest window it makes for this view: 960 × 640, which the
         // Setup window keeps (SetupWindow).
         .frame(minWidth: Self.size.width, maxWidth: .infinity, minHeight: Self.size.height - Self.titleBarInset, maxHeight: .infinity)
+        .windowDragArea()
         .background(Haze.windowBase)
         // Under the hidden title bar too: the rail leaves room for the window buttons.
         .ignoresSafeArea()
@@ -334,6 +335,7 @@ private struct WelcomeScreen: View {
                         .padding(.horizontal, 64)
                         .padding(.bottom, 12)
                 }
+                .windowDragArea()
                 .scrollBounceBehavior(.basedOnSize)
                 .scrollIndicators(.automatic)
                 StepDots(count: SetupAssistant.Step.allCases.count, current: 0)
@@ -679,6 +681,7 @@ private struct SetupPage<Content: View>: View {
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(SetupAssistantView.pageInsets)
         }
+        .windowDragArea()
         .scrollBounceBehavior(.basedOnSize)
         .scrollIndicators(.automatic)
         // Within the insets: content at rest is never faded.

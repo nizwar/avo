@@ -73,6 +73,7 @@ struct LibraryNotifications: View {
                         }
                         .padding(.bottom, 56)
                     }
+                    .windowDragArea()
                     .scrollIndicators(.hidden)
                     .transition(.opacity)
                 }

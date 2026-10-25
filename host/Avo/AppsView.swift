@@ -32,6 +32,7 @@ struct AppsView: View {
                     }
                     .padding(24)
                 }
+                .windowDragArea()
             }
         }
         .searchable(text: $search, placement: .toolbar, prompt: "Search apps")

@@ -30,6 +30,9 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     private var marked: NSAttributedString?
     /// Keys whose down event was sent as an Android key event.
     private var keysDown: Set<UInt16> = []
+    /// The left button went down beside the picture: the press moves the
+    /// window, and nothing of it reaches Android.
+    private var movingWindow = false
 
     init(renderer: MetalRenderer) {
         self.renderer = renderer
@@ -121,6 +124,13 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
         // The wheel's finger lets go before a click's touch.
         wheel.interrupt()
         if keymap?.mouse(.left, down: true) == true { return }
+        // The bars beside a frame that does not fill the window move it
+        // (DisplaySizing.movesWindow); only the picture is Android's.
+        movingWindow = DisplaySizing.movesWindow(at: convert(event.locationInWindow, from: nil), picture: displayRect)
+        if movingWindow {
+            window?.performDrag(with: event)
+            return
+        }
         let p = displayPoint(event.locationInWindow)
         sendTouches(pointer.mouseDown(x: p.x, y: p.y))
     }
@@ -130,6 +140,7 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
             keymap?.lockedMotion(dx: event.deltaX, dy: event.deltaY)
             return
         }
+        if movingWindow { return }
         let p = displayPoint(event.locationInWindow)
         sendTouches(pointer.mouseDragged(x: p.x, y: p.y))
     }
@@ -145,6 +156,10 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
 
     override func mouseUp(with event: NSEvent) {
         if keymap?.mouse(.left, down: false) == true { return }
+        if movingWindow {
+            movingWindow = false
+            return
+        }
         let p = displayPoint(event.locationInWindow)
         sendTouches(pointer.mouseUp(x: p.x, y: p.y))
     }

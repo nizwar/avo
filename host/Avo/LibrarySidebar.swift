@@ -50,6 +50,7 @@ struct LibrarySidebar: View {
                         }
                     }
                 }
+                .windowDragArea()
                 .scrollIndicators(.never)
                 .frame(maxHeight: 220)
                 .fixedSize(horizontal: false, vertical: true)
