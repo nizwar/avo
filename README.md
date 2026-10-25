@@ -165,6 +165,7 @@ flowchart LR
 | [docs/protocol.md](docs/protocol.md) | Host ↔ guest channels and message formats |
 | [docs/for-game-developers.md](docs/for-game-developers.md) | How apps can detect Avo, and what differs from a phone |
 | [docs/releasing.md](docs/releasing.md) | Building, signing and publishing releases and updates |
+| [docs/versioning.md](docs/versioning.md) | Version numbers, betas and build numbers, and when each goes up |
 | [docs/zero-copy.md](docs/zero-copy.md) | What it would take to draw frames without copying them |
 | [docs/brand.md](docs/brand.md) | Logo, colours and type |
 | [docs/spec.md](docs/spec.md) | The original product specification (Indonesian) |
