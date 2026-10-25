@@ -36,6 +36,7 @@ helpers:
 	guest/macstate/build.sh
 	guest/fingerprint/build.sh
 	guest/gpuprofile/build.sh
+	guest/glwrap/build.sh
 	guest/gfxsync/build.sh
 	guest/widgets/build.sh
 
