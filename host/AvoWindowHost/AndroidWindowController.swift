@@ -81,6 +81,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     private var backgroundAfterFullScreen = false
     /// The key mapping editor is open over the window.
     private var editingKeymap = false
+    /// For the app: Run in Background waits while an editor is open.
+    var isEditingKeymap: Bool { editingKeymap }
     /// The Control Panel asked for the editor before the display opened
     /// (`editKeyMappingWhenReady`).
     private var editKeyMappingOnAttach = false
@@ -89,14 +91,14 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// Fingerprints (FingerprintMenu.swift). Not one of `titlebarActions`: it
     /// works without the display, also on Android's lock screen.
     private lazy var fingerprintMenu = FingerprintMenu(package: app?.package ?? "", appName: app?.label ?? "",
-                                                       notice: { [weak self] text in self?.notice.show(text) })
+                                                       notice: { [weak self] text in self?.showNotice(text) })
     /// The settings that apply at once, in an overlay under the title bar
     /// (QuickSettings.swift). Also before the display opens: graphics apply to it.
     private lazy var quickSettings = QuickSettingsOverlay(target: self)
     /// Translate Screen: the text on screen, translated, over the app
     /// (ScreenTranslation.swift). Esc is the game's while the key mapping has the keys.
     lazy var translation = ScreenTranslationController(displayView: displayView, button: translateButton,
-                                                       notice: { [weak self] text in self?.notice.show(text) },
+                                                       notice: { [weak self] text in self?.showNotice(text) },
                                                        keysBelongToGame: { [weak self] in self?.keymapTakesClicks == true },
                                                        engine: { [weak self] in self?.client })
     /// Keeps a ProMotion or adaptive screen at Android's rate above 60 Hz.
@@ -264,6 +266,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// (ShimAppDelegate.runInBackground). Full screen ends first: its Space
     /// would stay behind, black, with no window, Dock icon or menu bar.
     @objc func runInBackground() {
+        guard !editingKeymap else { return }
         if let window, window.styleMask.contains(.fullScreen) {
             backgroundAfterFullScreen = true
             window.toggleFullScreen(nil)
@@ -419,7 +422,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
             do {
                 try await self?.client?.shakeDevice()
             } catch {
-                self?.notice.show(error.localizedDescription)
+                self?.showNotice(error.localizedDescription)
             }
         }
     }
@@ -459,7 +462,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         do {
             NSWorkspace.shared.open(try CaptureFiles.folder(directory))
         } catch {
-            notice.show(error.localizedDescription)
+            showNotice(error.localizedDescription)
         }
     }
 
@@ -669,7 +672,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
                 self.keymap = keymap
                 // The editor takes the controller from Android while it is open.
                 keymap.onGamepadOwner = { GamepadForwarder.shared.update() }
-                keymap.onNotice = { [weak self] text in self?.notice.show(text) }
+                keymap.onNotice = { [weak self] text in self?.showNotice(text) }
                 keymap.onProfile = { [weak self] profile in
                     self?.hints.profile = profile
                     self?.keyMappingChanged(profile != nil)
@@ -678,6 +681,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
                 keymap.onEditing = { [weak self] editing in
                     self?.editingKeymap = editing
                     self?.hints.editing = editing
+                    self?.backgroundLight.isEnabled = !editing
                     if !editing { self?.makeRoom(forPanel: false) }
                 }
                 keymap.onPanelInside = { [weak self] inside in self?.makeRoom(forPanel: inside) }
@@ -690,7 +694,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
                 hints.mode = keymap.mode
                 showGameMode(keymap.gameMode)
                 if keymap.profile != nil {
-                    notice.show(keymap.gameMode
+                    showNotice(keymap.gameMode
                         ? String(localized: "Game Mode is on: the key mapping is active. ⌘G turns it off.", bundle: .windowHost)
                         : String(localized: "This app has a key mapping: ⌘G turns on Game Mode.", bundle: .windowHost))
                 }
@@ -868,7 +872,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
             guard self?.resizeGeneration == generation else { return }
             renderer.releaseHold()
         }
-        if announce, !quiet { notice.show(String(localized: "Switching to \(switchLabel(proposed))…", bundle: .windowHost)) }
+        if announce, !quiet { showNotice(String(localized: "Switching to \(switchLabel(proposed))…", bundle: .windowHost)) }
     }
 
     /// "1280 × 720", "67% render scale" or "the window’s resolution".
@@ -1121,9 +1125,18 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// first (`askToQuit`). Closes Android asks for, and quitting the app,
     /// never come here.
     func windowShouldClose(_ sender: NSWindow) -> Bool {
+        // The key mapping editor open with changes asks first (Save, Discard,
+        // Keep Editing); closing again then also asks about the game.
+        if let keymap, !keymap.mayClose(answer: { [weak sender] close in if close { sender?.performClose(nil) } }) { return false }
         guard asksBeforeQuitting else { return true }
         askToQuit(over: sender) { [weak self] in self?.window?.close() }
         return false
+    }
+
+    /// Whether the window may go as the app quits: the key mapping editor,
+    /// open with changes, asks first, and `answer` gets its verdict.
+    func keymapMayClose(answer: @escaping @MainActor (Bool) -> Void) -> Bool {
+        keymap?.mayClose(answer: answer) ?? true
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -1221,7 +1234,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         let name = CaptureFiles.baseName(app: app.label, date: .now)
         Task {
             guard let image = await displayView.renderer.captureFrame() else {
-                notice.show(CaptureFiles.Failure.noFrame.localizedDescription)
+                showNotice(CaptureFiles.Failure.noFrame.localizedDescription)
                 return
             }
             // The window's content, in Picture in Picture too.
@@ -1236,7 +1249,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
                     NSWorkspace.shared.activateFileViewerSelecting([url])
                 }
             } catch {
-                notice.show(String(localized: "Could not save the screenshot: \(error.localizedDescription)", bundle: .windowHost))
+                showNotice(String(localized: "Could not save the screenshot: \(error.localizedDescription)", bundle: .windowHost))
             }
         }
     }
@@ -1251,7 +1264,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     private func startRecording() {
         guard let app, recorder == nil, displayID != nil else { return }
         guard let size = displayView.renderer.frameSize else {
-            notice.show(CaptureFiles.Failure.noFrame.localizedDescription)
+            showNotice(CaptureFiles.Failure.noFrame.localizedDescription)
             return
         }
         do {
@@ -1267,9 +1280,9 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
             showRecording(true)
             recordingChangedVisibility()
             CaptureFeedback.play(.recordingStarted)
-            notice.show(String(localized: "Recording the screen. ⇧⌘R stops it.", bundle: .windowHost))
+            showNotice(String(localized: "Recording the screen. ⇧⌘R stops it.", bundle: .windowHost))
         } catch {
-            notice.show(String(localized: "Could not record the screen: \(error.localizedDescription)", bundle: .windowHost))
+            showNotice(String(localized: "Could not record the screen: \(error.localizedDescription)", bundle: .windowHost))
         }
     }
 
@@ -1312,7 +1325,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             }
         case let .failed(message):
-            notice.show(String(localized: "Could not record the screen: \(message)", bundle: .windowHost))
+            showNotice(String(localized: "Could not record the screen: \(message)", bundle: .windowHost))
         }
     }
 
@@ -1380,11 +1393,14 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         }
         // The editor is drawn over the window, which Picture in Picture hides.
         if item.action == #selector(toggleKeymapEditor) {
-            // Create while there is no key mapping yet, as the app's page says.
-            item.title = keymap?.profile == nil ? String(localized: "Create Key Mapping…", bundle: .windowHost)
-                                                : String(localized: "Edit Key Mapping…", bundle: .windowHost)
+            // Create while there is no key mapping yet, as the app's page says;
+            // while the editor is open, the item closes it.
+            item.title = editingKeymap ? String(localized: "Close Key Mapping Editor", bundle: .windowHost)
+                : keymap?.profile == nil ? String(localized: "Create Key Mapping…", bundle: .windowHost)
+                : String(localized: "Edit Key Mapping…", bundle: .windowHost)
             return picture == nil
         }
+        if item.action == #selector(runInBackground) { return !editingKeymap }
         if item.action == #selector(toggleKeymapHints) {
             item.state = KeymapHints.visible ? .on : .off
             return keymap != nil
@@ -1564,9 +1580,11 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         RenderOptions(filter: graphics.settings.filter, sharpness: graphics.settings.sharpness, fxaa: graphics.settings.antiAliasing == .fxaa)
     }
 
-    /// A message over the game (a failed save, from the app delegate).
+    /// A message over the game (a failed save, from the app delegate): in
+    /// the key mapping editor's panel while it is open (the window's notice
+    /// would be under the editor).
     func showNotice(_ text: String) {
-        notice.show(text)
+        if keymap?.showInEditor(text) != true { notice.show(text) }
     }
 
     /// The window's shape rules for the current mode. A locked shape (a
@@ -1794,7 +1812,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         if stored != nil, !UserDefaults.standard.bool(forKey: key) {
             UserDefaults.standard.set(true, forKey: key)
             quietNextSwitch = true
-            notice.show(String(localized: "Graphics settings saved for \(app.label). View › Use Default Graphics Settings undoes this.",
+            showNotice(String(localized: "Graphics settings saved for \(app.label). View › Use Default Graphics Settings undoes this.",
                                bundle: .windowHost))
         }
         app.applyLocalOverride(stored)
@@ -1824,7 +1842,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         let wasOff = hudLevel == .off
         hudOverride = level
         applyHUDLevel()
-        if wasOff, level != .off { notice.show(String(localized: "Performance HUD on. ⌥⌘P hides it.", bundle: .windowHost)) }
+        if wasOff, level != .off { showNotice(String(localized: "Performance HUD on. ⌥⌘P hides it.", bundle: .windowHost)) }
     }
 
     /// Checkmarks and enabled state of the View menu's graphics items; nil

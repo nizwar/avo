@@ -184,7 +184,9 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     // MARK: Trackpad and wheel
 
     override func scrollWheel(with event: NSEvent) {
-        if keymap?.scroll(event) == true { return }
+        // Scrolling over a window in the background (macOS sends it to the
+        // window under the pointer) is the app's, not its key mapping's.
+        if window?.isKeyWindow == true, keymap?.scroll(event) == true { return }
         let p = displayPoint(event.locationInWindow)
         // The mouse wheel, and in Mouse Wheel mode the trackpad too, by the
         // scroll mode (WheelScrolling.swift).
