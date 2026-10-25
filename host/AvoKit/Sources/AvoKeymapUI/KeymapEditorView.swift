@@ -39,6 +39,8 @@ final class KeymapEditorView: NSView {
         /// on, which differs when the handle was kept on the display.
         case resize(id: String, offset: CGVector)
         case swipeEnd(id: String)
+        /// A scroll bar's end: its wheel-down end (`start`) or wheel-up one.
+        case barEnd(id: String, start: Bool)
         case hero(offset: CGVector)
         /// An eye's or anchor tap's area by `edges` (a corner: two), or as a
         /// whole when there are none: the control as the drag began, changed
@@ -51,6 +53,7 @@ final class KeymapEditorView: NSView {
         case resize(String)
         case dpadSlot(String, Int)
         case swipeEnd(String)
+        case barEnd(String, start: Bool)
         case body(String)
         /// An edge or corner of the selected control's area.
         case areaEdge(String, NormalizedRect.Edges)
@@ -62,7 +65,7 @@ final class KeymapEditorView: NSView {
         var controlID: String? {
             switch self {
             case .remove(let id), .resize(let id), .dpadSlot(let id, _), .swipeEnd(let id), .body(let id), .areaEdge(let id, _),
-                 .area(let id): id
+                 .area(let id), .barEnd(let id, _): id
             case .hero: nil
             }
         }
@@ -355,6 +358,7 @@ final class KeymapEditorView: NSView {
             self?.setActsIn(modes)
             self?.refocus()
         }
+        model.setClickZone = { [weak self] on in self?.setClickZone(on) }
         model.setDPadSlot = { [weak self] slot in
             guard let self, let id = selected, let control = profile.controls.first(where: { $0.id == id }) else { return }
             dpadSlot = slot
@@ -496,6 +500,10 @@ final class KeymapEditorView: NSView {
                 if near(c, r) { return .body(control.id) }
             case let .mobaMove(center, radius):
                 if near(point(center), dpadRadius(radius)) { return .body(control.id) }
+            case let .scrollBar(from, to, _, _):
+                if near(point(to), 12) { return .barEnd(control.id, start: false) }
+                if near(point(from), 12) { return .barEnd(control.id, start: true) }
+                if distance(from: p, to: point(from), point(to)) <= bubbleRadius(control) { return .body(control.id) }
             case let .swipe(from, to, _):
                 if near(point(to), 12) { return .swipeEnd(control.id) }
                 if near(point(from), bubbleRadius(control)) || distance(from: p, to: point(from), point(to)) <= 8 { return .body(control.id) }
@@ -539,7 +547,8 @@ final class KeymapEditorView: NSView {
     private func minimumAreaSize(_ control: Control) -> (width: Double, height: Double) {
         let rect = displayRect()
         let aspect = rect.height > 0 && rect.width > 0 ? rect.width / rect.height : 16.0 / 9.0
-        let side = if case .clickArea = control.kind { Control.minimumClickAreaSide } else { Control.minimumAreaSide }
+        let small = control.clickZone != nil || { if case .clickArea = control.kind { true } else { false } }()
+        let side = small ? Control.minimumClickAreaSide : Control.minimumAreaSide
         return (side / aspect, side)
     }
 
@@ -562,6 +571,16 @@ final class KeymapEditorView: NSView {
     // MARK: Editing
 
     private func move(_ control: inout Control, to p: NormalizedPoint) {
+        let before = anchor(of: control)
+        moveButton(&control, to: p)
+        // A button's click zone goes with it.
+        if control.clickZone != nil {
+            let after = anchor(of: control)
+            control.moveArea(dx: after.x - before.x, dy: after.y - before.y)
+        }
+    }
+
+    private func moveButton(_ control: inout Control, to p: NormalizedPoint) {
         switch control.kind {
         case .tap: control.kind = .tap(p)
         case .hold: control.kind = .hold(p)
@@ -586,6 +605,14 @@ final class KeymapEditorView: NSView {
             control.kind = .swipe(from: p, to: NormalizedPoint(min(max(p.x + dx, 0), 1), min(max(p.y + dy, 0), 1)), milliseconds: ms)
         case .mobaMove(_, let radius): control.kind = .mobaMove(center: p, radius: radius)
         case let .smartCast(_, radius, reach): control.kind = .smartCast(p, radius: radius, reach: reach)
+        case let .scrollBar(from, to, rest, step):
+            // Its resting thumb under the pointer, the track the same, on the screen.
+            guard let at = control.scrollPoint(at: rest) else { return }
+            var dx = p.x - at.x, dy = p.y - at.y
+            dx = min(max(dx, -min(from.x, to.x)), 1 - max(from.x, to.x))
+            dy = min(max(dy, -min(from.y, to.y)), 1 - max(from.y, to.y))
+            control.kind = .scrollBar(from: NormalizedPoint(from.x + dx, from.y + dy), to: NormalizedPoint(to.x + dx, to.y + dy),
+                                      rest: rest, step: step)
         case .macro, .hotkey: break
         }
     }
@@ -652,7 +679,8 @@ final class KeymapEditorView: NSView {
         guard let id = selected, let i = index(of: id) else { return true }
         var control = profile.controls[i]
         if held == [.option] {
-            if control.area != nil {
+            // An area of its own moves; a button moves with its click zone (`move`).
+            if control.fingerArea != nil || { if case .clickArea = control.kind { true } else { false } }() {
                 control.moveArea(dx: direction.x * Self.keyStep, dy: direction.y * Self.keyStep)
             } else {
                 let a = anchor(of: control)
@@ -746,6 +774,19 @@ final class KeymapEditorView: NSView {
         case .clickArea:
             setStatus(String(localized: "A click area needs no key: it acts when it is clicked while the mouse is free.", bundle: .avoKit))
             return
+        case .scrollBar where dpadSlot == Self.runSlot:
+            // The key that drags the thumb back to rest.
+            guard !trigger.isMomentary else {
+                setStatus(String(localized: "The wheel drags the scroll bar: press a key to reset it.", bundle: .avoKit), problem: true)
+                return
+            }
+            profile.controls[index].reset = trigger
+            dpadSlot = 0
+            setStatus(String(localized: "\(short(trigger)) drags the thumb back to where it rests.", bundle: .avoKit))
+        case .scrollBar:
+            setStatus(String(localized: "A scroll bar follows the wheel. To give it a reset key, click Reset key in the panel, then press the key.",
+                             bundle: .avoKit))
+            return
         default:
             if trigger.isMomentary {
                 switch control.kind {
@@ -791,6 +832,11 @@ final class KeymapEditorView: NSView {
             setStatus(String(localized: "Press its key. Drag ↘ to set how far it reaches.", bundle: .avoKit))
         case .hotkey:
             setStatus(String(localized: "Press the hotkey’s key, then add what it does in the panel.", bundle: .avoKit))
+        case .scrollBar where dpadSlot == Self.runSlot:
+            setStatus(String(localized: "Press the key that drags the thumb back to rest.", bundle: .avoKit))
+        case .scrollBar:
+            setStatus(String(localized: "Drag the track over the game’s slider and its ends to the slider’s ends; the ● is where the thumb rests.",
+                             bundle: .avoKit))
         case .clickArea:
             setStatus(String(localized: "Put the area over the game’s button and size it by its edges, then add what a click does in the panel.",
                              bundle: .avoKit))
@@ -833,6 +879,9 @@ final class KeymapEditorView: NSView {
         case .swipeEnd(let id)?:
             select(id)
             drag = .swipeEnd(id: id)
+        case let .barEnd(id, start)?:
+            select(id)
+            drag = .barEnd(id: id, start: start)
         case .body(let id)?:
             select(id)
             drag = moveDrag(id, from: p)
@@ -903,6 +952,9 @@ final class KeymapEditorView: NSView {
         case .swipeEnd(let id):
             guard let i = index(of: id), case let .swipe(from, _, ms) = profile.controls[i].kind else { return }
             profile.controls[i].kind = .swipe(from: from, to: normalized(p), milliseconds: ms)
+        case let .barEnd(id, start):
+            guard let i = index(of: id) else { return }
+            dragScrollEnd(&profile.controls[i], start: start, to: normalized(p))
         case .hero(let offset):
             profile.hero = normalized(CGPoint(x: p.x + offset.dx, y: p.y + offset.dy))
         }
@@ -941,7 +993,7 @@ final class KeymapEditorView: NSView {
         let target = hit(at: p)
         switch target {
         case .remove?, .dpadSlot?: NSCursor.pointingHand.set()
-        case .resize?, .swipeEnd?: NSCursor.crosshair.set()
+        case .resize?, .swipeEnd?, .barEnd?: NSCursor.crosshair.set()
         case .body?, .hero?, .area?: NSCursor.openHand.set()
         case .areaEdge(_, let edges)?: NSCursor.frameResize(position: Self.resizePosition(edges), directions: .all).set()
         // On the game: a click puts a tap there.
@@ -968,7 +1020,7 @@ final class KeymapEditorView: NSView {
 
     private func sameKind(_ a: Hit?, _ b: Hit?) -> Bool {
         switch (a, b) {
-        case (.remove?, .remove?), (.resize?, .resize?), (.dpadSlot?, .dpadSlot?), (.swipeEnd?, .swipeEnd?), (.body?, .body?),
+        case (.remove?, .remove?), (.resize?, .resize?), (.dpadSlot?, .dpadSlot?), (.swipeEnd?, .swipeEnd?), (.barEnd?, .barEnd?), (.body?, .body?),
              (.area?, .area?), (.hero?, .hero?), (nil, nil): true
         case let (.areaEdge(_, x)?, .areaEdge(_, y)?): x == y
         default: false
@@ -1456,6 +1508,8 @@ final class KeymapEditorView: NSView {
             add(.swipe(from: from, to: NormalizedPoint(from.x, max(from.y - 0.2, 0)), milliseconds: 150), prefix: "swipe", exactly: exactly)
         case .clickArea:
             addClickArea(at: p)
+        case .scrollBar:
+            addScrollBar(at: p)
         case .hotkey:
             add(.hotkey, prefix: "hotkey", exactly: true)
         case .eye:
@@ -1558,6 +1612,60 @@ final class KeymapEditorView: NSView {
 
     /// A click area about a button's size around where it was let go (the
     /// top right corner, where games put Close, when clicked in the panel).
+    /// A scroll bar up and down the right of the screen, where games put a
+    /// map's zoom (or around where it was let go): wheel up drags it up.
+    private func addScrollBar(at p: NormalizedPoint?) {
+        let center = p ?? NormalizedPoint(0.92, 0.5)
+        let half = 0.2
+        let y = min(max(center.y, half), 1 - half)
+        add(.scrollBar(from: NormalizedPoint(center.x, y + half), to: NormalizedPoint(center.x, y - half),
+                       rest: Control.defaultScrollRest, step: Control.defaultScrollStep), prefix: "scroll", exactly: p != nil)
+    }
+
+    /// Follows a scroll bar's end, kept in line with the other end (up and
+    /// down or across, as the track runs) and at least `minimumScrollTrack` from it.
+    private func dragScrollEnd(_ control: inout Control, start: Bool, to p: NormalizedPoint) {
+        guard case let .scrollBar(from, to, rest, step) = control.kind else { return }
+        let fixed = start ? to : from
+        let vertical = control.isVerticalScrollBar
+        var end = vertical ? NormalizedPoint(fixed.x, p.y) : NormalizedPoint(p.x, fixed.y)
+        let rect = displayRect()
+        let aspect = rect.height > 0 && rect.width > 0 ? rect.width / rect.height : 16.0 / 9.0
+        let minimum = vertical ? Control.minimumScrollTrack : Control.minimumScrollTrack / aspect
+        let moving = start ? from : to
+        // It keeps its side of the other end.
+        let sign: Double = vertical ? (moving.y >= fixed.y ? 1 : -1) : (moving.x >= fixed.x ? 1 : -1)
+        if vertical {
+            end.y = sign > 0 ? max(end.y, fixed.y + minimum) : min(end.y, fixed.y - minimum)
+            end.y = min(max(end.y, 0), 1)
+        } else {
+            end.x = sign > 0 ? max(end.x, fixed.x + minimum) : min(end.x, fixed.x - minimum)
+            end.x = min(max(end.x, 0), 1)
+        }
+        control.kind = start ? .scrollBar(from: end, to: to, rest: rest, step: step) : .scrollBar(from: from, to: end, rest: rest, step: step)
+    }
+
+    /// A click zone around the selected control's button (a square on the
+    /// screen a little bigger than it), or none.
+    private func setClickZone(_ on: Bool) {
+        guard let id = selected, let i = index(of: id), profile.controls[i].canHaveClickZone else { return }
+        if !on {
+            profile.controls[i].clickZone = nil
+            setStatus(String(localized: "Clicks on the game no longer press “\(name(of: profile.controls[i]))”.", bundle: .avoKit))
+        } else if profile.controls[i].clickZone == nil {
+            let rect = displayRect()
+            let aspect = rect.height > 0 && rect.width > 0 ? rect.width / rect.height : 16.0 / 9.0
+            let c = anchor(of: profile.controls[i])
+            let h = max(Double(bubbleRadius(profile.controls[i]) / max(rect.height, 1)) * 2.6, Control.minimumClickAreaSide), w = h / aspect
+            let area = NormalizedRect(0, 0, w, h).offsetBy(dx: c.x - w / 2, dy: c.y - h / 2)
+            profile.controls[i].clickZone = ClickZone(area: area)
+            setStatus(String(localized: "A click inside the area presses “\(name(of: profile.controls[i]))” now. Drag the area or its edges over the game’s button.",
+                             bundle: .avoKit))
+        }
+        needsDisplay = true
+        refocus()
+    }
+
     private func addClickArea(at p: NormalizedPoint?) {
         let rect = displayRect()
         let aspect = rect.height > 0 && rect.width > 0 ? rect.width / rect.height : 16.0 / 9.0
@@ -1730,6 +1838,10 @@ final class KeymapEditorView: NSView {
             if case .clickArea = control.kind {
                 painter.drawClickArea(control, selected: control.id == selected, hovered: control.id == hovered?.controlID)
             }
+        }
+        // The buttons' click zones.
+        for control in shown where control.clickZone != nil && control.canHaveClickZone {
+            painter.drawClickZone(control, selected: control.id == selected, hovered: control.id == hovered?.controlID)
         }
         // Eyes first: buttons are drawn over their area.
         for control in shown where isEye(control) {
@@ -2287,6 +2399,7 @@ final class KeymapEditorView: NSView {
         case .smartCast: String(localized: "Smart Cast", bundle: .avoKit)
         case .hotkey: String(localized: "Hotkey", bundle: .avoKit)
         case .clickArea: String(localized: "Click Area", bundle: .avoKit)
+        case .scrollBar: String(localized: "Scroll Bar", bundle: .avoKit)
         }
     }
 
@@ -2305,6 +2418,7 @@ final class KeymapEditorView: NSView {
         case .smartCast: KeymapPaletteItem.smartCast.symbol
         case .hotkey: KeymapPaletteItem.hotkey.symbol
         case .clickArea: KeymapPaletteItem.clickArea.symbol
+        case .scrollBar: KeymapPaletteItem.scrollBar.symbol
         }
     }
 
@@ -2442,7 +2556,7 @@ final class KeymapEditorView: NSView {
     /// eye's lock key) and has none yet.
     private static func needsKey(_ control: Control) -> Bool {
         switch control.kind {
-        case .dpad, .aim, .clickArea: false
+        case .dpad, .aim, .clickArea, .scrollBar: false
         default: control.triggers.isEmpty
         }
     }

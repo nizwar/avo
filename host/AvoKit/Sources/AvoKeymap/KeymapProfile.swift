@@ -285,6 +285,14 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         /// inventory: back to combat, the mouse locked to the eye). With
         /// `passThrough` the click also touches the game there.
         case clickArea(NormalizedRect, passThrough: Bool)
+        /// A slider of the game (a map's zoom): each notch of the wheel drags
+        /// its thumb a `step` (a fraction of the track) along the track from
+        /// `from` to `to`, wheel up towards `to`, never past either end. The
+        /// thumb starts at `rest` (0 is `from`, 1 is `to`), goes back there
+        /// in a new mode, and is dragged back there by the control's `reset`
+        /// key. The finger stays down while the wheel turns and lets go a
+        /// moment after it stops.
+        case scrollBar(from: NormalizedPoint, to: NormalizedPoint, rest: Double, step: Double)
     }
 
     public var id: String
@@ -310,6 +318,13 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
     /// What it does besides its touch, in order (`canCarryActions`).
     /// Older versions of Avo leave them out, and the touch still works.
     public var actions: [ControlAction]
+    /// A part of the game that, clicked while the mouse is free, presses the
+    /// control as its key would (`canHaveClickZone`): the press while the
+    /// button is down, its actions once, and the click itself never reaches
+    /// the game, so the game's button is touched once. Nil: none.
+    public var clickZone: ClickZone?
+    /// A scroll bar's key that drags its thumb back to its rest point.
+    public var reset: Trigger?
 
     public static let defaultSize = 0.035
     public static let sizeRange = 0.012...0.3
@@ -343,9 +358,16 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
     /// The shortest side the editor gives a click area, as a fraction of
     /// the display height: the game's smallest buttons (a close ×).
     public static let minimumClickAreaSide = 0.04
+    /// A new scroll bar: a step a notch (a tenth of the track), resting halfway.
+    public static let defaultScrollStep = 0.1
+    public static let scrollStepRange = 0.01...0.5
+    public static let defaultScrollRest = 0.5
+    /// The shortest track the editor makes, as a fraction of the display height.
+    public static let minimumScrollTrack = 0.05
 
     public init(id: String, kind: Kind, triggers: [Trigger] = [], layer: ControlLayer? = nil, modes: [String]? = nil,
-                size: Double? = nil, dpadButtons: Bool = false, run: JoystickRun? = nil, actions: [ControlAction] = []) {
+                size: Double? = nil, dpadButtons: Bool = false, run: JoystickRun? = nil, actions: [ControlAction] = [],
+                clickZone: ClickZone? = nil, reset: Trigger? = nil) {
         self.id = id
         self.kind = kind
         self.triggers = triggers
@@ -355,6 +377,8 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         self.dpadButtons = dpadButtons
         self.run = run
         self.actions = actions
+        self.clickZone = clickZone
+        self.reset = reset
     }
 
     // Flat JSON: {"type": "tap", "id": "jump", "triggers": ["key:Space"], "position": [0.9, 0.7]}
@@ -362,6 +386,7 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         case type, id, triggers, layer, modes, size, position, center, radius, up, down, left, right, stick, dpadButtons = "dpad_buttons"
         case area, sensitivity, adsSensitivity = "ads_sensitivity", exponent, deadzone, invertY = "invert_y", origin
         case toggle, from, to, ms, interval, steps, reach, mode, lock, run, actions, passThrough = "pass_through"
+        case rest, step, reset, clickZone = "click_zone"
     }
 
     /// The `type` values this version reads; KeymapProfile skips the others.
@@ -370,7 +395,7 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
     /// as a hotkey with that action (`legacyTypes`).
     static let knownTypes = Set<String>([
         "tap", "hold", "dpad", "aim", "ads", "swipe", "repeat_tap", "macro", "anchor", "moba_move", "smart_cast",
-        "hotkey", "click_area",
+        "hotkey", "click_area", "scroll_bar",
     ]).union(legacyTypes)
     static let legacyTypes: Set<String> = ["switch_mode", "mouse_look"]
 
@@ -385,6 +410,9 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         run = nil
         // Newer than the controls: a list this version cannot read leaves them out.
         actions = ((try? c.decodeIfPresent([ActionEntry].self, forKey: .actions)) ?? nil)?.compactMap(\.action) ?? []
+        // Newer than the controls as well: one this version cannot read is no zone.
+        clickZone = (try? c.decodeIfPresent(ClickZone.self, forKey: .clickZone)) ?? nil
+        reset = nil
         let type = try c.decode(String.self, forKey: .type)
         switch type {
         case "tap": kind = .tap(try c.decode(NormalizedPoint.self, forKey: .position))
@@ -442,6 +470,11 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
                               reach: try c.decodeIfPresent(Double.self, forKey: .reach) ?? Self.defaultCastReach)
         case "hotkey":
             kind = .hotkey
+        case "scroll_bar":
+            kind = .scrollBar(from: try c.decode(NormalizedPoint.self, forKey: .from), to: try c.decode(NormalizedPoint.self, forKey: .to),
+                              rest: try c.decodeIfPresent(Double.self, forKey: .rest) ?? Self.defaultScrollRest,
+                              step: try c.decodeIfPresent(Double.self, forKey: .step) ?? Self.defaultScrollStep)
+            reset = (try? c.decodeIfPresent(Trigger.self, forKey: .reset)) ?? nil
         case "click_area":
             kind = .clickArea(try c.decode(NormalizedRect.self, forKey: .area),
                               passThrough: try c.decodeIfPresent(Bool.self, forKey: .passThrough) ?? true)
@@ -464,6 +497,7 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         try c.encodeIfPresent(modes, forKey: .modes)
         try c.encodeIfPresent(size, forKey: .size)
         if !actions.isEmpty { try c.encode(actions, forKey: .actions) }
+        try c.encodeIfPresent(clickZone, forKey: .clickZone)
         switch kind {
         case .tap(let point):
             try c.encode("tap", forKey: .type)
@@ -527,6 +561,13 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
             try c.encode("click_area", forKey: .type)
             try c.encode(area, forKey: .area)
             try c.encode(passThrough, forKey: .passThrough)
+        case let .scrollBar(from, to, rest, step):
+            try c.encode("scroll_bar", forKey: .type)
+            try c.encode(from, forKey: .from)
+            try c.encode(to, forKey: .to)
+            try c.encode(rest, forKey: .rest)
+            try c.encode(step, forKey: .step)
+            try c.encodeIfPresent(reset, forKey: .reset)
         }
     }
 
@@ -540,6 +581,8 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
         }
         // Clicked, not pressed.
         if case .clickArea = kind { return [] }
+        // The wheel, both ways, and its reset key.
+        if case .scrollBar = kind { return [.scrollUp, .scrollDown] + (reset.map { [$0] } ?? []) }
         return triggers
     }
 
@@ -570,7 +613,17 @@ public struct Control: Hashable, Sendable, Codable, Identifiable {
     /// key for each way, and the eye, which follows the mouse.
     public var canCarryActions: Bool {
         switch kind {
-        case .dpad, .aim: false
+        case .dpad, .aim, .scrollBar: false
+        default: true
+        }
+    }
+
+    /// May be pressed by a click on the game as well (`clickZone`): a control
+    /// with a key of its own. Not a joystick (four keys), the eye, a click
+    /// area (it is one) or a scroll bar (the wheel's).
+    public var canHaveClickZone: Bool {
+        switch kind {
+        case .dpad, .aim, .clickArea, .scrollBar: false
         default: true
         }
     }
@@ -620,30 +673,92 @@ extension Control {
                     invertY: invertY, stick: stick, origin: origin.map { moved.clamp(NormalizedPoint($0.x + ox, $0.y + oy)) })
     }
 
-    /// The rectangle the editor sizes on the game: an eye's swipe area or
-    /// a click area; nil for the other kinds.
+    /// The rectangle the editor sizes on the game: an eye's swipe area, a
+    /// click area, or another control's click zone; nil for none.
     public var area: NormalizedRect? {
         switch kind {
         case let .aim(area, _, _, _, _, _, _, _), let .clickArea(area, _): area
-        default: nil
+        default: clickZone?.area
         }
     }
 
-    /// Gives an eye or a click area `area` (an eye keeps its point inside).
+    /// Gives an eye, a click area or a click zone `area` (an eye keeps its point inside).
     public mutating func setArea(_ area: NormalizedRect) {
         switch kind {
         case .aim: setFingerArea(area)
         case .clickArea(_, let passThrough): kind = .clickArea(area, passThrough: passThrough)
-        default: break
+        default: clickZone?.area = area
         }
     }
 
-    /// Moves an eye's or a click area's rectangle, as far as the screen allows.
+    /// Moves an eye's, a click area's or a click zone's rectangle, as far as the screen allows.
     public mutating func moveArea(dx: Double, dy: Double) {
         switch kind {
         case .aim: moveFinger(dx: dx, dy: dy)
         case let .clickArea(area, passThrough): kind = .clickArea(area.offsetBy(dx: dx, dy: dy), passThrough: passThrough)
-        default: break
+        default: if let zone = clickZone { clickZone?.area = zone.area.offsetBy(dx: dx, dy: dy) }
+        }
+    }
+
+    /// A scroll bar's thumb at `fraction` of its track (0 at `from`), clamped to the track.
+    public func scrollPoint(at fraction: Double) -> NormalizedPoint? {
+        guard case let .scrollBar(from, to, _, _) = kind else { return nil }
+        let t = min(max(fraction, 0), 1)
+        return NormalizedPoint(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t)
+    }
+
+    /// Whether a scroll bar's track runs up and down the screen (else across it).
+    public var isVerticalScrollBar: Bool {
+        guard case let .scrollBar(from, to, _, _) = kind else { return false }
+        return abs(to.y - from.y) >= abs(to.x - from.x)
+    }
+}
+
+/// Where a click presses a control (`Control.clickZone`): a part of the
+/// screen, as a rectangle, a rectangle with round corners, or the ellipse in
+/// it. Encoded as `{"area": [x0, y0, x1, y1], "shape": "rounded"}`.
+public struct ClickZone: Hashable, Sendable, Codable {
+    public enum Shape: String, Codable, Sendable, CaseIterable {
+        case rectangle, rounded, ellipse
+    }
+
+    public var area: NormalizedRect
+    public var shape: Shape
+
+    public init(area: NormalizedRect, shape: Shape = .rounded) {
+        self.area = area
+        self.shape = shape
+    }
+
+    private enum CodingKeys: String, CodingKey { case area, shape }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        area = try c.decode(NormalizedRect.self, forKey: .area)
+        // A shape from a newer Avo is the plain one.
+        shape = ((try? c.decodeIfPresent(Shape.self, forKey: .shape)) ?? nil) ?? .rounded
+    }
+
+    /// A rounded zone's corner radius: a quarter of its shorter side on the screen.
+    public static let cornerFraction = 0.25
+
+    /// Whether `point` is in the zone on a `width` × `height` display (its
+    /// corners and ellipse are round on the screen, not in fractions).
+    public func contains(_ point: NormalizedPoint, width: Double, height: Double) -> Bool {
+        guard area.contains(point) else { return false }
+        let w = area.width * width, h = area.height * height
+        let x = (point.x - area.minX) * width, y = (point.y - area.minY) * height
+        switch shape {
+        case .rectangle:
+            return true
+        case .ellipse:
+            guard w > 0, h > 0 else { return false }
+            let dx = (x - w / 2) / (w / 2), dy = (y - h / 2) / (h / 2)
+            return dx * dx + dy * dy <= 1
+        case .rounded:
+            let r = min(w, h) * Self.cornerFraction
+            let cx = min(max(x, r), w - r), cy = min(max(y, r), h - r)
+            return hypot(x - cx, y - cy) <= r
         }
     }
 }
@@ -964,6 +1079,17 @@ extension KeymapProfile {
         case let .clickArea(area, _):
             if !area.isValid { problems.append(String(localized: "\(name): click area is invalid", bundle: .avoKit)) }
             if control.actions.isEmpty { problems.append(String(localized: "\(name): does nothing yet: add an action", bundle: .avoKit)) }
+        case let .scrollBar(from, to, rest, step):
+            point(from)
+            point(to)
+            if hypot(to.x - from.x, to.y - from.y) < Control.minimumScrollTrack / 2 {
+                problems.append(String(localized: "\(name): the scroll bar's track is too short", bundle: .avoKit))
+            }
+            if !(0...1).contains(rest) { problems.append(String(localized: "\(name): the rest point must be on the track", bundle: .avoKit)) }
+            if !Control.scrollStepRange.contains(step) {
+                problems.append(String(localized: "\(name): a step must be 1 to 50% of the track", bundle: .avoKit))
+            }
+            if control.reset?.isMomentary == true { problems.append(String(localized: "\(name): the wheel cannot reset a scroll bar", bundle: .avoKit)) }
         case let .repeatTap(p, interval):
             point(p)
             if control.triggers.isEmpty { problems.append(String(localized: "\(name): needs a trigger", bundle: .avoKit)) }
@@ -1024,9 +1150,13 @@ extension KeymapProfile {
         }
         if control.allTriggers.contains(where: \.isMomentary) {
             switch control.kind {
-            case .tap, .swipe, .macro, .hotkey: break
+            case .tap, .swipe, .macro, .hotkey, .scrollBar: break
             default: problems.append(String(localized: "\(name): scroll triggers only work with tap, swipe, macro and hotkey controls", bundle: .avoKit))
             }
+        }
+        if let zone = control.clickZone {
+            if !zone.area.isValid { problems.append(String(localized: "\(name): click area is invalid", bundle: .avoKit)) }
+            if !control.canHaveClickZone { problems.append(String(localized: "\(name): this kind of control cannot be clicked", bundle: .avoKit)) }
         }
         if !control.actions.isEmpty, !control.canCarryActions {
             problems.append(String(localized: "\(name): a joystick or the eye cannot do actions", bundle: .avoKit))

@@ -37,7 +37,7 @@ enum KeymapCategory: String, CaseIterable, Identifiable, Hashable {
 
 /// A kind of control on the panel, to add.
 enum KeymapPaletteItem: String, CaseIterable, Identifiable, Hashable {
-    case tap, repeatTap, anchor, joystick, swipe, clickArea, hotkey
+    case tap, repeatTap, anchor, joystick, swipe, scrollBar, clickArea, hotkey
     case eye, ads
     case moveByMouse, smartCast
 
@@ -47,7 +47,7 @@ enum KeymapPaletteItem: String, CaseIterable, Identifiable, Hashable {
 
     var category: KeymapCategory {
         switch self {
-        case .tap, .repeatTap, .anchor, .joystick, .swipe, .clickArea, .hotkey: .general
+        case .tap, .repeatTap, .anchor, .joystick, .swipe, .scrollBar, .clickArea, .hotkey: .general
         case .eye, .ads: .fps
         case .moveByMouse, .smartCast: .moba
         }
@@ -61,6 +61,7 @@ enum KeymapPaletteItem: String, CaseIterable, Identifiable, Hashable {
         case .anchor: L("Anchor")
         case .joystick: L("Joystick")
         case .swipe: L("Swipe")
+        case .scrollBar: L("Scroll")
         case .clickArea: L("Click Area")
         case .hotkey: L("Hotkey")
         case .eye: L("Eye")
@@ -77,6 +78,7 @@ enum KeymapPaletteItem: String, CaseIterable, Identifiable, Hashable {
         case .anchor: L("Anchor Tap")
         case .joystick: L("Joystick")
         case .swipe: L("Swipe")
+        case .scrollBar: L("Scroll Bar")
         case .clickArea: L("Click Area")
         case .hotkey: L("Hotkey")
         case .eye: L("Eye (Mouse Look)")
@@ -93,6 +95,7 @@ enum KeymapPaletteItem: String, CaseIterable, Identifiable, Hashable {
         case .anchor: "arrow.up.and.down.and.arrow.left.and.right"
         case .joystick: "dpad"
         case .swipe: "hand.draw"
+        case .scrollBar: "slider.vertical.3"
         case .clickArea: "cursorarrow.click.2"
         case .hotkey: "keyboard"
         case .eye: "eye"
@@ -110,6 +113,7 @@ enum KeymapPaletteItem: String, CaseIterable, Identifiable, Hashable {
         case .anchor: L("Anchor Tap: while its key is held, the mouse moves the finger from its point, within a circle (emote wheels, aiming a skill).")
         case .joystick: L("Joystick: four keys (W A S D) or a controller’s stick push the game’s joystick.")
         case .swipe: L("Swipe: its key swipes from one point to another.")
+        case .scrollBar: L("Scroll Bar: the wheel drags the thumb of a slider of the game (a map’s zoom) a step a notch, within its ends.")
         case .clickArea: L("Click Area: a part of the game that, clicked while the mouse is free, does its actions (back to combat when you close the inventory).")
         case .hotkey: L("Hotkey: a key that touches nothing, only does its actions (switch the mode, free the mouse).")
         case .eye: L("Eye: with the mouse locked, moving the mouse turns the game’s camera. One per layout.")
@@ -127,6 +131,7 @@ enum KeymapPaletteItem: String, CaseIterable, Identifiable, Hashable {
         case .anchor: .anchor
         case .dpad: .joystick
         case .swipe: .swipe
+        case .scrollBar: .scrollBar
         case .clickArea: .clickArea
         case .hotkey: .hotkey
         case .aim: .eye
@@ -225,6 +230,8 @@ final class KeymapEditorModel: ObservableObject {
     /// The modes the selected control acts in; nil: every mode.
     var setActsIn: ([String]?) -> Void = { _ in }
     var setDPadSlot: (Int) -> Void = { _ in }
+    /// Gives the selected control a click zone around its button, or takes it away.
+    var setClickZone: (Bool) -> Void = { _ in }
     var mouseButtons: () -> [HazeMenuEntry] = { [] }
     /// The actions to add to the selected control.
     var addActionMenu: () -> [HazeMenuEntry] = { [] }
@@ -757,6 +764,7 @@ private struct InspectorCard: View {
                 keys
                 InspectorSettings(model: model, selection: selection)
                 if selection.control.canCarryActions { ActionsSection(model: model, control: selection.control) }
+                if selection.control.canHaveClickZone { ClickZoneSection(model: model, control: selection.control) }
                 if !model.modes.isEmpty { worksIn }
             }
         }
@@ -926,6 +934,33 @@ private struct InspectorSettings: View {
                    0.03...0.45, step: 0.01, text: percent(radius), help: L("How far the skill button is dragged."))
             slider(L("Cursor range"), Binding(get: { reach }, set: { value in model.update { $0.setCast(reach: value) } }),
                    Control.castReachRange, step: 0.05, text: percent(reach), help: L("How far from your hero the cursor must be for a full drag."))
+        case let .scrollBar(_, _, rest, step):
+            let vertical = control.isVerticalScrollBar
+            InspectorRow(label: L("Direction")) {
+                QuickSegmented(label: L("Direction"), options: [(true, L("Up and down")), (false, L("Across"))], selection: vertical,
+                               fill: true) { on in model.update { $0.setScrollBar(vertical: on) } }
+            }
+            InspectorRow(label: L("Wheel up drags it"), help: L("Which way a turn of the wheel up drags the thumb; down drags it back.")) {
+                QuickSegmented(label: L("Wheel up drags it"),
+                               options: vertical ? [(true, L("Up")), (false, L("Down"))] : [(true, L("Right")), (false, L("Left"))],
+                               selection: control.scrollsForward, fill: true) { on in model.update { $0.setScrollBar(forward: on) } }
+            }
+            slider(L("Step per notch"), Binding(get: { step }, set: { value in model.update { $0.setScrollBar(step: value) } }),
+                   Control.scrollStepRange, step: 0.01, text: percent(step), help: L("How far one notch of the wheel drags the thumb, of the track’s length."))
+            slider(L("Rests at"), Binding(get: { rest }, set: { value in model.update { $0.setScrollBar(rest: value) } }),
+                   0...1, step: 0.05, text: percent(rest),
+                   help: L("Where the thumb is when the game starts, in a new mode, and after its reset key: 0% is the wheel-down end."))
+            InspectorRow(label: L("Reset key"), help: L("Press it to drag the thumb back to where it rests (the map’s zoom back to normal). Click the key, then press another to change it.")) {
+                Button { model.setDPadSlot(4) } label: {
+                    KeyCap(text: control.reset?.shortLabel ?? L("No key"), symbol: "arrow.counterclockwise", active: selection.dpadSlot == 4)
+                }
+                .buttonStyle(.plain)
+                .help(L("Click it, then press the key that resets the scroll bar."))
+                Spacer(minLength: 4)
+                if control.reset != nil {
+                    BarIconButton(symbol: "xmark", label: L("No reset key")) { model.update { $0.reset = nil } }
+                }
+            }
         case .tap, .hold, .macro, .hotkey, .clickArea:
             EmptyView()
         }
@@ -1054,7 +1089,7 @@ private struct ActionsSection: View {
         case .mobaMove: (L("Move towards the cursor"), "cursorarrow.motionlines")
         case .smartCast: (L("Cast towards the cursor"), "sparkles")
         case .clickArea: (L("Touch the game where clicked"), "cursorarrow.click.2")
-        case .hotkey, .dpad, .aim: nil
+        case .hotkey, .dpad, .aim, .scrollBar: nil
         }
     }
 
@@ -1083,6 +1118,28 @@ private struct ActionsSection: View {
         .foregroundStyle(off ? QuickHaze.textTertiary : QuickHaze.textSecondary)
         .padding(.horizontal, 9)
         .frame(minHeight: 32)
+    }
+}
+
+/// Whether a click on the game presses the selected control as its key
+/// would (its click zone), and the zone's shape, sized on the game.
+private struct ClickZoneSection: View {
+    @ObservedObject var model: KeymapEditorModel
+    let control: Control
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            QuickToggle(label: L("Clicking the game presses it"),
+                        caption: L("A click with the mouse free inside its area presses this control, as its key would: the game’s button is touched once, and its actions run once. Drag the area or its edges on the game."),
+                        isOn: control.clickZone != nil) { on in model.setClickZone(on) }
+            if let zone = control.clickZone {
+                InspectorRow(label: L("Area shape")) {
+                    QuickSegmented(label: L("Area shape"),
+                                   options: [(ClickZone.Shape.rounded, L("Rounded")), (.rectangle, L("Square")), (.ellipse, L("Round"))],
+                                   selection: zone.shape, fill: true) { shape in model.update { $0.clickZone?.shape = shape } }
+                }
+            }
+        }
     }
 }
 
@@ -1430,6 +1487,39 @@ extension Control {
     }
 
     /// Whether a click area's click also touches the game.
+    /// A scroll bar's wheel-up end is the top or the right one.
+    var scrollsForward: Bool {
+        guard case let .scrollBar(from, to, _, _) = kind else { return true }
+        return isVerticalScrollBar ? to.y < from.y : to.x > from.x
+    }
+
+    /// A scroll bar turned up and down or across (around its middle, as long
+    /// on the screen as it was), wheel up dragging the other way, or another
+    /// step or rest point.
+    mutating func setScrollBar(vertical: Bool? = nil, forward: Bool? = nil, step: Double? = nil, rest: Double? = nil) {
+        guard case let .scrollBar(from, to, oldRest, oldStep) = kind else { return }
+        var (a, b) = (from, to)
+        if let vertical, vertical != isVerticalScrollBar {
+            let mid = NormalizedPoint((a.x + b.x) / 2, (a.y + b.y) / 2)
+            let half = max(abs(b.x - a.x), abs(b.y - a.y)) / 2
+            let forward = scrollsForward
+            if vertical {
+                a = NormalizedPoint(mid.x, min(max(mid.y + (forward ? half : -half), 0), 1))
+                b = NormalizedPoint(mid.x, min(max(mid.y - (forward ? half : -half), 0), 1))
+            } else {
+                a = NormalizedPoint(min(max(mid.x - (forward ? half : -half), 0), 1), mid.y)
+                b = NormalizedPoint(min(max(mid.x + (forward ? half : -half), 0), 1), mid.y)
+            }
+        }
+        var newRest = rest ?? oldRest
+        kind = .scrollBar(from: a, to: b, rest: newRest, step: step ?? oldStep)
+        if let forward, forward != scrollsForward {
+            // The ends change places; the thumb rests where it did on the screen.
+            newRest = 1 - newRest
+            kind = .scrollBar(from: b, to: a, rest: newRest, step: step ?? oldStep)
+        }
+    }
+
     mutating func setPassThrough(_ on: Bool) {
         if case .clickArea(let area, _) = kind { kind = .clickArea(area, passThrough: on) }
     }
