@@ -1,0 +1,3 @@
+[submodule "vendor/avo_kit"]
+	path = vendor/avo_kit
+	url = https://github.com/nizwar/avo_kit.git

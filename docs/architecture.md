@@ -26,15 +26,22 @@ All Swift code shared between targets is one dynamic framework,
 package products separately produced two copies of the same classes in one
 process, which breaks NSXPC class checks.
 
-Two of those modules are UI, so Avo Hub's windows can link the same code as
-Avo's app windows instead of copies of it: `AvoHazeUI` (the haze in small:
-`QuickHaze`, the `Quick*` controls of an app window's panels, and
-`HazeMenu`) and `AvoKeymapUI` (the key mapping a window runs: its
-controller, the editor and its panels, the hints over the game and
-`GamepadHub`). A window gives the key mapping its game view
-(`KeymapDisplay`) and where to keep profiles and Game Mode (`KeymapStore`;
-`KeymapStore.avo` is Avo's), in KeymapHost.swift. Their text is in the
-package's catalog (`Bundle.avoKit`).
+What Avo shares with Avo Hub is a package of its own,
+[avo_kit](https://github.com/nizwar/avo_kit), a submodule at
+`vendor/avo_kit` in both projects: `AvoKeymap` (profiles and the engine),
+`AvoKeymapUI` (the key mapping a window runs: its controller, the editor and
+its panels, the hints over the game and `GamepadHub`), `AvoHazeUI` (the haze
+in small: `QuickHaze`, the `Quick*` controls of an app window's panels, and
+`HazeMenu`), `AvoInput` (the Input channel's records) and `AvoScreen` (screen
+samples and motion). The AvoKit package depends on it by path; its
+`AvoShared` module re-exports the UI modules, and `AvoProtocol` and `AvoKit`
+re-export `AvoInput` and `AvoScreen`, so they are linked into
+`AvoHostKit.framework` once and Avo's code imports them as before. A window
+gives the key mapping its game view (`KeymapDisplay`) and where to keep
+profiles and Game Mode (`KeymapStore`; `KeymapStore.avo` is Avo's), in
+KeymapHost.swift. The kit's text is in its own catalog
+(`Bundle.avoSharedKit`, `avo_kit_AvoKitResources.bundle` in Avo.app); a
+change there is committed in avo_kit, then the submodule moves to it.
 
 ## XPC and caller validation
 

@@ -36,6 +36,12 @@ sync host/AvoShim/Localizable.xcstrings "$APP/AvoShim.build"
 # Every module of the AvoKit package shares one catalog (Bundle.avoKit).
 PKG="$INTERMEDIATES/AvoKit.build/Debug"
 sync host/AvoKit/Sources/AvoKit/Resources/Localizable.xcstrings \
-  "$PKG"/AvoKit-t.build "$PKG"/AvoPackages-t.build "$PKG"/AvoKeymap-t.build \
-  "$PKG"/AvoDaemonCore-t.build "$PKG"/AvoShimKit-t.build \
-  "$PKG"/AvoHazeUI-t.build "$PKG"/AvoKeymapUI-t.build
+  "$PKG"/AvoKit-t.build "$PKG"/AvoPackages-t.build \
+  "$PKG"/AvoDaemonCore-t.build "$PKG"/AvoShimKit-t.build
+
+# avo_kit (vendor/avo_kit), shared with Avo Hub, has one catalog of its own
+# (Bundle.avoSharedKit): commit what this changes there, in avo_kit.
+KIT="$INTERMEDIATES/avo_kit.build/Debug"
+sync vendor/avo_kit/Sources/AvoKitResources/Resources/Localizable.xcstrings \
+  "$KIT"/AvoKeymap-t.build "$KIT"/AvoKeymapUI-t.build "$KIT"/AvoHazeUI-t.build \
+  "$KIT"/AvoKitResources-t.build "$KIT"/AvoScreen-t.build "$KIT"/AvoInput-t.build

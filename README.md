@@ -118,6 +118,14 @@ a Rust toolchain (`rustup`, stable) for the engine, and CMake and Ninja for
 the GPU renderer. The Android SDK is needed only to rebuild the small Android
 helpers, which are checked in.
 
+The key mapping and the haze's window controls that Avo shares with Avo Hub
+are [avo_kit](https://github.com/nizwar/avo_kit), a submodule at
+`vendor/avo_kit`: clone with `--recurse-submodules`, or fetch it once:
+
+```sh
+git submodule update --init
+```
+
 ```sh
 make test       # host unit and integration tests (swift test)
 make project    # generate host/Avo.xcodeproj

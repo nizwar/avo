@@ -313,7 +313,8 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     private(set) var inBackground = false
 
     func runInBackground() {
-        guard !inBackground, !windows.isEmpty else { return }
+        // An open key mapping editor would go out of sight with its window.
+        guard !inBackground, !windows.isEmpty, !windows.contains(where: \.isEditingKeymap) else { return }
         inBackground = true
         for window in windows { window.sendToBackground() }
         NSApp.setActivationPolicy(.accessory)
@@ -403,6 +404,10 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     /// Quit (⌘Q, Dock › Quit) closes the app completely, like swiping it
     /// away on a phone: its windows and its Android process.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // A key mapping editor open with changes asks first; quitting goes on once it agrees.
+        for window in windows where !window.keymapMayClose(answer: { quit in if quit { NSApp.terminate(nil) } }) {
+            return .terminateCancel
+        }
         // Detaching also stops screen recordings; their movie files are finished before the app quits.
         for window in windows { window.detach() }
         let client = appEnded ? nil : self.client

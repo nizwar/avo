@@ -924,6 +924,16 @@
         }
       }
     },
+    "Close Key Mapping Editor" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tutup Editor Pemetaan Tombol"
+          }
+        }
+      }
+    },
     "Close Window" : {
       "localizations" : {
         "id" : {
