@@ -39,8 +39,8 @@ struct LibraryHome: View {
                 }
             }
             .padding(.horizontal, 34)
-            // Clear of the status pill over the window's bottom edge.
-            .padding(.bottom, 56)
+            // The status pill has its own room below (LibraryView).
+            .padding(.bottom, 24)
         }
         .windowDragArea()
         .scrollIndicators(.hidden)
@@ -487,7 +487,7 @@ struct LibraryAllCollection: View {
                     }
                 }
                 .padding(.horizontal, 34)
-                .padding(.bottom, 56)
+                .padding(.bottom, 24)
             }
             .windowDragArea()
             .scrollIndicators(.hidden)
@@ -539,7 +539,7 @@ struct GamesCollection: View {
                     }
                     .animation(Haze.Motion.animation(Haze.Motion.content, reduceMotion: reduceMotion), value: router.gamesAsList)
                     .padding(.horizontal, 34)
-                    .padding(.bottom, 56)
+                    .padding(.bottom, 24)
                 }
                 .windowDragArea()
                 .scrollIndicators(.hidden)
@@ -633,7 +633,7 @@ struct AppsCollection: View {
                         ForEach(apps) { LibraryAppTile(app: $0) }
                     }
                     .padding(.horizontal, 34)
-                    .padding(.bottom, 56)
+                    .padding(.bottom, 24)
                 }
                 .windowDragArea()
                 .scrollIndicators(.hidden)
@@ -673,7 +673,7 @@ struct SearchResults: View {
                     }
                 }
                 .padding(.horizontal, 34)
-                .padding(.bottom, 56)
+                .padding(.bottom, 24)
             }
             .windowDragArea()
             .scrollIndicators(.hidden)
@@ -705,7 +705,7 @@ struct LibraryEmpty: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.bottom, 56)
+        .padding(.bottom, 24)
     }
 }
 

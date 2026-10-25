@@ -20,6 +20,8 @@ struct AppPage: View {
     /// The page has arrived: its colours fade in, the hero and cards rise into place.
     @State private var appeared = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The status pill's room at the window's bottom (nil in offscreen renders).
+    @Environment(StatusPillRoom.self) private var pillRoom: StatusPillRoom?
 
     var body: some View {
         let palette = IconPaletteCache.shared.palette(for: app.package, icon: model.icons[app.package])
@@ -49,7 +51,7 @@ struct AppPage: View {
                 }
                 .padding(.horizontal, 48)
                 .padding(.top, 26)
-                .padding(.bottom, 64)
+                .padding(.bottom, 24)
             }
             .background(alignment: .top) {
                 // The icon's colours fade in with the page, and again if the icon changes.
@@ -65,6 +67,8 @@ struct AppPage: View {
         }
         .windowDragArea()
         .scrollIndicators(.hidden)
+        // The page ends above the status pill, which covers none of it.
+        .padding(.bottom, pillRoom?.bottom ?? 0)
         .background(Haze.pageBase)
         .onAppear { appeared = true }
         .overlay(alignment: .topLeading) {

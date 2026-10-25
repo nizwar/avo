@@ -111,6 +111,8 @@ struct LibraryView: View {
     @State private var dropTargeted = false
     /// Where the pointer is, for the haze, the cards and the icons.
     @State private var pointer = HazePointer()
+    /// The bottom of the window the status pill takes.
+    @State private var pillRoom = StatusPillRoom()
 
     var body: some View {
         @Bindable var model = model
@@ -125,6 +127,8 @@ struct LibraryView: View {
                 HStack(spacing: 0) {
                     LibrarySidebar()
                     LibraryMain()
+                        // The section ends above the status pill, which covers none of it.
+                        .padding(.bottom, pillRoom.bottom)
                 }
                 .background { HazeWindowBackground() }
                 .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.99)))
@@ -179,7 +183,9 @@ struct LibraryView: View {
             router.page = package
             openWindow(id: LibraryRouter.windowID)
         }
-        .background { LibraryWindowAccessor(pointer: pointer) }
+        // An app's page ends above the pill too (AppPage).
+        .environment(pillRoom)
+        .background { LibraryWindowAccessor(pointer: pointer, pillRoom: pillRoom) }
     }
 
     /// Spec §3: dragging a package onto the window installs it.
@@ -488,12 +494,14 @@ private struct HazeDropOverlay: View {
 private struct LibraryWindowAccessor: NSViewRepresentable {
     @Environment(ControlPanelModel.self) private var model
     let pointer: HazePointer
+    let pillRoom: StatusPillRoom
 
     func makeNSView(context: Context) -> WindowAccessorView {
         let view = WindowAccessorView()
         let model = self.model
         let openWindow = context.environment.openWindow
         let pointer = self.pointer
+        let pillRoom = self.pillRoom
         view.onWindow = { window in
             pointer.attach(to: window)
             window.backgroundColor = NSColor(Haze.windowBase)
@@ -502,7 +510,7 @@ private struct LibraryWindowAccessor: NSViewRepresentable {
             window.titleVisibility = .hidden
             window.styleMask.insert(.fullSizeContentView)
             window.minSize = NSSize(width: 980, height: 640)
-            StatusPillController.attach(to: window, model: model) { openWindow(id: SettingsWindow.id) }
+            StatusPillController.attach(to: window, model: model, room: pillRoom) { openWindow(id: SettingsWindow.id) }
         }
         return view
     }

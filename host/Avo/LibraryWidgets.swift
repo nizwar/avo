@@ -36,7 +36,7 @@ struct LibraryWidgets: View {
                     SectionLabel("Add a Widget")
                     available
                 }
-                .padding(.bottom, 56)
+                .padding(.bottom, 24)
             }
             .windowDragArea()
             .scrollIndicators(.hidden)

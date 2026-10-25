@@ -71,7 +71,7 @@ struct LibraryNotifications: View {
                                 .animation(Haze.Motion.list.delay(Double(min(index, 10)) * 0.035), value: clearing)
                             }
                         }
-                        .padding(.bottom, 56)
+                        .padding(.bottom, 24)
                     }
                     .windowDragArea()
                     .scrollIndicators(.hidden)
