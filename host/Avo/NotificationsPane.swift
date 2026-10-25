@@ -41,6 +41,7 @@ struct NotificationsPane: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                 }
+                .windowDragArea()
             }
         }
         // The banner stays at the top, also above an empty list.

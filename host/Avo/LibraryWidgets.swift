@@ -38,6 +38,7 @@ struct LibraryWidgets: View {
                 }
                 .padding(.bottom, 56)
             }
+            .windowDragArea()
             .scrollIndicators(.hidden)
         }
         .padding(.horizontal, 40)

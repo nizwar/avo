@@ -355,4 +355,19 @@ private func path(_ source: PixelSize, _ destination: PixelSize, _ filter: Graph
         let portrait = DisplaySizing.conformedContentSize(width: 412, height: 892, longOverShort: 16.0 / 9)
         #expect(abs(portrait.width - 501.75) < 1e-9 && portrait.height == 892)
     }
+
+    /// A press beside the picture (the bars of a frame that does not fill
+    /// the window) moves the window; on the picture, or just at its edge,
+    /// it touches Android.
+    @Test func pressesBesideThePictureMoveTheWindow() {
+        // A portrait frame fitted into a wide window: bars left and right.
+        let picture = CGRect(x: 300, y: 0, width: 400, height: 800)
+        #expect(!DisplaySizing.movesWindow(at: CGPoint(x: 500, y: 400), picture: picture), "on the picture")
+        #expect(!DisplaySizing.movesWindow(at: CGPoint(x: 297, y: 400), picture: picture), "just at its edge")
+        #expect(DisplaySizing.movesWindow(at: CGPoint(x: 100, y: 400), picture: picture), "in the left bar")
+        #expect(DisplaySizing.movesWindow(at: CGPoint(x: 900, y: 10), picture: picture), "in the right bar")
+        // A frame that fills the window leaves nothing to move it by.
+        let full = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        #expect(!DisplaySizing.movesWindow(at: CGPoint(x: 0.5, y: 799), picture: full))
+    }
 }

@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 // The sizing rules app windows share: which size and density Android's
@@ -321,6 +322,15 @@ public enum DisplaySizing {
         let w = min(tw, Int((Double(sw) * scale).rounded()))
         let h = min(th, Int((Double(sh) * scale).rounded()))
         return PixelRect(x: (tw - w) / 2, y: (th - h) / 2, width: w, height: h)
+    }
+
+    /// Whether a press at `point` moves the window instead of touching
+    /// Android: off the picture (`picture`, both in view points) by more
+    /// than `slack`, in the bars beside a frame that does not fill the
+    /// window, as the empty parts of the Control Panel move theirs. Within
+    /// `slack` of the picture a press still touches its edge.
+    public static func movesWindow(at point: CGPoint, picture: CGRect, slack: CGFloat = 4) -> Bool {
+        !picture.insetBy(dx: -slack, dy: -slack).contains(point)
     }
 
     /// How to scale `source` to `destination` (the presentation rect's size).

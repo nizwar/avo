@@ -184,6 +184,7 @@ struct SettingsWindow: View {
             .frame(maxWidth: 900)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+        .windowDragArea()
         .background { HazeWindowBackground() }
         .ignoresSafeArea()
         .navigationTitle(pane.title)
@@ -348,6 +349,7 @@ struct SettingsSidebar: View {
                 .padding(.horizontal, 14)
                 .padding(.bottom, 16)
             }
+            .windowDragArea()
             .scrollIndicators(.never)
             .focusable()
             .focused($listFocused)
