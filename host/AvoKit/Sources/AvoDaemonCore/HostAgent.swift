@@ -39,6 +39,8 @@ actor HostAgent: DisplayResizing {
         var appliedDPI: UInt32 = 0
         /// Android's unique id for the display (`local:…`), once it has it.
         var uniqueID: String?
+        /// The launch's data: a widget panel's widget (`AndroidWidgets.launchURI`).
+        var dataURI = ""
     }
 
     static let adbPort: UInt32 = 6520
@@ -1046,7 +1048,7 @@ actor HostAgent: DisplayResizing {
         let height = max(64, launch.height)
         displays[launch.displayID] = Display(id: launch.displayID, scanout: scanout, package: launch.package,
                                              androidID: nil, width: width, height: height, dpi: launch.dpi,
-                                             inputWidth: launch.width, inputHeight: launch.height)
+                                             inputWidth: launch.width, inputHeight: launch.height, dataURI: launch.dataUri)
         frames.assign(scanout: scanout, to: launch.displayID)
         do {
             try await engine.send("display \(scanout) \(width) \(height) \(displayRate)")
@@ -1197,10 +1199,14 @@ actor HostAgent: DisplayResizing {
     /// Android 17 restores a re-plugged display's tasks; older versions
     /// leave them on display 0.
     private func bringBack(_ display: Display, to androidID: Int) async throws {
-        // A widget panel's activity ends with its display (WidgetActivity).
-        guard display.package != AndroidWidgets.package else { return }
         let tasks = try await shell("am stack list")
         if Self.hasTask(of: display.package, onDisplay: androidID, in: tasks) { return }
+        // A widget panel's activity ended with its display (WidgetActivity):
+        // it starts again, or the task watch would close the panel.
+        if display.package == AndroidWidgets.package {
+            _ = try await shell(GuestWidgets.startCommand(data: display.dataURI, display: androidID))
+            return
+        }
         let component = try await launcherComponent(display.package)
         _ = try await shell(Self.startCommand(component, display: androidID))
     }

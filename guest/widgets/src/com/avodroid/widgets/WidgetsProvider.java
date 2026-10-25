@@ -32,8 +32,9 @@ import java.nio.charset.StandardCharsets;
  *
  * "providers" is the widgets Android has, as one JSON array: per widget its
  * provider ("package/class"), app package and label, its own label, the size
- * it asks for in dp (min, and the launcher cells it targets), whether it
- * resizes and has a configuration step, and a preview (a PNG of at most
+ * it asks for in dp (min, and the launcher cells it targets), whether and how
+ * it resizes (which ways, and its resize limits in dp; a max of 0 sets none),
+ * whether it has a configuration step, and a preview (a PNG of at most
  * {@link #PREVIEW} pixels a side, Base64; the app's icon when the widget has
  * none). "delete" lets go of a removed panel's widget.
  *
@@ -100,6 +101,14 @@ public final class WidgetsProvider extends ContentProvider {
                 json.name("cellWidth").value(info.targetCellWidth);
                 json.name("cellHeight").value(info.targetCellHeight);
                 json.name("resizable").value(info.resizeMode != AppWidgetProviderInfo.RESIZE_NONE);
+                json.name("resizing").beginObject();
+                json.name("horizontal").value((info.resizeMode & AppWidgetProviderInfo.RESIZE_HORIZONTAL) != 0);
+                json.name("vertical").value((info.resizeMode & AppWidgetProviderInfo.RESIZE_VERTICAL) != 0);
+                json.name("minWidth").value(Math.round(info.minResizeWidth / density));
+                json.name("minHeight").value(Math.round(info.minResizeHeight / density));
+                json.name("maxWidth").value(Math.round(info.maxResizeWidth / density));
+                json.name("maxHeight").value(Math.round(info.maxResizeHeight / density));
+                json.endObject();
                 json.name("configurable").value(info.configure != null
                         && (info.widgetFeatures & AppWidgetProviderInfo.WIDGET_FEATURE_CONFIGURATION_OPTIONAL) == 0);
                 String preview = preview(info, pm);
