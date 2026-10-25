@@ -28,7 +28,6 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     private var pointer = PointerTranslator(displayID: 0, width: 1080, height: 2340)
     private var pinchTotal = 0.0
     private var marked: NSAttributedString?
-    private var modifierKeys: Set<UInt16> = []
     /// Keys whose down event was sent as an Android key event.
     private var keysDown: Set<UInt16> = []
 
@@ -297,8 +296,9 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     override func flagsChanged(with event: NSEvent) {
         // Modifiers can be keymap triggers (Shift to sprint, Option to toggle the cursor).
         guard let key = KeyboardMapping.key(forMacKeyCode: event.keyCode) else { return }
-        let down = !modifierKeys.contains(event.keyCode)
-        if down { modifierKeys.insert(event.keyCode) } else { modifierKeys.remove(event.keyCode) }
+        // Read from the event: counting the changes went backwards once another window took one
+        // (⇧⌘K: Shift down here, up in the editor), and Shift to run walked while held.
+        let down = KeyboardMapping.isModifierDown(key, flags: event.modifierFlags.rawValue)
         _ = keymap?.key(key, down: down, isRepeat: false)
     }
 
