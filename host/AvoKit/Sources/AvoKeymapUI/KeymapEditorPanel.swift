@@ -1,5 +1,7 @@
 import AppKit
+import AvoHazeUI
 import AvoKeymap
+import AvoKit
 import SwiftUI
 
 // The key mapping editor's panel, beside the game in its window
@@ -12,7 +14,7 @@ import SwiftUI
 // tab is the controller panel (ControllerPanel.swift). In the Quick
 // Settings' haze look.
 
-private func L(_ key: String.LocalizationValue) -> String { String(localized: key, bundle: .windowHost) }
+private func L(_ key: String.LocalizationValue) -> String { String(localized: key, bundle: .avoKit) }
 
 /// The kinds of controls, as the panel groups them: for every game, for
 /// shooters, for MOBAs.

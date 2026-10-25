@@ -1,5 +1,6 @@
 import AppKit
 import AvoKeymap
+import AvoKit
 
 /// The key mapping editor over a game (spec §5: "Tekan Cmd+Shift+K di
 /// jendela game untuk membuka editor overlay transparan"). It is a view on
@@ -41,10 +42,10 @@ final class KeymapOverlay {
 
     var isEditing: Bool { editor.superview != nil }
 
-    init(window: NSWindow, view: DisplayView, package: String, profile: KeymapProfile?,
+    init(window: NSWindow, view: any KeymapDisplay, package: String, profile: KeymapProfile?,
          onSave: @escaping (KeymapProfile) -> String?) {
         editor = KeymapEditorView(displayRect: { [weak view] in view?.displayRect ?? .zero },
-                                  profile: profile ?? KeymapProfile(package: package, name: String(localized: "My layout", bundle: .windowHost), controls: []),
+                                  profile: profile ?? KeymapProfile(package: package, name: String(localized: "My layout", bundle: .avoKit), controls: []),
                                   onSave: onSave)
         self.window = window
         screen = view.superview

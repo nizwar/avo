@@ -1,3 +1,4 @@
+import AvoHazeUI
 import AvoWindowHost
 import SwiftUI
 
@@ -51,7 +52,7 @@ enum HazeOptionsBuilder<Value: Hashable> {
 
 /// A choice from a menu in the haze: the chosen option on a veiled capsule
 /// with chevrons, and the options in a haze menu under it (HazeMenu.swift in
-/// the Window Host), with a check mark on the choice, sections, and options
+/// AvoHazeUI), with a check mark on the choice, sections, and options
 /// that cannot be chosen. VoiceOver gets a Picker with `title`.
 struct HazePicker<Value: Hashable>: View {
     private let title: Text

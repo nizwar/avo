@@ -1,5 +1,6 @@
 import AppKit
 import AvoKeymap
+import AvoKeymapUI
 import AvoKit
 import AvoProtocol
 
@@ -10,7 +11,7 @@ import AvoProtocol
 /// wheel by the scroll mode, pinch = two fingers, Esc and two-finger swipe
 /// left = Back, typing = committed text).
 @MainActor
-final class DisplayView: NSView, @preconcurrency NSTextInputClient {
+final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClient {
     let renderer: MetalRenderer
     var displayID: UInt32 = 0 {
         didSet { pointer = PointerTranslator(displayID: displayID, width: displaySize.width, height: displaySize.height) }

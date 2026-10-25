@@ -88,6 +88,17 @@ public enum MouseButton: String, Codable, CaseIterable, Sendable {
         default: return nil
         }
     }
+
+    /// Its number in NSEvent (`buttonNumber`, the bits of `pressedMouseButtons`).
+    public var buttonNumber: Int {
+        switch self {
+        case .left: 0
+        case .right: 1
+        case .middle: 2
+        case .button4: 3
+        case .button5: 4
+        }
+    }
 }
 
 /// Buttons of an extended gamepad (GameController.framework names).

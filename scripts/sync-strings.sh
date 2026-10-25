@@ -37,4 +37,5 @@ sync host/AvoShim/Localizable.xcstrings "$APP/AvoShim.build"
 PKG="$INTERMEDIATES/AvoKit.build/Debug"
 sync host/AvoKit/Sources/AvoKit/Resources/Localizable.xcstrings \
   "$PKG"/AvoKit-t.build "$PKG"/AvoPackages-t.build "$PKG"/AvoKeymap-t.build \
-  "$PKG"/AvoDaemonCore-t.build "$PKG"/AvoShimKit-t.build
+  "$PKG"/AvoDaemonCore-t.build "$PKG"/AvoShimKit-t.build \
+  "$PKG"/AvoHazeUI-t.build "$PKG"/AvoKeymapUI-t.build

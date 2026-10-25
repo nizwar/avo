@@ -315,6 +315,14 @@ public struct KeymapEngine: Sendable {
         clickFinger != nil || controls.contains { $0.followsCursor && held[$0.id] != nil }
     }
 
+    /// The keys and buttons the engine holds down now. The host checks them
+    /// against the hardware, so one whose release never reached it is let go
+    /// all the same (KeymapController's `releaseUnseen`).
+    public var heldTriggers: Set<Trigger> { pressed }
+
+    /// A click's finger is on the screen: `fingerDown` without its `fingerUp` yet.
+    public var isClickFingerDown: Bool { clickFinger != nil }
+
     // MARK: Triggers
 
     private var controls: [Control] { profile.controls }

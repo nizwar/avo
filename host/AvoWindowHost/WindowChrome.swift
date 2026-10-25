@@ -1,4 +1,5 @@
 import AppKit
+import AvoHazeUI
 import AvoKit
 
 /// An app window's frame for the Phone app bar style (AppBarStyle.phone:

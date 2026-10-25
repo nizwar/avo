@@ -7,22 +7,22 @@ import GameController
 /// Runs the keymapping profile for one window (spec §5 and §5a): keys,
 /// mouse buttons and gamepads become touches, FPS mode captures the pointer
 /// and reads raw mouse movement, MOBA controls aim at the free cursor.
+/// Avo's app windows and Avo Hub's mirror windows each run one, over their
+/// game view (KeymapDisplay) and their own store (KeymapStore).
 @MainActor
-final class KeymapController {
+public final class KeymapController {
     private let package: String
     private let displayID: UInt32
-    private weak var view: DisplayView?
+    private weak var view: (any KeymapDisplay)?
     private let send: (InputRecord) -> Void
-    private let userProfileURL: URL
-    /// The community profiles shipped with Avo.
-    private let bundledDirectory: URL?
-    private(set) var profile: KeymapProfile?
+    private let store: KeymapStore
+    public private(set) var profile: KeymapProfile?
     private var engine: KeymapEngine?
     private var displayLink: CADisplayLink?
     /// The controllers' changes, from GamepadHub.
     private var gamepadListener: UUID?
     private var overlay: KeymapOverlay?
-    private(set) var isPointerLocked = false
+    public private(set) var isPointerLocked = false
     /// While the pointer is locked: GameController's mouse notifications.
     private var mouseObservers: [any NSObjectProtocol] = []
     /// When raw motion last came from a mouse GameController sees.
@@ -34,41 +34,55 @@ final class KeymapController {
     private var heldMotion: (dx: Double, dy: Double, since: CFTimeInterval)?
     /// The profile has MOBA controls, which need to know where the cursor is.
     private var aimsAtCursor = false
+    /// The keyboard's and the mouse's state now, beside their events (tests give their own).
+    var hardware = Hardware()
+    /// The presses the hardware showed down as their event came: only these are let go by what it says
+    /// later (a press it never showed, such as a trackpad's tap, is left to its own release).
+    private var seenDown: Set<Trigger> = []
+    /// The click's finger went down with the left button seen down.
+    private var clickSeenDown = false
+    /// When the held keys were last checked against the hardware (`releaseUnseen`).
+    private var lastReleaseCheck: CFTimeInterval = 0
+    /// What `releaseUnseen` let go: its late release, should it still come, is swallowed.
+    private var letGoUnseen: Set<Trigger> = []
     /// Short messages for the window (mouse locked or freed).
-    var onNotice: ((String) -> Void)?
+    public var onNotice: ((String) -> Void)?
     /// The layout's mode changed (a Switch Mode control, a new layout): its id.
-    var onMode: ((String?) -> Void)?
+    public var onMode: ((String?) -> Void)?
     /// The mode the layout is in now; nil without modes.
-    var mode: String? { engine?.mode }
+    public var mode: String? { engine?.mode }
     /// The profile in use changed (loaded, saved, imported).
-    var onProfile: ((KeymapProfile?) -> Void)?
+    public var onProfile: ((KeymapProfile?) -> Void)?
     /// The editor opened (true) or closed (false).
-    var onEditing: ((Bool) -> Void)?
+    public var onEditing: ((Bool) -> Void)?
     /// The editor's panel went inside the window (true: the game moves over
     /// for it) or beside it, outside (false). KeymapOverlay decides.
-    var onPanelInside: ((Bool) -> Void)?
+    public var onPanelInside: ((Bool) -> Void)?
     /// Game Mode turned on or off.
-    var onGameMode: ((Bool) -> Void)?
+    public var onGameMode: ((Bool) -> Void)?
+    /// The editor took the controller or gave it back (`takesGamepad`), for
+    /// whoever hands it to Android (Avo's GamepadForwarder).
+    public var onGamepadOwner: (() -> Void)?
 
     /// Game Mode (⌘G): the key mapping is in charge. Off, every key and
-    /// click reaches the app as it is. Remembered per app.
-    private(set) var gameMode = UserDefaults.standard.bool(forKey: "AvoGameMode")
+    /// click reaches the app as it is. Remembered per app (KeymapStore).
+    public private(set) var gameMode: Bool
 
-    func setGameMode(_ on: Bool) {
+    public func setGameMode(_ on: Bool) {
         guard on != gameMode else { return }
         gameMode = on
-        UserDefaults.standard.set(on, forKey: "AvoGameMode")
+        store.setGameMode(on)
         // Nothing stays pressed or locked when the mapping lets go.
         if !on { focusLost() }
         updateTicking()
         onGameMode?(on)
         guard profile != nil else {
             // Nothing to map yet: the button alone would light up and do nothing.
-            if on { onNotice?(String(localized: "This app has no key mapping yet. Press ⇧⌘K to set one up.", bundle: .windowHost)) }
+            if on { onNotice?(String(localized: "This app has no key mapping yet. Press ⇧⌘K to set one up.", bundle: .avoKit)) }
             return
         }
-        onNotice?(on ? String(localized: "Game Mode on: the key mapping is active. ⌘G turns it off.", bundle: .windowHost)
-                     : String(localized: "Game Mode off: keys and clicks go to the app. ⌘G turns it on.", bundle: .windowHost))
+        onNotice?(on ? String(localized: "Game Mode on: the key mapping is active. ⌘G turns it off.", bundle: .avoKit)
+                     : String(localized: "Game Mode off: keys and clicks go to the app. ⌘G turns it on.", bundle: .avoKit))
     }
 
     /// The mapping takes input only in Game Mode and outside the editor.
@@ -77,36 +91,39 @@ final class KeymapController {
     /// Game Mode with a profile that binds the gamepad: its buttons and
     /// sticks become touches, and Android gets no gamepad (GamepadForwarder).
     /// The editor holds it too, while its buttons are being bound.
-    var takesGamepad: Bool { (gameMode && profile?.usesGamepad == true) || overlay?.isEditing == true }
+    public var takesGamepad: Bool { (gameMode && profile?.usesGamepad == true) || overlay?.isEditing == true }
 
     /// The key that locks the mouse for the eye, when the profile has one.
-    var mouseLockKey: String? { profile?.fps?.cursorToggle.shortLabel }
+    public var mouseLockKey: String? { profile?.fps?.cursorToggle.shortLabel }
 
-    init(package: String, displayID: UInt32, view: DisplayView, hostApplication: URL?, send: @escaping (InputRecord) -> Void) {
+    /// The editor's panel's width: inside the window, the game's picture
+    /// moves over for it (`onPanelInside`).
+    public static var editorPanelWidth: CGFloat { KeymapEditorView.panelWidth }
+
+    public init(package: String, displayID: UInt32, view: any KeymapDisplay, store: KeymapStore,
+                send: @escaping (InputRecord) -> Void) {
         self.package = package
         self.displayID = displayID
         self.view = view
         self.send = send
-        userProfileURL = AvoPaths().keymap(for: package)
-        bundledDirectory = Self.bundledDirectory(hostApplication: hostApplication)
+        self.store = store
+        gameMode = store.gameMode()
         load()
         gamepadListener = GamepadHub.shared.addListener { [weak self] inputs, _ in self?.gamepad(inputs) }
-    }
-
-    /// Where Avo.app keeps the community profiles.
-    static func bundledDirectory(hostApplication: URL?) -> URL? {
-        hostApplication?.appending(path: "Contents/Resources/profiles/keymaps")
     }
 
     /// The user's profile wins over the community profile shipped with Avo.
     /// The window decides whether the app is a game by the same lookup, so
     /// its graphics profile and the key mapping always agree.
     private func load() {
-        if let usable = KeymapProfile.usable(for: package, bundledDirectory: bundledDirectory) { apply(usable.profile) }
+        if let usable = store.usable() { apply(usable.profile) }
     }
 
-    func apply(_ profile: KeymapProfile?) {
+    public func apply(_ profile: KeymapProfile?) {
         if var engine { emit(engine.reset()); self.engine = engine }
+        letGoUnseen.removeAll()
+        seenDown.removeAll()
+        clickSeenDown = false
         unlockPointer()
         self.profile = profile
         aimsAtCursor = profile?.controls.contains(where: \.followsCursor) == true
@@ -124,10 +141,10 @@ final class KeymapController {
         onMode?(engine?.mode)
     }
 
-    func save(_ profile: KeymapProfile) throws {
-        try FileManager.default.createDirectory(at: userProfileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    public func save(_ profile: KeymapProfile) throws {
+        try FileManager.default.createDirectory(at: store.profileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         let data = try profile.encoded()
-        try data.write(to: userProfileURL, options: .atomic)
+        try data.write(to: store.profileURL, options: .atomic)
         // Use what is on disk now: saving dropped any controls from a newer
         // Avo, and the editor must not warn about them when it opens again.
         apply(try KeymapProfile.decode(data))
@@ -135,23 +152,40 @@ final class KeymapController {
         setGameMode(true)
     }
 
-    // MARK: Input from DisplayView (returns true when consumed)
+    // MARK: Input from the game view (returns true when consumed)
 
-    func key(_ key: KeyName, down: Bool, isRepeat: Bool) -> Bool {
+    public func key(_ key: KeyName, down: Bool, isRepeat: Bool) -> Bool {
         if overlay?.isEditing == true { return overlay?.assign(.key(key), down: down) ?? false }
         guard mapping else { return false }
         guard !isRepeat else { return engine?.profile.controls.contains { $0.allTriggers.contains(.key(key)) } == true }
-        if down { reportCursor() }
+        if !down, letGoUnseen.remove(.key(key)) != nil { return true }
+        if down {
+            letGoUnseen.remove(.key(key))
+            reportCursor()
+            if let code = KeyboardMapping.macKeyCode(for: key), hardware.isKeyDown(code) { seenDown.insert(.key(key)) }
+        } else {
+            seenDown.remove(.key(key))
+        }
         return handle(down ? .keyDown(key) : .keyUp(key))
     }
 
-    func mouse(_ button: MouseButton, down: Bool) -> Bool {
+    public func mouse(_ button: MouseButton, down: Bool) -> Bool {
         // The mouse locks only with the eye's key: a click is a click.
         guard mapping else { return false }
-        if down { reportCursor() }
+        if !down, letGoUnseen.remove(.mouse(button)) != nil { return true }
+        let seen = hardware.mouseButtons() & (1 << button.buttonNumber) != 0
+        if down {
+            letGoUnseen.remove(.mouse(button))
+            reportCursor()
+            if seen { seenDown.insert(.mouse(button)) }
+            if button == .left { clickSeenDown = seen }
+        } else {
+            seenDown.remove(.mouse(button))
+            if button == .left { clickSeenDown = false }
+        }
         if handle(down ? .mouseDown(button) : .mouseUp(button)) { return true }
         // A left click no control takes is a touch where it happens. It goes
-        // in with the engine's touches: sent on its own (DisplayView's
+        // in with the engine's touches: sent on its own (the game view's
         // PointerTranslator) it would also claim pointer 0, and Android would
         // drop a touch a key is holding, such as the MOBA joystick.
         guard button == .left, let p = clickLocation() else { return false }
@@ -159,30 +193,85 @@ final class KeymapController {
     }
 
     /// Cursor movement in display pixels; true when an anchor tap took it.
-    func pointerMoved(dx: Double, dy: Double) -> Bool {
+    public func pointerMoved(dx: Double, dy: Double) -> Bool {
         guard mapping else { return false }
         return handle(.pointerMoved(dx: dx, dy: dy))
     }
 
-    func scroll(_ deltaY: Double) -> Bool {
+    public func scroll(_ deltaY: Double) -> Bool {
         guard mapping, deltaY != 0 else { return false }
         return handle(.scroll(dy: deltaY))
     }
 
-    func resize(width: Double, height: Double) {
+    public func resize(width: Double, height: Double) {
         guard var engine else { return }
         emit(engine.resize(width: width, height: height))
         self.engine = engine
     }
 
-    func focusLost() {
+    public func focusLost() {
         unlockPointer()
+        letGoUnseen.removeAll()
+        seenDown.removeAll()
+        clickSeenDown = false
         guard var engine else { return }
         emit(engine.reset())
         self.engine = engine
     }
 
-    func stop() {
+    // MARK: Releases that never came
+
+    /// The keyboard's and the mouse's state, read beside their events.
+    @MainActor
+    struct Hardware {
+        /// Whether the key with this Mac key code is down now (the session's HID state).
+        var isKeyDown: (UInt16) -> Bool = { CGEventSource.keyState(.combinedSessionState, key: CGKeyCode($0)) }
+        /// The mouse buttons down now, one bit per `MouseButton.buttonNumber`.
+        var mouseButtons: () -> Int = { NSEvent.pressedMouseButtons }
+    }
+
+    /// How often the held keys and buttons are checked while the mapping ticks.
+    static let releaseCheckInterval: CFTimeInterval = 0.1
+
+    /// A key or button the engine still holds that the hardware has let go is
+    /// released now, so nothing stays pressed in the game: its keyUp went
+    /// elsewhere (a trackpad gesture of the system's, Mission Control, an
+    /// input method, a menu that took the keyboard for a moment).
+    func releaseUnseen(at now: CFTimeInterval) {
+        guard now - lastReleaseCheck >= Self.releaseCheckInterval, mapping, let held = engine?.heldTriggers else { return }
+        lastReleaseCheck = now
+        let buttons = hardware.mouseButtons()
+        seenDown.formIntersection(held)
+        for trigger in held where seenDown.contains(trigger) {
+            let released: Bool
+            switch trigger {
+            case .key(let key):
+                guard let code = KeyboardMapping.macKeyCode(for: key) else { continue }
+                released = !hardware.isKeyDown(code)
+            case .mouse(let button):
+                released = buttons & (1 << button.buttonNumber) == 0
+            default:
+                continue
+            }
+            guard released else { continue }
+            seenDown.remove(trigger)
+            letGoUnseen.insert(trigger)
+            switch trigger {
+            case .key(let key): _ = handle(.keyUp(key))
+            case .mouse(let button): _ = handle(.mouseUp(button))
+            default: break
+            }
+        }
+        // A click's finger, its button up without a mouseUp.
+        if clickSeenDown, engine?.isClickFingerDown == true, buttons & 1 == 0 {
+            clickSeenDown = false
+            letGoUnseen.insert(.mouse(.left))
+            let at = cursorInDisplay() ?? (0, 0)
+            _ = handle(.fingerUp(x: at.x, y: at.y))
+        }
+    }
+
+    public func stop() {
         focusLost()
         stopTicking()
         if let gamepadListener { GamepadHub.shared.removeListener(gamepadListener) }
@@ -198,7 +287,7 @@ final class KeymapController {
         if let mode = output.mode {
             onMode?(mode)
             if let name = profile?.modes.first(where: { $0.id == mode })?.name {
-                onNotice?(String(localized: "Mode: \(name)", bundle: .windowHost))
+                onNotice?(String(localized: "Mode: \(name)", bundle: .avoKit))
             }
         }
         if let lock = output.pointerLock {
@@ -241,7 +330,9 @@ final class KeymapController {
         guard let view else { return nil }
         let rect = view.displayRect, size = view.displaySize
         guard rect.width > 0, rect.height > 0 else { return nil }
-        let point = view.convert(locationInWindow, from: nil)
+        var point = view.convert(locationInWindow, from: nil)
+        // displayRect is measured from the bottom left, as an unflipped view is.
+        if view.isFlipped { point.y = view.bounds.height - point.y }
         return ((point.x - rect.minX) / rect.width * size.width, (rect.maxY - point.y) / rect.height * size.height)
     }
 
@@ -270,6 +361,7 @@ final class KeymapController {
     private func tick() {
         let now = CACurrentMediaTime()
         if isPointerLocked { flushHeldMotion(at: now) }
+        releaseUnseen(at: now)
         guard var engine else { return }
         // A held MOBA control or click reads the cursor on every frame: while
         // a mouse button is down macOS sends drags, which never reach pointerMoved.
@@ -286,7 +378,7 @@ final class KeymapController {
         guard !isPointerLocked, let view, let window = view.window else { return }
         isPointerLocked = true
         if let toggle = engine?.profile.fps?.cursorToggle.shortLabel {
-            onNotice?(String(localized: "Mouse locked for aiming. Press \(toggle) to free it.", bundle: .windowHost))
+            onNotice?(String(localized: "Mouse locked for aiming. Press \(toggle) to free it.", bundle: .avoKit))
         }
         CGAssociateMouseAndMouseCursorPosition(0)
         NSCursor.hide()
@@ -307,7 +399,7 @@ final class KeymapController {
         guard isPointerLocked else { return }
         isPointerLocked = false
         if let toggle = engine?.profile.fps?.cursorToggle.shortLabel {
-            onNotice?(String(localized: "Mouse free. Press \(toggle) to aim with it.", bundle: .windowHost))
+            onNotice?(String(localized: "Mouse free. Press \(toggle) to aim with it.", bundle: .avoKit))
         }
         stopListeningToMice()
         CGAssociateMouseAndMouseCursorPosition(1)
@@ -358,9 +450,9 @@ final class KeymapController {
         _ = handle(.mouseMoved(dx: dx, dy: dy))
     }
 
-    /// The window's mouse motion while the pointer is locked (DisplayView):
-    /// it counts for a mouse GameController does not see.
-    func lockedMotion(dx: Double, dy: Double) {
+    /// The window's mouse motion while the pointer is locked (the game
+    /// view): it counts for a mouse GameController does not see.
+    public func lockedMotion(dx: Double, dy: Double) {
         guard isPointerLocked, mapping, dx != 0 || dy != 0 else { return }
         let now = CACurrentMediaTime()
         // Raw motion is coming: this is the same movement.
@@ -405,7 +497,7 @@ final class KeymapController {
 
     /// Opens the editor, or closes it. Its bar's Controller button brings
     /// the controller panel out (ControllerPanel.swift).
-    func toggleEditor(over window: NSWindow?) {
+    public func toggleEditor(over window: NSWindow?) {
         guard let window, let view else { return }
         if let overlay, overlay.isEditing {
             overlay.cancel()
@@ -423,14 +515,14 @@ final class KeymapController {
         overlay.onClose = { [weak self] in
             self?.overlay = nil
             self?.onEditing?(false)
-            GamepadForwarder.shared.update()
+            self?.onGamepadOwner?()
         }
         overlay.onPanelInside = { [weak self] inside in self?.onPanelInside?(inside) }
         self.overlay = overlay
         onEditing?(true)
         overlay.show()
         // The controller is the editor's now, not Android's.
-        GamepadForwarder.shared.update()
+        onGamepadOwner?()
     }
 }
 

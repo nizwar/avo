@@ -1,5 +1,7 @@
 import AppKit
+import AvoHazeUI
 import AvoKeymap
+import AvoKeymapUI
 import AvoKit
 import AvoProtocol
 import os
@@ -467,7 +469,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         guard let renderer = MetalRenderer() else { fatalError("Metal is unavailable") }
         displayView = DisplayView(renderer: renderer)
         hasKeyMapping = KeymapProfile.usable(for: app.package,
-                                             bundledDirectory: KeymapController.bundledDirectory(hostApplication: Self.hostApplication)) != nil
+                                             bundledDirectory: KeymapStore.bundledDirectory(hostApplication: Self.hostApplication)) != nil
 
         // The first window: the default size, turned to the app's orientation.
         let config = app.config
@@ -661,10 +663,12 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
                 scheduleResize(delay: .zero)
                 frames.register(displayView, for: id)
                 let keymap = KeymapController(package: app.package, displayID: id, view: displayView,
-                                              hostApplication: Self.hostApplication) { [weak self] record in
+                                              store: .avo(package: app.package, hostApplication: Self.hostApplication)) { [weak self] record in
                     self?.sendInput(record)
                 }
                 self.keymap = keymap
+                // The editor takes the controller from Android while it is open.
+                keymap.onGamepadOwner = { GamepadForwarder.shared.update() }
                 keymap.onNotice = { [weak self] text in self?.notice.show(text) }
                 keymap.onProfile = { [weak self] profile in
                     self?.hints.profile = profile
@@ -770,7 +774,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// smaller, Android's display the same (the window keeps its size, so
     /// nothing re-plugs). Beside the window, the game keeps its whole size.
     private func makeRoom(forPanel inside: Bool) {
-        displayTrailing?.constant = inside ? -KeymapEditorView.panelWidth : 0
+        displayTrailing?.constant = inside ? -KeymapController.editorPanelWidth : 0
         hints.needsDisplay = true
     }
 

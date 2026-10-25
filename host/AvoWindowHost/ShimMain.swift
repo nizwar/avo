@@ -1,4 +1,6 @@
 import AppKit
+import AvoHazeUI
+import AvoKeymapUI
 import AvoKit
 import os
 
@@ -80,6 +82,8 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // The haze's typefaces are in Avo.app, wherever this shim runs from.
+        QuickHaze.fontDirectories = [AndroidWindowController.hostApplication?.appending(path: "Contents/Resources")].compactMap { $0 }
         buildMenu()
         // What the Control Panel asks of this app while it runs (ShimRequest).
         let distributed = DistributedNotificationCenter.default()

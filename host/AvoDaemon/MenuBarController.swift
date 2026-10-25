@@ -1,5 +1,6 @@
 import AppKit
 import AvoDaemonCore
+import AvoHazeUI
 import AvoKit
 import AvoWindowHost
 import SwiftUI
@@ -9,7 +10,7 @@ import SwiftUI
 /// Library's look (MenuBarPanel.swift): Android's state, CPU and memory,
 /// the running and recent apps, Start, Pause, Resume and Stop. A right
 /// click (or Control-click) opens the menu, with every app, in the haze too
-/// (HazeMenu.swift in the Window Host).
+/// (HazeMenu.swift in AvoHazeUI).
 @MainActor
 final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     private let core: DaemonCore

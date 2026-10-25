@@ -94,7 +94,7 @@ func formatAgo(_ date: Date, now: Date = Date()) -> String {
 }
 
 /// An app window's own settings, kept by its App Shim in the shim's defaults
-/// (AvoWindowHost's KeymapController and KeymapHints): whether a new window
+/// (AvoKeymapUI's KeymapStore.avo and KeymapHints): whether a new window
 /// starts in Game Mode, and whether the key mapping shows over the game.
 /// The Control Panel is not sandboxed, so it reads and writes that domain;
 /// a running shim hears of a change (ShimRequest.preferencesChanged) and
@@ -107,7 +107,7 @@ struct ShimPreferences {
         defaults = UserDefaults(suiteName: AvoIdentifiers.shimBundleIdentifier(for: package))
     }
 
-    /// AvoWindowHost: KeymapController's `AvoGameMode`.
+    /// AvoKeymapUI: KeymapStore.avo's `AvoGameMode`.
     var gameModeAtStart: Bool {
         get { defaults?.bool(forKey: "AvoGameMode") ?? false }
         nonmutating set {
@@ -116,7 +116,7 @@ struct ShimPreferences {
         }
     }
 
-    /// AvoWindowHost: KeymapHints' `AvoKeymapHintsVisible` (shown unless turned off).
+    /// AvoKeymapUI: KeymapHints' `AvoKeymapHintsVisible` (shown unless turned off).
     var keyHintsVisible: Bool {
         get { defaults?.object(forKey: "AvoKeymapHintsVisible") as? Bool ?? true }
         nonmutating set {

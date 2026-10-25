@@ -10,10 +10,10 @@ import GameController
 /// one handler per element, so the hub alone sets them and hands each change
 /// to every listener, as the key mapping's input and the whole reading.
 @MainActor
-final class GamepadHub {
-    static let shared = GamepadHub()
+public final class GamepadHub {
+    public static let shared = GamepadHub()
     /// Posted when a controller connects, disconnects or becomes the one in use.
-    static let changed = Notification.Name("com.avodroid.GamepadHubChanged")
+    public static let changed = Notification.Name("com.avodroid.GamepadHubChanged")
 
     /// What the editor shows of the controller in use.
     struct Info: Equatable {
@@ -26,7 +26,7 @@ final class GamepadHub {
         var charging: Bool
     }
 
-    typealias Listener = @MainActor (_ inputs: [KeymapEngine.Input], _ reading: GamepadReading) -> Void
+    public typealias Listener = @MainActor (_ inputs: [KeymapEngine.Input], _ reading: GamepadReading) -> Void
 
     private var listeners: [UUID: Listener] = [:]
     /// Each controller's last reading, to tell what changed.
@@ -59,18 +59,18 @@ final class GamepadHub {
     }
 
     /// `listener` hears every change of every controller from now on.
-    func addListener(_ listener: @escaping Listener) -> UUID {
+    public func addListener(_ listener: @escaping Listener) -> UUID {
         let id = UUID()
         listeners[id] = listener
         return id
     }
 
-    func removeListener(_ id: UUID) {
+    public func removeListener(_ id: UUID) {
         listeners[id] = nil
     }
 
     /// The controller used last, else any with the full set of controls.
-    static func activePad() -> GCExtendedGamepad? {
+    public static func activePad() -> GCExtendedGamepad? {
         GCController.current?.extendedGamepad ?? GCController.controllers().lazy.compactMap(\.extendedGamepad).first
     }
 
@@ -99,7 +99,7 @@ final class GamepadHub {
 
     private static let lastLayoutKey = "AvoLastControllerLayout"
 
-    static func reading(of pad: GCExtendedGamepad) -> GamepadReading {
+    public static func reading(of pad: GCExtendedGamepad) -> GamepadReading {
         let buttons: [(GCControllerButtonInput?, GamepadButton)] = [
             (pad.buttonA, .a), (pad.buttonB, .b), (pad.buttonX, .x), (pad.buttonY, .y),
             (pad.leftShoulder, .leftShoulder), (pad.rightShoulder, .rightShoulder),
@@ -119,7 +119,7 @@ final class GamepadHub {
 
     /// A short, light pulse on the controller in use (a button touched the
     /// screen), when it can vibrate.
-    func pulse() {
+    public func pulse() {
         guard let controller = Self.activeController, let haptics = controller.haptics else { return }
         let key = ObjectIdentifier(controller)
         let engine: CHHapticEngine

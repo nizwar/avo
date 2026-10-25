@@ -1,5 +1,7 @@
 import AppKit
+import AvoHazeUI
 import AvoKeymap
+import AvoKit
 
 /// Where key mapping controls sit and how they look, for the editor and for
 /// the hints over the game. Positions are fractions of `displayRect` (where
@@ -183,8 +185,8 @@ struct KeymapPainter {
             keyPlate(around: symbolRect("eye.fill", at: eye, size: 15).union(labelRect(keys, at: key, size: 10)), color: color)
             symbol("eye.fill", at: eye, size: 15, color: .black)
             label(keys, at: key, color: .black, size: 10)
-            caption(eyeKey == nil && control.stick != nil ? String(localized: "Eye · stick look", bundle: .windowHost)
-                                                          : String(localized: "Eye · mouse look", bundle: .windowHost),
+            caption(eyeKey == nil && control.stick != nil ? String(localized: "Eye · stick look", bundle: .avoKit)
+                                                          : String(localized: "Eye · mouse look", bundle: .avoKit),
                     below: frame(of: control), color: color)
         case let .dpad(center, radius, up, down, left, right, _):
             let c = point(center), r = dpadRadius(radius)
@@ -208,8 +210,8 @@ struct KeymapPainter {
             circle(at: c, radius: max(r * 0.12, 5), color: color, filled: true, solid: true)
             // The controller's part that pushes it too: "D-pad · LS ✚".
             let pads = [control.stick.map { GamepadHub.shared.layout.label($0) }, control.dpadButtons ? "✚" : nil,
-                        control.run.map { String(localized: "\($0.trigger.shortLabel) runs", bundle: .windowHost) }].compactMap { $0 }
-            caption(([String(localized: "D-pad", bundle: .windowHost)] + pads).joined(separator: " · "), below: frame(of: control), color: color)
+                        control.run.map { String(localized: "\($0.trigger.shortLabel) runs", bundle: .avoKit) }].compactMap { $0 }
+            caption(([String(localized: "D-pad", bundle: .avoKit)] + pads).joined(separator: " · "), below: frame(of: control), color: color)
         case let .swipe(from, to, _):
             let a = point(from), b = point(to)
             let path = NSBezierPath()
@@ -219,7 +221,7 @@ struct KeymapPainter {
             arrowHead(at: b, from: a, color: color)
             circle(at: b, radius: 6, color: color, filled: true, solid: true)
             bubble(control, at: a, color: color, symbolName: nil)
-            caption(String(localized: "Swipe", bundle: .windowHost), below: frame(of: control), color: color)
+            caption(String(localized: "Swipe", bundle: .avoKit), below: frame(of: control), color: color)
         case .anchor:
             let c = point(anchor(of: control))
             // Its reach: a faint disc in a dashed ring, like a joystick's.
@@ -232,20 +234,20 @@ struct KeymapPainter {
             }
             bubble(control, at: c, color: color, symbolName: "arrow.up.and.down.and.arrow.left.and.right")
             let r = bubbleRadius(control)
-            caption(String(localized: "Anchor tap", bundle: .windowHost), below: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r),
+            caption(String(localized: "Anchor tap", bundle: .avoKit), below: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r),
                     color: color)
         case .hotkey, .clickArea:
             // A hotkey has no place on the game; a click area is drawn under the controls (drawClickArea).
             break
         case .repeatTap:
             bubble(control, at: point(anchor(of: control)), color: color, symbolName: "repeat")
-            caption(String(localized: "Repeat", bundle: .windowHost), below: frame(of: control), color: color)
+            caption(String(localized: "Repeat", bundle: .avoKit), below: frame(of: control), color: color)
         case .ads:
             bubble(control, at: point(anchor(of: control)), color: color, symbolName: "scope")
-            caption(String(localized: "Aim down sights", bundle: .windowHost), below: frame(of: control), color: color)
+            caption(String(localized: "Aim down sights", bundle: .avoKit), below: frame(of: control), color: color)
         case .macro:
             bubble(control, at: point(anchor(of: control)), color: color, symbolName: nil)
-            caption(String(localized: "Macro", bundle: .windowHost), below: frame(of: control), color: color)
+            caption(String(localized: "Macro", bundle: .avoKit), below: frame(of: control), color: color)
         case let .mobaMove(center, radius):
             // A joystick ring with its knob: the knob carries the trigger.
             let c = point(center), r = dpadRadius(radius)
@@ -260,7 +262,7 @@ struct KeymapPainter {
                 .union(labelRect(triggerText(control), at: key, size: size * 0.85)), color: color)
             symbol("cursorarrow.motionlines", at: mark, size: size, color: .black)
             label(triggerText(control), at: key, color: .black, size: size * 0.85)
-            caption(String(localized: "Move by mouse", bundle: .windowHost), below: frame(of: control), color: color)
+            caption(String(localized: "Move by mouse", bundle: .avoKit), below: frame(of: control), color: color)
         case .smartCast:
             let c = point(anchor(of: control))
             if guides {
@@ -272,7 +274,7 @@ struct KeymapPainter {
             bubble(control, at: c, color: color, symbolName: "sparkles")
             // Under the button: the rings of neighbouring skills overlap.
             let r = bubbleRadius(control)
-            caption(String(localized: "Smart cast", bundle: .windowHost), below: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r),
+            caption(String(localized: "Smart cast", bundle: .avoKit), below: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r),
                     color: color)
         case .tap, .hold:
             bubble(control, at: point(anchor(of: control)), color: color, symbolName: nil)
@@ -292,7 +294,7 @@ struct KeymapPainter {
             ticks.line(to: CGPoint(x: c.x + dx * (r + 10), y: c.y + dy * (r + 10)))
         }
         line(ticks, color: fade(color), width: 2)
-        caption(String(localized: "Hero", bundle: .windowHost), below: CGRect(x: c.x - r, y: c.y - r - 8, width: 2 * r, height: 2 * r),
+        caption(String(localized: "Hero", bundle: .avoKit), below: CGRect(x: c.x - r, y: c.y - r - 8, width: 2 * r, height: 2 * r),
                 color: color)
     }
 
@@ -336,7 +338,7 @@ struct KeymapPainter {
         if !selected { frame.setLineDash([7, 5], count: 2, phase: 0) }
         line(frame, color: fade(color, selected ? 1 : hovered ? 0.8 : 0.55), width: selected ? 2 : 1.5)
         guard selected || hovered else { return }
-        tag(String(localized: "Swipe area", bundle: .windowHost), inside: r, color: color)
+        tag(String(localized: "Swipe area", bundle: .avoKit), inside: r, color: color)
     }
 
     /// A click area, under the controls: a tinted rectangle in a dotted
@@ -355,7 +357,7 @@ struct KeymapPainter {
         let size = min(max(min(r.width, r.height) * 0.3, 10), 20)
         keyPlate(around: symbolRect("cursorarrow.click.2", at: c, size: size), color: color)
         symbol("cursorarrow.click.2", at: c, size: size, color: fade(color, passThrough ? 1 : 0.6))
-        tag(String(localized: "Click area", bundle: .windowHost), inside: r, color: color)
+        tag(String(localized: "Click area", bundle: .avoKit), inside: r, color: color)
     }
 
     /// What a control does besides its touch, on the game (editor): a row
@@ -435,7 +437,7 @@ struct KeymapPainter {
     /// "52% × 90% of the screen": an area's width and height.
     static func sizeText(_ area: NormalizedRect) -> String {
         let width = Int((area.width * 100).rounded()), height = Int((area.height * 100).rounded())
-        return String(localized: "\(width)% × \(height)% of the screen", bundle: .windowHost)
+        return String(localized: "\(width)% × \(height)% of the screen", bundle: .avoKit)
     }
 
     /// A name in the top left corner of an area, on a dark plate.
@@ -520,7 +522,7 @@ struct KeymapPainter {
         ring.setLineDash([4, 3], count: 2, phase: 0)
         line(ring, color: Self.selection, width: 2)
         label("?", at: c, color: Self.selection, size: min(max(r * 0.7, 11), 18))
-        caption(String(localized: "Press a key", bundle: .windowHost), below: box, color: Self.selection)
+        caption(String(localized: "Press a key", bundle: .avoKit), below: box, color: Self.selection)
     }
 
     /// A control that acts in every mode of a layout with modes (editor): a
@@ -800,14 +802,14 @@ struct KeymapPainter {
 
 /// "Show on game" and how opaque it is, remembered per app (the shim's defaults).
 @MainActor
-enum KeymapHints {
-    static let changed = Notification.Name("com.avodroid.KeymapHintsChanged")
-    static let opacityRange = 0.15...1.0
+public enum KeymapHints {
+    public static let changed = Notification.Name("com.avodroid.KeymapHintsChanged")
+    public static let opacityRange = 0.15...1.0
     /// Clear but light: the keys read on any scene, their plates let the
     /// game's buttons show through.
-    static let defaultOpacity = 0.75
+    public static let defaultOpacity = 0.75
 
-    static var visible: Bool {
+    public static var visible: Bool {
         get { UserDefaults.standard.object(forKey: "AvoKeymapHintsVisible") as? Bool ?? true }
         set {
             UserDefaults.standard.set(newValue, forKey: "AvoKeymapHintsVisible")
@@ -815,7 +817,7 @@ enum KeymapHints {
         }
     }
 
-    static var opacity: Double {
+    public static var opacity: Double {
         get { UserDefaults.standard.object(forKey: "AvoKeymapHintsOpacity") as? Double ?? defaultOpacity }
         set {
             UserDefaults.standard.set(min(max(newValue, opacityRange.lowerBound), opacityRange.upperBound), forKey: "AvoKeymapHintsOpacity")
@@ -824,12 +826,12 @@ enum KeymapHints {
     }
 
     /// Key Visibility's steps (menus); the editor's slider moves in 5% steps.
-    static var steps: [(opacity: Double, title: String)] {
+    public static var steps: [(opacity: Double, title: String)] {
         let low = 25, medium = 50, high = 75, full = 100
-        return [(0.25, String(localized: "Low (\(low)%)", bundle: .windowHost)),
-                (0.5, String(localized: "Medium (\(medium)%)", bundle: .windowHost)),
-                (0.75, String(localized: "High (\(high)%)", bundle: .windowHost)),
-                (1, String(localized: "Full (\(full)%)", bundle: .windowHost))]
+        return [(0.25, String(localized: "Low (\(low)%)", bundle: .avoKit)),
+                (0.5, String(localized: "Medium (\(medium)%)", bundle: .avoKit)),
+                (0.75, String(localized: "High (\(high)%)", bundle: .avoKit)),
+                (1, String(localized: "Full (\(full)%)", bundle: .avoKit))]
     }
 }
 
@@ -838,13 +840,13 @@ enum KeymapHints {
 /// (the editor has a slider), and the value in use when it is none of
 /// them ("Custom (18%)"). Choosing one also shows the key mapping.
 @MainActor
-final class KeymapHintsMenu: NSObject, NSMenuItemValidation, NSMenuDelegate {
-    static let shared = KeymapHintsMenu()
+public final class KeymapHintsMenu: NSObject, NSMenuItemValidation, NSMenuDelegate {
+    public static let shared = KeymapHintsMenu()
     private static let custom = NSUserInterfaceItemIdentifier("avo.keymapHints.custom")
 
     /// A new item with the submenu (each menu needs its own).
-    func makeItem() -> NSMenuItem {
-        let submenu = NSMenu(title: String(localized: "Key Visibility", bundle: .windowHost))
+    public func makeItem() -> NSMenuItem {
+        let submenu = NSMenu(title: String(localized: "Key Visibility", bundle: .avoKit))
         submenu.delegate = self
         for step in KeymapHints.steps {
             let item = submenu.addItem(withTitle: step.title, action: #selector(choose(_:)), keyEquivalent: "")
@@ -862,11 +864,11 @@ final class KeymapHintsMenu: NSObject, NSMenuItemValidation, NSMenuDelegate {
     }
 
     /// Shows the value in use, in its place among the steps, when it is not one of them.
-    func menuNeedsUpdate(_ menu: NSMenu) {
+    public func menuNeedsUpdate(_ menu: NSMenu) {
         guard let custom = menu.items.first(where: { $0.identifier == Self.custom }) else { return }
         let opacity = KeymapHints.opacity
         custom.isHidden = KeymapHints.steps.contains { abs($0.opacity - opacity) < 0.01 }
-        custom.title = String(localized: "Custom (\(Int((opacity * 100).rounded()))%)", bundle: .windowHost)
+        custom.title = String(localized: "Custom (\(Int((opacity * 100).rounded()))%)", bundle: .avoKit)
         custom.representedObject = opacity
         let index = KeymapHints.steps.filter { $0.opacity < opacity }.count
         if menu.index(of: custom) != index {
@@ -881,7 +883,7 @@ final class KeymapHintsMenu: NSObject, NSMenuItemValidation, NSMenuDelegate {
         if !KeymapHints.visible { KeymapHints.visible = true }
     }
 
-    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+    public func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(choose(_:)), let opacity = item.representedObject as? Double {
             item.state = KeymapHints.visible && abs(KeymapHints.opacity - opacity) < 0.01 ? .on : .off
         }
@@ -893,18 +895,18 @@ final class KeymapHintsMenu: NSObject, NSMenuItemValidation, NSMenuDelegate {
 /// caps on the game's buttons, at the visibility the player chose. It never
 /// takes a click.
 @MainActor
-final class KeymapHintsView: NSView {
-    var profile: KeymapProfile? { didSet { needsDisplay = true } }
+public final class KeymapHintsView: NSView {
+    public var profile: KeymapProfile? { didSet { needsDisplay = true } }
     /// The layout's mode now (KeymapController): only its controls show.
-    var mode: String? { didSet { if mode != oldValue { needsDisplay = true } } }
+    public var mode: String? { didSet { if mode != oldValue { needsDisplay = true } } }
     /// Hidden while the editor is open (it shows everything itself) and
     /// outside Game Mode (the mapping is not in charge then).
-    var editing = false { didSet { update() } }
-    var gameMode = false { didSet { update() } }
+    public var editing = false { didSet { update() } }
+    public var gameMode = false { didSet { update() } }
     private let displayRect: () -> CGRect
     private var observer: (any NSObjectProtocol)?
 
-    init(displayRect: @escaping () -> CGRect) {
+    public init(displayRect: @escaping () -> CGRect) {
         self.displayRect = displayRect
         super.init(frame: .zero)
         wantsLayer = true
@@ -915,12 +917,12 @@ final class KeymapHintsView: NSView {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+    public required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
-    override var isOpaque: Bool { false }
+    override public func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override public var isOpaque: Bool { false }
 
-    override func setFrameSize(_ newSize: NSSize) {
+    override public func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         needsDisplay = true
     }
@@ -930,7 +932,7 @@ final class KeymapHintsView: NSView {
         needsDisplay = true
     }
 
-    override func draw(_ dirtyRect: NSRect) {
+    override public func draw(_ dirtyRect: NSRect) {
         guard let profile else { return }
         let painter = KeymapPainter(displayRect: displayRect(), opacity: CGFloat(KeymapHints.opacity), captions: false, guides: false,
                                     style: .hint)

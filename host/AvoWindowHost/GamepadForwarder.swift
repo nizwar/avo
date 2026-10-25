@@ -1,5 +1,6 @@
 import AppKit
 import AvoKeymap
+import AvoKeymapUI
 import AvoProtocol
 import GameController
 

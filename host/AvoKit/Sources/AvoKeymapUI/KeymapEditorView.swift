@@ -1,5 +1,7 @@
 import AppKit
+import AvoHazeUI
 import AvoKeymap
+import AvoKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -192,7 +194,7 @@ final class KeymapEditorView: NSView {
         guard !profile.unsupportedControls.isEmpty else { return nil }
         let types = Array(Set(profile.unsupportedControls)).sorted().joined(separator: ", ")
         return String(localized: "This layout has controls from a newer version of Avo (\(types)). They are not shown here, and saving leaves them out.",
-                      bundle: .windowHost)
+                      bundle: .avoKit)
     }
 
     @available(*, unavailable)
@@ -213,7 +215,7 @@ final class KeymapEditorView: NSView {
     // MARK: The panel beside the game (KeymapEditorPanel.swift)
 
     /// The panel's width: inside the window, the game's picture moves over
-    /// for it (AndroidWindowController).
+    /// for it (KeymapController.editorPanelWidth).
     static let panelWidth: CGFloat = 348
 
     private func buildPanel() {
@@ -411,7 +413,7 @@ final class KeymapEditorView: NSView {
     }
 
     private func showHelp() {
-        setStatus(String(localized: "Click a button of the game, then press its key.", bundle: .windowHost))
+        setStatus(String(localized: "Click a button of the game, then press its key.", bundle: .avoKit))
     }
 
     /// What the panel shows of the layout: its modes, the selected control,
@@ -694,7 +696,7 @@ final class KeymapEditorView: NSView {
         let control = profile.controls.remove(at: index)
         if profile.fps?.aimControl == id { profile.fps = nil }
         if selected == id { selected = nil }
-        setStatus(String(localized: "Removed “\(name(of: control))”.", bundle: .windowHost))
+        setStatus(String(localized: "Removed “\(name(of: control))”.", bundle: .avoKit))
         needsDisplay = true
     }
 
@@ -712,15 +714,15 @@ final class KeymapEditorView: NSView {
         case let .dpad(_, _, up, down, left, right, _) where dpadSlot == Self.runSlot:
             // The key held to run.
             if trigger.isMomentary {
-                setStatus(String(localized: "The wheel cannot be held to run: press a key or a button.", bundle: .windowHost), problem: true)
+                setStatus(String(localized: "The wheel cannot be held to run: press a key or a button.", bundle: .avoKit), problem: true)
             } else if [up, down, left, right].contains(trigger) {
-                setStatus(String(localized: "\(short(trigger)) is a direction of this joystick: press another key to run.", bundle: .windowHost),
+                setStatus(String(localized: "\(short(trigger)) is a direction of this joystick: press another key to run.", bundle: .avoKit),
                           problem: true)
             } else {
                 profile.controls[index].run = JoystickRun(trigger: trigger, scale: control.run?.scale ?? JoystickRun.defaultScale)
                 dpadSlot = 0
                 setStatus(String(localized: "Holding \(short(trigger)) runs: the joystick goes further meanwhile. Set how far in the panel.",
-                                 bundle: .windowHost))
+                                 bundle: .avoKit))
             }
         case let .dpad(center, radius, up, down, left, right, stick):
             var keys = [up, left, down, right]
@@ -732,7 +734,7 @@ final class KeymapEditorView: NSView {
                                                  left: keys[1], right: keys[3], stick: stick)
             let set = dpadSlot
             dpadSlot = (dpadSlot + 1) % 4
-            setStatus(String(localized: "D-pad \(direction(set)): \(short(trigger)). Next key sets \(direction(dpadSlot)).", bundle: .windowHost))
+            setStatus(String(localized: "D-pad \(direction(set)): \(short(trigger)). Next key sets \(direction(dpadSlot)).", bundle: .avoKit))
         case .aim:
             if profile.fps == nil {
                 profile.fps = FPSSettings(cursorToggle: trigger, aimControl: id)
@@ -740,16 +742,16 @@ final class KeymapEditorView: NSView {
                 profile.fps?.cursorToggle = trigger
                 profile.fps?.aimControl = id
             }
-            setStatus(String(localized: "\(short(trigger)) locks the mouse to aim with the eye, and frees it again.", bundle: .windowHost))
+            setStatus(String(localized: "\(short(trigger)) locks the mouse to aim with the eye, and frees it again.", bundle: .avoKit))
         case .clickArea:
-            setStatus(String(localized: "A click area needs no key: it acts when it is clicked while the mouse is free.", bundle: .windowHost))
+            setStatus(String(localized: "A click area needs no key: it acts when it is clicked while the mouse is free.", bundle: .avoKit))
             return
         default:
             if trigger.isMomentary {
                 switch control.kind {
                 case .tap, .swipe, .macro, .hotkey: break
                 default:
-                    setStatus(String(localized: "The wheel works with Tap, Swipe and Hotkey only.", bundle: .windowHost), problem: true)
+                    setStatus(String(localized: "The wheel works with Tap, Swipe and Hotkey only.", bundle: .avoKit), problem: true)
                     return
                 }
             }
@@ -758,11 +760,11 @@ final class KeymapEditorView: NSView {
             // The others it presses in this mode, so a shared key is no surprise.
             let others = shownControls.filter { $0.id != id && $0.allTriggers.contains(trigger) }.map { "“\(name(of: $0))”" }
             if others.isEmpty, profile.fps?.cursorToggle != trigger {
-                setStatus(String(localized: "“\(name(of: control))” responds to \(short(trigger)).", bundle: .windowHost))
+                setStatus(String(localized: "“\(name(of: control))” responds to \(short(trigger)).", bundle: .avoKit))
             } else {
-                let more = others + (profile.fps?.cursorToggle == trigger ? [String(localized: "the mouse lock", bundle: .windowHost)] : [])
+                let more = others + (profile.fps?.cursorToggle == trigger ? [String(localized: "the mouse lock", bundle: .avoKit)] : [])
                 setStatus(String(localized: "“\(name(of: control))” responds to \(short(trigger)), together with \(more.formatted(.list(type: .and))).",
-                                 bundle: .windowHost))
+                                 bundle: .avoKit))
             }
         }
         needsDisplay = true
@@ -772,30 +774,30 @@ final class KeymapEditorView: NSView {
     private static let runSlot = 4
 
     private func direction(_ slot: Int) -> String {
-        [String(localized: "up", bundle: .windowHost), String(localized: "left", bundle: .windowHost),
-         String(localized: "down", bundle: .windowHost), String(localized: "right", bundle: .windowHost)][slot]
+        [String(localized: "up", bundle: .avoKit), String(localized: "left", bundle: .avoKit),
+         String(localized: "down", bundle: .avoKit), String(localized: "right", bundle: .avoKit)][slot]
     }
 
     /// What to do with the selected control now; what it is is behind its (?) in the panel.
     private func prompt(for control: Control) {
         switch control.kind {
         case .dpad where dpadSlot == Self.runSlot:
-            setStatus(String(localized: "Press the key to hold for running (Shift, for example).", bundle: .windowHost))
+            setStatus(String(localized: "Press the key to hold for running (Shift, for example).", bundle: .avoKit))
         case .dpad:
-            setStatus(String(localized: "Press four keys in turn, \(direction(dpadSlot)) first.", bundle: .windowHost))
+            setStatus(String(localized: "Press four keys in turn, \(direction(dpadSlot)) first.", bundle: .avoKit))
         case .aim:
-            setStatus(String(localized: "Press the key that locks and frees the mouse (F8, for example).", bundle: .windowHost))
+            setStatus(String(localized: "Press the key that locks and frees the mouse (F8, for example).", bundle: .avoKit))
         case .anchor, .smartCast:
-            setStatus(String(localized: "Press its key. Drag ↘ to set how far it reaches.", bundle: .windowHost))
+            setStatus(String(localized: "Press its key. Drag ↘ to set how far it reaches.", bundle: .avoKit))
         case .hotkey:
-            setStatus(String(localized: "Press the hotkey’s key, then add what it does in the panel.", bundle: .windowHost))
+            setStatus(String(localized: "Press the hotkey’s key, then add what it does in the panel.", bundle: .avoKit))
         case .clickArea:
             setStatus(String(localized: "Put the area over the game’s button and size it by its edges, then add what a click does in the panel.",
-                             bundle: .windowHost))
+                             bundle: .avoKit))
         case .mobaMove:
-            setStatus(String(localized: "Press a key, or right-click for a mouse button.", bundle: .windowHost))
+            setStatus(String(localized: "Press a key, or right-click for a mouse button.", bundle: .avoKit))
         default:
-            setStatus(String(localized: "Press its key or controller button. Right-click for a mouse button.", bundle: .windowHost))
+            setStatus(String(localized: "Press its key or controller button. Right-click for a mouse button.", bundle: .avoKit))
         }
     }
 
@@ -840,7 +842,7 @@ final class KeymapEditorView: NSView {
             let h = point(hero)
             drag = .hero(offset: CGVector(dx: h.x - p.x, dy: h.y - p.y))
             setStatus(String(localized: "Hero: where your character stands on the screen. Move by mouse and smart cast aim from here towards the cursor.",
-                             bundle: .windowHost))
+                             bundle: .avoKit))
         case nil:
             selected = nil
             drag = nil
@@ -851,7 +853,7 @@ final class KeymapEditorView: NSView {
             } else if displayRect().contains(p) {
                 // On the game: a tap there, once its key is pressed.
                 pendingTap = normalized(p)
-                setStatus(String(localized: "Press a key for this button (right-click: a mouse button). Click it again to cancel.", bundle: .windowHost))
+                setStatus(String(localized: "Press a key for this button (right-click: a mouse button). Click it again to cancel.", bundle: .avoKit))
             } else {
                 pendingTap = nil
                 showHelp()
@@ -981,7 +983,7 @@ final class KeymapEditorView: NSView {
             guard displayRect().contains(p), let window else { return }
             selected = nil
             pendingTap = normalized(p)
-            setStatus(String(localized: "Choose the mouse button for this button of the game, or press a key.", bundle: .windowHost))
+            setStatus(String(localized: "Choose the mouse button for this button of the game, or press a key.", bundle: .avoKit))
             HazeMenuPresenter.shared.show(mouseEntries(), at: window.convertPoint(toScreen: event.locationInWindow), for: event)
             return
         }
@@ -1007,7 +1009,7 @@ final class KeymapEditorView: NSView {
             for item in modeItems(for: control) { menu.addItem(item) }
         }
         menu.addItem(.separator())
-        let remove = NSMenuItem(title: String(localized: "Remove", bundle: .windowHost), action: #selector(removeSelected), keyEquivalent: "")
+        let remove = NSMenuItem(title: String(localized: "Remove", bundle: .avoKit), action: #selector(removeSelected), keyEquivalent: "")
         remove.target = self
         remove.symbol("trash")
         menu.addItem(remove)
@@ -1017,13 +1019,13 @@ final class KeymapEditorView: NSView {
     /// A mouse button or the wheel for a control, as the menus list them.
     static var mouseChoices: [(title: String, trigger: Trigger, symbol: String)] {
         [
-            (String(localized: "Left Click", bundle: .windowHost), .mouse(.left), "cursorarrow.click"),
-            (String(localized: "Right Click", bundle: .windowHost), .mouse(.right), "contextualmenu.and.cursorarrow"),
-            (String(localized: "Middle Click", bundle: .windowHost), .mouse(.middle), "computermouse"),
-            (String(localized: "Mouse Button 4", bundle: .windowHost), .mouse(.button4), "arrow.backward.circle"),
-            (String(localized: "Mouse Button 5", bundle: .windowHost), .mouse(.button5), "arrow.forward.circle"),
-            (String(localized: "Wheel Up", bundle: .windowHost), .scrollUp, "arrow.up.circle"),
-            (String(localized: "Wheel Down", bundle: .windowHost), .scrollDown, "arrow.down.circle"),
+            (String(localized: "Left Click", bundle: .avoKit), .mouse(.left), "cursorarrow.click"),
+            (String(localized: "Right Click", bundle: .avoKit), .mouse(.right), "contextualmenu.and.cursorarrow"),
+            (String(localized: "Middle Click", bundle: .avoKit), .mouse(.middle), "computermouse"),
+            (String(localized: "Mouse Button 4", bundle: .avoKit), .mouse(.button4), "arrow.backward.circle"),
+            (String(localized: "Mouse Button 5", bundle: .avoKit), .mouse(.button5), "arrow.forward.circle"),
+            (String(localized: "Wheel Up", bundle: .avoKit), .scrollUp, "arrow.up.circle"),
+            (String(localized: "Wheel Down", bundle: .avoKit), .scrollDown, "arrow.down.circle"),
         ]
     }
 
@@ -1049,9 +1051,9 @@ final class KeymapEditorView: NSView {
             return item
         }
         if !profile.modes.isEmpty {
-            let modes = [(String(localized: "Every Mode", bundle: .windowHost), "*", control.modes == nil), ("", "", false)]
+            let modes = [(String(localized: "Every Mode", bundle: .avoKit), "*", control.modes == nil), ("", "", false)]
                 + profile.modes.map { ($0.name, $0.id, control.modes?.contains($0.id) == true) }
-            items.append(submenu(String(localized: "Works In", bundle: .windowHost), modes, #selector(setControlModes(_:))).symbol("square.stack.3d.up"))
+            items.append(submenu(String(localized: "Works In", bundle: .avoKit), modes, #selector(setControlModes(_:))).symbol("square.stack.3d.up"))
         }
         return items.isEmpty ? [] : [.separator()] + items
     }
@@ -1076,8 +1078,8 @@ final class KeymapEditorView: NSView {
         profile.controls[i].modes = modes
         let control = profile.controls[i]
         let names = (modes ?? []).compactMap { mode in profile.modes.first { $0.id == mode }?.name }
-        setStatus(names.isEmpty ? String(localized: "“\(name(of: control))” acts in every mode.", bundle: .windowHost)
-                                : String(localized: "“\(name(of: control))” acts in \(names.formatted(.list(type: .and))).", bundle: .windowHost))
+        setStatus(names.isEmpty ? String(localized: "“\(name(of: control))” acts in every mode.", bundle: .avoKit)
+                                : String(localized: "“\(name(of: control))” acts in \(names.formatted(.list(type: .and))).", bundle: .avoKit))
         // Out of the mode being edited: it goes from view.
         if !control.belongs(to: editingMode) { selected = nil }
         needsDisplay = true
@@ -1092,7 +1094,7 @@ final class KeymapEditorView: NSView {
         hovered = nil
         pendingTap = nil
         editingMode = mode.id
-        setStatus(String(localized: "Editing “\(mode.name)”.", bundle: .windowHost))
+        setStatus(String(localized: "Editing “\(mode.name)”.", bundle: .avoKit))
         needsDisplay = true
     }
 
@@ -1109,18 +1111,18 @@ final class KeymapEditorView: NSView {
     private func createMode() -> String {
         let first = profile.modes.isEmpty
         if first {
-            profile.modes = [KeymapMode(id: "default", name: String(localized: "Default", bundle: .windowHost))]
+            profile.modes = [KeymapMode(id: "default", name: String(localized: "Default", bundle: .avoKit))]
             for i in profile.controls.indices where profile.controls[i].modes == nil && !isEye(profile.controls[i]) {
                 profile.controls[i].modes = ["default"]
             }
         }
         let id = newModeID()
-        profile.modes.append(KeymapMode(id: id, name: String(localized: "Mode \(profile.modes.count + 1)", bundle: .windowHost)))
+        profile.modes.append(KeymapMode(id: id, name: String(localized: "Mode \(profile.modes.count + 1)", bundle: .avoKit)))
         selected = nil
         pendingTap = nil
         editingMode = id
-        setStatus(first ? String(localized: "Your controls are in “Default” now. This new mode starts empty.", bundle: .windowHost)
-                        : String(localized: "A new mode, empty: add its controls.", bundle: .windowHost))
+        setStatus(first ? String(localized: "Your controls are in “Default” now. This new mode starts empty.", bundle: .avoKit)
+                        : String(localized: "A new mode, empty: add its controls.", bundle: .avoKit))
         needsDisplay = true
         return id
     }
@@ -1150,26 +1152,26 @@ final class KeymapEditorView: NSView {
         guard let index = profile.modes.firstIndex(where: { $0.id == id }) else { return [] }
         var entries: [HazeMenuEntry] = [
             .section(profile.modes[index].name),
-            .item(HazeMenuItem(title: String(localized: "Rename", bundle: .windowHost), symbol: "pencil") { [weak self] in
+            .item(HazeMenuItem(title: String(localized: "Rename", bundle: .avoKit), symbol: "pencil") { [weak self] in
                 self?.barModel.renaming = id
             }),
-            .item(HazeMenuItem(title: String(localized: "Duplicate", bundle: .windowHost), symbol: "plus.square.on.square") { [weak self] in
+            .item(HazeMenuItem(title: String(localized: "Duplicate", bundle: .avoKit), symbol: "plus.square.on.square") { [weak self] in
                 self?.duplicateMode(id)
             }),
         ]
         if index > 0 {
-            entries.append(.item(HazeMenuItem(title: String(localized: "Start the Game in This Mode", bundle: .windowHost), symbol: "flag") {
+            entries.append(.item(HazeMenuItem(title: String(localized: "Start the Game in This Mode", bundle: .avoKit), symbol: "flag") {
                 [weak self] in
                 self?.startIn(id)
                 self?.refocus()
             }))
         }
         if profile.fps != nil {
-            entries.append(.item(HazeMenuItem(title: String(localized: "Mouse When Switching Here", bundle: .windowHost), symbol: "computermouse",
+            entries.append(.item(HazeMenuItem(title: String(localized: "Mouse When Switching Here", bundle: .avoKit), symbol: "computermouse",
                                               submenu: { [weak self] in self?.mouseChoices(for: id) ?? [] })))
         }
         entries.append(.separator())
-        entries.append(.item(HazeMenuItem(title: String(localized: "Delete Mode…", bundle: .windowHost), symbol: "trash", role: .destructive) {
+        entries.append(.item(HazeMenuItem(title: String(localized: "Delete Mode…", bundle: .avoKit), symbol: "trash", role: .destructive) {
             [weak self] in self?.deleteMode(id)
         }))
         return entries
@@ -1177,9 +1179,9 @@ final class KeymapEditorView: NSView {
 
     private func mouseChoices(for id: String) -> [HazeMenuEntry] {
         let current = profile.modes.first { $0.id == id }?.mouseLook
-        let choices: [(String, Bool?)] = [(String(localized: "Locked to the Eye", bundle: .windowHost), true),
-                                          (String(localized: "Free", bundle: .windowHost), false),
-                                          (String(localized: "As It Was", bundle: .windowHost), nil)]
+        let choices: [(String, Bool?)] = [(String(localized: "Locked to the Eye", bundle: .avoKit), true),
+                                          (String(localized: "Free", bundle: .avoKit), false),
+                                          (String(localized: "As It Was", bundle: .avoKit), nil)]
         return choices.map { title, value in
             .item(HazeMenuItem(title: title, state: current == value ? .on : .off) { [weak self] in
                 guard let self, let i = self.profile.modes.firstIndex(where: { $0.id == id }) else { return }
@@ -1194,7 +1196,7 @@ final class KeymapEditorView: NSView {
         guard let i = profile.modes.firstIndex(where: { $0.id == id }), i > 0 else { return }
         let mode = profile.modes.remove(at: i)
         profile.modes.insert(mode, at: 0)
-        setStatus(String(localized: "The game starts in “\(mode.name)” now.", bundle: .windowHost))
+        setStatus(String(localized: "The game starts in “\(mode.name)” now.", bundle: .avoKit))
     }
 
     /// A copy of a mode, after it: its own controls copied, the others (the
@@ -1203,7 +1205,7 @@ final class KeymapEditorView: NSView {
         guard let index = profile.modes.firstIndex(where: { $0.id == id }) else { return }
         let source = profile.modes[index]
         let copy = newModeID()
-        profile.modes.insert(KeymapMode(id: copy, name: String(localized: "\(source.name) Copy", bundle: .windowHost), mouseLook: source.mouseLook),
+        profile.modes.insert(KeymapMode(id: copy, name: String(localized: "\(source.name) Copy", bundle: .avoKit), mouseLook: source.mouseLook),
                              at: index + 1)
         var controls = profile.controls
         for i in controls.indices {
@@ -1223,7 +1225,7 @@ final class KeymapEditorView: NSView {
         pendingTap = nil
         editingMode = copy
         barModel.renaming = copy
-        setStatus(String(localized: "A copy of “\(source.name)”, with its controls: type its name in its tab.", bundle: .windowHost))
+        setStatus(String(localized: "A copy of “\(source.name)”, with its controls: type its name in its tab.", bundle: .avoKit))
         needsDisplay = true
     }
 
@@ -1247,16 +1249,16 @@ final class KeymapEditorView: NSView {
             control.modes == [id] || Self.onlySwitches(control, to: [id])
         }
         let alert = NSAlert()
-        alert.messageText = String(localized: "Delete the mode “\(mode.name)”?", bundle: .windowHost)
+        alert.messageText = String(localized: "Delete the mode “\(mode.name)”?", bundle: .avoKit)
         alert.informativeText = only
             ? String(localized: "It is the layout’s only mode: the layout is one set of controls again, and they all stay. Cancel in the editor still undoes it.",
-                     bundle: .windowHost)
+                     bundle: .avoKit)
             : going.isEmpty
-                ? String(localized: "Its controls stay in the other modes. Cancel in the editor still undoes it.", bundle: .windowHost)
+                ? String(localized: "Its controls stay in the other modes. Cancel in the editor still undoes it.", bundle: .avoKit)
                 : String(localized: "\(going.count) controls that act only there or switch to it go too. Cancel in the editor still undoes it.",
-                         bundle: .windowHost)
-        alert.addButton(withTitle: String(localized: "Delete Mode", bundle: .windowHost))
-        alert.addButton(withTitle: String(localized: "Cancel", bundle: .windowHost))
+                         bundle: .avoKit)
+        alert.addButton(withTitle: String(localized: "Delete Mode", bundle: .avoKit))
+        alert.addButton(withTitle: String(localized: "Cancel", bundle: .avoKit))
         alert.beginSheetModal(for: window) { [weak self] response in
             MainActor.assumeIsolated {
                 if response == .alertFirstButtonReturn { self?.removeMode(id) }
@@ -1309,17 +1311,17 @@ final class KeymapEditorView: NSView {
     private func areaChoices(for control: Control) -> [(String, Selector, String)] {
         switch control.kind {
         case let .aim(_, _, _, _, _, _, _, origin):
-            var choices = [(String(localized: "Full-Height Swipe Area", bundle: .windowHost), #selector(useFullHeightArea), "arrow.up.and.down"),
-                           (String(localized: "Default Swipe Area (Right Side)", bundle: .windowHost), #selector(useDefaultArea),
+            var choices = [(String(localized: "Full-Height Swipe Area", bundle: .avoKit), #selector(useFullHeightArea), "arrow.up.and.down"),
+                           (String(localized: "Default Swipe Area (Right Side)", bundle: .avoKit), #selector(useDefaultArea),
                             "rectangle.righthalf.inset.filled")]
             if origin != nil {
-                choices.append((String(localized: "Touch in the Middle", bundle: .windowHost), #selector(touchDownAtCentre), "scope"))
+                choices.append((String(localized: "Touch in the Middle", bundle: .avoKit), #selector(touchDownAtCentre), "scope"))
             }
             return choices
         case .anchor(_, nil):
-            return [(String(localized: "Reach a Circle Around It", bundle: .windowHost), #selector(useCircleReach), "circle.dashed")]
+            return [(String(localized: "Reach a Circle Around It", bundle: .avoKit), #selector(useCircleReach), "circle.dashed")]
         case .anchor:
-            return [(String(localized: "Let the Finger Use the Whole Screen", bundle: .windowHost), #selector(useWholeScreen), "rectangle.dashed")]
+            return [(String(localized: "Let the Finger Use the Whole Screen", bundle: .avoKit), #selector(useWholeScreen), "rectangle.dashed")]
         default:
             return []
         }
@@ -1352,14 +1354,14 @@ final class KeymapEditorView: NSView {
         changeSelectedArea { control in
             if case .anchor(let point, _) = control.kind { control.kind = .anchor(point) }
         }
-        setStatus(String(localized: "The finger may now go anywhere on the screen.", bundle: .windowHost))
+        setStatus(String(localized: "The finger may now go anywhere on the screen.", bundle: .avoKit))
     }
 
     @objc private func useCircleReach() {
         changeSelectedArea { control in
             if case .anchor(let point, _) = control.kind { control.kind = .anchor(point, radius: Control.defaultAnchorRadius) }
         }
-        setStatus(String(localized: "The finger stays in the circle. Drag ↘ to set how far it reaches.", bundle: .windowHost))
+        setStatus(String(localized: "The finger stays in the circle. Drag ↘ to set how far it reaches.", bundle: .avoKit))
     }
 
     override func otherMouseDown(with event: NSEvent) {
@@ -1427,10 +1429,10 @@ final class KeymapEditorView: NSView {
         // What else it presses here, so a shared key is no surprise.
         let others = shownControls.filter { $0.id != control.id && $0.allTriggers.contains(trigger) }.map { "“\(name(of: $0))”" }
         if others.isEmpty {
-            setStatus(String(localized: "A tap on \(short(trigger)). Click the next button of the game and press its key.", bundle: .windowHost))
+            setStatus(String(localized: "A tap on \(short(trigger)). Click the next button of the game and press its key.", bundle: .avoKit))
         } else {
             setStatus(String(localized: "A tap on \(short(trigger)), together with \(others.formatted(.list(type: .and))). Click the next button of the game and press its key.",
-                             bundle: .windowHost))
+                             bundle: .avoKit))
         }
         needsDisplay = true
     }
@@ -1536,7 +1538,7 @@ final class KeymapEditorView: NSView {
             if !eye.belongs(to: editingMode), let i = index(of: eye.id) { profile.controls[i].modes = nil }
             selected = nil
             select(eye.id)
-            setStatus(String(localized: "There is one eye per layout; this is it.", bundle: .windowHost))
+            setStatus(String(localized: "There is one eye per layout; this is it.", bundle: .avoKit))
             needsDisplay = true
             return
         }
@@ -1582,18 +1584,18 @@ final class KeymapEditorView: NSView {
         guard let i = selectedIndex else { return [] }
         let control = profile.controls[i]
         func has(_ action: ControlAction) -> Bool { control.actions.contains(action) }
-        var entries: [HazeMenuEntry] = [.section(String(localized: "Mode", bundle: .windowHost))]
+        var entries: [HazeMenuEntry] = [.section(String(localized: "Mode", bundle: .avoKit))]
         for mode in switchTargets(for: control) {
             let action = ControlAction.switchMode(mode.id)
-            entries.append(.item(HazeMenuItem(title: String(localized: "Switch to “\(mode.name)”", bundle: .windowHost), symbol: action.symbol,
+            entries.append(.item(HazeMenuItem(title: String(localized: "Switch to “\(mode.name)”", bundle: .avoKit), symbol: action.symbol,
                                               isEnabled: !has(action)) { [weak self] in self?.addAction(action) }))
         }
-        entries.append(.item(HazeMenuItem(title: String(localized: "Switch to a New Mode", bundle: .windowHost), symbol: "plus.square.on.square") {
+        entries.append(.item(HazeMenuItem(title: String(localized: "Switch to a New Mode", bundle: .avoKit), symbol: "plus.square.on.square") {
             [weak self] in self?.addSwitchToNewMode()
         }))
-        entries.append(.section(String(localized: "Mouse", bundle: .windowHost)))
+        entries.append(.section(String(localized: "Mouse", bundle: .avoKit)))
         let eye = profile.controls.contains(where: isEye)
-        let needsEye = eye ? nil : String(localized: "Needs the eye (FPS)", bundle: .windowHost)
+        let needsEye = eye ? nil : String(localized: "Needs the eye (FPS)", bundle: .avoKit)
         for action in [ControlAction.freeMouse, .lockMouse, .toggleMouse] {
             entries.append(.item(HazeMenuItem(title: Self.menuTitle(of: action), subtitle: needsEye, symbol: action.symbol,
                                               isEnabled: eye && !has(action)) { [weak self] in self?.addAction(action) }))
@@ -1603,17 +1605,17 @@ final class KeymapEditorView: NSView {
 
     private static func menuTitle(of action: ControlAction) -> String {
         switch action {
-        case .switchMode: String(localized: "Switch Mode", bundle: .windowHost)
-        case .freeMouse: String(localized: "Free the Mouse", bundle: .windowHost)
-        case .lockMouse: String(localized: "Lock the Mouse", bundle: .windowHost)
-        case .toggleMouse: String(localized: "Lock or Free the Mouse", bundle: .windowHost)
+        case .switchMode: String(localized: "Switch Mode", bundle: .avoKit)
+        case .freeMouse: String(localized: "Free the Mouse", bundle: .avoKit)
+        case .lockMouse: String(localized: "Lock the Mouse", bundle: .avoKit)
+        case .toggleMouse: String(localized: "Lock or Free the Mouse", bundle: .avoKit)
         }
     }
 
     private func addAction(_ action: ControlAction) {
         guard let i = selectedIndex else { return }
         profile.controls[i].actions.append(action)
-        setStatus(String(localized: "“\(name(of: profile.controls[i]))” now also does: \(describe(action)).", bundle: .windowHost))
+        setStatus(String(localized: "“\(name(of: profile.controls[i]))” now also does: \(describe(action)).", bundle: .avoKit))
         needsDisplay = true
         refocus()
     }
@@ -1633,7 +1635,7 @@ final class KeymapEditorView: NSView {
             select(id)
         }
         barModel.renaming = mode
-        setStatus(String(localized: "A new mode, and the switch to it: name the mode in its tab, then add its controls.", bundle: .windowHost))
+        setStatus(String(localized: "A new mode, and the switch to it: name the mode in its tab, then add its controls.", bundle: .avoKit))
         needsDisplay = true
     }
 
@@ -1663,7 +1665,7 @@ final class KeymapEditorView: NSView {
     private func removeAction(_ index: Int) {
         guard let i = selectedIndex, profile.controls[i].actions.indices.contains(index) else { return }
         let action = profile.controls[i].actions.remove(at: index)
-        setStatus(String(localized: "“\(name(of: profile.controls[i]))” no longer does: \(describe(action)).", bundle: .windowHost))
+        setStatus(String(localized: "“\(name(of: profile.controls[i]))” no longer does: \(describe(action)).", bundle: .avoKit))
         needsDisplay = true
         refocus()
     }
@@ -1672,10 +1674,10 @@ final class KeymapEditorView: NSView {
     private func describe(_ action: ControlAction) -> String {
         switch action {
         case .switchMode(let mode):
-            String(localized: "switch to “\(profile.modes.first { $0.id == mode }?.name ?? mode)”", bundle: .windowHost)
-        case .freeMouse: String(localized: "free the mouse", bundle: .windowHost)
-        case .lockMouse: String(localized: "lock the mouse", bundle: .windowHost)
-        case .toggleMouse: String(localized: "lock or free the mouse", bundle: .windowHost)
+            String(localized: "switch to “\(profile.modes.first { $0.id == mode }?.name ?? mode)”", bundle: .avoKit)
+        case .freeMouse: String(localized: "free the mouse", bundle: .avoKit)
+        case .lockMouse: String(localized: "lock the mouse", bundle: .avoKit)
+        case .toggleMouse: String(localized: "lock or free the mouse", bundle: .avoKit)
         }
     }
 
@@ -1766,15 +1768,15 @@ final class KeymapEditorView: NSView {
         // The part of the controller being dragged from the panel, over the game.
         if let padDrag, takesDrop(at: padDrag.at) {
             let caption = dropTarget.flatMap { id in profile.controls.first { $0.id == id } }
-                .map { String(localized: "Bind to “\(name(of: $0))”", bundle: .windowHost) }
-                ?? String(localized: "Let go to choose a control", bundle: .windowHost)
+                .map { String(localized: "Bind to “\(name(of: $0))”", bundle: .avoKit) }
+                ?? String(localized: "Let go to choose a control", bundle: .avoKit)
             painter.drawGhost(symbol: padSymbol(padDrag.element), caption: caption, at: padDrag.at, binding: dropTarget != nil)
         }
         // The tap a click on the game put there, waiting for its key.
         if let pendingTap { painter.drawPendingTap(at: point(pendingTap)) }
         // A control dragged from the bar, over the game.
         if let paletteDrag, takesDrop(at: paletteDrag.at) {
-            painter.drawGhost(symbol: paletteDrag.item.symbol, caption: String(localized: "Let go to place it here", bundle: .windowHost),
+            painter.drawGhost(symbol: paletteDrag.item.symbol, caption: String(localized: "Let go to place it here", bundle: .avoKit),
                               at: paletteDrag.at, binding: false)
         }
     }
@@ -1844,7 +1846,7 @@ final class KeymapEditorView: NSView {
             if !names.isEmpty { bindings[element] = names }
         }
         if case .gamepad(let button)? = profile.fps?.cursorToggle {
-            bindings[.button(button), default: []].append(String(localized: "Mouse lock for the eye", bundle: .windowHost))
+            bindings[.button(button), default: []].append(String(localized: "Mouse lock for the eye", bundle: .avoKit))
         }
         let control = selected.flatMap { id in profile.controls.first { $0.id == id } }
         let selection = control.map { control in Set(Self.gamepadElements.filter(control.uses)) } ?? []
@@ -1865,9 +1867,9 @@ final class KeymapEditorView: NSView {
         let layout = GamepadHub.shared.layout
         switch element {
         case .button(let button): return layout.label(button)
-        case .stick(.left): return String(localized: "the left stick", bundle: .windowHost)
-        case .stick(.right): return String(localized: "the right stick", bundle: .windowHost)
-        case .dpad: return String(localized: "the d-pad", bundle: .windowHost)
+        case .stick(.left): return String(localized: "the left stick", bundle: .avoKit)
+        case .stick(.right): return String(localized: "the right stick", bundle: .avoKit)
+        case .dpad: return String(localized: "the d-pad", bundle: .avoKit)
         }
     }
 
@@ -1997,12 +1999,12 @@ final class KeymapEditorView: NSView {
                 for placement in members { add(placement, for: element) }
             }
         }
-        header(String(localized: "Place for \(padLabel(element)):", bundle: .windowHost))
+        header(String(localized: "Place for \(padLabel(element)):", bundle: .avoKit))
         addGrouped(GamepadPlacement.choices(for: element), for: element)
         if case .stick(let stick) = element {
             let press = GamepadElement.button(GamepadElement.pressButton(of: stick))
             menu.addItem(.separator())
-            header(String(localized: "For pressing the stick down (\(padLabel(press))):", bundle: .windowHost))
+            header(String(localized: "For pressing the stick down (\(padLabel(press))):", bundle: .avoKit))
             addGrouped(GamepadPlacement.choices(for: press), for: press)
         }
         HazeMenuPresenter.shared.popUp(menu, at: p, in: self)
@@ -2021,10 +2023,10 @@ final class KeymapEditorView: NSView {
         select(id)
         if pending.placement == .camera, hadEye {
             setStatus(String(localized: "\(padLabel(element)) turns the eye now. Drag its area over the part of the game that turns the camera.",
-                             bundle: .windowHost))
+                             bundle: .avoKit))
         } else {
             setStatus(String(localized: "Placed “\(name(of: control))” for \(padLabel(element)). Drag it onto the game’s own button.",
-                             bundle: .windowHost))
+                             bundle: .avoKit))
         }
         needsDisplay = true
     }
@@ -2041,9 +2043,9 @@ final class KeymapEditorView: NSView {
             guard case let .dpad(_, _, up, down, left, right, _) = control.kind else { return false }
             return [up, down, left, right].contains { trigger in buttons.contains { trigger == .gamepad($0) } }
         }) {
-            return String(localized: "\(label) is a direction of “\(name(of: holder))”.", bundle: .windowHost)
+            return String(localized: "\(label) is a direction of “\(name(of: holder))”.", bundle: .avoKit)
         }
-        return String(localized: "\(label) cannot drive that.", bundle: .windowHost)
+        return String(localized: "\(label) cannot drive that.", bundle: .avoKit)
     }
 
     // Pressed on the controller, or clicked in the panel, with a control selected.
@@ -2098,7 +2100,7 @@ final class KeymapEditorView: NSView {
                 showPlacements(for: element, at: painter.point(pendingTap ?? Self.usualSpot(for: element)))
             } else if case .button = element {
                 setStatus(String(localized: "\(padLabel(element)): select a control on the game first, or drag \(padLabel(element)) onto the game.",
-                                 bundle: .windowHost))
+                                 bundle: .avoKit))
             }
             return
         }
@@ -2107,7 +2109,7 @@ final class KeymapEditorView: NSView {
             case .stick(let stick) where control.accepts(.button(.a)):
                 let press = padLabel(.button(GamepadElement.pressButton(of: stick)))
                 setStatus(String(localized: "A stick drives a joystick or the eye. To use pressing it down (\(press)) here, press the stick down.",
-                                 bundle: .windowHost))
+                                 bundle: .avoKit))
             default:
                 setStatus(unsuitableText(element, control), problem: true)
             }
@@ -2129,11 +2131,11 @@ final class KeymapEditorView: NSView {
         }
         switch element {
         case .button(let button):
-            setStatus(String(localized: "“\(name(of: control))” responds to \(short(.gamepad(button))).", bundle: .windowHost))
+            setStatus(String(localized: "“\(name(of: control))” responds to \(short(.gamepad(button))).", bundle: .avoKit))
         case .stick:
-            setStatus(String(localized: "“\(name(of: control))” follows \(padLabel(element)).", bundle: .windowHost))
+            setStatus(String(localized: "“\(name(of: control))” follows \(padLabel(element)).", bundle: .avoKit))
         case .dpad:
-            setStatus(String(localized: "The d-pad pushes “\(name(of: control))” too.", bundle: .windowHost))
+            setStatus(String(localized: "The d-pad pushes “\(name(of: control))” too.", bundle: .avoKit))
         }
         needsDisplay = true
     }
@@ -2141,13 +2143,13 @@ final class KeymapEditorView: NSView {
     private func unsuitableText(_ element: GamepadElement, _ control: Control) -> String {
         switch (element, control.kind) {
         case (.stick, _):
-            String(localized: "A stick drives a joystick or the eye; drop it on the game to place one.", bundle: .windowHost)
+            String(localized: "A stick drives a joystick or the eye; drop it on the game to place one.", bundle: .avoKit)
         case (_, .aim):
-            String(localized: "The eye follows a stick: drop one on it.", bundle: .windowHost)
+            String(localized: "The eye follows a stick: drop one on it.", bundle: .avoKit)
         case (_, .dpad):
-            String(localized: "A joystick follows a stick or the d-pad.", bundle: .windowHost)
+            String(localized: "A joystick follows a stick or the d-pad.", bundle: .avoKit)
         default:
-            String(localized: "The d-pad pushes a joystick; drop it on the game to place one.", bundle: .windowHost)
+            String(localized: "The d-pad pushes a joystick; drop it on the game to place one.", bundle: .avoKit)
         }
     }
 
@@ -2163,16 +2165,16 @@ final class KeymapEditorView: NSView {
         profile.apply(preset)
         let kind = ControllerPanelView.title(of: template)
         setStatus(String(localized: "The controller is laid out as in \(kind) games: \(preset.bindings.count) controls. Cancel undoes it.",
-                         bundle: .windowHost))
+                         bundle: .avoKit))
         needsDisplay = true
     }
 
     private func applyPreset(named name: String) {
         guard let preset = profile.gamepad?.presets.first(where: { $0.name == name }) else { return }
         let skipped = profile.apply(preset)
-        var text = String(localized: "Using the preset “\(name)”.", bundle: .windowHost)
+        var text = String(localized: "Using the preset “\(name)”.", bundle: .avoKit)
         if skipped > 0 {
-            text += " " + String(localized: "Left out: \(skipped) of its bindings, for controls that changed or are gone.", bundle: .windowHost)
+            text += " " + String(localized: "Left out: \(skipped) of its bindings, for controls that changed or are gone.", bundle: .avoKit)
         }
         setStatus(text, problem: skipped > 0)
         needsDisplay = true
@@ -2181,27 +2183,27 @@ final class KeymapEditorView: NSView {
     private func deletePreset(named name: String) {
         profile.deletePreset(named: name)
         if profile.gamepad == .standard { profile.gamepad = nil }
-        setStatus(String(localized: "Deleted the preset “\(name)”. Cancel undoes it.", bundle: .windowHost))
+        setStatus(String(localized: "Deleted the preset “\(name)”. Cancel undoes it.", bundle: .avoKit))
     }
 
     private func askToSavePreset() {
         guard let window else { return }
         let taken = Set(profile.gamepad?.presets.map(\.name) ?? [])
-        let base = GamepadHub.shared.info?.name ?? String(localized: "My controller layout", bundle: .windowHost)
+        let base = GamepadHub.shared.info?.name ?? String(localized: "My controller layout", bundle: .avoKit)
         var suggestion = base, n = 1
         while taken.contains(suggestion) {
             n += 1
             suggestion = "\(base) \(n)"
         }
         let alert = NSAlert()
-        alert.messageText = String(localized: "Save the controller layout as a preset", bundle: .windowHost)
+        alert.messageText = String(localized: "Save the controller layout as a preset", bundle: .avoKit)
         alert.informativeText = String(localized: "Presets are kept with this game’s key mapping; Done saves them. A name already in use replaces that preset.",
-                                       bundle: .windowHost)
+                                       bundle: .avoKit)
         let field = NSTextField(string: suggestion)
         field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
         alert.accessoryView = field
-        alert.addButton(withTitle: String(localized: "Save Preset", bundle: .windowHost))
-        alert.addButton(withTitle: String(localized: "Cancel", bundle: .windowHost))
+        alert.addButton(withTitle: String(localized: "Save Preset", bundle: .avoKit))
+        alert.addButton(withTitle: String(localized: "Cancel", bundle: .avoKit))
         alert.window.initialFirstResponder = field
         alert.beginSheetModal(for: window) { [weak self] response in
             MainActor.assumeIsolated {
@@ -2210,7 +2212,7 @@ final class KeymapEditorView: NSView {
                 let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard response == .alertFirstButtonReturn, !name.isEmpty else { return }
                 self.profile.savePreset(named: name)
-                self.setStatus(String(localized: "Saved the preset “\(name)”.", bundle: .windowHost))
+                self.setStatus(String(localized: "Saved the preset “\(name)”.", bundle: .avoKit))
             }
         }
     }
@@ -2219,20 +2221,20 @@ final class KeymapEditorView: NSView {
         guard let window else { return }
         let only = profile.controllerOnlyControls
         let alert = NSAlert()
-        alert.messageText = String(localized: "Reset the controller mapping?", bundle: .windowHost)
+        alert.messageText = String(localized: "Reset the controller mapping?", bundle: .avoKit)
         alert.informativeText = only.isEmpty
             ? String(localized: "Every button and stick comes off its controls, and the sticks go back to their standard settings. Saved presets stay, and Cancel in the editor still undoes it.",
-                     bundle: .windowHost)
+                     bundle: .avoKit)
             : String(localized: "Every button and stick comes off its controls, the sticks go back to their standard settings, and the controls only the controller worked are removed (\(only.count)). Saved presets stay, and Cancel in the editor still undoes it.",
-                     bundle: .windowHost)
-        alert.addButton(withTitle: String(localized: "Reset", bundle: .windowHost))
-        alert.addButton(withTitle: String(localized: "Cancel", bundle: .windowHost))
+                     bundle: .avoKit)
+        alert.addButton(withTitle: String(localized: "Reset", bundle: .avoKit))
+        alert.addButton(withTitle: String(localized: "Cancel", bundle: .avoKit))
         alert.beginSheetModal(for: window) { [weak self] response in
             MainActor.assumeIsolated {
                 guard let self, response == .alertFirstButtonReturn else { return }
                 self.profile.removeGamepadMapping()
                 if let id = self.selected, !self.profile.controls.contains(where: { $0.id == id }) { self.selected = nil }
-                self.setStatus(String(localized: "The controller mapping is reset.", bundle: .windowHost))
+                self.setStatus(String(localized: "The controller mapping is reset.", bundle: .avoKit))
                 self.needsDisplay = true
             }
         }
@@ -2240,13 +2242,13 @@ final class KeymapEditorView: NSView {
 
     private static func title(of placement: GamepadPlacement) -> String {
         switch placement {
-        case .tap: String(localized: "Tap", bundle: .windowHost)
-        case .repeatTap: String(localized: "Repeat Tap", bundle: .windowHost)
-        case .swipe: String(localized: "Swipe", bundle: .windowHost)
-        case .anchor: String(localized: "Anchor Tap", bundle: .windowHost)
-        case .ads: String(localized: "Aim Down Sights", bundle: .windowHost)
-        case .joystick: String(localized: "Joystick", bundle: .windowHost)
-        case .camera: String(localized: "Eye", bundle: .windowHost)
+        case .tap: String(localized: "Tap", bundle: .avoKit)
+        case .repeatTap: String(localized: "Repeat Tap", bundle: .avoKit)
+        case .swipe: String(localized: "Swipe", bundle: .avoKit)
+        case .anchor: String(localized: "Anchor Tap", bundle: .avoKit)
+        case .ads: String(localized: "Aim Down Sights", bundle: .avoKit)
+        case .joystick: String(localized: "Joystick", bundle: .avoKit)
+        case .camera: String(localized: "Eye", bundle: .avoKit)
         }
     }
 
@@ -2273,18 +2275,18 @@ final class KeymapEditorView: NSView {
 
     private func name(of control: Control) -> String {
         switch control.kind {
-        case .tap, .hold: String(localized: "Tap", bundle: .windowHost)
-        case .repeatTap: String(localized: "Repeat Tap", bundle: .windowHost)
-        case .anchor: String(localized: "Anchor Tap", bundle: .windowHost)
-        case .dpad: String(localized: "D-pad", bundle: .windowHost)
-        case .swipe: String(localized: "Swipe", bundle: .windowHost)
-        case .aim: String(localized: "Eye", bundle: .windowHost)
-        case .ads: String(localized: "Aim Down Sights", bundle: .windowHost)
-        case .macro: String(localized: "Macro", bundle: .windowHost)
-        case .mobaMove: String(localized: "Move by Mouse", bundle: .windowHost)
-        case .smartCast: String(localized: "Smart Cast", bundle: .windowHost)
-        case .hotkey: String(localized: "Hotkey", bundle: .windowHost)
-        case .clickArea: String(localized: "Click Area", bundle: .windowHost)
+        case .tap, .hold: String(localized: "Tap", bundle: .avoKit)
+        case .repeatTap: String(localized: "Repeat Tap", bundle: .avoKit)
+        case .anchor: String(localized: "Anchor Tap", bundle: .avoKit)
+        case .dpad: String(localized: "D-pad", bundle: .avoKit)
+        case .swipe: String(localized: "Swipe", bundle: .avoKit)
+        case .aim: String(localized: "Eye", bundle: .avoKit)
+        case .ads: String(localized: "Aim Down Sights", bundle: .avoKit)
+        case .macro: String(localized: "Macro", bundle: .avoKit)
+        case .mobaMove: String(localized: "Move by Mouse", bundle: .avoKit)
+        case .smartCast: String(localized: "Smart Cast", bundle: .avoKit)
+        case .hotkey: String(localized: "Hotkey", bundle: .avoKit)
+        case .clickArea: String(localized: "Click Area", bundle: .avoKit)
         }
     }
 
@@ -2308,10 +2310,10 @@ final class KeymapEditorView: NSView {
 
     private static func title(of template: KeymapTemplate) -> String {
         switch template {
-        case .fps: String(localized: "FPS Shooter", bundle: .windowHost)
-        case .moba: String(localized: "MOBA", bundle: .windowHost)
-        case .racing: String(localized: "Racing", bundle: .windowHost)
-        case .platformer: String(localized: "Platformer", bundle: .windowHost)
+        case .fps: String(localized: "FPS Shooter", bundle: .avoKit)
+        case .moba: String(localized: "MOBA", bundle: .avoKit)
+        case .racing: String(localized: "Racing", bundle: .avoKit)
+        case .platformer: String(localized: "Platformer", bundle: .avoKit)
         }
     }
 
@@ -2328,7 +2330,7 @@ final class KeymapEditorView: NSView {
 
     /// The bar's Templates menu.
     private func templateEntries() -> [HazeMenuEntry] {
-        [.note(String(localized: "Starting layouts: move each control onto the game's button afterwards", bundle: .windowHost))]
+        [.note(String(localized: "Starting layouts: move each control onto the game's button afterwards", bundle: .avoKit))]
             + KeymapTemplate.allCases.map { template in
                 .item(HazeMenuItem(title: Self.title(of: template), symbol: Self.symbol(of: template)) { [weak self] in
                     self?.chooseTemplate(template)
@@ -2340,14 +2342,14 @@ final class KeymapEditorView: NSView {
     /// The bar's ⋯ menu.
     private func moreEntries() -> [HazeMenuEntry] {
         [
-            .item(HazeMenuItem(title: String(localized: "Import…", bundle: .windowHost), symbol: "square.and.arrow.down") { [weak self] in
+            .item(HazeMenuItem(title: String(localized: "Import…", bundle: .avoKit), symbol: "square.and.arrow.down") { [weak self] in
                 self?.importProfile()
             }),
-            .item(HazeMenuItem(title: String(localized: "Export…", bundle: .windowHost), symbol: "square.and.arrow.up") { [weak self] in
+            .item(HazeMenuItem(title: String(localized: "Export…", bundle: .avoKit), symbol: "square.and.arrow.up") { [weak self] in
                 self?.exportProfile()
             }),
             .separator(),
-            .item(HazeMenuItem(title: String(localized: "Remove All Controls", bundle: .windowHost), symbol: "trash", role: .destructive) {
+            .item(HazeMenuItem(title: String(localized: "Remove All Controls", bundle: .avoKit), symbol: "trash", role: .destructive) {
                 [weak self] in
                 self?.removeAll()
                 self?.refocus()
@@ -2362,12 +2364,12 @@ final class KeymapEditorView: NSView {
         }
         // Never throw the player's work away without asking.
         let alert = NSAlert()
-        alert.messageText = String(localized: "Insert the \(Self.title(of: template)) template?", bundle: .windowHost)
+        alert.messageText = String(localized: "Insert the \(Self.title(of: template)) template?", bundle: .avoKit)
         alert.informativeText = String(localized: "This layout already has controls. Add the template's controls next to them (keys you already use stay with your controls), or replace the layout with the template. Its positions are only a starting point, and Cancel in the editor still undoes everything.",
-                                       bundle: .windowHost)
-        alert.addButton(withTitle: String(localized: "Add to Layout", bundle: .windowHost))
-        alert.addButton(withTitle: String(localized: "Replace Layout", bundle: .windowHost))
-        alert.addButton(withTitle: String(localized: "Cancel", bundle: .windowHost))
+                                       bundle: .avoKit)
+        alert.addButton(withTitle: String(localized: "Add to Layout", bundle: .avoKit))
+        alert.addButton(withTitle: String(localized: "Replace Layout", bundle: .avoKit))
+        alert.addButton(withTitle: String(localized: "Cancel", bundle: .avoKit))
         alert.beginSheetModal(for: window) { [weak self] response in
             MainActor.assumeIsolated {
                 switch response {
@@ -2392,14 +2394,14 @@ final class KeymapEditorView: NSView {
         hovered = nil
         drag = nil
         var text = String(localized: "Inserted the \(Self.title(of: template)) template. Its positions are a starting point: drag each control onto the game's own button.",
-                          bundle: .windowHost)
+                          bundle: .avoKit)
         if !insertion.unbound.isEmpty {
             text += " " + String(localized: "Still without a key: \(insertion.unbound.count), because your controls already use theirs. Select each “?” and press a key.",
-                                 bundle: .windowHost)
+                                 bundle: .avoKit)
         }
         if !insertion.skipped.isEmpty {
             text += " " + String(localized: "Left out: \(insertion.skipped.count) (the layout already has an eye, or the D-pad keys are in use).",
-                                 bundle: .windowHost)
+                                 bundle: .avoKit)
         }
         setStatus(text, problem: !insertion.unbound.isEmpty || !insertion.skipped.isEmpty)
         needsDisplay = true
@@ -2413,7 +2415,7 @@ final class KeymapEditorView: NSView {
     @objc private func saveAndClose() {
         let problems = profile.validate()
         guard problems.isEmpty else {
-            var message = problems.first ?? String(localized: "This profile has problems.", bundle: .windowHost)
+            var message = problems.first ?? String(localized: "This profile has problems.", bundle: .avoKit)
             // The control it is about, shown in a mode it acts in.
             if let first = problems.first, let control = profile.controls.first(where: { first.hasPrefix("\($0.id):") }) {
                 if !control.belongs(to: editingMode), let mode = control.modes?.first { editingMode = mode }
@@ -2423,14 +2425,14 @@ final class KeymapEditorView: NSView {
                 // its key takes the next key pressed.
                 message = Self.needsKey(control)
                     ? String(localized: "This control has no key yet. Press its key or controller button, or right-click for a mouse button.",
-                             bundle: .windowHost)
+                             bundle: .avoKit)
                     : Self.sentence(first.dropFirst("\(control.id):".count))
             }
             setStatus(message, problem: true)
             return
         }
         if let error = onSave(profile) {
-            setStatus(String(localized: "Could not save: \(error)", bundle: .windowHost), problem: true)
+            setStatus(String(localized: "Could not save: \(error)", bundle: .avoKit), problem: true)
         } else {
             close()
         }
@@ -2468,21 +2470,21 @@ final class KeymapEditorView: NSView {
             imported.package = profile.package
             let problems = imported.validate()
             guard problems.isEmpty else {
-                setStatus(problems.first ?? String(localized: "This profile has problems.", bundle: .windowHost), problem: true)
+                setStatus(problems.first ?? String(localized: "This profile has problems.", bundle: .avoKit), problem: true)
                 return
             }
             profile = imported
             selected = nil
             editingMode = imported.firstMode
             needsDisplay = true
-            let text = String(localized: "Imported “\(imported.name)”. Press Done to use it.", bundle: .windowHost)
+            let text = String(localized: "Imported “\(imported.name)”. Press Done to use it.", bundle: .avoKit)
             if let warning = Self.newerControlsWarning(imported) {
                 setStatus(text + " " + warning, problem: true)
             } else {
                 setStatus(text)
             }
         } catch {
-            setStatus(String(localized: "This file isn’t an Avo key mapping.", bundle: .windowHost), problem: true)
+            setStatus(String(localized: "This file isn’t an Avo key mapping.", bundle: .avoKit), problem: true)
         }
     }
 
@@ -2496,11 +2498,11 @@ final class KeymapEditorView: NSView {
             return
         }
         let alert = NSAlert()
-        alert.messageText = String(localized: "Discard your key mapping changes?", bundle: .windowHost)
-        alert.informativeText = String(localized: "To save them, choose Keep Editing, then Done.", bundle: .windowHost)
+        alert.messageText = String(localized: "Discard your key mapping changes?", bundle: .avoKit)
+        alert.informativeText = String(localized: "To save them, choose Keep Editing, then Done.", bundle: .avoKit)
         // Keep Editing takes Return and Esc: a stray key never throws the work away.
-        alert.addButton(withTitle: String(localized: "Keep Editing", bundle: .windowHost))
-        alert.addButton(withTitle: String(localized: "Discard", bundle: .windowHost)).hasDestructiveAction = true
+        alert.addButton(withTitle: String(localized: "Keep Editing", bundle: .avoKit))
+        alert.addButton(withTitle: String(localized: "Discard", bundle: .avoKit)).hasDestructiveAction = true
         alert.buttons.first?.keyEquivalent = "\r"
         alert.buttons.last?.keyEquivalent = ""
         alert.beginSheetModal(for: window) { [weak self] response in
@@ -2530,13 +2532,13 @@ extension Trigger {
     @MainActor var shortLabel: String {
         switch self {
         case .key(let key): Self.keyLabel(key)
-        case .mouse(.left): String(localized: "L-Click", bundle: .windowHost)
-        case .mouse(.right): String(localized: "R-Click", bundle: .windowHost)
-        case .mouse(.middle): String(localized: "M-Click", bundle: .windowHost)
+        case .mouse(.left): String(localized: "L-Click", bundle: .avoKit)
+        case .mouse(.right): String(localized: "R-Click", bundle: .avoKit)
+        case .mouse(.middle): String(localized: "M-Click", bundle: .avoKit)
         case .mouse(.button4): "M4"
         case .mouse(.button5): "M5"
-        case .scrollUp: String(localized: "Wheel↑", bundle: .windowHost)
-        case .scrollDown: String(localized: "Wheel↓", bundle: .windowHost)
+        case .scrollUp: String(localized: "Wheel↑", bundle: .avoKit)
+        case .scrollDown: String(localized: "Wheel↓", bundle: .avoKit)
         case .gamepad(let button): GamepadHub.shared.layout.label(button)
         }
     }

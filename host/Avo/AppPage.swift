@@ -1,3 +1,4 @@
+import AvoHazeUI
 import AvoKeymap
 import AvoKit
 import AvoWindowHost
