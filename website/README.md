@@ -1,7 +1,8 @@
 # Avo website
 
-The public website for Avo, in English and Indonesian: a single landing page
-plus a 404 page, built by a small Node script. Plain HTML, CSS and
+The public website for Avo, in English and Indonesian: a landing page, a page
+for Avo Hub (`/hub`, Avo's sibling app for the phone) and a 404 page, built by
+a small Node script. Plain HTML, CSS and
 JavaScript; no framework, no npm dependencies, no cookies, no analytics. It
 is hosted on GitHub Pages as is.
 
@@ -12,7 +13,7 @@ website/
 ├── site.config.mjs          Everything to fill in or decide: URLs, release state, contact,
 │                            support channels, typeface set
 ├── src/
-│   ├── pages/               index.html (landing page), 404.html
+│   ├── pages/               index.html (landing page), hub.html (Avo Hub, at /hub), 404.html
 │   ├── partials/            head, header, footer, SVG sprite
 │   ├── i18n/en.json, id.json  All wording, English and Indonesian (same keys; the build checks)
 │   └── assets/              css/site.css, css/fonts/ (one file per typeface set), js/ (site
@@ -47,6 +48,7 @@ the ones left and `npm run build:strict` refuses to build until none are.
 | `siteUrl` | Public address of the site (`https://avodroid.com`). Used for canonical links, the sitemap and social previews. |
 | `githubUrl`, `githubBranch` | The repository and its branch, for links into `docs/`. |
 | `release` | `available: false` says plainly that no build is published and offers "Build from source". Set `available: true`, `version` and `downloadUrl` when a release is out. |
+| `hub` | Avo Hub's page: its repository (`githubUrl`) and `release`, which works like Avo's. While `available` is false the page says Avo Hub isn't released yet and points to GitHub and to building from source. |
 | `fonts` | The typeface set, one switch for the whole site: `'hubot-mona'` (A, default: Hubot Sans headings, Mona Sans text, Mona Sans Mono labels), `'geist'` (B), `'archivo'` (C), `'jakarta'` (D, Plus Jakarta Sans). Letters work too. Only the chosen set's files are published. |
 | `maintainer.name` | Named in the footer credit ("Made by … in West Kalimantan, with help from Claude."). `null` says "an independent developer". |
 | `contact.email` | Public contact address. |
@@ -54,9 +56,11 @@ the ones left and `npm run build:strict` refuses to build until none are.
 
 The wording is in `src/i18n/en.json` and `src/i18n/id.json`. Both files must
 have the same keys; the build stops if they differ. Strings may contain
-`{github}`, `{blob}` and `{contactEmail}`, which the build fills in.
+`{github}`, `{blob}`, `{contactEmail}` and `{hubGithub}`, which the build
+fills in.
 
-Product claims on the page follow `docs/` and the code. When a feature lands
+Product claims on the page follow `docs/` and the code. The Avo Hub page
+follows Avo Hub's own repository (its README, docs and changelog). When a feature lands
 or changes, update the wording in both languages.
 
 ## Local development
@@ -99,6 +103,7 @@ The custom domain's DNS (at the registrar) points the apex at GitHub Pages
 
 - [ ] Whether to show `maintainer.name`
 - [ ] When a release is published: `release.available`, `version`, `downloadUrl`
+- [ ] When Avo Hub's first preview is published: `hub.release.available`, `version`, `downloadUrl`
 
 ## Licenses
 
