@@ -91,7 +91,11 @@ final class WheelScrollController {
         if let lastMode, lastMode != mode { interrupt() }
         lastMode = mode
         if event.hasPreciseScrollingDeltas {
-            guard mode == .mouseWheel else { return false }
+            // While the key mapping holds the touches, the trackpad scrolls
+            // as a wheel too: a drag of the window's own would be one more
+            // finger, on the key mapping's pointer, at the cursor (the hidden
+            // one parked mid-window while aiming).
+            guard mode == .mouseWheel || keymapHoldsTouches else { return false }
             trackpad(event, at: point)
             return true
         }
