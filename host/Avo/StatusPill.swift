@@ -5,7 +5,9 @@ import SwiftUI
 /// Android's state and quick actions in a capsule that floats over the
 /// Library window's bottom edge, half outside it. It lives in a child panel
 /// of the window (StatusPillController), so it moves, hides and minimizes
-/// with it; in full screen it sits just inside the bottom edge. Between
+/// with it; in full screen it sits just inside the bottom edge, and it never
+/// goes under the Dock (a window zoomed to the screen keeps it above). The
+/// window's content ends above it (`StatusPillRoom`), so it covers nothing. Between
 /// states its words morph and the capsule eases to its new width; the dot
 /// changes colour softly and breathes while Android starts or stops.
 struct StatusPill: View {
@@ -164,6 +166,16 @@ final class StatusPillHost {
     var windowActive = false
 }
 
+/// The room the pill takes at the bottom of its window: how far it reaches
+/// up into it, with a gap. The Library's content and an app's page end above
+/// it, so the pill never covers a card or a row (the user, 2026-10-25:
+/// "floating bar dibawah menutup content").
+@MainActor
+@Observable
+final class StatusPillRoom {
+    var bottom: CGFloat = 0
+}
+
 /// Keeps the status pill's panel under its Library window, always: centred
 /// on the window's bottom edge, resized with its content, away while the
 /// window is closed and back when SwiftUI shows the same window again.
@@ -178,13 +190,21 @@ final class StatusPillController {
     private let hosting: NSHostingView<AnyView>
     private var observers: [NSObjectProtocol] = []
     private let host = StatusPillHost()
+    private weak var room: StatusPillRoom?
     /// The capsule's own size (SwiftUI's), zero before its first layout.
     private var contentSize = CGSize.zero
     /// Until then the capsule is easing to a new size.
     private var morphingUntil: CFTimeInterval = 0
     private let clock = HazeFrameClock()
 
-    static func attach(to window: NSWindow, model: ControlPanelModel, openSettings: @escaping () -> Void) {
+    /// Between the pill's top and the content above it.
+    static let roomGap: CGFloat = 12
+    /// Between the Dock (or the screen's bottom) and the pill.
+    static let dockGap: CGFloat = 16
+
+    /// Puts the pill under `window`, once per window; `room` hears how much
+    /// of the window's bottom it takes.
+    static func attach(to window: NSWindow, model: ControlPanelModel, room: StatusPillRoom, openSettings: @escaping () -> Void) {
         // The pills of windows that are gone (one could share the new window's identifier).
         for (key, controller) in controllers where controller.window == nil {
             controller.detach()
@@ -195,11 +215,12 @@ final class StatusPillController {
             existing.update()
             return
         }
-        controllers[key] = StatusPillController(window: window, model: model, openSettings: openSettings)
+        controllers[key] = StatusPillController(window: window, model: model, room: room, openSettings: openSettings)
     }
 
-    private init(window: NSWindow, model: ControlPanelModel, openSettings: @escaping () -> Void) {
+    private init(window: NSWindow, model: ControlPanelModel, room: StatusPillRoom, openSettings: @escaping () -> Void) {
         self.window = window
+        self.room = room
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 520, height: 64), styleMask: [.borderless, .nonactivatingPanel],
                         backing: .buffered, defer: true)
         panel.isOpaque = false
@@ -277,16 +298,33 @@ final class StatusPillController {
         // Room for the capsule's widest moment while it morphs (the panel is clear around it).
         let morphing = CACurrentMediaTime() < morphingUntil && panel.isVisible
         let width = morphing ? max(size.width, panel.frame.width) : size.width
-        // Half outside the window; inside it in full screen, where there is no outside.
-        let y = fullScreen ? frame.minY + 24 : frame.minY - size.height / 2
+        let y = Self.pillY(windowFrame: frame, height: size.height, fullScreen: fullScreen, visibleFrame: window.screen?.visibleFrame)
         panel.setFrame(NSRect(x: (frame.midX - width / 2).rounded(), y: y.rounded(), width: width, height: size.height), display: true)
         panel.invalidateShadow()
+        let bottom = Self.reach(pillY: y.rounded(), height: size.height, windowFrame: frame)
+        if let room, room.bottom != bottom { room.bottom = bottom }
         let active = window.isKeyWindow && window.occlusionState.contains(.visible)
         if host.windowActive != active { host.windowActive = active }
         // Not on screen yet, or closed: the next show calls this again.
         guard window.isVisible else { return }
         if panel.parent == nil { window.addChildWindow(panel, ordered: .above) }
         fadeIn()
+    }
+
+    /// Where the pill's bottom goes: half outside the window; inside it in
+    /// full screen, where there is no outside; and never under the Dock or
+    /// past the screen's bottom (a window zoomed to the screen, or moved down
+    /// to the Dock, would hide half of it there), nor above the window.
+    static func pillY(windowFrame frame: NSRect, height: CGFloat, fullScreen: Bool, visibleFrame: NSRect?) -> CGFloat {
+        if fullScreen { return frame.minY + 24 }
+        var y = frame.minY - height / 2
+        if let visibleFrame { y = max(y, visibleFrame.minY + dockGap) }
+        return min(y, frame.maxY - height)
+    }
+
+    /// How far a pill at `pillY` reaches up into the window, with the gap above it.
+    static func reach(pillY: CGFloat, height: CGFloat, windowFrame frame: NSRect) -> CGFloat {
+        max(0, pillY + height - frame.minY) + roomGap
     }
 
     /// The pill fades in as it appears or comes back with its window.

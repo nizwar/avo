@@ -197,7 +197,7 @@ struct SystemStatusView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .animation(Haze.Motion.animation(Haze.Motion.content, reduceMotion: reduceMotion), value: model.status.state)
         }
-        .padding(.bottom, 56)
+        .padding(.bottom, 24)
         .hazeEntrance(appeared, delay: 0.18)
     }
 
