@@ -24,6 +24,8 @@ final class AppUpdateWatcher {
     private var state = VMState.stopped
     /// Avo.app on disk is another build; this daemon restarts once Android stops.
     private(set) var updatePending = false
+    /// Runs just before the daemon exits to restart on the new build (the menu bar item leaves first).
+    var beforeExit: @MainActor () -> Void = {}
     /// The new daemon starts Android: the old one stopped it for the update.
     private static let startAfterRestartKey = "AvoStartAndroidAfterUpdate"
 
@@ -104,7 +106,10 @@ final class AppUpdateWatcher {
         updatePending = pending
         guard AppUpdate.daemonShouldRestart(launchBuild: launchBuild, diskBuild: disk, state: state) else { return }
         logger.notice("restarting on the updated Avo (build \(disk ?? "?", privacy: .public))")
-        exit(AppUpdate.daemonRestartExitStatus)
+        beforeExit()
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(MenuBarController.removalGraceMilliseconds)) {
+            exit(AppUpdate.daemonRestartExitStatus)
+        }
     }
 
     nonisolated static func build(of app: URL) -> String? {

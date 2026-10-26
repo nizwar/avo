@@ -39,6 +39,13 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     /// Not the menu bar's (the item's button wears that): Avo's, else the Mac's.
     private var panelAppearance: NSAppearance { appearance ?? NSApp.effectiveAppearance }
 
+    /// The item is off the menu bar (`remove`).
+    private var removed = false
+
+    /// How long MenuBarAgent is given to take the item away before the
+    /// process ends (`remove` reaches it asynchronously), in milliseconds.
+    static let removalGraceMilliseconds = 300
+
     init(core: DaemonCore, avoApp: URL) {
         self.core = core
         self.avoApp = avoApp
@@ -82,6 +89,21 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
         // Dim the icon while Android is not running (paused included).
         item.button?.appearsDisabled = status.state != .running
         item.button?.toolTip = status.isPaused ? String(localized: "Avo · Android is paused") : "Avo"
+    }
+
+    /// Takes the item off the menu bar with nothing of it left open: the
+    /// panel, the menu and the item's highlight. Every way the daemon ends
+    /// goes through here first (Avo #11: after Avo quit, the menu bar stayed
+    /// over other apps' full screen until MenuBarAgent was restarted, and
+    /// the item, gone with its process, perhaps lit or with its menu open,
+    /// is what MenuBarAgent holds of Avo).
+    func remove() {
+        guard !removed else { return }
+        removed = true
+        popover.close()
+        HazeMenuPresenter.shared.close(animated: false)
+        item.button?.highlight(false)
+        NSStatusBar.system.removeStatusItem(item)
     }
 
     // MARK: Click: the panel; right click: the menu
@@ -283,6 +305,8 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
             // would have launchd start the daemon (and this item) again.
             let controlPanel = Bundle(url: avoApp)?.bundleIdentifier ?? AvoIdentifiers.app
             for app in NSRunningApplication.runningApplications(withBundleIdentifier: controlPanel) { app.terminate() }
+            remove()
+            try? await Task.sleep(for: .milliseconds(Self.removalGraceMilliseconds))
             exit(0)
         }
     }

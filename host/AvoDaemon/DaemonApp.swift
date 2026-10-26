@@ -25,15 +25,39 @@ final class DaemonAppDelegate: NSObject, NSApplicationDelegate {
     private var macState: MacSystemState?
     /// Restarts the daemon on a new Avo once an update replaced Avo.app (AppUpdateWatcher.swift).
     private var updateWatcher: AppUpdateWatcher?
+    /// SIGTERM (launchd stopping the agent, logging out): the menu bar item leaves first.
+    private var terminationSignal: (any DispatchSourceSignal)?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         signal(SIGPIPE, SIG_IGN)
+        watchTermination()
         do {
             try start()
         } catch {
             logger.fault("daemon failed to start: \(error.localizedDescription, privacy: .public)")
             exit(1)
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        menuBar?.remove()
+    }
+
+    /// The menu bar item off the menu bar before a SIGTERM ends the daemon,
+    /// which then ends by that signal as before (launchd's KeepAlive tells
+    /// a signal from a successful exit).
+    private func watchTermination() {
+        signal(SIGTERM, SIG_IGN)
+        let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        source.setEventHandler { [weak self] in
+            MainActor.assumeIsolated { self?.menuBar?.remove() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(MenuBarController.removalGraceMilliseconds)) {
+                signal(SIGTERM, SIG_DFL)
+                raise(SIGTERM)
+            }
+        }
+        source.resume()
+        terminationSignal = source
     }
 
     private func start() throws {
@@ -174,6 +198,7 @@ final class DaemonAppDelegate: NSObject, NSApplicationDelegate {
             panels?.appearance = choice.nsAppearance
         }
         let updateWatcher = AppUpdateWatcher(avoApp: avoApp, core: core, logger: logger)
+        updateWatcher.beforeExit = { [weak menuBar] in menuBar?.remove() }
         updateWatcher.start()
         self.updateWatcher = updateWatcher
         menuBar.updatePending = { [weak updateWatcher] in updateWatcher?.updatePending == true }
