@@ -95,7 +95,6 @@ struct MenuBarPanel: View {
             ])
         }
         .animation(Haze.Motion.animation(Haze.Motion.content, reduceMotion: reduceMotion), value: model.status.state)
-        .environment(\.colorScheme, .dark)
     }
 
     private var header: some View {

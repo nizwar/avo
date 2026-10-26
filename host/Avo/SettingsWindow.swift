@@ -195,7 +195,6 @@ struct SettingsWindow: View {
         .onDisappear { pointer.detach() }
         .foregroundStyle(Haze.text)
         .tint(Haze.accent)
-        .preferredColorScheme(.dark)
         // What a Settings action could not do (as in the Library window).
         .alert("Something went wrong", isPresented: Binding(get: { model.lastError != nil && appearsActive },
                                                             set: { if !$0 { model.lastError = nil } })) {
@@ -619,7 +618,6 @@ private struct SettingsWindowAccessor: NSViewRepresentable {
         view.onWindow = { window in
             pointer.attach(to: window)
             window.backgroundColor = NSColor(Haze.windowBase)
-            window.appearance = NSAppearance(named: .darkAqua)
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
             window.styleMask.insert(.fullSizeContentView)
@@ -644,7 +642,7 @@ struct AboutPane: View {
                     Image(nsImage: NSApp.applicationIconImage)
                         .resizable()
                         .frame(width: 72, height: 72)
-                        .shadow(color: .black.opacity(0.45), radius: 16, y: 10)
+                        .shadow(color: Haze.shadow.opacity(0.45), radius: 16, y: 10)
                         .hazeEdgeLight(cornerRadius: 16, reach: 220)
                         .hazeTilt(degrees: 7, reach: 360)
                     VStack(alignment: .leading, spacing: 4) {

@@ -59,7 +59,6 @@ private struct SetupWindowAccessor: NSViewRepresentable {
             window.styleMask.remove(.resizable)
             window.standardWindowButton(.zoomButton)?.isEnabled = false
             window.backgroundColor = NSColor(Haze.windowBase)
-            window.appearance = NSAppearance(named: .darkAqua)
         }
         return view
     }

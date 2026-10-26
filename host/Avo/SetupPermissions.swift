@@ -194,16 +194,16 @@ private struct PermissionRow<Status: View, Action: View>: View {
         HStack(alignment: .center, spacing: 14) {
             Image(systemName: symbol)
                 .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(Color(haze: tint))
+                .foregroundStyle(Haze.tint(tint))
                 .frame(width: 40, height: 40)
-                .background(Color(haze: tint, alpha: tintAlpha), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(Haze.tint(tint, alpha: tintAlpha), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).font(.mona(14.5, 600))
                 Text(purpose)
                     .font(.mona(12.5))
                     .hazeParagraph(1.45, size: 12.5)
-                    .foregroundStyle(Color(haze: 0xAEB7A2))
+                    .foregroundStyle(Haze.purpose)
                     .fixedSize(horizontal: false, vertical: true)
                 status.font(.mona(12))
             }
@@ -284,11 +284,11 @@ struct HazeSwitchStyle: ToggleStyle {
         } label: {
             ZStack(alignment: configuration.isOn ? .trailing : .leading) {
                 Capsule()
-                    .fill(configuration.isOn ? Color(haze: 0x7FA85C) : Haze.text.opacity(0.16))
+                    .fill(configuration.isOn ? Haze.moss : Haze.text.opacity(0.16))
                     .shadow(color: configuration.isOn ? Haze.accent.opacity(0.35) : .clear, radius: 7)
                 Circle()
-                    .fill(Color(haze: 0xFBF8F1))
-                    .shadow(color: .black.opacity(0.45), radius: 1.5, y: 1)
+                    .fill(Haze.knob)
+                    .shadow(color: Haze.shadow.opacity(0.45), radius: 1.5, y: 1)
                     .frame(width: 20, height: 20)
                     .padding(3)
             }
@@ -309,7 +309,7 @@ struct StatusLabel: View {
 
     var body: some View {
         Label {
-            Text(text).foregroundStyle(Color(haze: 0xAEB7A2))
+            Text(text).foregroundStyle(Haze.purpose)
         } icon: {
             Image(systemName: symbol).foregroundStyle(tint)
         }

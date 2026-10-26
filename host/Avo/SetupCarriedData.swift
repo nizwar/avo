@@ -85,7 +85,6 @@ struct SetupCarriedDataSheet: View {
         .background(Haze.windowBase)
         .foregroundStyle(Haze.text)
         .tint(Haze.accent)
-        .preferredColorScheme(.dark)
         .task { await images.loadCatalog() }
         // Back from System Settings (Files & Folders): look again.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in

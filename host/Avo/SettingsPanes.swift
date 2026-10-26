@@ -257,7 +257,6 @@ private struct ResizeStorageSheet: View {
         .background { HazeSheetBackground() }
         .foregroundStyle(Haze.text)
         .tint(Haze.accent)
-        .environment(\.colorScheme, .dark)
         .onAppear {
             let current = model.config?.dataDiskGiB ?? 64
             size = VMConfig.dataDiskChoices.contains(current) ? current : 64

@@ -177,7 +177,6 @@ final class LocationPanel: NSObject, NSWindowDelegate {
                               backing: .buffered, defer: false)
         window.title = Self.title
         window.titlebarAppearsTransparent = true
-        window.appearance = NSAppearance(named: .darkAqua)
         window.contentMinSize = NSSize(width: 780, height: 540)
         // Over a game in full screen (⌥⌘L there), instead of a switch to the desktop's Space.
         window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
@@ -603,7 +602,6 @@ struct LocationPanelView: View {
             .frame(width: 330)
             .background { QuickHaze.background.ignoresSafeArea() }
         }
-        .environment(\.colorScheme, .dark)
         .onChange(of: model.status?.fix) { _, fix in editor.androidMoved(fix) }
     }
 }
@@ -911,7 +909,7 @@ private struct LocationSidebar: View {
             }
             if let problem = model.problem {
                 HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(QuickHaze.rgb(0xF2C14E))
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(QuickHaze.rgb(0xF2C14E, light: 0x9A6410))
                     Text(verbatim: problem)
                         .font(QuickHaze.mona(12))
                         .foregroundStyle(QuickHaze.textSecondary)
@@ -919,7 +917,7 @@ private struct LocationSidebar: View {
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(QuickHaze.rgb(0xF2C14E, 0.1), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .background(QuickHaze.rgb(0xF2C14E, 0.1, light: 0xD09A2C, 0.14), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
                 .transition(.opacity)
             }
         }
@@ -1075,7 +1073,7 @@ private struct PlaceCard: View {
         QuickCard(title: L("Place"), scope: L("Stays put"), separated: false) {
             if let pin = editor.pin {
                 HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "mappin.circle.fill").font(.system(size: 22)).foregroundStyle(QuickHaze.rgb(0x8BB35E))
+                    Image(systemName: "mappin.circle.fill").font(.system(size: 22)).foregroundStyle(QuickHaze.rgb(0x8BB35E, light: 0x5A8A30))
                     VStack(alignment: .leading, spacing: 2) {
                         QuickText(pin.name ?? L("Selected place"))
                         Text(verbatim: LocationText.coordinates(pin.point))

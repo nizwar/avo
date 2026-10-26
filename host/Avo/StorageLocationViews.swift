@@ -332,7 +332,6 @@ struct StorageLocationSheet: View {
         .background { HazeSheetBackground() }
         // In the haze, as the Library and Settings it opens from.
         .hazeFormControls()
-        .environment(\.colorScheme, .dark)
         .onAppear(perform: chooseDefault)
         .confirmationDialog("Replace the copy in Avo’s own storage?", isPresented: $confirmReplace, titleVisibility: .visible) {
             Button("Replace Copy", role: .destructive) { start(replacing: true) }

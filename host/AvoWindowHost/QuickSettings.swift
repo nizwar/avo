@@ -244,7 +244,6 @@ final class QuickSettingsOverlay: NSObject, NSPopoverDelegate {
         if let screen = window.screen { model.maxHeight = max(320, screen.visibleFrame.height - 140) }
         let popover = NSPopover()
         popover.behavior = .transient
-        popover.appearance = NSAppearance(named: .darkAqua)
         popover.hasFullSizeContent = true
         let host = NSHostingController(rootView: QuickSettingsView(model: model))
         host.sizingOptions = .preferredContentSize
@@ -374,7 +373,6 @@ struct QuickSettingsView: View {
         .frame(width: 330)
         .frame(maxHeight: model.maxHeight)
         .background { QuickHaze.background.ignoresSafeArea() }
-        .environment(\.colorScheme, .dark)
     }
 
     /// Android's media volume, under the Mac's volume.

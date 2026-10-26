@@ -148,7 +148,6 @@ struct LibraryView: View {
         .onDisappear { pointer.detach() }
         .foregroundStyle(Haze.text)
         .tint(Haze.accent)
-        .preferredColorScheme(.dark)
         .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
             handleDrop(providers)
         }
@@ -505,7 +504,6 @@ private struct LibraryWindowAccessor: NSViewRepresentable {
         view.onWindow = { window in
             pointer.attach(to: window)
             window.backgroundColor = NSColor(Haze.windowBase)
-            window.appearance = NSAppearance(named: .darkAqua)
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
             window.styleMask.insert(.fullSizeContentView)

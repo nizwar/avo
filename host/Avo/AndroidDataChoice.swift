@@ -172,7 +172,6 @@ struct AndroidDataSheet: View {
         .frame(width: 540)
         .background { HazeSheetBackground() }
         .hazeFormControls()
-        .environment(\.colorScheme, .dark)
         .onAppear {
             if choice == nil {
                 choice = remembered.first.map { .remembered($0.id) } ?? (change.change == .upgrade ? .keep : nil)

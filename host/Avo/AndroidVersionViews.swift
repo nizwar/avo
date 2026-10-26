@@ -265,7 +265,7 @@ struct AndroidVersionList: View {
                 Image(systemName: "wifi.exclamationmark").font(.system(size: 16)).foregroundStyle(Haze.warning)
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Avo couldn’t list the Android versions to download.").font(.mona(13.5, 600))
-                    Text(message).font(.mona(12)).foregroundStyle(Color(haze: 0xAEB7A2)).lineLimit(3)
+                    Text(message).font(.mona(12)).foregroundStyle(Haze.purpose).lineLimit(3)
                     Button("Try Again") { Task { await images.loadCatalog(force: true) } }
                         .buttonStyle(HazeButtonStyle(kind: .secondary, height: 30, fontSize: 12, horizontalPadding: 12))
                 }
@@ -309,7 +309,7 @@ struct AndroidVersionRowView: View {
                     }
                     Text(detail)
                         .font(.mona(12.5))
-                        .foregroundStyle(Color(haze: 0xAEB7A2))
+                        .foregroundStyle(Haze.purpose)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -387,7 +387,7 @@ struct VersionBadge: View {
             .frame(width: size, height: size)
             .background {
                 RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                    .fill(lit ? AnyShapeStyle(LinearGradient(colors: [Color(haze: 0x3A5A26), Color(haze: 0x1D2E14)],
+                    .fill(lit ? AnyShapeStyle(LinearGradient(colors: [Color(haze: 0x3A5A26, light: 0xE3EDCF), Color(haze: 0x1D2E14, light: 0xCFE0B0)],
                                                              startPoint: .topLeading, endPoint: .bottomTrailing))
                               : AnyShapeStyle(Haze.text.opacity(0.08)))
             }
@@ -395,7 +395,7 @@ struct VersionBadge: View {
                 RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
                     .strokeBorder(lit ? Haze.accent.opacity(0.25) : Haze.text.opacity(0.08))
             }
-            .shadow(color: .black.opacity(lit ? 0.35 : 0), radius: 10, y: 8)
+            .shadow(color: Haze.shadow.opacity(lit ? 0.35 : 0), radius: 10, y: 8)
             .accessibilityHidden(true)
     }
 }
@@ -464,12 +464,12 @@ struct AndroidImageJobView: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(verbatim: name).font(.hubot(16, 700)).lineLimit(1)
-                    Text(subtitle).font(.mona(12.5)).foregroundStyle(Color(haze: 0xAEB7A2)).lineLimit(2)
+                    Text(subtitle).font(.mona(12.5)).foregroundStyle(Haze.purpose).lineLimit(2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if let percent {
                     (Text(percent, format: .number).font(.hubot(36, 750)).foregroundStyle(Haze.accentText)
-                     + Text(verbatim: "%").font(.hubot(18, 750)).foregroundStyle(Color(haze: 0xAEB7A2)))
+                     + Text(verbatim: "%").font(.hubot(18, 750)).foregroundStyle(Haze.purpose))
                         .tracking(-0.8)
                         .monospacedDigit()
                         .contentTransition(.numericText(value: Double(percent)))
@@ -512,7 +512,7 @@ struct AndroidImageJobView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Haze.accent.opacity(0.16))
             }
-            .shadow(color: .black.opacity(0.25), radius: 20, y: 16)
+            .shadow(color: Haze.shadow.opacity(0.25), radius: 20, y: 16)
         }
     }
 
@@ -597,7 +597,7 @@ struct AndroidImageJobView: View {
                 Button("Cancel", role: .cancel) { images.cancel() }
                     .buttonStyle(.plain)
                     .font(.mona(13))
-                    .foregroundStyle(Color(haze: 0xAEB7A2))
+                    .foregroundStyle(Haze.purpose)
                     .padding(.horizontal, 10)
                     .frame(height: 36)
             }
@@ -735,7 +735,7 @@ struct GlowBar: View {
                 // No fraction (a step that cannot tell how far it is): a
                 // faint full bar with the sheen running, never a made-up amount.
                 Capsule()
-                    .fill(LinearGradient(colors: [Color(haze: 0x7FA85C), Haze.accent], startPoint: .leading, endPoint: .trailing))
+                    .fill(LinearGradient(colors: [Haze.moss, Haze.accent], startPoint: .leading, endPoint: .trailing))
                     .frame(width: fraction.map { max(8, geometry.size.width * $0) } ?? geometry.size.width)
                     .shadow(color: Haze.accent.opacity(fraction == nil ? 0 : 0.6), radius: 8)
                     // Over the glow, so the glow itself stays still.
@@ -997,7 +997,6 @@ struct AndroidVersionSheet: View {
         }
         .foregroundStyle(Haze.text)
         .tint(Haze.accent)
-        .environment(\.colorScheme, .dark)
         .onAppear {
             images.problem = nil
             if selection == nil { selection = images.defaultRow?.id }
@@ -1068,12 +1067,12 @@ struct AndroidChangeNotes: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: symbol)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color(haze: tint))
+                    .foregroundStyle(Haze.tint(tint))
                     .frame(width: 26, height: 26)
-                    .background(Color(haze: tint, alpha: 0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(Haze.tint(tint, alpha: 0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 Text(text)
                     .font(.mona(13))
-                    .foregroundStyle(Color(haze: 0xDCDFD2))
+                    .foregroundStyle(Haze.noteText)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }

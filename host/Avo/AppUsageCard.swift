@@ -78,7 +78,7 @@ struct AppUsageCard: View {
                 VStack(spacing: 6) {
                     // Each bar grows to its height, one after another.
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(day.start == busiest ? Color(haze: palette.accent) : Haze.accent.opacity(0.55))
+                        .fill(day.start == busiest ? Haze.tint(palette.accent) : Haze.accent.opacity(0.55))
                         .frame(height: max(4, (shown(day.seconds) / top * 80).rounded()))
                         .animation(reduceMotion ? nil : Haze.Motion.count.delay(0.2 + Double(index) * 0.035), value: revealed)
                     Text(verbatim: symbols[calendar.component(.weekday, from: day.start) - 1])

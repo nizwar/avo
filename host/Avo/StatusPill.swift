@@ -46,14 +46,13 @@ struct StatusPill: View {
         .background {
             ZStack {
                 Capsule().fill(.ultraThinMaterial)
-                Capsule().fill(Color(haze: 0x131E0F, alpha: 0.86))
+                Capsule().fill(Haze.pillFill)
                 Capsule().strokeBorder(Haze.accent.opacity(0.18))
             }
         }
         .compositingGroup()
-        .shadow(color: .black.opacity(drawsShadow ? 0.55 : 0), radius: 25, y: 18)
+        .shadow(color: Haze.shadow.opacity(drawsShadow ? 0.55 : 0), radius: 25, y: 18)
         .shadow(color: Haze.accent.opacity(drawsShadow ? 0.12 : 0), radius: 30)
-        .environment(\.colorScheme, .dark)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("Android status"))
     }

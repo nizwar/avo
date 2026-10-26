@@ -89,7 +89,7 @@ private struct AppTile: View {
             }
             .frame(width: 64, height: 64)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .shadow(color: .black.opacity(0.15), radius: 3, y: 2)
+            .shadow(color: Haze.shadow.opacity(0.15), radius: 3, y: 2)
 
             Text(app.displayName)
                 .font(.callout.weight(.medium))

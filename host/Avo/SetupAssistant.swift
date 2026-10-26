@@ -138,7 +138,6 @@ struct SetupAssistantView: View {
         .ignoresSafeArea()
         .foregroundStyle(Haze.text)
         .tint(Haze.accent)
-        .preferredColorScheme(.dark)
         .animation(Haze.Motion.animation(Haze.Motion.content, reduceMotion: reduceMotion), value: assistant.step)
         .onChange(of: assistant.step) { _, step in lastStep = step }
         .task {
@@ -434,7 +433,7 @@ struct AvoGlowMark: View {
         .frame(width: size, height: size)
         .background { if ring { Circle().fill(Haze.accent.opacity(0.08)).padding(-8) } }
         .shadow(color: Haze.accent.opacity(0.45), radius: 40)
-        .shadow(color: .black.opacity(0.45), radius: 20, y: 18)
+        .shadow(color: Haze.shadow.opacity(0.45), radius: 20, y: 18)
         .accessibilityHidden(true)
     }
 }
@@ -453,15 +452,15 @@ private struct FeatureCard: View {
         VStack(alignment: .leading, spacing: 8) {
             Image(systemName: symbol)
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(Color(haze: tint))
+                .foregroundStyle(Haze.tint(tint))
                 .symbolEffect(.bounce, value: bounce)
                 .frame(width: 34, height: 34)
-                .background(Color(haze: tint, alpha: tintAlpha), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(Haze.tint(tint, alpha: tintAlpha), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             Text(title).font(.mona(14, 600))
             Text(text)
                 .font(.mona(12.5))
                 .hazeParagraph(1.45, size: 12.5)
-                .foregroundStyle(Color(haze: 0xAEB7A2))
+                .foregroundStyle(Haze.purpose)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 16)
@@ -755,7 +754,7 @@ private struct AndroidStep: View {
                     Image(systemName: "checkmark.shield").foregroundStyle(Haze.running)
                 }
                 .font(.mona(13))
-                .foregroundStyle(Color(haze: 0xAEB7A2))
+                .foregroundStyle(Haze.purpose)
                 .padding(.top, 16)
                 .transition(.opacity)
             } else if let carried = assistant.carriedData {
@@ -887,14 +886,14 @@ private struct GoogleAppsStep: View {
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: symbol)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color(haze: tint))
+                    .foregroundStyle(Haze.tint(tint))
                     .frame(width: 32, height: 32)
-                    .background(Color(haze: tint, alpha: tintAlpha), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(Haze.tint(tint, alpha: tintAlpha), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .accessibilityHidden(true)
                 text
                     .font(.mona(13.5))
                     .hazeParagraph(1.5, size: 13.5)
-                    .foregroundStyle(Color(haze: 0xDCDFD2))
+                    .foregroundStyle(Haze.noteText)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -982,7 +981,7 @@ private struct ReadyStep: View {
                     Text("Avo’s background service isn’t running yet.").font(.mona(14, 600))
                     if model.daemonState == .needsApproval {
                         Text("Allow Avo in System Settings › General › Login Items & Extensions.")
-                            .font(.mona(12.5)).foregroundStyle(Color(haze: 0xAEB7A2))
+                            .font(.mona(12.5)).foregroundStyle(Haze.purpose)
                         Button("Open System Settings") { model.openLoginItemsSettings() }
                             .buttonStyle(HazeButtonStyle(kind: .secondary, height: 34, fontSize: 13, horizontalPadding: 14))
                     }
@@ -1110,7 +1109,7 @@ struct AndroidStartProgress: View {
                     .buttonStyle(HazeButtonStyle(kind: .secondary, height: 36, fontSize: 13, horizontalPadding: 16))
             case .failed, .notInstalled:
                 if let detail = status.detail {
-                    Text(detail).font(.mona(12.5)).foregroundStyle(Color(haze: 0xAEB7A2)).textSelection(.enabled)
+                    Text(detail).font(.mona(12.5)).foregroundStyle(Haze.purpose).textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Button("Try Again", action: start)
@@ -1190,7 +1189,7 @@ private struct StartStages: View {
                 }
                 .frame(minHeight: 24)
                 if let detail {
-                    detail.font(.mona(12.5)).foregroundStyle(Color(haze: 0xAEB7A2))
+                    detail.font(.mona(12.5)).foregroundStyle(Haze.purpose)
                 }
             }
         }

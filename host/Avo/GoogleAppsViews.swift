@@ -494,7 +494,7 @@ private struct GoogleAppsBuildCard: View {
                 }
                 Text(detail)
                     .font(.mona(12.5))
-                    .foregroundStyle(Color(haze: 0xAEB7A2))
+                    .foregroundStyle(Haze.purpose)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }

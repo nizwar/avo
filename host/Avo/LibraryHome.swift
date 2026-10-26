@@ -170,7 +170,7 @@ private struct ContinuePlayingHero: View {
         ZStack(alignment: .leading) {
             // The game's colours bloom in as its icon arrives.
             ZStack {
-                HazeBackground(base: Color(haze: 0x16190F),
+                HazeBackground(base: Haze.heroBase,
                                linear: HazeLinear(angle: 110, stops: [.init(color: 0x10140C, location: 0), .init(color: 0x1E2514, location: 0.46),
                                                                       .init(color: palette.baseEnd(from: 0x1E2514, amount: 0.14), location: 1)]),
                                glows: [HazeGlow(x: .fraction(0.78), y: .fraction(0.30), rx: 420, ry: 260, color: palette.accent, alpha: 0.55),
@@ -181,11 +181,11 @@ private struct ContinuePlayingHero: View {
             }
             .animation(.easeInOut(duration: 0.6), value: palette)
             AppIconView(icon: model.icons[game.package], size: 156, cornerRadius: 38)
-                .overlay { RoundedRectangle(cornerRadius: 38, style: .continuous).strokeBorder(.white.opacity(0.08)) }
+                .overlay { RoundedRectangle(cornerRadius: 38, style: .continuous).strokeBorder(Haze.highlight.opacity(0.08)) }
                 .hazeEdgeLight(cornerRadius: 38, reach: 240)
                 .scaleEffect(nudged ? 1.03 : 1)
                 .rotationEffect(.degrees(nudged ? -6 : -4))
-                .shadow(color: .black.opacity(0.55), radius: 30, y: 24)
+                .shadow(color: Haze.shadow.opacity(0.55), radius: 30, y: 24)
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.trailing, 64)
             VStack(alignment: .leading, spacing: 12) {
@@ -193,14 +193,14 @@ private struct ContinuePlayingHero: View {
                     .textCase(.uppercase)
                     .font(.hazeMono(11))
                     .tracking(1.6)
-                    .foregroundStyle(Color(haze: palette.accent))
+                    .foregroundStyle(Haze.tint(palette.accent))
                 Text(game.displayName)
                     .font(.hubot(40, 750))
                     .tracking(-0.6)
                     .lineLimit(2)
                     .hazeLineHeight(1.05, size: 40)
                 if let line = playLine(usage) {
-                    Text(line).font(.mona(14)).foregroundStyle(Color(haze: 0xD9DCCD))
+                    Text(line).font(.mona(14)).foregroundStyle(Haze.heroLine)
                 }
                 HStack(spacing: 8) {
                     ForEach(Array(chips.enumerated()), id: \.offset) { _, chip in HazeChip(chip) }
@@ -220,7 +220,7 @@ private struct ContinuePlayingHero: View {
             .frame(maxWidth: 560, maxHeight: .infinity, alignment: .leading)
         }
         .frame(height: 262)
-        .hazePointerGlow(hovering, cornerRadius: 22, color: Color(haze: palette.accent))
+        .hazePointerGlow(hovering, cornerRadius: 22, color: Haze.glow(palette.accent))
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         // A wide card turns less.
         .hazeTilt(hovering, degrees: 2.5)
@@ -262,7 +262,7 @@ private struct WelcomeHero: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
-            HazeBackground(base: Color(haze: 0x16190F),
+            HazeBackground(base: Haze.heroBase,
                            linear: HazeLinear(angle: 110, stops: [.init(color: 0x10140C, location: 0), .init(color: 0x1E2514, location: 0.46),
                                                                   .init(color: 0x2A3A1C, location: 1)]),
                            glows: [HazeGlow(x: .fraction(0.78), y: .fraction(0.30), rx: 420, ry: 260, color: 0xBCDC8F, alpha: 0.40),
@@ -272,7 +272,7 @@ private struct WelcomeHero: View {
                 .frame(width: 150, height: 150)
                 .scaleEffect(hovering && !reduceMotion ? 1.03 : 1)
                 .rotationEffect(.degrees(hovering && !reduceMotion ? -7 : -4))
-                .shadow(color: .black.opacity(0.45), radius: 26, y: 20)
+                .shadow(color: Haze.shadow.opacity(0.45), radius: 26, y: 20)
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.trailing, 70)
             VStack(alignment: .leading, spacing: 12) {
@@ -289,7 +289,7 @@ private struct WelcomeHero: View {
                     .hazeLineHeight(1.05, size: 34)
                 Text("Double-click an .apk file in Finder, or drop it here. Games with a key mapping show up here.")
                     .font(.mona(14))
-                    .foregroundStyle(Color(haze: 0xD9DCCD))
+                    .foregroundStyle(Haze.heroLine)
                     .fixedSize(horizontal: false, vertical: true)
                 Button { model.chooseAndInstall() } label: {
                     Label("Install App", systemImage: "square.and.arrow.down").labelStyle(HazeLabelStyle(spacing: 8, iconSize: 14))
@@ -364,7 +364,7 @@ struct GameCard: View {
             .padding(16)
         }
         .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
-        .hazePointerGlow(hovering, cornerRadius: 16, color: Color(haze: palette.accent))
+        .hazePointerGlow(hovering, cornerRadius: 16, color: Haze.glow(palette.accent))
         .clipShape(shape)
         .overlay {
             shape.strokeBorder(Haze.text.opacity(hovering ? 0.14 : 0))
@@ -404,7 +404,7 @@ struct LibraryAppTile: View {
         VStack(spacing: 10) {
             // The icon rises toward the pointer, its shadow deepening.
             AppIconView(icon: model.icons[app.package], size: 56, cornerRadius: 14)
-                .shadow(color: .black.opacity(hovering ? 0.5 : 0.35), radius: 9, y: hovering ? 11 : 8)
+                .shadow(color: Haze.shadow.opacity(hovering ? 0.5 : 0.35), radius: 9, y: hovering ? 11 : 8)
                 .hazeEdgeLight(cornerRadius: 14, reach: 130)
                 .scaleEffect(nudged ? 1.06 : 1)
                 .offset(y: nudged ? -3 : 0)
@@ -598,7 +598,7 @@ private struct GameRow: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
         }
-        .hazeCard(hovering: hovering, cornerRadius: 14, glow: Color(haze: palette.accent), lifts: false)
+        .hazeCard(hovering: hovering, cornerRadius: 14, glow: Haze.glow(palette.accent), lifts: false)
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .appTileActions(app, cornerRadius: 14, pressScale: 0.99)
         .hazeHover($hovering)

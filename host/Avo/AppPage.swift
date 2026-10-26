@@ -137,9 +137,9 @@ struct AppPage: View {
             // The hero icon turns toward the pointer anywhere around it and
             // catches its light; it arrives with a small pop.
             AppIconView(icon: model.icons[app.package], size: 132, cornerRadius: 32)
-                .overlay { RoundedRectangle(cornerRadius: 32, style: .continuous).strokeBorder(.white.opacity(0.1)) }
+                .overlay { RoundedRectangle(cornerRadius: 32, style: .continuous).strokeBorder(Haze.highlight.opacity(0.1)) }
                 .hazeEdgeLight(cornerRadius: 32, reach: 260)
-                .shadow(color: .black.opacity(0.6), radius: 30, y: 24)
+                .shadow(color: Haze.shadow.opacity(0.6), radius: 30, y: 24)
                 .hazeTilt(degrees: 6, reach: 560)
                 .scaleEffect(appeared || reduceMotion ? 1 : 0.9)
                 .opacity(appeared ? 1 : 0)
@@ -150,7 +150,7 @@ struct AppPage: View {
                     .textCase(.uppercase)
                     .font(.hazeMono(11))
                     .tracking(1.6)
-                    .foregroundStyle(Color(haze: palette.accent))
+                    .foregroundStyle(Haze.tint(palette.accent))
                 Text(app.displayName)
                     .font(.hubot(46, 800))
                     .tracking(-0.8)
@@ -160,16 +160,16 @@ struct AppPage: View {
                     .textSelection(.enabled)
                 HStack(spacing: 8) {
                     if let activity = model.activity[app.package] {
-                        HazeChip(Text(activity.labelResource), fill: Color.black.opacity(0.34))
+                        HazeChip(Text(activity.labelResource), fill: Haze.heroChip)
                     }
                     if let keyMapping {
-                        HazeChip(Text("Key mapping · \(keyMapping.controls.count) controls"), fill: Color.black.opacity(0.34))
+                        HazeChip(Text("Key mapping · \(keyMapping.controls.count) controls"), fill: Haze.heroChip)
                         if keyMapping.usesGamepad {
-                            HazeChip(Text("Gamepad mapped"), fill: Color.black.opacity(0.34))
+                            HazeChip(Text("Gamepad mapped"), fill: Haze.heroChip)
                         }
                     }
                     if !app.versionName.isEmpty {
-                        HazeChip(Text("Version \(app.versionName)"), fill: Color.black.opacity(0.34))
+                        HazeChip(Text("Version \(app.versionName)"), fill: Haze.heroChip)
                             .help(app.package)
                     }
                 }
@@ -189,7 +189,7 @@ struct AppPage: View {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 16, weight: .bold))
                         .frame(width: 46, height: 46)
-                        .background(Color.black.opacity(0.34), in: Circle())
+                        .background(Haze.heroChip, in: Circle())
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -205,7 +205,8 @@ struct AppPage: View {
     }
 }
 
-/// The hero's colours: glows from the icon over Avo's dark green, fading into the page.
+/// The hero's colours: glows from the icon over Avo's dark green (or its
+/// paper, in the light look), fading into the page.
 /// Its glows lean toward the pointer, slowly, like light through mist.
 private struct HeroBackground: View {
     let palette: IconPalette
@@ -251,7 +252,8 @@ private struct BackButtonBody: View {
             .padding(.leading, 8)
             .padding(.trailing, 12)
             .frame(height: 30)
-            .background(Color.black.opacity(configuration.isPressed ? 0.4 : hovering ? 0.36 : 0.28), in: Capsule())
+            .background(Color(haze: 0x000000, alpha: configuration.isPressed ? 0.4 : hovering ? 0.36 : 0.28,
+                               light: 0xFFFFFF, lightAlpha: configuration.isPressed ? 0.85 : hovering ? 0.75 : 0.6), in: Capsule())
             .contentShape(Capsule())
             .scaleEffect(configuration.isPressed && !reduceMotion ? Haze.Motion.pressScale : 1)
             .animation(Haze.Motion.press, value: configuration.isPressed)
@@ -585,7 +587,7 @@ private struct StorageStrip: View {
             }
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.black.opacity(0.35))
+                    Capsule().fill(Haze.track)
                     if disk > 0, size > 0 {
                         Capsule().fill(Haze.accent)
                             .frame(width: max(6, geometry.size.width * min(1, Double(size) / Double(disk)) * (filled || reduceMotion ? 1 : 0)))
