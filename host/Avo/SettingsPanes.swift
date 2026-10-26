@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import AvoHazeUI
 import AvoKeymap
 import AvoKit
 import AvoWindowHost
@@ -453,6 +454,8 @@ struct SystemPane: View {
 
     var body: some View {
         SettingsForm { config in
+            AppearanceSection()
+                .shown(sections.contains(.appearance))
             AndroidVersionSection()
                 .shown(sections.contains(.androidVersion))
             Section("Device profile") {
@@ -810,7 +813,52 @@ struct SystemSections: OptionSet {
     static let sound = SystemSections(rawValue: 1 << 16)
     static let scrolling = SystemSections(rawValue: 1 << 17)
     static let checkpoints = SystemSections(rawValue: 1 << 18)
-    static let all = SystemSections(rawValue: (1 << 19) - 1)
+    static let appearance = SystemSections(rawValue: 1 << 19)
+    static let all = SystemSections(rawValue: (1 << 20) - 1)
+}
+
+// MARK: General
+
+/// General: how Avo looks, which needs no Android (it shows while the
+/// settings are on their way), then the shortcuts, Translate Screen and
+/// notifications.
+struct GeneralPane: View {
+    @Environment(ControlPanelModel.self) private var model
+
+    var body: some View {
+        if model.config == nil {
+            Form { AppearanceSection() }
+        } else {
+            SystemPane(sections: [.appearance, .shortcuts, .translation, .notifications])
+        }
+    }
+}
+
+/// Avo's look in every window it draws: as the Mac, or always light or
+/// dark (HazeAppearanceSetting.avo, which the app windows and the menu bar
+/// item follow at once).
+private struct AppearanceSection: View {
+    @AppStorage(HazeAppearanceSetting.avo.key, store: HazeAppearanceSetting.avo.store)
+    private var stored = HazeAppearance.system.rawValue
+
+    var body: some View {
+        Section("Appearance") {
+            LabeledContent {
+                HazeSegmented.inset([(HazeAppearance.system, Text("System")), (.light, Text("Light")), (.dark, Text("Dark"))],
+                                    selection: Binding(get: { HazeAppearance(rawValue: stored) ?? .system }, set: { choice in
+                                        // This window at once; the app windows and the menu bar item as they hear of it.
+                                        NSApp.appearance = choice.nsAppearance
+                                        HazeAppearanceSetting.avo.set(choice)
+                                    }))
+                    .fixedSize()
+            } label: {
+                HelpTitle("Light or dark") {
+                    Text("System follows your Mac: light or dark, also when it changes by itself during the day.")
+                    Text("Light and Dark keep Avo in that look whatever the Mac uses: the Library, Settings, app windows and their panels, the menu bar item and widgets. Android’s own dark theme still follows the Mac.")
+                }
+            }
+        }
+    }
 }
 
 /// Android's media volume, every app's: a slider while Android runs (also

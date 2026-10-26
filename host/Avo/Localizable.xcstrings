@@ -2307,6 +2307,16 @@
         }
       }
     },
+    "Appearance" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tampilan"
+          }
+        }
+      }
+    },
     "Apple's MetalFX keeps edges and text sharp when the picture is enlarged. Best for most games." : {
       "localizations" : {
         "id" : {
@@ -4071,6 +4081,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kustom (%lld%%)"
+          }
+        }
+      }
+    },
+    "Dark" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gelap"
+          }
+        }
+      }
+    },
+    "Dark mode" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode gelap"
           }
         }
       }
@@ -6248,6 +6278,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pustaka"
+          }
+        }
+      }
+    },
+    "Light" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terang"
+          }
+        }
+      }
+    },
+    "Light and Dark keep Avo in that look whatever the Mac uses: the Library, Settings, app windows and their panels, the menu bar item and widgets. Android’s own dark theme still follows the Mac." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terang dan Gelap membuat Avo selalu tampil begitu, apa pun yang dipakai Mac: Pustaka, Pengaturan, jendela app beserta panelnya, item bar menu, dan widget. Tema gelap Android sendiri tetap mengikuti Mac."
+          }
+        }
+      }
+    },
+    "Light mode" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode terang"
+          }
+        }
+      }
+    },
+    "Light or dark" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terang atau gelap"
           }
         }
       }
@@ -9561,6 +9631,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aplikasi sistem"
+          }
+        }
+      }
+    },
+    "System follows your Mac: light or dark, also when it changes by itself during the day." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sistem mengikuti Mac Anda: terang atau gelap, juga saat berganti sendiri sepanjang hari."
           }
         }
       }

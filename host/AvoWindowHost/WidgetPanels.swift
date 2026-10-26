@@ -43,6 +43,11 @@ public final class WidgetPanels {
     private var panels: [String: WidgetPanel] = [:]
     private var widgets: [PlacedWidget] = []
     fileprivate(set) var status = VMStatus.stopped
+    /// Avo's appearance for the panels' haze (the daemon's own follows the
+    /// Mac, for Android): nil, as the Mac.
+    public var appearance: NSAppearance? {
+        didSet { for panel in panels.values { panel.appearance = appearance } }
+    }
 
     public init() {
         let receiver = InProcessClient(frames: frames)
@@ -89,6 +94,7 @@ public final class WidgetPanels {
                 continue
             }
             let panel = WidgetPanel(widget: widget, index: index, owner: self, backend: backend, frames: frames)
+            panel.appearance = appearance
             panels[widget.id] = panel
             panel.show()
         }
@@ -151,7 +157,7 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
     private let frames: FrameRouter
     private let panel: NSPanel
     private let displayView: DisplayView
-    private let widgetFrame = NSView()
+    private let widgetFrame = WidgetPlate()
     private let placeholder = NSTextField(wrappingLabelWithString: "")
     private let bar = WidgetBar()
     private let barWindow: NSPanel
@@ -167,7 +173,7 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
     /// Between the widget and its bar.
     static let barGap: CGFloat = 4
     /// The haze's base (QuickHaze), behind the placeholder.
-    static let loadingBackground = QuickHaze.nsRGB(0x0A1108, 0.88).cgColor
+    static let loadingBackground = QuickHaze.nsRGB(0x0A1108, 0.88, light: 0xF2F4EA, 0.92)
     static let cornerRadius: CGFloat = 18
 
     /// The widget's settings are on screen: the panel is `setupSize`.
@@ -183,6 +189,15 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
     private var drag: (pointer: NSPoint, origin: NSPoint)?
     private var barShown = false
     private var hidingBar: Task<Void, Never>?
+
+    /// The panel's and its bar's appearance (WidgetPanels.appearance).
+    var appearance: NSAppearance? {
+        get { panel.appearance }
+        set {
+            panel.appearance = newValue
+            barWindow.appearance = newValue
+        }
+    }
 
     private var frameName: String { "AvoWidget-\(widget.id)" }
     private var setUpKey: String { "AvoWidgetSetUp-\(widget.id)" }
@@ -229,14 +244,12 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
         widgetFrame.layer?.cornerRadius = Self.cornerRadius
         widgetFrame.layer?.cornerCurve = .continuous
         widgetFrame.layer?.masksToBounds = true
-        // Behind the placeholder only: the widget itself brings its shape.
-        widgetFrame.layer?.backgroundColor = Self.loadingBackground
         for view in [displayView, placeholder] {
             view.translatesAutoresizingMaskIntoConstraints = false
             widgetFrame.addSubview(view)
         }
         placeholder.alignment = .center
-        placeholder.textColor = QuickHaze.nsRGB(0xC5CDB9)
+        placeholder.textColor = QuickHaze.nsRGB(0xC5CDB9, light: 0x434E37)
         placeholder.font = QuickHaze.monaFont(12)
         widgetFrame.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(widgetFrame)
@@ -641,7 +654,7 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
     private func frameShown() {
         retries = 0
         placeholder.isHidden = true
-        widgetFrame.layer?.backgroundColor = .clear
+        widgetFrame.showsPlate = false
     }
 
     /// Android ended the widget's display: the widget went away (its app was
@@ -667,7 +680,7 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
     private func say(_ text: String) {
         placeholder.stringValue = text
         placeholder.isHidden = false
-        widgetFrame.layer?.backgroundColor = Self.loadingBackground
+        widgetFrame.showsPlate = true
     }
 }
 
@@ -706,6 +719,21 @@ private final class HoverView: NSView {
     override func mouseExited(with event: NSEvent) { onHover(false) }
 }
 
+/// Behind a widget's placeholder (the widget itself brings its shape): the
+/// haze's base, in the panel's appearance.
+private final class WidgetPlate: NSView {
+    /// While the placeholder shows (the widget's own picture covers it otherwise).
+    var showsPlate = true {
+        didSet { needsDisplay = true }
+    }
+
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        layer?.backgroundColor = showsPlate ? WidgetPanel.loadingBackground.cgColor : .clear
+    }
+}
+
 /// The bar of a widget: its name (drag it to move the widget), keep on top
 /// and remove, on a plate in the haze look (QuickHaze).
 private final class WidgetBar: NSView {
@@ -718,13 +746,15 @@ private final class WidgetBar: NSView {
     var title = "" { didSet { label.stringValue = title } }
     var pinned = false {
         didSet {
-            pin.contentTintColor = pinned ? QuickHaze.nsRGB(0xD8E8A7) : Self.iconColor
+            pin.contentTintColor = pinned ? QuickHaze.nsRGB(0xD8E8A7, light: 0x4F7A2F) : Self.iconColor
             pin.toolTip = pinned ? String(localized: "Keep on Desktop", bundle: .windowHost)
                 : String(localized: "Keep on Top", bundle: .windowHost)
         }
     }
 
-    private static let iconColor = QuickHaze.nsRGB(0x9AA58E)
+    private static let iconColor = QuickHaze.nsRGB(0x9AA58E, light: 0x626D56)
+    private static let plate = QuickHaze.nsRGB(0x0A1108, 0.92, light: 0xF9FAF4, 0.94)
+    private static let edge = QuickHaze.nsRGB(0xF3F1E8, 0.08, light: 0x1A2213, 0.1)
     private let label = NSTextField(labelWithString: "")
     private lazy var pin = button("pin.fill", String(localized: "Keep on Top", bundle: .windowHost), #selector(pinTapped))
     private lazy var remove = button("xmark", String(localized: "Remove Widget", bundle: .windowHost), #selector(removeTapped))
@@ -732,14 +762,12 @@ private final class WidgetBar: NSView {
     init() {
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.backgroundColor = QuickHaze.nsRGB(0x0A1108, 0.92).cgColor
-        layer?.borderColor = QuickHaze.nsRGB(0xF3F1E8, 0.08).cgColor
         layer?.borderWidth = 1
         layer?.cornerRadius = 11
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
         label.font = QuickHaze.monaFont(11, 560)
-        label.textColor = QuickHaze.nsRGB(0xC5CDB9)
+        label.textColor = QuickHaze.nsRGB(0xC5CDB9, light: 0x434E37)
         label.lineBreakMode = .byTruncatingTail
         let stack = NSStackView(views: [remove, label, pin])
         stack.spacing = 6
@@ -767,6 +795,14 @@ private final class WidgetBar: NSView {
 
     override func mouseEntered(with event: NSEvent) { onHover?(true) }
     override func mouseExited(with event: NSEvent) { onHover?(false) }
+
+    // The plate's colours, again as the appearance changes.
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        layer?.backgroundColor = Self.plate.cgColor
+        layer?.borderColor = Self.edge.cgColor
+    }
 
     // The plate and the name move the widget (the bar's own panel stays
     // with it); the buttons are buttons.

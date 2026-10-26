@@ -1,5 +1,7 @@
 import AppKit
+import AvoHazeUI
 import AvoKit
+import AvoWindowHost
 import SwiftUI
 
 @main
@@ -115,6 +117,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let library = LibraryRouter()
     /// Avo's own updates (Sparkle).
     let updater = AppUpdater()
+    /// Light, dark, or as the Mac (Settings › General › Appearance).
+    private var appearance: HazeAppearanceFollower?
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Before the first window shows.
+        appearance = HazeAppearanceSetting.avo.followInApp()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         updater.model = model

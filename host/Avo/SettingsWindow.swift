@@ -76,7 +76,8 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     /// Words the search also finds the pane by.
     var keywords: [String] {
         switch self {
-        case .general: [String(localized: "Shortcuts"), String(localized: "Dock"), String(localized: "Desktop alias"),
+        case .general: [String(localized: "Appearance"), String(localized: "Dark mode"), String(localized: "Light mode"),
+                        String(localized: "Shortcuts"), String(localized: "Dock"), String(localized: "Desktop alias"),
                         String(localized: "Notifications"), String(localized: "Notification Center"),
                         String(localized: "Translate Screen"), String(localized: "Translation"), String(localized: "Translate into")]
         case .android: [String(localized: "Android version"), String(localized: "Checkpoints"), String(localized: "Restore"),
@@ -542,7 +543,7 @@ private struct SettingsDetail: View {
     var body: some View {
         Group {
             switch pane {
-            case .general: SystemPane(sections: [.shortcuts, .translation, .notifications])
+            case .general: GeneralPane()
             case .android: SystemPane(sections: [.androidVersion, .checkpoints, .maintenance])
             case .googleApps: SystemPane(sections: .googleApps)
             case .graphics: GraphicsPane()

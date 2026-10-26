@@ -72,6 +72,8 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     private(set) var audioTap: AudioTapLocation?
     /// How many notifications the app has in Android (its Dock badge).
     private var notificationCount = 0
+    /// Avo's appearance on this app's windows, changed in the Control Panel.
+    private var appearance: HazeAppearanceFollower?
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "Shim")
 
     init(package: String, label: String, notificationKey: String?, editKeyMapping: Bool) {
@@ -84,6 +86,8 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The haze's typefaces are in Avo.app, wherever this shim runs from.
         QuickHaze.fontDirectories = [AndroidWindowController.hostApplication?.appending(path: "Contents/Resources")].compactMap { $0 }
+        // Light, dark, or as the Mac (Settings › General › Appearance).
+        appearance = HazeAppearanceSetting.avo.followInApp()
         buildMenu()
         // What the Control Panel asks of this app while it runs (ShimRequest).
         let distributed = DistributedNotificationCenter.default()

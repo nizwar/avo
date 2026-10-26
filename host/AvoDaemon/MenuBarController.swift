@@ -30,6 +30,15 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     /// `force`: Stop Anyway, while Google apps change Android.
     var restartForUpdate: @MainActor (_ force: Bool) async throws -> Void = { _ in }
 
+    /// Avo's appearance (Settings › General › Appearance) for the panel and
+    /// the menu; nil, as the Mac.
+    var appearance: NSAppearance? {
+        didSet { popover.appearance = panelAppearance }
+    }
+
+    /// Not the menu bar's (the item's button wears that): Avo's, else the Mac's.
+    private var panelAppearance: NSAppearance { appearance ?? NSApp.effectiveAppearance }
+
     init(core: DaemonCore, avoApp: URL) {
         self.core = core
         self.avoApp = avoApp
@@ -48,7 +57,6 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
         menu.autoenablesItems = false
         popover.behavior = .transient
         popover.animates = true
-        popover.appearance = NSAppearance(named: .darkAqua)
         popover.delegate = self
         let panel = NSHostingController(rootView: MenuBarPanel(model: model, actions: panelActions))
         // The popover follows the panel's height as its lists fill in after
@@ -86,7 +94,7 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
             // menu's; the menu takes the keyboard.
             NSApp.activate()
             sender.highlight(true)
-            HazeMenuPresenter.shared.popUp(menu, below: sender) { sender.highlight(false) }
+            HazeMenuPresenter.shared.popUp(menu, below: sender, appearance: panelAppearance) { sender.highlight(false) }
             return
         }
         if popover.isShown {
@@ -94,6 +102,8 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
         } else {
             Task { await model.refresh(from: core) }
             NSApp.activate()
+            // The Mac's look as it is now, while Avo's is System.
+            popover.appearance = panelAppearance
             popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
         }
     }

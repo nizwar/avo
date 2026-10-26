@@ -2,6 +2,7 @@ import AppKit
 import AVFoundation
 import AvoADB
 import AvoDaemonCore
+import AvoHazeUI
 import AvoKit
 import AvoShimKit
 import AvoWindowHost
@@ -18,6 +19,8 @@ final class DaemonAppDelegate: NSObject, NSApplicationDelegate {
     private var menuBar: MenuBarController?
     /// Android widgets on the Mac, in floating panels (Library › Widgets).
     private var widgetPanels: WidgetPanels?
+    /// Avo's appearance on the menu bar item's panel and the widgets.
+    private var appearance: HazeAppearanceFollower?
     private var location: MacLocation?
     private var macState: MacSystemState?
     /// Restarts the daemon on a new Avo once an update replaced Avo.app (AppUpdateWatcher.swift).
@@ -164,6 +167,12 @@ final class DaemonAppDelegate: NSObject, NSApplicationDelegate {
         }
         let menuBar = MenuBarController(core: core, avoApp: avoApp)
         self.menuBar = menuBar
+        // Settings › General › Appearance. The daemon's own appearance stays
+        // the Mac's: Android's dark theme follows that (MacSystemState).
+        appearance = HazeAppearanceSetting.avo.follow { [weak menuBar, weak panels] choice in
+            menuBar?.appearance = choice.nsAppearance
+            panels?.appearance = choice.nsAppearance
+        }
         let updateWatcher = AppUpdateWatcher(avoApp: avoApp, core: core, logger: logger)
         updateWatcher.start()
         self.updateWatcher = updateWatcher

@@ -17,7 +17,6 @@
 		1138D23B2432621A0392F88E /* SettingsPanes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57272A45292573622BEB9050 /* SettingsPanes.swift */; };
 		128569D3D4414E7CCAC8FBF0 /* AvoWindowHost.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 248B6565DC21EC727F3D7C71 /* AvoWindowHost.framework */; };
 		12B4999A17C07FA0376DF28D /* WheelScrolling.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF22EB11A4CB702484B63BA7 /* WheelScrolling.swift */; };
-		169E4302FC27E4D8C1006AD9 /* profiles in Resources */ = {isa = PBXBuildFile; fileRef = 6C2814E384596AFA03490E71 /* profiles */; };
 		18D8B4E25D143F13C679325F /* WidgetPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 757FE7FE5E8552F4983486D2 /* WidgetPanels.swift */; };
 		1B1204EF16529C260E2187CD /* AvoHostKit in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 957B5B66D0F5E689DE4D838D /* AvoHostKit */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		1CA74D2CBF37CCEABC2AD104 /* ScreenLockViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F76FFA7A8CF6177165575DE /* ScreenLockViews.swift */; };
@@ -41,6 +40,7 @@
 		40BB43C8EB6FA24466005634 /* AvoHostKit in Frameworks */ = {isa = PBXBuildFile; productRef = 1309BB8E795B40B4B3FCC1E4 /* AvoHostKit */; };
 		461C56E9076279938C7ADE84 /* DaemonApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 247F00D3F568BF9DAA251E37 /* DaemonApp.swift */; };
 		47016DFED92044DBDCC83456 /* AvoDaemon.app in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 441AA532CF90E8475DCB42F9 /* AvoDaemon.app */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		474E7B9C3DECC09056EA1E6A /* Appearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DD4E6459F6D1915011BC195 /* Appearance.swift */; };
 		4836DC662EACF60462B01454 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 5383AB4350B0E1946DD7F0A3 /* Localizable.xcstrings */; };
 		4D036BCA540414A99C5446E6 /* LibraryData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEF2877E809E094D750822E0 /* LibraryData.swift */; };
 		4E1B7A2BF976CE98DC42425B /* NoticeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A82BC5AF82C6AF51EDADD0 /* NoticeView.swift */; };
@@ -68,6 +68,7 @@
 		79569C517CFA4575CA0927F8 /* IconPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = E37F0548829F26D1E6A7E140 /* IconPalette.swift */; };
 		7A075CAF7513581AA30E117D /* MetalFX.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 955B641751C45E99B315D024 /* MetalFX.framework */; };
 		7BAC06A4BDFE31BABDFF838D /* RendererViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA3880E6FB2FA9A24EC952B /* RendererViews.swift */; };
+		7CCD306BE7B72985D604F70C /* profiles in Resources */ = {isa = PBXBuildFile; fileRef = EC8AC61C7E68928CCD0F2D49 /* profiles */; };
 		7E57825E3D6A11593F1C53C1 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = F4F9010B156E6BEDCE8E4756 /* AppIcon.icon */; };
 		802CBDCDB31C11D8E7A50856 /* GraphicsResultCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D64F1BB56C1F298D38C26FE /* GraphicsResultCard.swift */; };
 		80F7B035228CE63F63182E75 /* PermissionNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27670785BC1057938A994E09 /* PermissionNames.swift */; };
@@ -178,10 +179,10 @@
 		1D53782E6B5857E8BE21FBDA /* Embed Dependencies */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = Contents/Library/Shim;
+			dstPath = Contents/Library/Helpers;
 			dstSubfolderSpec = 1;
 			files = (
-				326B9CFA8AD399ABB0184081 /* AvoShim.app in Embed Dependencies */,
+				47016DFED92044DBDCC83456 /* AvoDaemon.app in Embed Dependencies */,
 			);
 			name = "Embed Dependencies";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -200,10 +201,10 @@
 		C7672177C149A74FB486AFCE /* Embed Dependencies */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = Contents/Library/Helpers;
+			dstPath = Contents/Library/Shim;
 			dstSubfolderSpec = 1;
 			files = (
-				47016DFED92044DBDCC83456 /* AvoDaemon.app in Embed Dependencies */,
+				326B9CFA8AD399ABB0184081 /* AvoShim.app in Embed Dependencies */,
 			);
 			name = "Embed Dependencies";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -239,6 +240,7 @@
 		0A1FB6938150613451067A2F /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		0A5963B852A5A1A6EEC52158 /* AppPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPage.swift; sourceTree = "<group>"; };
 		0D64F1BB56C1F298D38C26FE /* GraphicsResultCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphicsResultCard.swift; sourceTree = "<group>"; };
+		0DD4E6459F6D1915011BC195 /* Appearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Appearance.swift; sourceTree = "<group>"; };
 		0E077537E77456968A82C2C8 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		0E0802A87AF6B465008CA944 /* GraphicsSettingsEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphicsSettingsEditor.swift; sourceTree = "<group>"; };
 		100F7F7DDE625723D3B3FC5F /* MacLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLinks.swift; sourceTree = "<group>"; };
@@ -281,7 +283,6 @@
 		62921557685448757297D8EE /* ScreenLockViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenLockViews.swift; sourceTree = "<group>"; };
 		6443F229E33272C0A1B90151 /* ScreenRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRecorder.swift; sourceTree = "<group>"; };
 		65F7E2A3C00C21BDBF58BE20 /* ReportProblem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportProblem.swift; sourceTree = "<group>"; };
-		6C2814E384596AFA03490E71 /* profiles */ = {isa = PBXFileReference; lastKnownFileType = folder; name = profiles; path = ../profiles; sourceTree = SOURCE_ROOT; };
 		7041D0AA8B7A00CB09C30AC6 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		72EC3020F67F5E3A32BC3D88 /* com.avodroid.daemon.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = com.avodroid.daemon.plist; sourceTree = "<group>"; };
 		757FE7FE5E8552F4983486D2 /* WidgetPanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetPanels.swift; sourceTree = "<group>"; };
@@ -340,6 +341,7 @@
 		E6B98E4EAC479449B37A4DA1 /* AndroidWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AndroidWindowController.swift; sourceTree = "<group>"; };
 		EADFC800FDCF147039B429D8 /* CaptureFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureFiles.swift; sourceTree = "<group>"; };
 		EB753E2158DC17A4E034C9B1 /* GraphicsMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphicsMenu.swift; sourceTree = "<group>"; };
+		EC8AC61C7E68928CCD0F2D49 /* profiles */ = {isa = PBXFileReference; lastKnownFileType = folder; name = profiles; path = ../profiles; sourceTree = SOURCE_ROOT; };
 		EF7F1029C48A58A05962B422 /* RecordingAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingAudio.swift; sourceTree = "<group>"; };
 		EF84B0D93E7B26F1EBC816E3 /* DisplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayView.swift; sourceTree = "<group>"; };
 		F11C20BD16E21123B21D88FB /* StatusViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusViews.swift; sourceTree = "<group>"; };
@@ -419,7 +421,7 @@
 				2A506A8BDC686CDD7C2443EE /* AvoShim */,
 				DB845F15F9A2152809A95F7E /* AvoWindowHost */,
 				FBA6D5D52CAF2627DF55D613 /* Config */,
-				ACEF5EC4D72C1CAB008FBB8C /* keymap-module */,
+				A7501D042251545BCDF0BDA1 /* dreamy-pike-5abbcc */,
 				8BCA2D8D97B264CE7B2B7C56 /* Packages */,
 				A3CD55D0A94D59B727EFEEB2 /* Frameworks */,
 				3C132BBC38FF08956F3BFE6A /* Products */,
@@ -547,12 +549,12 @@
 			path = avoctl;
 			sourceTree = "<group>";
 		};
-		ACEF5EC4D72C1CAB008FBB8C /* keymap-module */ = {
+		A7501D042251545BCDF0BDA1 /* dreamy-pike-5abbcc */ = {
 			isa = PBXGroup;
 			children = (
-				6C2814E384596AFA03490E71 /* profiles */,
+				EC8AC61C7E68928CCD0F2D49 /* profiles */,
 			);
-			name = "keymap-module";
+			name = "dreamy-pike-5abbcc";
 			path = ..;
 			sourceTree = "<group>";
 		};
@@ -581,6 +583,7 @@
 			isa = PBXGroup;
 			children = (
 				E6B98E4EAC479449B37A4DA1 /* AndroidWindowController.swift */,
+				0DD4E6459F6D1915011BC195 /* Appearance.swift */,
 				46F732AFAAA0C9FADAC37F44 /* CaptureFeedback.swift */,
 				EADFC800FDCF147039B429D8 /* CaptureFiles.swift */,
 				EF84B0D93E7B26F1EBC816E3 /* DisplayView.swift */,
@@ -818,7 +821,7 @@
 				9927CA7D5EE28CAC9BBFC966 /* OFL-MonaSans.txt in Resources */,
 				D2131F5B4D766155448D1B8D /* hubot-sans.woff2 in Resources */,
 				55582661F414850A21ED9F4A /* mona-sans.woff2 in Resources */,
-				169E4302FC27E4D8C1006AD9 /* profiles in Resources */,
+				7CCD306BE7B72985D604F70C /* profiles in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -913,6 +916,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A9658D77E881DBF56C0FB819 /* AndroidWindowController.swift in Sources */,
+				474E7B9C3DECC09056EA1E6A /* Appearance.swift in Sources */,
 				E495F86BD347AA16D17B9AE8 /* CaptureFeedback.swift in Sources */,
 				A09E9299E5A5031C018DBE5C /* CaptureFiles.swift in Sources */,
 				69A85120010849C649C6A0DF /* DisplayView.swift in Sources */,
