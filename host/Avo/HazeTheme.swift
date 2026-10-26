@@ -5,53 +5,85 @@ import SwiftUI
 // The Library window's look ("haze"): Avo's green glowing over near black,
 // warm light text, and cards that are only a breath lighter than the page.
 // Colours, sizes and type follow the approved design (Library · Home,
-// Library · Game page, Library · Notifications). The Library is always dark,
-// like a game launcher, and so is the Settings window, whose forms are cards
-// in the same haze (HazeFormStyle, below).
+// Library · Game page, Library · Notifications). It has two looks, as the
+// Mac does (Settings › General › Appearance: System, Light or Dark): dark,
+// like a game launcher, and light, the same haze on a soft green paper with
+// deep green ink. Every token below has both; the Settings window's forms
+// are cards in the same haze (HazeFormStyle, below).
 
 enum Haze {
     // MARK: Surfaces
-    static let windowBase = Color(haze: 0x0A1108)
+    static let windowBase = Color(haze: 0x0A1108, light: 0xF2F4EA)
     /// A game page under its hero.
-    static let pageBase = Color(haze: 0x0D0F09)
-    static let sidebar = Color(haze: 0xF3F1E8, alpha: 0.035)
+    static let pageBase = Color(haze: 0x0D0F09, light: 0xF6F6EF)
+    static let sidebar = Color(haze: 0xF3F1E8, alpha: 0.035, light: 0x1A2213, lightAlpha: 0.035)
     /// Cards on a page (usage, graphics, notifications).
-    static let card = Color(haze: 0xF3F1E8, alpha: 0.045)
+    static let card = Color(haze: 0xF3F1E8, alpha: 0.045, light: 0xFFFFFF, lightAlpha: 0.62)
     /// The secondary cards on Home ("Get more games").
-    static let cardQuiet = Color(haze: 0xF3F1E8, alpha: 0.05)
+    static let cardQuiet = Color(haze: 0xF3F1E8, alpha: 0.05, light: 0xFFFFFF, lightAlpha: 0.5)
     /// App tiles.
-    static let tile = Color(haze: 0xF3F1E8, alpha: 0.04)
+    static let tile = Color(haze: 0xF3F1E8, alpha: 0.04, light: 0xFFFFFF, lightAlpha: 0.55)
     /// Search field, segmented controls, filter chips.
-    static let field = Color(haze: 0xF3F1E8, alpha: 0.07)
+    static let field = Color(haze: 0xF3F1E8, alpha: 0.07, light: 0x1A2213, lightAlpha: 0.055)
     /// Secondary buttons (Install App, Clear All).
-    static let button = Color(haze: 0xF3F1E8, alpha: 0.08)
+    static let button = Color(haze: 0xF3F1E8, alpha: 0.08, light: 0x1A2213, lightAlpha: 0.07)
     /// Controls set into a card (a card's segmented control, a reply field).
-    static let inset = Color.black.opacity(0.28)
+    static let inset = Color(haze: 0x000000, alpha: 0.28, light: 0x1A2213, lightAlpha: 0.06)
     /// Chips over a hero ("GPU · 60 FPS").
-    static let chip = Color.black.opacity(0.32)
+    static let chip = Color(haze: 0x000000, alpha: 0.32, light: 0xFFFFFF, lightAlpha: 0.6)
+    /// Chips and round buttons in a page's hero (an app page's header).
+    static let heroChip = Color(haze: 0x000000, alpha: 0.34, light: 0xFFFFFF, lightAlpha: 0.62)
+    /// Under a hero's gradient and glows (Home's Continue Playing).
+    static let heroBase = Color(haze: 0x16190F, light: 0xEDF0E4)
+    /// The status pill, over its material.
+    static let pillFill = Color(haze: 0x131E0F, alpha: 0.86, light: 0xF9FAF4, lightAlpha: 0.86)
 
     // MARK: Text
-    static let text = Color(haze: 0xF3F1E8)
-    static let textSecondary = Color(haze: 0xC5CDB9)
-    static let textTertiary = Color(haze: 0x9AA58E)
-    static let sectionLabel = Color(haze: 0x8F9B84)
+    static let text = Color(haze: 0xF3F1E8, light: 0x1A2213)
+    static let textSecondary = Color(haze: 0xC5CDB9, light: 0x434E37)
+    static let textTertiary = Color(haze: 0x9AA58E, light: 0x626D56)
+    static let sectionLabel = Color(haze: 0x8F9B84, light: 0x6B7760)
+    /// The line under a hero's title ("Last played 2 hours ago").
+    static let heroLine = Color(haze: 0xD9DCCD, light: 0x3A4530)
+    /// A row's explanation under its title (the Setup Assistant's rows).
+    static let purpose = Color(haze: 0xAEB7A2, light: 0x58634C)
+    /// A note's text beside its tinted symbol.
+    static let noteText = Color(haze: 0xDCDFD2, light: 0x343E2B)
 
     // MARK: Avo green
     /// Avo's flesh colour: primary buttons, the selected filter, links.
-    static let accent = Color(haze: 0xD8E8A7)
-    static let onAccent = Color(haze: 0x15210E)
-    static let accentText = Color(haze: 0xEEF5D6)
-    static let selection = Color(haze: 0xD8E8A7, alpha: 0.14)
-    static let segmentSelection = Color(haze: 0xD8E8A7, alpha: 0.18)
-    static let running = Color(haze: 0xBCDC8F)
+    static let accent = Color(haze: 0xD8E8A7, light: 0x4F7A2F)
+    static let onAccent = Color(haze: 0x15210E, light: 0xF7FAEC)
+    static let accentText = Color(haze: 0xEEF5D6, light: 0x3B5E1F)
+    static let selection = Color(haze: 0xD8E8A7, alpha: 0.14, light: 0x4F7A2F, lightAlpha: 0.12)
+    static let segmentSelection = Color(haze: 0xD8E8A7, alpha: 0.18, light: 0x4F7A2F, lightAlpha: 0.15)
+    static let running = Color(haze: 0xBCDC8F, light: 0x3D7F22)
+    /// The mark's colours (branding): the same in both looks.
     static let skin = Color(haze: 0x2F4A1F)
+    static let flesh = Color(haze: 0xD8E8A7)
     static let pit = Color(haze: 0x7B4A2A)
-    static let positive = Color(haze: 0xBCDC8F)
+    static let positive = Color(haze: 0xBCDC8F, light: 0x3D7F22)
+    /// Avo's moss green: a switch that is on, where a progress bar starts.
+    static let moss = Color(haze: 0x7FA85C, light: 0x6A9A40)
+    /// A switch's knob: Avo's cream.
+    static let knob = Color(haze: 0xFBF8F1)
 
     // MARK: Warnings
-    static let warning = Color(haze: 0xF0C27A)
-    static let danger = Color(haze: 0xF3B8A2)
-    static let dangerFill = Color(haze: 0xF39A7C, alpha: 0.14)
+    static let warning = Color(haze: 0xF0C27A, light: 0x9A6410)
+    static let danger = Color(haze: 0xF3B8A2, light: 0xB23F26)
+    static let dangerFill = Color(haze: 0xF39A7C, alpha: 0.14, light: 0xD5573A, lightAlpha: 0.12)
+
+    // MARK: Light and shade
+    /// What brightens a control under the pointer: white light on the
+    /// dark, a shade of ink on the light (as `.opacity` of it).
+    static let highlight = Color(haze: 0xFFFFFF, light: 0x1A2213)
+    /// Shadows (as `.opacity` of it): softer on the light.
+    static let shadow = Color(haze: 0x000000, light: 0x1C2A12, lightAlpha: 0.45)
+    /// A slider's track.
+    static let track = Color(haze: 0x000000, alpha: 0.35, light: 0x1A2213, lightAlpha: 0.12)
+    /// A checkbox that is off, and its edge (none on the dark).
+    static let checkboxOff = Color(haze: 0xFFFFFF, alpha: 0.92, light: 0xFFFFFF, lightAlpha: 1)
+    static let checkboxEdge = Color(haze: 0xFFFFFF, alpha: 0, light: 0x1A2213, lightAlpha: 0.3)
 
     /// The window: a breath of green light top right and bottom left.
     static let windowGlows: [HazeGlow] = [
@@ -61,11 +93,76 @@ enum Haze {
     ]
 }
 
+extension Haze {
+    /// A colour of the dark look's (an icon's palette, a tint written for
+    /// the near black) as ink on the light paper: the same hue, deep
+    /// enough to read (HazeTone.ink).
+    static func tint(_ rgb: UInt32, alpha: Double = 1) -> Color {
+        Color(haze: rgb, alpha: alpha, light: HazeTone.ink(rgb), lightAlpha: alpha)
+    }
+
+    /// A glow's colour of the dark look's as it glows on the light paper (HazeTone.glow).
+    static func glow(_ rgb: UInt32, alpha: Double = 1) -> Color {
+        Color(haze: rgb, alpha: alpha, light: HazeTone.glow(rgb), lightAlpha: alpha)
+    }
+}
+
 extension Color {
-    /// sRGB from 0xRRGGBB.
+    /// sRGB from 0xRRGGBB, the same in both looks.
     init(haze rgb: UInt32, alpha: Double = 1) {
         self.init(.sRGB, red: Double((rgb >> 16) & 0xFF) / 255, green: Double((rgb >> 8) & 0xFF) / 255,
                   blue: Double(rgb & 0xFF) / 255, opacity: alpha)
+    }
+
+    /// One colour in the haze's two looks: `rgb` on the dark, `light` on
+    /// the light (its alpha `lightAlpha`, else `alpha`). It follows the
+    /// view's appearance as macOS's own colours do.
+    init(haze rgb: UInt32, alpha: Double = 1, light: UInt32, lightAlpha: Double? = nil) {
+        self.init(nsColor: .haze(rgb, alpha: alpha, light: light, lightAlpha: lightAlpha))
+    }
+}
+
+extension NSColor {
+    /// sRGB from 0xRRGGBB.
+    static func haze(_ rgb: UInt32, alpha: Double = 1) -> NSColor {
+        NSColor(srgbRed: CGFloat((rgb >> 16) & 0xFF) / 255, green: CGFloat((rgb >> 8) & 0xFF) / 255,
+                blue: CGFloat(rgb & 0xFF) / 255, alpha: alpha)
+    }
+
+    /// `rgb` in a dark appearance, `light` in a light one (a window's,
+    /// a view's, the app's).
+    static func haze(_ rgb: UInt32, alpha: Double = 1, light: UInt32, lightAlpha: Double? = nil) -> NSColor {
+        let dark = NSColor.haze(rgb, alpha: alpha), paper = NSColor.haze(light, alpha: lightAlpha ?? alpha)
+        // Dark, or one of its kinds (high contrast, vibrant).
+        return NSColor(name: nil) { $0.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : paper }
+    }
+}
+
+/// How the dark look's free colours (a hero's gradient, its glows, an
+/// icon's palette) appear on the light paper, worked out in OKLab so they
+/// keep their hue: dark grounds become a paper tinted the same way, lights
+/// that glow become a deeper tint of themselves, and colours that are text
+/// on the dark become an ink that reads on the paper.
+enum HazeTone {
+    /// A dark ground (L under about 0.4) as paper: the darker, the more
+    /// it deepens the paper, its tint kept.
+    static func surface(_ rgb: UInt32) -> UInt32 {
+        let color = OKLab(rgb: rgb)
+        return OKLab(lightness: 0.97 - 0.18 * min(color.l, 0.6), chroma: color.chroma * 0.9, hue: color.hue).rgb
+    }
+
+    /// A glow as it shows on paper: a coloured light deepens to a tint
+    /// that the paper shows; a white one stays a brightening.
+    static func glow(_ rgb: UInt32) -> UInt32 {
+        let color = OKLab(rgb: rgb)
+        guard color.chroma >= 0.035 else { return rgb }
+        return OKLab(lightness: 0.60 + 0.22 * color.l, chroma: min(color.chroma * 1.25, 0.17), hue: color.hue).rgb
+    }
+
+    /// A colour as ink on paper: the same hue at a lightness that reads.
+    static func ink(_ rgb: UInt32) -> UInt32 {
+        let color = OKLab(rgb: rgb)
+        return OKLab(lightness: 0.5, chroma: min(color.chroma * 1.1, 0.14), hue: color.hue).rgb
     }
 }
 
@@ -218,8 +315,11 @@ struct HazeBackground: View {
     var base: Color? = nil
     var linear: HazeLinear? = nil
     var glows: [HazeGlow] = []
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        // Read here, so a change of look draws it again.
+        let _ = colorScheme
         Canvas { context, size in
             let rect = CGRect(origin: .zero, size: size)
             if let base { context.fill(Path(rect), with: .color(base)) }
@@ -230,25 +330,30 @@ struct HazeBackground: View {
         .accessibilityHidden(true)
     }
 
+    /// On the light look its colours are HazeTone's: the ground paper, the glows tints.
     static func draw(_ linear: HazeLinear, in context: inout GraphicsContext, size: CGSize) {
+        let light = context.environment.colorScheme == .light
         let radians = linear.angle * .pi / 180
         let direction = CGVector(dx: sin(radians), dy: -cos(radians))
         let length = abs(size.width * sin(radians)) + abs(size.height * cos(radians))
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         let start = CGPoint(x: center.x - direction.dx * length / 2, y: center.y - direction.dy * length / 2)
         let end = CGPoint(x: center.x + direction.dx * length / 2, y: center.y + direction.dy * length / 2)
-        let gradient = Gradient(stops: linear.stops.map { .init(color: Color(haze: $0.color, alpha: $0.alpha), location: $0.location) })
+        let gradient = Gradient(stops: linear.stops.map {
+            .init(color: Color(haze: light ? HazeTone.surface($0.color) : $0.color, alpha: $0.alpha), location: $0.location)
+        })
         context.fill(Path(CGRect(origin: .zero, size: size)), with: .linearGradient(gradient, startPoint: start, endPoint: end))
     }
 
     static func draw(_ glow: HazeGlow, in context: inout GraphicsContext, size: CGSize) {
         let center = CGPoint(x: glow.x.resolve(size.width), y: glow.y.resolve(size.height))
+        let color = context.environment.colorScheme == .light ? HazeTone.glow(glow.color) : glow.color
         var layer = context
         layer.translateBy(x: center.x, y: center.y)
         layer.scaleBy(x: 1, y: glow.ry / glow.rx)
         let gradient = Gradient(stops: [
-            .init(color: Color(haze: glow.color, alpha: glow.alpha), location: 0),
-            .init(color: Color(haze: glow.color, alpha: 0), location: glow.stop),
+            .init(color: Color(haze: color, alpha: glow.alpha), location: 0),
+            .init(color: Color(haze: color, alpha: 0), location: glow.stop),
         ])
         let reach = glow.rx * glow.stop
         layer.fill(Path(ellipseIn: CGRect(x: -reach, y: -reach, width: reach * 2, height: reach * 2)),
@@ -304,7 +409,7 @@ private struct HazeButtonBody: View {
             .background {
                 ZStack {
                     Capsule().fill(background)
-                    Capsule().fill(Color.white.opacity(lit ? (kind == .primary ? 0.16 : 0.06) : 0))
+                    Capsule().fill((kind == .primary ? Color.white : Haze.highlight).opacity(lit ? (kind == .primary ? 0.16 : 0.06) : 0))
                 }
                 // Avo green glows a little more under the pointer.
                 .shadow(color: Haze.accent.opacity(kind == .primary && lit ? 0.34 : 0), radius: 12, y: 4)
@@ -364,7 +469,7 @@ private struct HazeIconButtonBody: View {
             .background {
                 ZStack {
                     Circle().fill(fill)
-                    Circle().fill(Color.white.opacity(lit ? 0.08 : 0))
+                    Circle().fill(Haze.highlight.opacity(lit ? 0.08 : 0))
                 }
             }
             .contentShape(Circle())
@@ -554,7 +659,8 @@ struct HazeCheckboxStyle: ToggleStyle {
     private func box(_ on: Bool) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(on ? Haze.accent : Color.white.opacity(0.92))
+                .fill(on ? Haze.accent : Haze.checkboxOff)
+                .overlay { RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(Haze.checkboxEdge.opacity(on ? 0 : 1)) }
                 .frame(width: 18, height: 18)
             HazeCheck(drawn: on, color: Haze.onAccent, lineWidth: 2.3)
                 .frame(width: 10, height: 9)
@@ -622,7 +728,7 @@ struct HazeSlider: View {
             let fraction = (value - range.lowerBound) / max(range.upperBound - range.lowerBound, .ulpOfOne)
             let lit = (hovering || dragging) && isEnabled
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.black.opacity(0.35))
+                Capsule().fill(Haze.track)
                     .overlay { Capsule().strokeBorder(Haze.text.opacity(0.12)) }
                     .frame(height: 6)
                     .padding(.horizontal, thumb / 2)
@@ -632,7 +738,7 @@ struct HazeSlider: View {
                 Circle()
                     .fill(Haze.accent)
                     .overlay { Circle().strokeBorder(Haze.onAccent.opacity(0.25)) }
-                    .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                    .shadow(color: Haze.shadow.opacity(0.35), radius: 2, y: 1)
                     .background { Circle().fill(Haze.accent.opacity(lit ? 0.22 : 0)).padding(-5) }
                     .frame(width: thumb, height: thumb)
                     .scaleEffect(reduceMotion ? 1 : (dragging ? 1.2 : lit ? 1.1 : 1))
@@ -696,7 +802,7 @@ struct AvoMark: View {
                 skin.addRoundedRect(in: CGRect(x: 174.5, y: 18.25, width: 41.5, height: 179.2), cornerSize: CGSize(width: 20.75, height: 20.75))
                 context.fill(skin, with: .color(Haze.skin))
             }
-            context.fill(Path(ellipseIn: CGRect(x: 57.5, y: 57.5, width: 117, height: 117)), with: .color(Haze.accent))
+            context.fill(Path(ellipseIn: CGRect(x: 57.5, y: 57.5, width: 117, height: 117)), with: .color(Haze.flesh))
             context.fill(Path(ellipseIn: CGRect(x: 86, y: 86, width: 60, height: 60)), with: .color(Haze.pit))
         }
         .accessibilityHidden(true)
@@ -1064,20 +1170,25 @@ private struct HazePointerGlowModifier: ViewModifier {
 }
 
 /// Only this follows the pointer, not the card under it.
+/// On the dark it adds light; on the light paper, where light would not
+/// show, it is a soft tint of the same colour.
 private struct HazePointerGlow: View {
     let pointer: HazePointer
     let cornerRadius: CGFloat
     let color: Color
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let dark = colorScheme == .dark
         GeometryReader { proxy in
             if let location = pointer.location {
                 let frame = proxy.frame(in: .global)
-                RadialGradient(colors: [color.opacity(0.16), color.opacity(0.05), color.opacity(0)],
+                RadialGradient(colors: dark ? [color.opacity(0.16), color.opacity(0.05), color.opacity(0)]
+                                            : [color.opacity(0.10), color.opacity(0.03), color.opacity(0)],
                                center: UnitPoint(x: (location.x - frame.minX) / max(frame.width, 1),
                                                  y: (location.y - frame.minY) / max(frame.height, 1)),
                                startRadius: 0, endRadius: 190)
-                    .blendMode(.plusLighter)
+                    .blendMode(dark ? .plusLighter : .normal)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
@@ -1094,7 +1205,7 @@ private struct HazeLiftModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .scaleEffect(lifted && !reduceMotion ? Haze.Motion.hoverScale : 1)
-            .shadow(color: .black.opacity(shadow && lifted ? 0.42 : 0), radius: 16, y: 10)
+            .shadow(color: Haze.shadow.opacity(shadow && lifted ? 0.42 : 0), radius: 16, y: 10)
             .zIndex(lifted ? 1 : 0)
     }
 }
@@ -1260,8 +1371,10 @@ struct HazeSkeleton: View {
 struct HazeGlowLayer: View {
     var glows: [HazeGlow]
     var overscan: CGFloat = 0
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let _ = colorScheme
         Canvas { context, size in
             context.translateBy(x: overscan, y: overscan)
             let inner = CGSize(width: size.width - overscan * 2, height: size.height - overscan * 2)
@@ -1319,8 +1432,8 @@ extension View {
     }
 }
 
-/// The Library window's haze: Avo's green glowing over near black, its
-/// light leaning toward the pointer.
+/// The Library window's haze: Avo's green glowing over near black (or
+/// paper), its light leaning toward the pointer.
 struct HazeWindowBackground: View {
     var body: some View {
         ZStack {
@@ -1562,11 +1675,11 @@ struct HazeSwitch: View {
         } label: {
             ZStack(alignment: isOn ? .trailing : .leading) {
                 Capsule()
-                    .fill(isOn ? Color(haze: 0x7FA85C) : Haze.text.opacity(lit ? 0.2 : 0.16))
+                    .fill(isOn ? Haze.moss : Haze.text.opacity(lit ? 0.2 : 0.16))
                     .overlay { Capsule().strokeBorder(Haze.text.opacity(isOn ? 0 : 0.08)) }
                 Circle()
-                    .fill(Color(haze: 0xFBF8F1))
-                    .shadow(color: .black.opacity(0.4), radius: 1.5, y: 1)
+                    .fill(Haze.knob)
+                    .shadow(color: Haze.shadow.opacity(0.4), radius: 1.5, y: 1)
                     .padding(2)
             }
             .frame(width: 38, height: 22)
@@ -1725,8 +1838,8 @@ struct HazeNote<Actions: View>: View {
     }
 }
 
-/// A sheet's ground in the haze: near black, a breath of Avo's green at
-/// the top right (Change Android Version…, Change Size…).
+/// A sheet's ground in the haze: near black (or paper), a breath of Avo's
+/// green at the top right (Change Android Version…, Change Size…).
 struct HazeSheetBackground: View {
     var body: some View {
         ZStack {
@@ -1735,5 +1848,95 @@ struct HazeSheetBackground: View {
         }
         .ignoresSafeArea()
         .accessibilityHidden(true)
+    }
+}
+
+// MARK: - OKLab
+
+/// Björn Ottosson's OKLab: distances match how different colours look
+/// (an icon's palette, IconPalette.swift; the light look's tones, HazeTone).
+struct OKLab: Equatable, Sendable {
+    var l: Double
+    var a: Double
+    var b: Double
+
+    init(l: Double, a: Double, b: Double) {
+        self.l = l
+        self.a = a
+        self.b = b
+    }
+
+    init(lightness: Double, chroma: Double, hue: Double) {
+        self.init(l: lightness, a: chroma * cos(hue), b: chroma * sin(hue))
+    }
+
+    /// From sRGB components (0…1).
+    init(r: Double, g: Double, b: Double) {
+        func linear(_ c: Double) -> Double { c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+        let (lr, lg, lb) = (linear(r), linear(g), linear(b))
+        let l = cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb)
+        let m = cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb)
+        let s = cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb)
+        self.init(l: 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+                  a: 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+                  b: 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s)
+    }
+
+    init(rgb: UInt32) {
+        self.init(r: Double((rgb >> 16) & 0xFF) / 255, g: Double((rgb >> 8) & 0xFF) / 255, b: Double(rgb & 0xFF) / 255)
+    }
+
+    var chroma: Double { (a * a + b * b).squareRoot() }
+    var hue: Double { atan2(b, a) }
+
+    func distance(to other: OKLab) -> Double {
+        let (dl, da, db) = (l - other.l, a - other.a, b - other.b)
+        return dl * dl + da * da + db * db
+    }
+
+    static func mean(_ colors: [OKLab]) -> OKLab {
+        let n = Double(colors.count)
+        return OKLab(l: colors.reduce(0) { $0 + $1.l } / n, a: colors.reduce(0) { $0 + $1.a } / n, b: colors.reduce(0) { $0 + $1.b } / n)
+    }
+
+    /// sRGB, with the chroma lowered until the colour fits.
+    var rgb: UInt32 {
+        var color = self
+        for _ in 0..<24 {
+            if let rgb = color.rgbIfInGamut { return rgb }
+            color = OKLab(lightness: color.l, chroma: color.chroma * 0.9, hue: color.hue)
+        }
+        return color.clampedRGB
+    }
+
+    private var linearRGB: (Double, Double, Double) {
+        let l1 = pow(l + 0.3963377774 * a + 0.2158037573 * b, 3)
+        let m1 = pow(l - 0.1055613458 * a - 0.0638541728 * b, 3)
+        let s1 = pow(l - 0.0894841775 * a - 1.2914855480 * b, 3)
+        return (4.0767416621 * l1 - 3.3077115913 * m1 + 0.2309699292 * s1,
+                -1.2684380046 * l1 + 2.6097574011 * m1 - 0.3413193965 * s1,
+                -0.0041960863 * l1 - 0.7034186147 * m1 + 1.7076147010 * s1)
+    }
+
+    private var rgbIfInGamut: UInt32? {
+        let (r, g, b) = linearRGB
+        guard [r, g, b].allSatisfy({ $0 >= -0.0005 && $0 <= 1.0005 }) else { return nil }
+        return clampedRGB
+    }
+
+    private var clampedRGB: UInt32 {
+        func encode(_ c: Double) -> UInt32 {
+            let c = min(max(c, 0), 1)
+            let s = c <= 0.0031308 ? 12.92 * c : 1.055 * pow(c, 1 / 2.4) - 0.055
+            return UInt32((s * 255).rounded())
+        }
+        let (r, g, b) = linearRGB
+        return encode(r) << 16 | encode(g) << 8 | encode(b)
+    }
+
+    /// `from` moved `amount` of the way to `to`, in OKLab.
+    static func mix(_ from: UInt32, _ to: UInt32, _ amount: Double) -> UInt32 {
+        let a = OKLab(rgb: from), b = OKLab(rgb: to)
+        return OKLab(l: a.l + (b.l - a.l) * amount, a: a.a + (b.a - a.a) * amount, b: a.b + (b.b - a.b) * amount).rgb
     }
 }
