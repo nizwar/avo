@@ -6,6 +6,90 @@ number (`CFBundleVersion`) that only goes up; see
 [docs/versioning.md](docs/versioning.md). Releases up to build 113 were
 named "Preview N".
 
+## 0.4.0 (build 118)
+
+The first release with a plain version number: a light look for every
+window Avo draws, scroll bars and click zones in key mappings, and windows
+you move by any empty space. Key mappings let go of keys the Mac already let
+go of, and the full-screen title bar comes down every time. Install it over
+0.3.1 Preview 4; your Android data stays.
+
+### New
+
+- **Light mode.** Settings › General › Appearance chooses System (the
+  default: light or dark as your Mac is, also when it changes during the
+  day), Light or Dark. The Library, Settings, the Setup Assistant, app
+  windows, the menu bar item's panel and the key mapping editor follow at
+  once: the same haze on a soft green paper, with deep green text.
+- **Scroll bars.** A Scroll Bar control drags a slider of the game, such as
+  a map's zoom, with the mouse wheel or the trackpad: drag its track and
+  ends over the game's slider, then set its direction, its step, where it
+  rests and a key that brings it back there.
+- **Click zones.** Any control with a key of its own can also be pressed by
+  clicking the game with the mouse free: turn on "Clicking the game presses
+  it" and size its area, a rectangle, a rounded rectangle or an ellipse. The
+  click presses the control once and never reaches the game.
+
+### Improved
+
+- **Move windows by any empty space.** The Library, Settings and the Setup
+  Assistant move from anywhere without a button or a field, not only by
+  their title bar. In an app window the bars beside a picture that doesn't
+  fill the window move the window instead of touching Android.
+- **Key visibility down to 5%.** The keys on the game fade as a whole,
+  letters too, and the menu and slider add Faint (5%) and Very Low (10%).
+- **Trackpad scrolling in key mappings** counts in notches, with its
+  momentum, as a mouse wheel does.
+- **The key mapping editor asks first.** Closing a window, or quitting,
+  with changes in the editor lets the editor ask, and Esc can be a key in a
+  mapping.
+- **Widgets on the Mac** move up to the menu bar, resize only as their
+  widget allows (one that doesn't resize zooms instead of being squashed),
+  and open without flashing.
+
+### Fixed
+
+- Keys held for a key mapping could stay held after you let them go, when
+  the release went to Mission Control, a trackpad gesture, an input method or
+  a menu: W kept walking. Avo now lets go of every key and click the Mac no
+  longer holds.
+- Shift to run stopped working after ⇧⌘K or another window took a Shift
+  change: modifiers are now read from each key press.
+- In full screen the title bar came down only sometimes; it now comes down
+  every time the pointer reaches the top of the screen, and goes once the
+  pointer is back in the game.
+- The status pill no longer covers the last row of the Library, or the Dock
+  when the window is zoomed.
+- When Avo quits, its menu bar item now leaves the menu bar with its panel
+  and menu closed before the process ends, instead of vanishing with it.
+  This is aimed at full-screen apps keeping the menu bar over them after
+  Avo quit (#11).
+
+### Known issues
+
+- Full-screen apps may still keep the menu bar over them after you quit Avo
+  on some Macs (#11). Running `killall MenuBarAgent` in Terminal restores
+  them; please tell us in #11 if it still happens.
+- Bluetooth headsets and other classic Bluetooth devices, Bluetooth pairing
+  with the Mac's devices, and calls or SMS on the SIM don't work yet.
+- Some apps with anti-tamper protection close right after opening while
+  Settings › Privacy & Security › Emulate this phone's hardware is on; turn
+  it off for them.
+- Root access may not start Android once Google apps are installed in it;
+  Avo then turns root back off.
+- Removing Google apps can fail without saying so, leaving them installed.
+- Delta Force draws its terrain flat at the Ultimate and MAX presets; at
+  High and below it is textured (restart the game after changing the
+  preset). With software rendering its 3D scenes show wrong colors.
+- OpenGL ES 3.2 has no geometry shaders, and a texture border color other
+  than black, white or transparent is drawn as the nearest of those.
+- With Emulate this phone's hardware on, Android takes the phone's RAM
+  (12 GB for many gaming phones). With other heavy apps running, macOS may
+  start swapping and games stutter; Avo does not yet give memory Android no
+  longer uses back to the Mac.
+- With Android's data on an external drive, macOS asks again after an update
+  whether Avo may use the drive, and Android starts only once you allow it.
+
 ## 0.3.1 Preview 4 (build 113)
 
 OpenGL ES 3.2 for the games that need it, key mappings where one key does
