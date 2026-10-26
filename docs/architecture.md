@@ -31,8 +31,8 @@ What Avo shares with Avo Hub is a package of its own,
 `vendor/avo_kit` in both projects: `AvoKeymap` (profiles and the engine),
 `AvoKeymapUI` (the key mapping a window runs: its controller, the editor and
 its panels, the hints over the game and `GamepadHub`), `AvoHazeUI` (the haze
-in small: `QuickHaze`, the `Quick*` controls of an app window's panels, and
-`HazeMenu`), `AvoInput` (the Input channel's records) and `AvoScreen` (screen
+in small: `QuickHaze`, the `Quick*` controls of an app window's panels,
+`HazeMenu`, and `HazeAppearance`, the System / Light / Dark choice), `AvoInput` (the Input channel's records) and `AvoScreen` (screen
 samples and motion). The AvoKit package depends on it by path; its
 `AvoShared` module re-exports the UI modules, and `AvoProtocol` and `AvoKit`
 re-export `AvoInput` and `AvoScreen`, so they are linked into
@@ -886,6 +886,25 @@ haze, and every form's sections as cards (`HazeFormStyle`, with the haze's
 switches, menus and segmented controls), a line between each two rows as in
 System Settings; a row's note, caption or problem (`hazeRowNote`) stays
 right under it. The app page's Graphics card has the same lines (`HazeRows`).
+
+The haze has two looks, dark (as Avo has always looked, a game launcher's
+near black) and light (the same haze on a soft green paper, deep green ink,
+Avo's green deepened to moss for buttons and checks). Every token in
+`HazeTheme.swift` and `QuickHaze` is a dynamic colour with both values
+(`Color(haze:light:)`, an `NSColor` with a dynamic provider), so a view
+takes the look of its appearance as macOS's own colours do; what the dark
+look draws freely (a hero's gradient, its glows, an icon's palette) gets
+its light counterpart from `HazeTone`, worked out in OKLab so it keeps its
+hue. Settings › General › Appearance chooses System (the default, the Mac's
+look as it changes), Light or Dark (`HazeAppearanceSetting.avo`, in the
+Window Host's defaults). The Control Panel and every App Shim give it to
+`NSApp.appearance`, and a change reaches running shims at once through a
+distributed notification that carries the choice. The daemon gives it only
+to the menu bar item's panel and the widgets: its own appearance stays the
+Mac's, which Android's dark theme follows (`MacSystemState`). What draws
+over a game (the performance HUD, notices, translations, the capture
+flash and the key hints) stays dark in both looks. A haze menu wears the
+appearance of what it opens from.
 
 Android's storage size is chosen before Android creates its storage on a new
 data disk (`DataDiskStore`), sized so that Android's Settings, which rounds

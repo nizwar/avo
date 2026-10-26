@@ -314,6 +314,10 @@ membaca hardware:
 - Notifikasi Android muncul di Notification Center macOS, dan meng-klik
   notifikasi akan membuka jendela aplikasinya.
 - Clipboard tersinkron dua arah.
+- Tampilan terang dan gelap: Pengaturan › Umum › Tampilan memilih Sistem
+  (bawaan, mengikuti Mac termasuk saat berganti sendiri), Terang, atau Gelap,
+  untuk semua jendela Avo (Pustaka, Pengaturan, jendela app dan panelnya,
+  panel bar menu, widget). Tema gelap Android tetap mengikuti Mac.
 - Drag file dari Finder ke jendela aplikasi akan menyalinnya ke `/sdcard/Download`
   dan memicu share intent.
 - Gestur trackpad diterjemahkan ke gerakan Android: scroll dua jari, pinch untuk
