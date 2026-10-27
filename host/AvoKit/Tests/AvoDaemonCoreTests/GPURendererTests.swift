@@ -33,11 +33,11 @@ import Testing
         let emulator = try found(dir)
         #expect(emulator.version == "37.1.11")
         #expect(emulator.build == "15917651")
-        #expect(AndroidEmulator.lookup(home: URL(filePath: "/nonexistent"), override: dir.path) == .found(emulator))
+        #expect(AndroidEmulator.lookup(home: URL(filePath: "/nonexistent"), override: dir.path, ownOnly: false) == .found(emulator))
     }
 
     @Test func missingOldOrIncompleteEmulators() throws {
-        #expect(AndroidEmulator.lookup(home: URL(filePath: "/nonexistent"), override: nil) == .missing)
+        #expect(AndroidEmulator.lookup(home: URL(filePath: "/nonexistent"), override: nil, ownOnly: false) == .missing)
         let old = try emulator(revision: "36.4.2")
         let incomplete = try emulator(skipping: "lib64/vulkan/libMoltenVK.dylib")
         let unversioned = try emulator(revision: nil)
@@ -89,13 +89,18 @@ import Testing
         #expect(own.version == "avo.1")
         let emulator = try found(installed)
         #expect(!emulator.isBundled)
-        #expect(AndroidEmulator.lookup(home: home, bundled: bundled, override: nil) == .found(own))
+        #expect(AndroidEmulator.lookup(home: home, bundled: bundled, override: nil, ownOnly: false) == .found(own))
         // A developer's override still wins; without Avo's build (or with a
         // broken one), the installed emulator.
-        #expect(AndroidEmulator.lookup(home: home, bundled: bundled, override: installed.path) == .found(emulator))
-        #expect(AndroidEmulator.lookup(home: home, bundled: nil, override: nil) == .found(emulator))
+        #expect(AndroidEmulator.lookup(home: home, bundled: bundled, override: installed.path, ownOnly: false) == .found(emulator))
+        #expect(AndroidEmulator.lookup(home: home, bundled: nil, override: nil, ownOnly: false) == .found(emulator))
         #expect(AndroidEmulator.inspect(incomplete) == .missing)
-        #expect(AndroidEmulator.lookup(home: home, bundled: incomplete, override: nil) == .found(emulator))
+        #expect(AndroidEmulator.lookup(home: home, bundled: incomplete, override: nil, ownOnly: false) == .found(emulator))
+        // A release loads only what it ships: neither an override (defaults
+        // any app can write) nor the SDK's emulator.
+        #expect(AndroidEmulator.lookup(home: home, bundled: bundled, override: installed.path, ownOnly: true) == .found(own))
+        #expect(AndroidEmulator.lookup(home: home, bundled: nil, override: installed.path, ownOnly: true) == .missing)
+        #expect(AndroidEmulator.lookup(home: home, bundled: incomplete, override: nil, ownOnly: true) == .missing)
     }
 
     @Test func findsTheRendererNextToTheEngine() {

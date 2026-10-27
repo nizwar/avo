@@ -1,7 +1,6 @@
 import AppKit
 import AvoKit
 import os
-import Security
 import Sparkle
 
 /// Avo's own updates, with Sparkle 2. The feed (`SUFeedURL`) is the
@@ -14,7 +13,7 @@ import Sparkle
 /// the feed by itself once a day, and installs a DMG whose signature is valid
 /// for the key or whose app has the running app's Developer ID
 /// (docs/releasing.md). Updates run only in a Developer ID build
-/// (`signedForUpdates`), not a local one.
+/// (`SigningIdentity.isDeveloperID`), not a local one.
 ///
 /// Sparkle swaps Avo.app when the Control Panel quits or relaunches. Android
 /// is never stopped for that without the player's say: before Install and
@@ -41,7 +40,7 @@ final class AppUpdater: NSObject {
     override init() {
         let info = Bundle.main.infoDictionary
         let feed = AppUpdate.readiness(feedURL: info?["SUFeedURL"] as? String, publicKey: info?["SUPublicEDKey"] as? String)
-        let signed = Self.signedForUpdates()
+        let signed = SigningIdentity.isDeveloperID
         readiness = signed ? feed : .noFeed
         super.init()
         guard case .ready(let url) = readiness else {
@@ -85,25 +84,6 @@ final class AppUpdater: NSObject {
         canCheckForUpdates = updater.canCheckForUpdates
         automaticallyChecks = updater.automaticallyChecksForUpdates
         if let last = updater.lastUpdateCheckDate { lastCheck = last }
-    }
-
-    /// A Developer ID signature: a local, ad hoc build does not update itself
-    /// (it would be replaced by a release). The leaf certificate of a
-    /// Developer ID app is named "Developer ID Application: …".
-    private static func signedForUpdates() -> Bool {
-        var code: SecCode?
-        guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return false }
-        var staticCode: SecStaticCode?
-        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else { return false }
-        var information: CFDictionary?
-        guard SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information) == errSecSuccess,
-              let info = information as? [String: Any],
-              let certificates = info[kSecCodeInfoCertificates as String] as? [SecCertificate], let leaf = certificates.first else {
-            return false
-        }
-        var common: CFString?
-        guard SecCertificateCopyCommonName(leaf, &common) == errSecSuccess, let name = common as String? else { return false }
-        return name.hasPrefix("Developer ID Application:")
     }
 }
 
