@@ -962,6 +962,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     private func setOnScreen(_ onScreen: Bool) {
         displayView.renderer.isOnScreen = onScreen
         frameRateHint.setOnScreen(onScreen)
+        chrome?.onScreen = onScreen
         if let displayID { client?.setDisplayVisible(displayID, visible: onScreen || recorder != nil) }
         if onScreen, pendingResize { scheduleResize(delay: .zero) }
     }
@@ -1116,6 +1117,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     func windowWillClose(_ notification: Notification) {
         if picture != nil { leavePictureInPicture(show: false) }
         frameRateHint.stop()
+        // Nothing to watch the pointer for any more.
+        chrome?.onScreen = false
         // Also the key mapping and the full-screen bars.
         detach()
         app?.windowClosed(self)
