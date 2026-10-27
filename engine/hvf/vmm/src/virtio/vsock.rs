@@ -39,6 +39,13 @@ const TYPE_STREAM: u16 = 1;
 /// Receive buffer each host-side connection offers the guest.
 const HOST_BUFFER: u32 = 256 * 1024;
 
+/// Most connections the guest may have open to the Mac's services at once.
+/// Each costs a thread and descriptors here, and as much in the service
+/// (the modem, the daemon's), and any app can open them (AF_VSOCK to CID 2;
+/// SELinux is permissive): past the cap the guest is refused (RST) instead
+/// of the engine running out of threads. Android itself keeps a few.
+const MAX_GUEST_CONNECTIONS: usize = 256;
+
 #[derive(Clone, Copy, Default)]
 struct Header {
     src_cid: u64,
@@ -121,6 +128,8 @@ struct Connection {
     ending: u32,
     /// Tells this connection from a later one on the same ports.
     serial: u64,
+    /// The guest opened it (OP_REQUEST): it counts toward the guest's cap.
+    from_guest: bool,
 }
 
 impl Connection {
@@ -142,6 +151,7 @@ impl Connection {
             draining: false,
             ending: 0,
             serial: SERIAL.fetch_add(1, Ordering::Relaxed),
+            from_guest: false,
         }
     }
 
@@ -158,6 +168,10 @@ struct State {
     /// Packets waiting for receive buffers.
     pending: VecDeque<(Header, Vec<u8>)>,
     next_port: u32,
+    /// Most connections the guest may open at once (MAX_GUEST_CONNECTIONS).
+    guest_limit: usize,
+    /// The log said the guest reached its cap.
+    refused: bool,
 }
 
 struct Shared {
@@ -187,6 +201,8 @@ impl Vsock {
                 connections: HashMap::new(),
                 pending: VecDeque::new(),
                 next_port: 1024,
+                guest_limit: MAX_GUEST_CONNECTIONS,
+                refused: false,
             }),
             changed: Condvar::new(),
         });
@@ -207,13 +223,21 @@ impl Vsock {
                             }
                         };
                         let Some(shared) = CURRENT.lock().unwrap().clone() else { continue };
-                        std::thread::spawn(move || host_connect(shared, stream));
+                        // No thread to be had: the client's stream closes.
+                        let _ = spawn("vsock-connect", move || host_connect(shared, stream));
                     }
                 })?;
         }
         *current = Some(shared.clone());
         Ok(Vsock { shared })
     }
+}
+
+/// Starts one of a connection's threads. When the process has no thread to
+/// give (at its limit), the caller answers that (RST, a closed stream)
+/// instead of the engine panicking.
+fn spawn(name: &str, body: impl FnOnce() + Send + 'static) -> std::io::Result<()> {
+    std::thread::Builder::new().name(name.into()).spawn(body).map(|_| ())
 }
 
 /// A host client asked for a guest port.
@@ -315,6 +339,11 @@ fn live(state: &mut State, key: Key, serial: u64) -> Option<&mut Connection> {
     state.connections.get_mut(&key).filter(|c| c.serial == serial)
 }
 
+/// The guest's connections to the Mac's services open now.
+fn guest_connections(state: &State) -> usize {
+    state.connections.values().filter(|c| c.from_guest).count()
+}
+
 /// Writes a connection's backlog to its host stream on a thread of its own,
 /// so a host that reads slowly holds up only this connection, and returns
 /// the guest's credit as the bytes go out. Ends with the backlog, then
@@ -404,15 +433,17 @@ fn flush(state: &mut State) {
     }
 }
 
-/// Copies host stream data to the guest within the guest's credit.
-fn pump(shared: Arc<Shared>, key: Key, mut stream: UnixStream) {
+/// Copies host stream data to the guest within the guest's credit, for the
+/// connection `serial` names: it ends with that connection, even when a later
+/// one takes the same ports.
+fn pump(shared: Arc<Shared>, key: Key, serial: u64, mut stream: UnixStream) {
     let mut buffer = vec![0u8; 64 * 1024];
     loop {
         // Wait for credit before reading, so the host side sees backpressure.
         let credit = {
             let mut state = shared.state.lock().unwrap();
             loop {
-                match state.connections.get(&key) {
+                match state.connections.get(&key).filter(|c| c.serial == serial) {
                     None => return,
                     Some(c) if c.credit() > 0 => break c.credit() as usize,
                     Some(_) => state = shared.changed.wait(state).unwrap(),
@@ -432,7 +463,7 @@ fn pump(shared: Arc<Shared>, key: Key, mut stream: UnixStream) {
         let n = match read {
             Ok(0) | Err(_) => {
                 let mut state = shared.state.lock().unwrap();
-                if state.connections.contains_key(&key) {
+                if live(&mut state, key, serial).is_some() {
                     let mut header = control(&state, key, OP_SHUTDOWN);
                     header.flags = 3; // no more sending or receiving from the host side
                     state.pending.push_back((header, Vec::new()));
@@ -443,7 +474,7 @@ fn pump(shared: Arc<Shared>, key: Key, mut stream: UnixStream) {
             Ok(n) => n,
         };
         let mut state = shared.state.lock().unwrap();
-        let Some(connection) = state.connections.get_mut(&key) else { return };
+        let Some(connection) = live(&mut state, key, serial) else { return };
         connection.sent = connection.sent.wrapping_add(n as u32);
         let header = control(&state, key, OP_RW);
         state.pending.push_back((header, buffer[..n].to_vec()));
@@ -488,38 +519,50 @@ impl Shared {
         }
         match header.op {
             OP_REQUEST => {
+                // The guest opens its ports again: the connection it had on
+                // them is over (its pump ends with the shutdown).
+                if let Some(old) = state.connections.remove(&key) {
+                    let _ = old.stream.shutdown(Shutdown::Both);
+                }
+                if guest_connections(state) >= state.guest_limit {
+                    if !std::mem::replace(&mut state.refused, true) {
+                        eprintln!("[vmm] vsock: the guest has {} connections to the Mac open; refusing more", state.guest_limit);
+                    }
+                    return reset(state);
+                }
                 // The guest connects to a host service: <socket>_<port>.
                 let path = PathBuf::from(format!("{}_{}", state.socket_path.display(), header.dst_port));
-                match UnixStream::connect(&path) {
-                    Ok(stream) => {
-                        let reader = stream.try_clone();
-                        state.connections.insert(
-                            key,
-                            Connection {
-                                peer_buffer: header.buf_alloc,
-                                peer_forwarded: header.fwd_cnt,
-                                ..Connection::new(Phase::Connected, stream)
-                            },
-                        );
-                        let response = control(state, key, OP_RESPONSE);
-                        state.pending.push_back((response, Vec::new()));
-                        if let Ok(reader) = reader {
-                            let shared = self.clone();
-                            std::thread::spawn(move || pump(shared, key, reader));
-                        }
-                    }
-                    Err(_) => reset(state),
+                let Ok(stream) = UnixStream::connect(&path) else { return reset(state) };
+                let Ok(reader) = stream.try_clone() else { return reset(state) };
+                let connection = Connection {
+                    peer_buffer: header.buf_alloc,
+                    peer_forwarded: header.fwd_cnt,
+                    from_guest: true,
+                    ..Connection::new(Phase::Connected, stream)
+                };
+                // The pump waits for this lock: it finds the connection in place.
+                let (shared, serial) = (self.clone(), connection.serial);
+                if spawn("vsock-pump", move || pump(shared, key, serial, reader)).is_err() {
+                    return reset(state); // the connection's stream closes with it
                 }
+                state.connections.insert(key, connection);
+                let response = control(state, key, OP_RESPONSE);
+                state.pending.push_back((response, Vec::new()));
             }
             OP_RESPONSE => {
                 let Some(connection) = state.connections.get_mut(&key) else { return reset(state) };
                 if connection.phase == Phase::Connecting {
+                    let (shared, serial) = (self.clone(), connection.serial);
+                    let pumping =
+                        connection.stream.try_clone().and_then(|reader| spawn("vsock-pump", move || pump(shared, key, serial, reader)));
+                    if pumping.is_err() {
+                        let _ = (&connection.stream).write_all(b"ERROR no thread for the connection\n");
+                        let _ = connection.stream.shutdown(Shutdown::Both);
+                        state.connections.remove(&key);
+                        return reset(state);
+                    }
                     connection.phase = Phase::Connected;
                     let _ = connection.stream.write_all(format!("OK {}\n", key.host_port).as_bytes());
-                    if let Ok(reader) = connection.stream.try_clone() {
-                        let shared = self.clone();
-                        std::thread::spawn(move || pump(shared, key, reader));
-                    }
                 }
             }
             OP_RW => {
@@ -539,7 +582,7 @@ impl Shared {
                     if n < payload.len() && !connection.draining {
                         let stream = connection.stream.try_clone()?;
                         let (shared, serial) = (self.clone(), connection.serial);
-                        std::thread::spawn(move || drain(shared, key, serial, stream));
+                        spawn("vsock-drain", move || drain(shared, key, serial, stream))?;
                         connection.draining = true;
                     }
                     Ok(n)
@@ -665,6 +708,8 @@ mod tests {
             connections: HashMap::new(),
             pending: VecDeque::new(),
             next_port: 1024,
+            guest_limit: MAX_GUEST_CONNECTIONS,
+            refused: false,
         };
         let shared = Arc::new(Shared { state: Mutex::new(state), changed: Condvar::new() });
         let (ours, theirs) = UnixStream::pair().unwrap();
@@ -756,15 +801,15 @@ mod tests {
     #[test]
     fn the_pump_waits_for_host_data_and_ends_with_the_host() {
         let (shared, key, mut theirs) = connected();
-        let reader = {
+        let (reader, serial) = {
             let mut state = shared.state.lock().unwrap();
             let connection = state.connections.get_mut(&key).unwrap();
             connection.peer_buffer = HOST_BUFFER;
-            connection.stream.try_clone().unwrap()
+            (connection.stream.try_clone().unwrap(), connection.serial)
         };
         let pumping = {
             let shared = shared.clone();
-            std::thread::spawn(move || pump(shared, key, reader))
+            std::thread::spawn(move || pump(shared, key, serial, reader))
         };
         let sent = |op: u16, payload: &[u8]| {
             shared.state.lock().unwrap().pending.iter().any(|(header, data)| header.op == op && data == payload)
@@ -776,5 +821,89 @@ mod tests {
         drop(theirs);
         assert!(until(|| pumping.is_finished()), "ends when the host hangs up");
         assert!(sent(OP_SHUTDOWN, b""));
+    }
+
+    /// A device whose guest connects to the Mac's services beside `socket`,
+    /// with at most `limit` connections at once.
+    fn device(socket: &Path, limit: usize) -> Arc<Shared> {
+        let state = State {
+            guest_cid: 3,
+            socket_path: socket.to_path_buf(),
+            active: None,
+            connections: HashMap::new(),
+            pending: VecDeque::new(),
+            next_port: 1024,
+            guest_limit: limit,
+            refused: false,
+        };
+        Arc::new(Shared { state: Mutex::new(state), changed: Condvar::new() })
+    }
+
+    /// What the guest was told on `key`, in order.
+    fn told(shared: &Arc<Shared>, key: Key) -> Vec<u16> {
+        let state = shared.state.lock().unwrap();
+        state.pending.iter().filter(|(h, _)| (h.src_port, h.dst_port) == (key.host_port, key.guest_port)).map(|(h, _)| h.op).collect()
+    }
+
+    /// Ends every connection, so their pumps end with the test.
+    fn close_all(shared: &Arc<Shared>) {
+        for (_, connection) in shared.state.lock().unwrap().connections.drain() {
+            let _ = connection.stream.shutdown(Shutdown::Both);
+        }
+    }
+
+    /// A host service beside `socket` on `port` (the modem's, say).
+    fn service(socket: &Path, port: u32) -> (UnixListener, PathBuf) {
+        let path = PathBuf::from(format!("{}_{port}", socket.display()));
+        let _ = std::fs::remove_file(&path);
+        (UnixListener::bind(&path).unwrap(), path)
+    }
+
+    #[test]
+    fn a_guest_past_its_connection_cap_is_refused() {
+        let socket = std::env::temp_dir().join(format!("avo-vsock-cap-{}.sock", std::process::id()));
+        // A service that takes connections and never answers: each stays open.
+        let (_listener, path) = service(&socket, 9600);
+        let shared = device(&socket, 4);
+        let key = |port: u32| Key { host_port: 9600, guest_port: 40000 + port };
+        for port in 0..5 {
+            from_guest(&shared, key(port), OP_REQUEST, 0, &[]);
+        }
+        assert_eq!(guest_connections(&shared.state.lock().unwrap()), 4);
+        for port in 0..4 {
+            assert_eq!(told(&shared, key(port)), [OP_RESPONSE], "connection {port} is made");
+        }
+        assert_eq!(told(&shared, key(4)), [OP_RST], "the fifth is refused, with no connection to the service");
+        // One ends: there is room for the next.
+        from_guest(&shared, key(0), OP_RST, 0, &[]);
+        from_guest(&shared, key(5), OP_REQUEST, 0, &[]);
+        assert_eq!(told(&shared, key(5)), [OP_RESPONSE]);
+        close_all(&shared);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_guest_connection_made_again_on_its_ports_ends_the_old_one() {
+        let socket = std::env::temp_dir().join(format!("avo-vsock-again-{}.sock", std::process::id()));
+        let (listener, path) = service(&socket, 9601);
+        let shared = device(&socket, 4);
+        let key = Key { host_port: 9601, guest_port: 40000 };
+        from_guest(&shared, key, OP_REQUEST, 0, &[]);
+        let (mut first, _) = listener.accept().unwrap();
+        first.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        // Its pump now waits for the service to send.
+        std::thread::sleep(Duration::from_millis(100));
+        from_guest(&shared, key, OP_REQUEST, 0, &[]);
+        let (_second, _) = listener.accept().unwrap();
+        // The service hears the old connection end, and its pump ends with it
+        // (a thread for each time would be left waiting otherwise) ...
+        let mut rest = Vec::new();
+        assert!(first.read_to_end(&mut rest).is_ok(), "the old connection is shut down, not left open");
+        // ... without ending the new one.
+        std::thread::sleep(Duration::from_millis(100));
+        assert_eq!(guest_connections(&shared.state.lock().unwrap()), 1);
+        assert_eq!(told(&shared, key), [OP_RESPONSE, OP_RESPONSE], "no SHUTDOWN for the new connection");
+        close_all(&shared);
+        let _ = std::fs::remove_file(&path);
     }
 }
