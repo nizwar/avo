@@ -87,7 +87,11 @@ final class RecordingNowPlaying: NowPlayingPresenter, @unchecked Sendable {
     }
 }
 
-func eventually(timeout: Duration = .seconds(5), _ condition: () async -> Bool) async -> Bool {
+/// Waits for `condition`, which returns as soon as it holds. The limit is
+/// generous: with every suite running at once on a busy Mac, steps the fakes
+/// take in a second can take several (a 5 s limit failed a different test
+/// on each full run).
+func eventually(timeout: Duration = .seconds(15), _ condition: () async -> Bool) async -> Bool {
     let deadline = ContinuousClock.now + timeout
     while ContinuousClock.now < deadline {
         if await condition() { return true }
