@@ -567,16 +567,14 @@ public actor DaemonCore {
     }
 
     private func eraseAndroid(force: Bool = false) async throws {
+        // Never Avo's side without the data itself (DaemonStorageSafety.swift).
+        try await refuseEraseWithoutData()
         try await clearForVMChange(.reset, force: force)
         await vm.stop()
-        try? FileManager.default.removeItem(at: deps.paths.dataDisk)
-        try? FileManager.default.removeItem(at: deps.paths.snapshots)
-        // Its checkpoints are of the data that went (Reset Android says so).
-        CheckpointStore(paths: deps.paths).removeAll()
+        // Its drive may have gone, or a move begun, while Android stopped.
+        try await refuseEraseWithoutData()
+        let left = try eraseAndroidData()
         publishCheckpoints()
-        DataDiskStore(paths: deps.paths).forget()
-        GoogleAppsJournal.remove(deps.paths)
-        GoogleAppsRecord.remove(deps.paths)
         // Fingerprints live in Android's data (Settings › Fingerprints empties).
         await fingerprints.forget()
         usageForget(nil)
@@ -590,6 +588,7 @@ public actor DaemonCore {
             await registry.remove(app.package)
             broadcast(.appRemoved(package: app.package))
         }
+        if let error = Self.resetLeftovers(left) { throw error }
     }
 
     /// Start Android from the daemon's own menu bar item (same process, no XPC caller).

@@ -584,6 +584,16 @@
         }
       }
     },
+    "Android was reset, but Avo couldn’t remove %@ beside its data." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Android selesai, tetapi Avo tidak bisa menghapus %@ di samping datanya."
+          }
+        }
+      }
+    },
     "Android was stopped while Google apps were being installed. Avo finishes or undoes the install the next time Android starts." : {
       "localizations" : {
         "id" : {
@@ -794,12 +804,32 @@
         }
       }
     },
+    "Avo can’t reset Android while its data can’t be reached. %@" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Android tidak bisa dilakukan selama datanya tidak bisa dijangkau. %@"
+          }
+        }
+      }
+    },
     "Avo can’t use the Mac’s camera" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Avo tidak bisa memakai kamera Mac"
+          }
+        }
+      }
+    },
+    "Avo couldn’t erase Android’s data: %@" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avo tidak bisa menghapus data Android: %@"
           }
         }
       }
@@ -880,6 +910,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Avo sedang memindahkan tempat data Android. Android berjalan setelah selesai."
+          }
+        }
+      }
+    },
+    "Avo is changing where Android’s data is. Reset Android once that is done." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avo sedang memindahkan tempat data Android. Lakukan Reset Android setelah selesai."
           }
         }
       }

@@ -154,8 +154,8 @@ struct CheckpointStore {
 
     /// Reset Android: its checkpoints go with its data, and a restore cut
     /// short has nothing left to finish.
-    func removeAll() {
-        try? FileManager.default.removeItem(at: folder)
+    func removeAll() throws {
+        if FileManager.default.fileExists(atPath: folder.path) { try FileManager.default.removeItem(at: folder) }
         RestoreJournal.remove(paths)
         try? FileManager.default.removeItem(at: paths.data.appending(path: Self.stagingName, directoryHint: .isDirectory))
     }

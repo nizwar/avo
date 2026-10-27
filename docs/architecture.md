@@ -1603,6 +1603,13 @@ the record, cached by the file's identity).
   data's volume while Android uses it or a move copies there; Android powers
   off cleanly and the user ejects again. A volume that goes without asking
   stops Android at once.
+- **Reset Android** erases the data where it is, then Avo's side of it (the
+  apps and shims, Google apps, the fingers in Android). It is refused while
+  the data can't be reached (Avo would forget every app while the data stays
+  on the drive) or its place changes (the data disk a move copies would come
+  back at the new place), before and again after Android stops. The data
+  disk goes first, and a reset that can't remove it changes nothing; the
+  snapshots, checkpoints and records that stay are named in its error.
 - **macOS's permission.** The daemon (and avo-vmm, which it starts) reads
   and writes the folder; on a removable volume macOS asks once whether
   "Avo" may (`NSRemovableVolumesUsageDescription` in Avo.app's and the
