@@ -16,6 +16,7 @@ use super::queue::{Chain, Queue};
 use super::{Active, Interrupt, TYPE_BLOCK, VirtioDevice};
 use crate::disk::{Disk, SECTOR};
 use crate::memory::GuestMemory;
+use crate::pause::Gate;
 use std::collections::VecDeque;
 use std::io;
 use std::sync::{Arc, Condvar, Mutex};
@@ -63,6 +64,8 @@ struct Shared {
     /// Hears true when requests start waiting for room, false once none waits.
     full: Option<Box<dyn Fn(bool) + Send + Sync>>,
     failures: Mutex<Failures>,
+    /// The pause gate a checkpoint waits at (the process's; a test's own).
+    gate: &'static Gate,
 }
 
 #[derive(Default)]
@@ -101,12 +104,20 @@ fn no_room(error: &io::Error) -> bool {
 impl Block {
     pub fn new(disk: Box<dyn Disk>, id: &str) -> Block {
         Block { shared: Arc::new(Shared { disk, id: id.to_string(), state: Mutex::default(), wake: Condvar::new(), full: None,
-                                          failures: Mutex::default() }) }
+                                          failures: Mutex::default(), gate: &crate::pause::GATE }) }
     }
 
     /// `report(true)` once requests wait for room, `report(false)` once none does.
     pub fn on_full(mut self, report: Box<dyn Fn(bool) + Send + Sync>) -> Block {
         Arc::get_mut(&mut self.shared).expect("set before the device runs").full = Some(report);
+        self
+    }
+
+    /// A gate of the test's own in place of the process's, which other
+    /// tests pause.
+    #[cfg(test)]
+    fn on_gate(mut self, gate: &'static Gate) -> Block {
+        Arc::get_mut(&mut self.shared).expect("set before the device runs").gate = gate;
         self
     }
 }
@@ -162,8 +173,10 @@ impl Shared {
     /// The retrier: tries the waiting requests again, oldest first, with a
     /// pause that grows between tries, until none waits or the driver reset
     /// the device. Nothing reaches the disk while Android is paused (a
-    /// checkpoint clones its disks then): each try looks at the gate under
-    /// the state lock, which a pause takes first (`spawn_retrier`).
+    /// checkpoint clones its disks then): every write looks at the gate
+    /// under the state lock it is made under, and a pause sets the gate
+    /// before its observer takes that lock (`spawn_retrier`), so once the
+    /// pause is done no later write gets past the look.
     fn retry(self: Arc<Self>, start: u64) {
         /// One pass's handling of the front request.
         enum Step {
@@ -179,7 +192,7 @@ impl Shared {
             if state.starts != start {
                 return;
             }
-            if crate::pause::is_paused() {
+            if self.gate.is_paused() {
                 continue;
             }
             let Some(mut active) = state.active.take() else {
@@ -214,12 +227,18 @@ impl Shared {
                         if state.starts != start {
                             return;
                         }
+                        // A pause came meanwhile (its observer may have had
+                        // the lock already): the rest waits until it ends.
+                        if self.gate.is_paused() {
+                            break;
+                        }
                     }
                     Step::Empty | Step::NoRoom => break,
                 }
             }
-            // And what the driver queued meanwhile without a kick.
-            let waiting = !state.waiting.is_empty() || self.serve(&mut state, &mut active);
+            // And what the driver queued meanwhile without a kick, unless a
+            // pause holds the writes.
+            let waiting = !state.waiting.is_empty() || self.gate.is_paused() || self.serve(&mut state, &mut active);
             state.active = Some(active);
             if !waiting {
                 state.retrying = false;
@@ -242,7 +261,7 @@ impl Shared {
     fn spawn_retrier(self: &Arc<Self>, start: u64, register_observer: bool) {
         if register_observer {
             let barrier = Arc::downgrade(self);
-            crate::pause::GATE.observe(Box::new(move |_| {
+            self.gate.observe(Box::new(move |_| {
                 let Some(shared) = barrier.upgrade() else { return false };
                 // Take and release the lock: it blocks here until a retry pass
                 // is between requests, so a pause does not finish mid-write.
@@ -815,5 +834,79 @@ mod tests {
         assert_eq!(run(&block, &memory, T_IN, 0, vec![writable(RAM + 0x1000, 512)]), (S_IOERR, 1));
         assert_eq!(run(&block, &memory, T_FLUSH, 0, vec![]), (S_IOERR, 1));
         assert!(no_room(&io::Error::from_raw_os_error(libc::EDQUOT)), "a quota is no room either");
+    }
+
+    /// A pause (a checkpoint) taken while the retrier drains its held writes.
+    #[test]
+    fn no_held_write_reaches_the_disk_once_a_pause_is_done() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        // The test's own gate: the process's is paused by other tests.
+        static GATE: Gate = Gate::new();
+        /// Full until `room`; the first write once there is room asks for a
+        /// pause on another thread (as the daemon's checkpoint does); every
+        /// write records whether that pause had already returned.
+        struct Pausing {
+            room: AtomicBool,
+            asked: AtomicBool,
+            paused: Arc<AtomicBool>,
+            writes: Mutex<Vec<(u64, bool)>>,
+        }
+        impl Disk for Arc<Pausing> {
+            fn size(&self) -> u64 {
+                64 << 10
+            }
+            fn read_only(&self) -> bool {
+                false
+            }
+            fn read_at(&self, buf: &mut [u8], _: u64) -> io::Result<()> {
+                buf.fill(0);
+                Ok(())
+            }
+            fn write_at(&self, _: &[u8], offset: u64) -> io::Result<()> {
+                if !self.room.load(Ordering::SeqCst) {
+                    return Err(io::Error::from_raw_os_error(libc::ENOSPC));
+                }
+                if !self.asked.swap(true, Ordering::SeqCst) {
+                    let paused = self.paused.clone();
+                    std::thread::spawn(move || {
+                        assert_eq!(GATE.pause(Duration::from_secs(5)), Ok(true));
+                        paused.store(true, Ordering::SeqCst);
+                    });
+                } else {
+                    // Give the pause its chance to finish before this write.
+                    let deadline = Instant::now() + Duration::from_millis(200);
+                    while !self.paused.load(Ordering::SeqCst) && Instant::now() < deadline {
+                        std::thread::sleep(Duration::from_millis(5));
+                    }
+                }
+                self.writes.lock().unwrap().push((offset, self.paused.load(Ordering::SeqCst)));
+                Ok(())
+            }
+            fn flush(&self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        let disk = Arc::new(Pausing { room: AtomicBool::new(false), asked: AtomicBool::new(false),
+                                      paused: Arc::new(AtomicBool::new(false)), writes: Mutex::new(Vec::new()) });
+        let memory = Arc::new(GuestMemory::new(GuestRegion::new(RAM, 1 << 20).unwrap()));
+        let mut block = Block::new(Box::new(disk.clone()), "test").on_gate(&GATE);
+        block.activate(memory.clone(), vec![Ring::queue()], Interrupt::new(|_| {}), 0);
+        let mut ring = Ring { next_descriptor: 0, next_available: 0 };
+        for i in 0..4u64 {
+            ring.publish(&memory, RAM + 0x20000 + i * 0x1000, T_OUT, i, readable(RAM + 0x3000, 512));
+        }
+        block.notify(0);
+        assert!(Ring::used(&memory).is_empty(), "all four wait for room");
+        disk.room.store(true, Ordering::SeqCst);
+        // The pause is done (the daemon would now clone the disks) ...
+        assert!(eventually(|| disk.paused.load(Ordering::SeqCst)));
+        std::thread::sleep(Duration::from_millis(500));
+        let writes = disk.writes.lock().unwrap().clone();
+        GATE.resume();
+        // ... and every held write still goes through once Android resumes.
+        assert!(eventually(|| disk.writes.lock().unwrap().len() == 4));
+        assert!(eventually(|| Ring::used(&memory).len() == 4));
+        let after_pause: Vec<u64> = writes.iter().filter(|w| w.1).map(|w| w.0).collect();
+        assert!(after_pause.is_empty(), "held writes reached the disk while paused (byte offsets {after_pause:?}; all: {writes:?})");
     }
 }
