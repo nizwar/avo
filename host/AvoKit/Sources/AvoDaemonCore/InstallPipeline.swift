@@ -66,7 +66,7 @@ public struct InstallPipeline: Sendable {
                 if open { journal?.opened(session, by: id) } else { journal?.closed(session, by: id) }
             })
         } catch let error as ADBError {
-            throw AvoError.installFailed(Self.friendly(error.description))
+            throw AvoError.installFailed(Self.friendly(error.localizedDescription))
         }
 
         if !summary.obbFiles.isEmpty {

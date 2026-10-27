@@ -1,3 +1,4 @@
+import AvoADB
 import AvoKit
 import AvoTestSupport
 import Foundation
@@ -115,5 +116,22 @@ import Testing
         #expect(AvoXPC.avoError(error) == .startCalledOff)
         #expect(error.localizedDescription == "Android was stopped before it was ready.")
         #expect(AvoError.reported(CancellationError()) == .startCalledOff)
+    }
+
+    /// ADB's failures reach the user in plain words (a file dropped on a
+    /// window, the widgets Android offers, an install's game data), not as
+    /// "The operation couldn't be completed. (AvoADB.ADBError error 12.)".
+    @Test func adbFailuresSayWhatHappenedInAndroid() {
+        let timedOut = AvoXPC.nsError(AvoError.reported(ADBError.timedOut("adbd did not open shell:cmd appwidget")))
+        #expect(timedOut.localizedDescription == "Android did not respond.")
+        #expect(AvoXPC.avoError(timedOut) == .internalError("Android did not respond."))
+        #expect(ADBError.connectionClosed.localizedDescription == "Android closed the connection before Avo was done.")
+        // adbd's refusal of a file: the reason Android gave, without the path or adbd's words.
+        #expect(ADBError.sync("/sdcard/Download/a: b.png: couldn't create file: No space left on device").localizedDescription
+            == "Android could not save the file: No space left on device.")
+        #expect(ADBError.sync("no reply for /sdcard/Download/a.png").localizedDescription == "Android could not save the file.")
+        // PackageManager's codes stay for InstallPipeline.friendly.
+        #expect(ADBError.install("Failure [INSTALL_FAILED_OLDER_SDK]").localizedDescription == "Failure [INSTALL_FAILED_OLDER_SDK]")
+        #expect(ADBError.streamClosed.description == "ADB stream closed", "the logs keep the protocol's words")
     }
 }

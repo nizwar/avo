@@ -178,6 +178,16 @@
         }
       }
     },
+    "A command in Android did not finish." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sebuah perintah di Android tidak selesai."
+          }
+        }
+      }
+    },
     "A finger named “%@” is already registered." : {
       "localizations" : {
         "id" : {
@@ -218,6 +228,26 @@
         }
       }
     },
+    "Android answered in a way Avo did not understand." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android menjawab dengan cara yang tidak dipahami Avo."
+          }
+        }
+      }
+    },
+    "Android closed the connection before Avo was done." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android menutup koneksi sebelum Avo selesai."
+          }
+        }
+      }
+    },
     "Android could not check the screen lock." : {
       "localizations" : {
         "id" : {
@@ -228,12 +258,42 @@
         }
       }
     },
+    "Android could not save the file." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android tidak bisa menyimpan file."
+          }
+        }
+      }
+    },
+    "Android could not save the file: %@." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android tidak bisa menyimpan file: %@."
+          }
+        }
+      }
+    },
     "Android could not start: %@" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Android tidak bisa dimulai: %@"
+          }
+        }
+      }
+    },
+    "Android did not let Avo connect." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android tidak mengizinkan Avo terhubung."
           }
         }
       }
@@ -460,6 +520,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Android tidak lagi punya widget ini."
+          }
+        }
+      }
+    },
+    "Android refused Avo’s request." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android menolak permintaan Avo."
           }
         }
       }
