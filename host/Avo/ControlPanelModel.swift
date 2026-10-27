@@ -811,21 +811,40 @@ final class ControlPanelModel {
     // MARK: Apps
 
     func open(_ app: AppRecord) {
+        guard let shim = shimToOpen(app) else { return }
+        openShim(shim, of: app, configuration: NSWorkspace.OpenConfiguration())
+    }
+
+    /// The app's App Shim, or nil with the reason said.
+    private func shimToOpen(_ app: AppRecord) -> URL? {
         guard let shim = app.shortcuts.shimPath else {
             lastError = String(localized: "\(app.displayName) has no shortcut yet. Use “Recreate Shortcuts” in Settings › General.")
-            return
+            return nil
         }
-        NSWorkspace.shared.openApplication(at: URL(filePath: shim), configuration: NSWorkspace.OpenConfiguration())
+        guard FileManager.default.fileExists(atPath: shim) else {
+            lastError = String(localized: "\(app.displayName)’s shortcut is missing. Use “Recreate Shortcuts” in Settings › General.")
+            return nil
+        }
+        return URL(filePath: shim)
+    }
+
+    /// Opens an App Shim; one that does not open says why.
+    private func openShim(_ shim: URL, of app: AppRecord, configuration: NSWorkspace.OpenConfiguration) {
+        let name = app.displayName
+        NSWorkspace.shared.openApplication(at: shim, configuration: configuration) { [weak self] _, error in
+            guard let error else { return }
+            let reason = error.localizedDescription
+            Task { @MainActor in
+                self?.lastError = String(localized: "\(name) did not open. \(reason) If it keeps failing, use “Recreate Shortcuts” in Settings › General.")
+            }
+        }
     }
 
     /// Opens the app with its key mapping editor over the game (its page's
     /// Create Key Mapping…): a running app is asked, one that starts is
     /// told by its launch (ShimRequest).
     func editKeyMapping(_ app: AppRecord) {
-        guard let shim = app.shortcuts.shimPath else {
-            lastError = String(localized: "\(app.displayName) has no shortcut yet. Use “Recreate Shortcuts” in Settings › General.")
-            return
-        }
+        guard let shim = shimToOpen(app) else { return }
         let identifier = AvoIdentifiers.shimBundleIdentifier(for: app.package)
         if let running = NSRunningApplication.runningApplications(withBundleIdentifier: identifier).first(where: \.isFinishedLaunching) {
             // Asked and brought forward, not reopened: a reopen opens another
@@ -837,7 +856,7 @@ final class ControlPanelModel {
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.arguments = [ShimRequest.editKeyMappingArgument]
-        NSWorkspace.shared.openApplication(at: URL(filePath: shim), configuration: configuration)
+        openShim(shim, of: app, configuration: configuration)
     }
 
     // MARK: Notifications
