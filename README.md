@@ -36,9 +36,9 @@ Under the hood Avo boots an unmodified AOSP image (Android 17, Cuttlefish)
 in its own virtual machine on Apple's Hypervisor.framework, and draws it on
 your Mac's GPU through gfxstream and Metal.
 
-> **Status: early preview.** Avo is under active development and is not yet
-> signed with a Developer ID or notarized. Preview builds are published on
-> [GitHub Releases](https://github.com/nizwar/avo/releases) for testers.
+> **Status: before 1.0.** Avo is under active development. Its releases on
+> [GitHub Releases](https://github.com/nizwar/avo/releases) are signed with a
+> Developer ID and notarized, and from 0.4.0 on they update themselves.
 > Expect rough edges, and please [report problems](#reporting-problems).
 
 ## Features
@@ -96,20 +96,18 @@ Everything Avo needs is built in: its own gfxstream GPU renderer, the
 Vulkan loader and MoltenVK, and Root Canal, Android's Bluetooth controller,
 all built from source. You need no Android Studio or Android Emulator.
 
-## Installing a preview build
+## Installing
 
-1. Download `Avo-<version>.dmg` from
+1. Download `Avo-<version>-b<build>.dmg` from
    [Releases](https://github.com/nizwar/avo/releases) and drag Avo to
    Applications.
-2. Preview builds are not notarized, so macOS blocks the first launch. Open
-   Avo once, then go to **System Settings › Privacy & Security** and click
-   **Open Anyway**.
-3. The Setup Assistant downloads an Android image from Google's public AOSP
-   build server and starts Android. Allow the background item when macOS asks
-   (System Settings › General › Login Items).
+2. Open Avo. The Setup Assistant downloads an Android image from Google's
+   public AOSP build server and starts Android. Allow the background item
+   when macOS asks (System Settings › General › Login Items).
 
-Preview builds do not update themselves yet; install a newer DMG over the old
-one. Your Android data stays in `~/Library/Application Support/Avo`.
+From 0.4.0 on, Avo updates itself (Settings › About). Earlier versions
+can't, so install 0.4.0 over the one you have by hand. Your Android data
+stays in `~/Library/Application Support/Avo`.
 
 ## Building from source
 
@@ -188,7 +186,7 @@ guest/      Android helpers Avo installs in the guest, and the AOSP product skel
 host/       The macOS apps (Xcode project via XcodeGen) and the AvoKit Swift package
 profiles/   Device profiles and keymap templates (JSON)
 proto/      Host ↔ guest protocol (protobuf) and test vectors
-scripts/    Code generation, image tools, DMG and update publishing
+scripts/    Code generation, image tools, the DMG and its update feed
 website/    The project website (static, English and Indonesian)
 ```
 
