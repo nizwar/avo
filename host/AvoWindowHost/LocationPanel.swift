@@ -165,9 +165,12 @@ final class LocationPanel: NSObject, NSWindowDelegate {
 
     private var window: NSWindow?
     private let editor = LocationEditor()
+    /// Out of sight while the app runs in the background (`hideWithApp`).
+    private var hiddenWithApp = false
 
     func show() {
         if let window {
+            hiddenWithApp = false
             window.makeKeyAndOrderFront(nil)
             return
         }
@@ -192,9 +195,24 @@ final class LocationPanel: NSObject, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
+    /// Run in Background: the window goes with the app's, and stays open.
+    func hideWithApp() {
+        guard let window, window.isVisible else { return }
+        hiddenWithApp = true
+        window.orderOut(nil)
+    }
+
+    /// Back from the background with the app's windows, as it was.
+    func returnWithApp() {
+        guard hiddenWithApp, let window else { return }
+        hiddenWithApp = false
+        window.orderFront(nil)
+    }
+
     func windowWillClose(_ notification: Notification) {
         LocationModel.shared.endWatching()
         window = nil
+        hiddenWithApp = false
     }
 }
 
