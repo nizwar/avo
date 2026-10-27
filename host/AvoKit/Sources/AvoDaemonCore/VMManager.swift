@@ -264,8 +264,8 @@ public actor VMManager {
     }
 
     /// Android holds nothing, and nothing here is about to start it again:
-    /// no start under way, no reboot of Android's own still to take up.
-    public var holdsNothing: Bool { !status.state.holdsAndroid && booting == nil && !restartPending }
+    /// no start or repair under way, no reboot of Android's own still to take up.
+    public var holdsNothing: Bool { !status.state.holdsAndroid && booting == nil && rescue == nil && !restartPending }
 
     /// Android rebooted itself or asked for its reset, and its start again
     /// has not begun: a start that reboot cut short is the daemon's to see to.
