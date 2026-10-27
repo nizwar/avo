@@ -32,6 +32,8 @@ private final class AndroidDisplays: Sendable {
     let scanouts = Mutex<[Int: Scanout]>([:])
     let engineLog = Mutex<[String]>([])
     let violations = Mutex<[String]>([])
+    /// Every shell command, in order.
+    let commands = Mutex<[String]>([])
 
     init(composerPatched: Bool = false) {
         self.composerPatched = composerPatched
@@ -108,6 +110,7 @@ private final class AndroidDisplays: Sendable {
     }
 
     func shell(_ command: String) -> (stdout: String, stderr: String, exit: UInt8) {
+        commands.withLock { $0.append(command) }
         guard command.contains("; echo avo-") else { return (simple(command), "", 0) }
         var output = ""
         for part in command.components(separatedBy: "; ") {
@@ -131,6 +134,10 @@ private final class AndroidDisplays: Sendable {
         }
         if command.hasPrefix("cmd package resolve-activity") { return "dev.example/dev.example.Main\n" }
         if command.hasPrefix("am start") { return "Starting: Intent { cmp=dev.example/.Main }\n" }
+        // Android's media index takes a file in (MediaProvider's scan_file).
+        if command.hasPrefix("content call --uri content://media/ --method scan_file") {
+            return "Result: Bundle[{android.intent.extra.STREAM=content://media/external_primary/file/1000000042}]\n"
+        }
         return ""
     }
 }
@@ -296,6 +303,30 @@ private final class ModelEngineSocket: @unchecked Sendable {
         #expect(!log.contains { $0.hasSuffix(" off") })
         #expect(log.first == "display 1 1280 720 60" && log.last == "display 1 1600 720 60")
         #expect(android.displayManager().contains("Display id 101: DisplayInfo{\"Built-in Screen\", displayId 101, app 1600 x 720"))
+        await session.agent.shutdown()
+    }
+
+    /// Files dropped on a window (in Downloads already) go to its app: the
+    /// media index names the first, and ACTION_SEND starts on the window's
+    /// display with a read of it.
+    @Test func droppedFilesGoToTheWindowsApp() async throws {
+        let android = AndroidDisplays()
+        let session = try await start(android)
+        #expect(try await session.request(Self.launch(1, 1280, 720), id: 1)?.status == .ok)
+        var share = Avo_V1_ShareFiles()
+        share.displayID = 1
+        share.paths = ["/sdcard/Download/photo (2).jpg", "/sdcard/Download/notes.txt"]
+        share.mimeTypes = ["image/jpeg", "text/plain"]
+        #expect(try await session.request(.shareFiles(share), id: 2)?.status == .ok)
+        let commands = android.commands.withLock { $0 }
+        #expect(commands.contains(GuestSharedFolder.scanCommand("/sdcard/Download/photo (2).jpg")))
+        #expect(commands.last { $0.contains("android.intent.action.SEND") }
+            == HostAgent.shareCommand(uri: "content://media/external_primary/file/1000000042", type: "image/jpeg",
+                                      package: "dev.example", display: 101))
+
+        // A display Android does not have shares nothing.
+        share.displayID = 9
+        #expect(try await session.request(.shareFiles(share), id: 3)?.status == .failed)
         await session.agent.shutdown()
     }
 
