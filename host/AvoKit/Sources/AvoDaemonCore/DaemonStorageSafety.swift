@@ -3,15 +3,16 @@ import AvoPackages
 import Foundation
 import os
 
-// MARK: - Android's data, whole whatever was cut short (DaemonCore.start)
+// MARK: - Android's data, kept whole (DaemonCore.start, eraseAndroid)
 
-/// What keeps Android's data whole across work Avo did not see to its end:
-/// a checkpoint restore cut short is finished or undone when the daemon
-/// starts, before anything can start Android on disks from two sides
-/// (every start tries again first, and `prepareForStart` refuses while it
-/// is not done). Then what a restore or a move cut short left goes: their
-/// staging folders, which on a drive without sparse files take the data
-/// disk's whole size.
+/// What keeps Android's data whole whatever happens around it. A checkpoint
+/// restore cut short is finished or undone when the daemon starts, before
+/// anything can start Android on disks from two sides (every start tries
+/// again first, and `prepareForStart` refuses while it is not done); then
+/// what a restore or a move cut short left goes: their staging folders,
+/// which on a drive without sparse files take the data disk's whole size.
+/// Reset Android erases only data it can reach. And while Android runs, the
+/// room its writes have is watched (StorageSpace).
 extension DaemonCore {
     private var safetyLogger: Logger { Logger(subsystem: AvoIdentifiers.logSubsystem, category: "Storage") }
 
