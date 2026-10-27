@@ -195,8 +195,10 @@ public actor DaemonCore {
     /// which is no moment to restart on an update (`claimRestartForUpdate`).
     var restartWork = 0
     private var starting = 0
-    /// This daemon ends to restart on an updated Avo: nothing starts Android any more.
+    /// This daemon ends to restart on an updated Avo, or ends for good (a
+    /// logout, a shutdown, its agent stopped): nothing starts Android any more.
     private(set) var exitingForUpdate = false
+    private var exiting = false
     /// Android's reboots of its own since it was last ready (RebootLimit).
     private var reboots = RebootLimit()
     /// How long the Mac slept since it last woke (`macWoke`).
@@ -660,7 +662,7 @@ public actor DaemonCore {
     func ensureRunning() async throws {
         starting += 1
         defer { starting -= 1 }
-        if exitingForUpdate { throw AvoError.internalError(Self.restartingForUpdateMessage) }
+        try refuseWhileExiting()
         if storageChanging { throw AvoError.storage(.changing) }
         // A commit Avo did not see to its end (it quit, or Android was
         // stopped by force): finished or taken out before anything else.
@@ -683,7 +685,7 @@ public actor DaemonCore {
     private func bootVM() async throws {
         starting += 1
         defer { starting -= 1 }
-        if exitingForUpdate { throw AvoError.internalError(Self.restartingForUpdateMessage) }
+        try refuseWhileExiting()
         await checkpointBeforeNewerAndroid()
         let settings = self.settings
         try await vm.ensureRunning(settings)
@@ -731,6 +733,23 @@ public actor DaemonCore {
 
     static var restartingForUpdateMessage: String {
         String(localized: "Avo is restarting to finish its update. Try again in a moment.", bundle: .avoKit)
+    }
+
+    private func refuseWhileExiting() throws {
+        if exitingForUpdate { throw AvoError.internalError(Self.restartingForUpdateMessage) }
+        if exiting { throw AvoError.internalError(String(localized: "Avo is quitting.", bundle: .avoKit)) }
+    }
+
+    /// The daemon ends (the Mac logs out or shuts down, its agent is
+    /// stopped): Android powers off first, as with Quit Avo, also while
+    /// Google apps change it (the next start sees that through), so what it
+    /// has not written yet is not lost. Returns by `limit` at the latest:
+    /// launchd ends the daemon by force a little later, and avo-vmm powers
+    /// Android off by itself once the daemon is gone. Nothing starts Android after.
+    public func powerOffForExit(within limit: Duration) async {
+        exiting = true
+        logger.notice("the daemon ends: powering Android off")
+        _ = try? await Deadline.run(limit, what: "power off") { [weak self] in try await self?.quitFromMenuBar(force: true) }
     }
 
     /// The VM status now, then every change.

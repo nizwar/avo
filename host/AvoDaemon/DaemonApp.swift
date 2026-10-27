@@ -25,10 +25,17 @@ final class DaemonAppDelegate: NSObject, NSApplicationDelegate {
     private var macState: MacSystemState?
     /// Restarts the daemon on a new Avo once an update replaced Avo.app (AppUpdateWatcher.swift).
     private var updateWatcher: AppUpdateWatcher?
-    /// SIGTERM (launchd stopping the agent, logging out): the menu bar item leaves first.
-    private var terminationSignal: (any DispatchSourceSignal)?
     /// The Mac waking from sleep (DaemonCore.macWoke).
     private var wakeObserver: (any NSObjectProtocol)?
+    /// SIGTERM: launchd stopping the agent (a logout, a shutdown, a bootout).
+    /// Android powers off, then the menu bar item leaves, then the daemon ends.
+    private var terminationSignal: (any DispatchSourceSignal)?
+    /// Android is being powered off for the daemon's end, and what ends the
+    /// daemon then (`endAfterAndroid`).
+    private var endings: [@MainActor () -> Void]?
+    /// launchd ends an agent by force 20 s after its SIGTERM: Android's power
+    /// off is given this, and the daemon ends after it.
+    private static let powerOffLimit: Duration = .seconds(15)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         signal(SIGPIPE, SIG_IGN)
@@ -45,21 +52,54 @@ final class DaemonAppDelegate: NSObject, NSApplicationDelegate {
         menuBar?.remove()
     }
 
-    /// The menu bar item off the menu bar before a SIGTERM ends the daemon,
-    /// which then ends by that signal as before (launchd's KeepAlive tells
-    /// a signal from a successful exit).
+    /// Logging out or shutting down asks every app to quit: Android powers
+    /// off first, instead of being left to avo-vmm's watch of its parent
+    /// (what Android had not written yet would be lost).
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard service != nil else { return .terminateNow }
+        endAfterAndroid { NSApp.reply(toApplicationShouldTerminate: true) }
+        return .terminateLater
+    }
+
+    /// SIGTERM takes the same way; then the menu bar item leaves the menu
+    /// bar, and the signal ends the daemon as before (launchd's KeepAlive
+    /// tells a signal from a successful exit).
     private func watchTermination() {
         signal(SIGTERM, SIG_IGN)
         let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
         source.setEventHandler { [weak self] in
-            MainActor.assumeIsolated { self?.menuBar?.remove() }
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(MenuBarController.removalGraceMilliseconds)) {
-                signal(SIGTERM, SIG_DFL)
-                raise(SIGTERM)
+            MainActor.assumeIsolated {
+                guard let self else { return Self.endBySignal() }
+                self.endAfterAndroid { [weak self] in
+                    self?.menuBar?.remove()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(MenuBarController.removalGraceMilliseconds)) {
+                        Self.endBySignal()
+                    }
+                }
             }
         }
         source.resume()
         terminationSignal = source
+    }
+
+    private static func endBySignal() {
+        signal(SIGTERM, SIG_DFL)
+        raise(SIGTERM)
+    }
+
+    /// Powers Android off (within `powerOffLimit`), then `end`s the daemon;
+    /// a second way to end while it does ends with the first.
+    private func endAfterAndroid(_ end: @escaping @MainActor () -> Void) {
+        guard let core = service?.core else { return end() }
+        if endings != nil {
+            endings?.append(end)
+            return
+        }
+        endings = [end]
+        Task { @MainActor [weak self] in
+            await core.powerOffForExit(within: Self.powerOffLimit)
+            for end in self?.endings ?? [] { end() }
+        }
     }
 
     private func start() throws {
