@@ -185,7 +185,7 @@ extension DaemonCore {
     /// finished or undone first, with the settings that go with its data.
     /// Then a start with a newer Android than the data was last used with,
     /// which upgrades the data for good, gets a checkpoint of the older data.
-    func checkpointBeforeNewerAndroid() async {
+    func prepareCheckpointsForStart() async {
         await finishInterruptedRestore()
         guard await vm.status.state == .stopped else { return }
         let images = AndroidImageStore(paths: deps.paths)

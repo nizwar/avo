@@ -700,7 +700,7 @@ public actor DaemonCore {
         starting += 1
         defer { starting -= 1 }
         try refuseWhileExiting()
-        await checkpointBeforeNewerAndroid()
+        await prepareCheckpointsForStart()
         let settings = self.settings
         try await vm.ensureRunning(settings, restarting: restarting)
         if bootedConfig == nil {

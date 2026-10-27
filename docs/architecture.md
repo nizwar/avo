@@ -1696,7 +1696,7 @@ Restore points of Android's apps and data, beside the data wherever it is
   (`RestoreJournal`: the checkpoint and the one made before) is written,
   fully synced, once the clones are made and before the first rename, and
   removed once the settings followed. The daemon finishes it as it starts,
-  and every start does first (`checkpointBeforeNewerAndroid`, before the
+  and every start does first (`prepareCheckpointsForStart`, before the
   settings the boot reads): the checkpoint is restored again (it is whole),
   else the one before undoes it. Until one works, `prepareForStart` refuses
   every start, a move refuses to carry the data, no checkpoint is made of it
