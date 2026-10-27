@@ -95,11 +95,13 @@ pub struct Queue {
     pub used_ring: u64,
     next_avail: u16,
     next_used: u16,
+    /// A broken driver published more than the queue can hold; stop using it.
+    broken: bool,
 }
 
 impl Queue {
     pub fn new(max_size: u16) -> Queue {
-        Queue { max_size, size: max_size, ready: false, desc_table: 0, avail_ring: 0, used_ring: 0, next_avail: 0, next_used: 0 }
+        Queue { max_size, size: max_size, ready: false, desc_table: 0, avail_ring: 0, used_ring: 0, next_avail: 0, next_used: 0, broken: false }
     }
 
     pub fn reset(&mut self) {
@@ -112,12 +114,22 @@ impl Queue {
 
     /// Takes the next available request, if any.
     pub fn pop(&mut self, memory: &GuestMemory) -> Option<Chain> {
-        if !self.is_valid() {
+        if !self.is_valid() || self.broken {
             return None;
         }
         // Ring addresses are the guest's: one that would wrap past 2^64 is no RAM.
         let avail_idx = memory.read_u16(self.avail_ring.checked_add(2)?)?;
-        if avail_idx == self.next_avail {
+        // At most `size` descriptors can be available at once (virtio 1.2
+        // §2.7.6). A broken driver could leave avail_idx far ahead of
+        // next_avail and make this replay stale ring slots up to 65535 times
+        // per kick; stop using the queue instead, once.
+        let ready = avail_idx.wrapping_sub(self.next_avail);
+        if ready == 0 {
+            return None;
+        }
+        if ready > self.size {
+            self.broken = true;
+            eprintln!("[vmm] virtqueue: driver made {ready} descriptors available on a queue of {}; ignoring it", self.size);
             return None;
         }
         // Read the ring entry only after seeing the index that published it.
@@ -231,6 +243,23 @@ mod tests {
         assert_eq!(chain.read_all(&memory), None, "one more is refused before anything is reserved");
         let chain = Chain { head: 0, descriptors: vec![readable(RAM, u32::MAX); 2] };
         assert_eq!(chain.read_all(&memory), None);
+    }
+
+    #[test]
+    fn a_queue_with_too_many_available_is_ignored() {
+        let memory = memory();
+        let mut queue = Queue::new(16);
+        queue.ready = true;
+        queue.avail_ring = RAM;
+        // The driver claims 17 descriptors available on a size-16 queue: more
+        // than can be, so the queue is marked broken rather than replaying
+        // stale ring slots.
+        memory.write_u16(RAM + 2, 17);
+        assert!(queue.pop(&memory).is_none());
+        // It stays off even once the index looks sane again.
+        memory.write_u16(RAM + 2, 1);
+        memory.write_u16(RAM + 4, 0);
+        assert!(queue.pop(&memory).is_none(), "the queue stays broken");
     }
 
     #[test]
