@@ -1254,6 +1254,16 @@
         }
       }
     },
+    "Changing the app’s permission" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mengubah izin aplikasi"
+          }
+        }
+      }
+    },
     "Checkpoint" : {
       "localizations" : {
         "id" : {
@@ -1310,6 +1320,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pilih zip image Android (%@) atau folder berisi file .img-nya."
+          }
+        }
+      }
+    },
+    "Clearing the app’s data" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menghapus data aplikasi"
           }
         }
       }
@@ -1829,6 +1849,26 @@
         }
       }
     },
+    "Opening the app" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Membuka aplikasi"
+          }
+        }
+      }
+    },
+    "Opening the notification" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Membuka notifikasi"
+          }
+        }
+      }
+    },
     "Port %lld is already in use by another app. Choose another port." : {
       "localizations" : {
         "id" : {
@@ -1859,6 +1899,16 @@
         }
       }
     },
+    "Reading the app’s permissions" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Membaca izin aplikasi"
+          }
+        }
+      }
+    },
     "Release %@ has no .zip package." : {
       "localizations" : {
         "id" : {
@@ -1875,6 +1925,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Menghapus aplikasi Google"
+          }
+        }
+      }
+    },
+    "Resizing the app’s window" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mengubah ukuran jendela aplikasi"
           }
         }
       }
@@ -1969,6 +2029,16 @@
         }
       }
     },
+    "Sharing the files" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Membagikan file"
+          }
+        }
+      }
+    },
     "Sharpness must be between 0 and 100." : {
       "localizations" : {
         "id" : {
@@ -1995,6 +2065,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Menjalankan Android"
+          }
+        }
+      }
+    },
+    "Stopping the app" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menghentikan aplikasi"
           }
         }
       }
@@ -2881,6 +2961,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Terlalu banyak percobaan yang salah. Android menerima percobaan berikutnya sekitar satu menit lagi."
+          }
+        }
+      }
+    },
+    "Uninstalling the app" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menguninstal aplikasi"
           }
         }
       }

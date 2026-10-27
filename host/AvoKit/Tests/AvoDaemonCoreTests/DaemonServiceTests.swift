@@ -1,5 +1,6 @@
 import AvoADB
 import AvoKit
+import AvoProtocol
 import AvoTestSupport
 import Foundation
 import Testing
@@ -133,5 +134,15 @@ import Testing
         // PackageManager's codes stay for InstallPipeline.friendly.
         #expect(ADBError.install("Failure [INSTALL_FAILED_OLDER_SDK]").localizedDescription == "Failure [INSTALL_FAILED_OLDER_SDK]")
         #expect(ADBError.streamClosed.description == "ADB stream closed", "the logs keep the protocol's words")
+    }
+
+    /// A request Android did not answer in time says what was being done,
+    /// not the protocol's name for it ("launch timed out."); the requests
+    /// nobody waits on read as Android not responding.
+    @Test func androidsTimeoutsSayWhatWasBeingDone() {
+        #expect(ControlSession.timedOut(.launch(Avo_V1_Launch())).localizedDescription == "Opening the app timed out.")
+        #expect(ControlSession.timedOut(.getPermissions(Avo_V1_GetPermissions())).localizedDescription
+            == "Reading the app’s permissions timed out.")
+        #expect(ControlSession.timedOut(.ping(Avo_V1_Ping())) == .guestUnavailable)
     }
 }
