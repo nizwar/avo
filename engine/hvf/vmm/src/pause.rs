@@ -24,7 +24,7 @@ pub static GATE: Gate = Gate::new();
 /// Whether a pause is asked for or holds (device threads that keep time,
 /// such as the sensors and the sound clock, skip their ticks meanwhile).
 pub fn is_paused() -> bool {
-    GATE.requested.load(Ordering::SeqCst)
+    GATE.is_paused()
 }
 
 pub struct Gate {
@@ -68,6 +68,11 @@ impl Gate {
             }),
             changed: Condvar::new(),
         }
+    }
+
+    /// Whether a pause is asked for or holds at this gate (`is_paused`).
+    pub fn is_paused(&self) -> bool {
+        self.requested.load(Ordering::SeqCst)
     }
 
     /// A machine about to start its vCPUs; `kick` makes them leave `run`.
