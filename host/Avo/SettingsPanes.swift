@@ -75,6 +75,11 @@ struct FrameRateNote: View {
 
 struct PerformancePane: View {
     @Environment(ControlPanelModel.self) private var model
+    /// The memory while its slider is dragged: written once, when the drag
+    /// ends (each step written meant a save and a refresh, and the thumb
+    /// jumped as their answers came back).
+    @State private var memoryDraft: Int?
+    @State private var draggingMemory = false
 
     var body: some View {
         SettingsForm { config in
@@ -82,13 +87,23 @@ struct PerformancePane: View {
             Section {
                 LabeledContent {
                     HStack(spacing: 12) {
-                        HazeSlider(value: Binding(get: { Double(config.memoryMiB) },
-                                                  set: { value in model.update { $0.memoryMiB = Int(value / 512) * 512 } }),
+                        HazeSlider(value: Binding(get: { Double(memoryDraft ?? config.memoryMiB) },
+                                                  set: { value in
+                                                      let memory = Int(value / 512) * 512
+                                                      // Arrow keys and VoiceOver write at once.
+                                                      if draggingMemory { memoryDraft = memory } else { model.update { $0.memoryMiB = memory } }
+                                                  }),
                                    range: Double(VMConfig.memoryRangeMiB.lowerBound)...Double(max(host.maxGuestMemoryMiB, VMConfig.memoryRangeMiB.lowerBound + 512)),
-                                   step: 512)
+                                   step: 512,
+                                   onEditingChanged: { editing in
+                                       draggingMemory = editing
+                                       guard !editing, let memory = memoryDraft else { return }
+                                       memoryDraft = nil
+                                       model.update { $0.memoryMiB = memory }
+                                   })
                             .frame(width: 220)
                             .accessibilityLabel(Text("Memory"))
-                        Text("\(Double(config.memoryMiB) / 1024, format: .number.precision(.fractionLength(0...1))) GB")
+                        Text("\(Double(memoryDraft ?? config.memoryMiB) / 1024, format: .number.precision(.fractionLength(0...1))) GB")
                             .monospacedDigit()
                             .foregroundStyle(Haze.text)
                             .frame(width: 64, alignment: .trailing)
