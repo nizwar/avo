@@ -23,6 +23,7 @@ extension DaemonCore {
     public func createCheckpoint(named name: String?, client: ClientID) async throws -> Checkpoint {
         try requireControlPanel(client)
         if storageChanging { throw AvoError.storage(.changing) }
+        try refuseWhileDataChanges()
         // Not while Google apps change Android (its partitions are half written).
         try await clearForVMChange(.snapshot)
         let name = name?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -31,6 +32,8 @@ extension DaemonCore {
 
     public func deleteCheckpoint(_ id: UUID, client: ClientID) throws {
         try requireControlPanel(client)
+        // A restore under way may be about to use it, or to keep the data as one.
+        try refuseWhileDataChanges()
         // A restore cut short needs both to be finished or undone.
         if let journal = RestoreJournal.load(deps.paths), journal.checkpoint == id || journal.before == id {
             throw AvoError.internalError(RestoreJournal.cutShortMessage)
@@ -61,9 +64,40 @@ extension DaemonCore {
             throw AvoError.internalError(String(localized: "This checkpoint’s data is from \(data.name), newer than the Android that starts now (\(next.name)). Choose \(data.name) under Android version first.", bundle: .avoKit))
         }
         try await clearForVMChange(.reset)
+        // From before the stop until the data is in place, nothing starts
+        // Android on the files the restore swaps; its own start comes after.
+        let hold = try await beginDataChange(.restore)
         let state = await vm.status.state
         let wasRunning = state != .stopped && state != .notInstalled && state != .failed
-        if state != .stopped && state != .notInstalled { await vm.stop() }
+        let outcome = await restoreStopped(id, store: store, stopping: state != .stopped && state != .notInstalled)
+        await endDataChange(hold)
+        switch outcome {
+        case .restored, .finished:
+            if wasRunning { try await ensureRunning() }
+        case .unchanged(let error), .undone(let error):
+            // Android goes on as it was.
+            if wasRunning { try? await ensureRunning() }
+            throw error
+        case .cutShort(let error):
+            // Android stays stopped: the next start finishes it first, or refuses.
+            throw error
+        }
+    }
+
+    /// How `restoreStopped` left Android's data.
+    private enum RestoreOutcome {
+        /// The checkpoint's data is in place, or a restore cut short was
+        /// finished by its journal.
+        case restored, finished
+        /// Nothing changed, or a restore cut short was undone.
+        case unchanged(any Error), undone(any Error)
+        /// Cut short, and neither finished nor undone yet.
+        case cutShort(any Error)
+    }
+
+    /// `restoreCheckpoint`'s work on the data, under its hold.
+    private func restoreStopped(_ id: UUID, store: CheckpointStore, stopping: Bool) async -> RestoreOutcome {
+        if stopping { await vm.stop() }
         let restored: Checkpoint
         do {
             // Data a restore cut short left half replaced is not worth a checkpoint.
@@ -71,22 +105,14 @@ extension DaemonCore {
             restored = try store.restore(id, before: before?.id)
         } catch {
             guard RestoreJournal.exists(in: deps.paths.data) else {
-                // Nothing changed: Android goes on as it was.
                 checkpointLogger.error("no restore of \(id.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                if wasRunning { try? await ensureRunning() }
-                throw error
+                return .unchanged(error)
             }
             checkpointLogger.error("restoring \(id.uuidString, privacy: .public) was cut short: \(error.localizedDescription, privacy: .public)")
             switch await finishInterruptedRestore() {
-            case .finished?:
-                if wasRunning { try await ensureRunning() }
-                return
-            case .undone?:
-                if wasRunning { try? await ensureRunning() }
-                throw error
-            case nil:
-                // Android stays stopped: the next start finishes it first, or refuses.
-                throw error
+            case .finished?: return .finished
+            case .undone?: return .undone(error)
+            case nil: return .cutShort(error)
             }
         }
         followRestoredData(restored)
@@ -94,7 +120,7 @@ extension DaemonCore {
         await fingerprints.reload()
         publishCheckpoints()
         await publishStorage()
-        if wasRunning { try await ensureRunning() }
+        return .restored
     }
 
     /// Avo's side follows the data a restore put back, as when another

@@ -49,6 +49,42 @@ extension DaemonCore {
         }
     }
 
+    /// Reset Android and a checkpoint restore erase or swap Android's
+    /// files. From before their stop until they are done with the data
+    /// (`dataChange`), no start begins (VMManager holds them: one would run
+    /// on those files, its status said to be stopped), and neither a move, a
+    /// checkpoint nor another such change.
+    enum DataChange: Sendable {
+        case reset, restore
+    }
+
+    static func refusal(during change: DataChange) -> AvoError {
+        switch change {
+        case .reset: .internalError(String(localized: "Android’s data is being erased. Try again once that is done.", bundle: .avoKit))
+        case .restore: .internalError(String(localized: "A checkpoint is being restored. Try again once that is done.", bundle: .avoKit))
+        }
+    }
+
+    func refuseWhileDataChanges() throws {
+        if let dataChange { throw Self.refusal(during: dataChange.kind) }
+    }
+
+    /// Marks the change before anything is awaited: two that ask at once
+    /// cannot both begin.
+    func beginDataChange(_ kind: DataChange) async throws -> UUID {
+        try refuseWhileDataChanges()
+        let hold = UUID()
+        dataChange = (kind, hold)
+        await vm.holdStarts(hold, reason: Self.refusal(during: kind))
+        return hold
+    }
+
+    func endDataChange(_ hold: UUID) async {
+        guard dataChange?.hold == hold else { return }
+        dataChange = nil
+        await vm.releaseStarts(hold)
+    }
+
     /// The data's part of Reset Android. The data disk goes first: when it
     /// can't, the reset fails before anything else changes. Then the
     /// snapshots, the checkpoints of the data that went and the records

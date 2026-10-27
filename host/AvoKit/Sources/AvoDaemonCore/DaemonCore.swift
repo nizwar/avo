@@ -193,6 +193,10 @@ public actor DaemonCore {
     var usage: AppUsageRecorder
     /// A change of where Android's data is runs (starts wait for it).
     private(set) var storageChanging = false
+    /// Reset Android or a checkpoint restore under way, from before its stop
+    /// until it is done with the data; only `beginDataChange` and
+    /// `endDataChange` (DaemonStorageSafety.swift) change it.
+    var dataChange: (kind: DataChange, hold: UUID)?
     /// A storage status for the Control Panels is on its way (volumes change in bursts).
     private var storagePublishPending = false
     /// Pause When Idle and what it waits for (AutoPause.swift).
@@ -598,6 +602,21 @@ public actor DaemonCore {
         // Never Avo's side without the data itself (DaemonStorageSafety.swift).
         try await refuseEraseWithoutData()
         try await clearForVMChange(.reset, force: force)
+        // From before the stop until the data is gone, nothing starts Android
+        // on the files this erases.
+        let hold = try await beginDataChange(.reset)
+        do {
+            let left = try await eraseStoppedAndroid()
+            await endDataChange(hold)
+            return left
+        } catch {
+            await endDataChange(hold)
+            throw error
+        }
+    }
+
+    /// `eraseAndroid`'s work, under its hold.
+    private func eraseStoppedAndroid() async throws -> [String] {
         await vm.stop()
         // Its drive may have gone, or a move begun, while Android stopped.
         try await refuseEraseWithoutData()
@@ -706,6 +725,7 @@ public actor DaemonCore {
         defer { starting -= 1 }
         try refuseWhileExiting()
         if storageChanging { throw AvoError.storage(.changing) }
+        try refuseWhileDataChanges()
         // A commit Avo did not see to its end (it quit, or Android was
         // stopped by force): finished or taken out before anything else.
         if googleAppsRecovering, let run = googleAppsRun { _ = await run.result }
@@ -2362,6 +2382,7 @@ extension DaemonCore {
             throw AvoError.internalError(String(localized: "Avo is already changing where Android’s data is.", bundle: .avoKit))
         }
         guard googleAppsRun == nil else { throw AvoError.internalError(GoogleAppsGuard.refusal) }
+        try refuseWhileDataChanges()
         storageChanging = true
         defer { storageChanging = false }
         switch await vm.status.state {

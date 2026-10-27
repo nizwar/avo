@@ -68,6 +68,14 @@ public actor VMManager {
     /// (`rescueShell`), and how that engine ended when it ended first.
     private var rescue: Task<ShellResult, any Error>?
     private var rescueEnded: (any Error)?
+    /// The stop under way: a start or a repair asked for meanwhile begins
+    /// once it is over (else the stop's end said "stopped" over its engine),
+    /// and a second stop waits for it.
+    private var stopping: Task<Void, Never>?
+    /// Reset Android or a checkpoint restore under way (DaemonCore's
+    /// `dataChange`): no start or repair of its own begins, as it would run
+    /// on the files they erase or swap; one asked for fails with `reason`.
+    private var startHold: (id: UUID, reason: AvoError)?
     private var pumps: [Task<Void, Never>] = []
     /// Pauses and wakes, one after the other ("Pause" below).
     private var pauseTransition: Task<Void, Never>?
@@ -120,6 +128,8 @@ public actor VMManager {
     /// `restarting`: the start again after Android's own reboot or reset,
     /// which a stop since then calls off (CancellationError).
     public func ensureRunning(_ settings: @autoclosure @Sendable () -> Settings, restarting: Bool = false) async throws {
+        // A stop under way ends first: this start comes after it.
+        while let stopping { await stopping.value }
         // A repair's own engine ends with the repair: this start comes after.
         if let rescue { _ = await rescue.result }
         // Paused: it goes on (a failed wake starts it again below).
@@ -130,6 +140,8 @@ public actor VMManager {
             restartCalledOff = false
             throw CancellationError()
         }
+        // Android's data is being erased or swapped: nothing starts on it.
+        if let startHold { throw startHold.reason }
         // Whichever start this is, it is the one Android gets: none waits any more.
         restartAwaited = false
         restartCalledOff = false
@@ -285,6 +297,16 @@ public actor VMManager {
         update(VMStatus(state: .failed, detail: detail))
     }
 
+    /// No start or repair of its own begins until `releaseStarts(id)`; one
+    /// asked for meanwhile fails with `reason` (DaemonCore's `dataChange`).
+    public func holdStarts(_ id: UUID, reason: AvoError) {
+        startHold = (id, reason)
+    }
+
+    public func releaseStarts(_ id: UUID) {
+        if startHold?.id == id { startHold = nil }
+    }
+
     /// `reason`: why Android stopped, shown with the status (an eject).
     /// A start under way ends too, with nothing of it left running.
     /// `callingOffRestart`: a stop the user asked for (Stop Android, Quit,
@@ -297,7 +319,20 @@ public actor VMManager {
             logger.notice("Android's restart was called off by a stop")
             if status.state == .stopped { update(VMStatus(state: .stopped, detail: reason)) }
         }
+        // One stop at a time: a second one waits for the first, then says why.
+        if let stopping {
+            await stopping.value
+            if let reason, status.state == .stopped { update(VMStatus(state: .stopped, detail: reason)) }
+            return
+        }
         guard status.state != .stopped else { return }
+        let task = Task { await self.stopNow(reason: reason) }
+        stopping = task
+        await task.value
+    }
+
+    /// `stop`'s work, `stopping` until it is over.
+    private func stopNow(reason: String?) async {
         // A paused engine runs Android again for its power off (VMMEngine.stop).
         pausedAt = nil
         update(VMStatus(state: .stopping))
@@ -322,6 +357,7 @@ public actor VMManager {
             await engine.stop()
         }
         update(VMStatus(state: .stopped, detail: reason))
+        stopping = nil
     }
 
     public func restart(_ settings: @autoclosure @Sendable () -> Settings) async throws {
@@ -463,10 +499,12 @@ public actor VMManager {
     /// stops once the repair is done, and a stop ends it as it ends a start.
     public func rescueShell(_ command: String, timeout: Duration, detail: String,
                             settings: @autoclosure @Sendable () -> Settings) async throws -> ShellResult {
+        while let stopping { await stopping.value }
         if usedWhilePaused() { try? await wake() }
         guard booting == nil, rescue == nil, status.state == .stopped || status.state == .failed else {
             return try await shellOverADB(command, timeout: timeout, detail: detail)
         }
+        if let startHold { throw startHold.reason }
         let settings = settings()
         let task = Task { try await self.rescueWithOwnEngine(command, timeout: timeout, detail: detail, settings: settings) }
         rescue = task
