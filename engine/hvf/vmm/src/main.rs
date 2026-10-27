@@ -75,6 +75,20 @@
 //! The guest's Wi-Fi and mobile data reach the Mac's network through
 //! user-mode NAT (net.rs).
 
+/// eprintln! that never panics, for every module below. std's panics when
+/// stderr cannot take the line, and stderr is the daemon's avo-vmm.log on
+/// the Mac's disk: a full disk, which Android's writes wait out
+/// (virtio/block.rs), would end the engine at its next log line. A line
+/// that cannot be written is lost instead. Tests keep std's, whose output
+/// the test harness captures.
+#[cfg(not(test))]
+macro_rules! eprintln {
+    ($($arg:tt)*) => {{
+        use std::io::Write as _;
+        let _ = writeln!(std::io::stderr(), $($arg)*);
+    }};
+}
+
 mod android;
 mod bluetooth;
 mod bus;
