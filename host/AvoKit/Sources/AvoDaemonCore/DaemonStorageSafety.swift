@@ -17,6 +17,7 @@ extension DaemonCore {
 
     func startStorageSafety() {
         Task { [weak self] in await self?.recoverInterruptedWork() }
+        watchStorageSpace()
     }
 
     func recoverInterruptedWork() async {
@@ -89,4 +90,87 @@ extension DaemonCore {
         guard !names.isEmpty else { return nil }
         return AvoError.internalError(String(localized: "Android was reset, but Avo couldn’t remove \(names.joined(separator: ", ")) beside its data.", bundle: .avoKit))
     }
+
+    // MARK: Room for Android's writes (StorageSpace)
+
+    /// How often the room on the data's volume is looked at while Android runs.
+    static let spaceCheckInterval: Duration = .seconds(60)
+
+    /// While Android runs: what the engine says when Android's writes wait
+    /// for room (a full Mac disk no longer fails them, it holds them), and
+    /// a look at the data's volume once a minute, for the Library's banner
+    /// before it is full. Stopped, Android writes nothing: no banner.
+    private func watchStorageSpace() {
+        if let engine = deps.engine as? any DiskSpaceEngine {
+            let updates = engine.diskFullUpdates
+            Task { [weak self] in
+                for await full in updates { await self?.androidWritesWait(full) }
+            }
+        }
+        Task { [weak self] in
+            guard let statuses = await self?.statusChanges() else { return }
+            var running = false
+            var looking: Task<Void, Never>?
+            for await status in statuses {
+                let runs = status.state == .running
+                guard runs != running else { continue }
+                running = runs
+                looking?.cancel()
+                looking = nil
+                // Stopped, nothing of Android waits any more.
+                await self?.storageSpaceChanged(androidRuns: runs, writesWait: runs ? nil : false)
+                guard runs else { continue }
+                looking = Task { [weak self] in
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: Self.spaceCheckInterval)
+                        if Task.isCancelled { break }
+                        await self?.storageSpaceChanged()
+                    }
+                }
+            }
+        }
+    }
+
+    /// What the engine says, while it runs Android (a stopped engine's last
+    /// word may come after the stop).
+    private func androidWritesWait(_ full: Bool) async {
+        let state = await vm.status.state
+        guard !full || (state != .stopped && state != .failed && state != .notInstalled) else { return }
+        safetyLogger.notice("\(full ? "Android's writes wait for room on its data's volume" : "Android's writes go through again", privacy: .public)")
+        await storageSpaceChanged(writesWait: full)
+    }
+
+    func storageSpaceChanged(androidRuns: Bool? = nil, writesWait: Bool? = nil) async {
+        if await storage.noteSpace(androidRuns: androidRuns, writesWait: writesWait) { await publishStorage() }
+    }
+}
+
+/// An engine that says when Android's writes wait for room on the volume
+/// its data is on, and when they go through again (avo-vmm's sticky
+/// `disk full on|off`, engine/hvf/vmm/src/virtio/block.rs).
+public protocol DiskSpaceEngine: VMEngine {
+    var diskFullUpdates: AsyncStream<Bool> { get }
+}
+
+/// avo-vmm's `disk full` events, as DiskSpaceEngine's updates.
+final class DiskFullReports: Sendable {
+    let updates: AsyncStream<Bool>
+    private let sink: AsyncStream<Bool>.Continuation
+
+    init() {
+        (updates, sink) = AsyncStream.makeStream(of: Bool.self, bufferingPolicy: .bufferingNewest(4))
+    }
+
+    /// One of the engine's event lines; others are not this one's.
+    func handle(_ line: String) {
+        switch line {
+        case "disk full on": sink.yield(true)
+        case "disk full off": sink.yield(false)
+        default: break
+        }
+    }
+}
+
+extension VMMEngine: DiskSpaceEngine {
+    public var diskFullUpdates: AsyncStream<Bool> { diskFull.updates }
 }

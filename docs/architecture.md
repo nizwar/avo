@@ -1612,6 +1612,14 @@ the record, cached by the file's identity).
   data's volume while Android uses it or a move copies there; Android powers
   off cleanly and the user ejects again. A volume that goes without asking
   stops Android at once.
+- **Room for Android's writes.** On a full volume avo-vmm holds Android's
+  writes instead of failing them (engine.md, "A full Mac disk") and says
+  `disk full on|off`; the daemon (`DiskSpaceEngine`, `watchStorageSpace`)
+  puts that in `StorageLocationStatus.space`, and while Android runs it
+  looks at the data's volume once a minute and says so below 2 GB free
+  (`StorageSpace.lowBytes`). The Library's banner and Settings › Storage
+  show it, with System Settings › Storage for the Mac's disk or the drive in
+  Finder; a stopped Android shows nothing.
 - **Reset Android** erases the data where it is, then Avo's side of it (the
   apps and shims, Google apps, the fingers in Android). It is refused while
   the data can't be reached (Avo would forget every app while the data stays

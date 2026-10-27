@@ -387,6 +387,8 @@ struct LibraryBanners: View {
             LibrarySetupBanner()
             // Android's data is on a drive that is not connected (StorageLocationViews.swift).
             StorageProblemBanner()
+            // Android waits for room on its data's drive, or little is left there.
+            StorageSpaceBanner()
             if model.screenLock != nil, model.daemonState == .connected {
                 HazeBanner(symbol: "lock.fill", tint: Haze.warning,
                            text: "Android is locked by its screen lock. Your apps open after you unlock it.") {
@@ -426,7 +428,7 @@ struct LibraryBanners: View {
         [model.daemonState == .connected, model.daemonState == .connecting, model.daemonState == .needsApproval,
          model.runsFromTemporaryCopy, model.screenLock != nil, model.status.isNotResponding, model.pendingRestart,
          images.needsImage && !assistant.isPresented,
-         model.status.renderer?.reason == .failed && model.config?.rendererMode != .software]
+         model.status.renderer?.reason == .failed && model.config?.rendererMode != .software, hasStorageBanner]
     }
 
     private var hasBanner: Bool {
@@ -434,6 +436,12 @@ struct LibraryBanners: View {
             || (model.screenLock != nil && model.daemonState == .connected) || model.status.isNotResponding || model.pendingRestart
             || (images.needsImage && !assistant.isPresented)
             || (model.status.renderer?.reason == .failed && model.config?.rendererMode != .software)
+            || hasStorageBanner
+    }
+
+    /// StorageProblemBanner or StorageSpaceBanner shows.
+    private var hasStorageBanner: Bool {
+        model.daemonState == .connected && (model.storageLocation?.problem != nil || model.storageLocation?.space != nil)
     }
 }
 

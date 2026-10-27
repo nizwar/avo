@@ -64,6 +64,8 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     private let frameQueue: FrameDeliveryQueue
     private let linkSink: AsyncStream<URL>.Continuation
     private let rendererSink: AsyncStream<RendererStatus>.Continuation
+    /// avo-vmm's `disk full on|off`: Android's writes wait for room (DiskSpaceEngine).
+    let diskFull = DiskFullReports()
     private let adbKey: ADBKey
     private let lock = NSLock()
     private var process: Process?
@@ -408,6 +410,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
                         await agent.useBluetoothPort(port)
                     }
                     if line.hasPrefix("camera ") { cameras?.handle(line) }
+                    if line.hasPrefix("disk ") { self.diskFull.handle(line) }
                     bridge.handle(line)
                 }
             } catch {}

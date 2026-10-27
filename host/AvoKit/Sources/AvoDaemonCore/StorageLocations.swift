@@ -190,6 +190,37 @@ actor StorageLocations {
                              isReadOnly: info.f_flags & UInt32(MNT_RDONLY) != 0, isNetwork: network, uuid: values?.volumeUUIDString)
     }
 
+    // MARK: The room Android's writes have (DaemonCore.watchStorageSpace)
+
+    /// Android runs: little room on the data's volume is worth saying.
+    private var androidRuns = false
+    /// avo-vmm holds Android's writes: the data's volume has no room.
+    private var writesWait = false
+    /// What Control Panels were last told.
+    private var toldSpace: StorageSpace?
+
+    /// What Settings › Storage and the Library say of the room on `volume`.
+    static func space(on volume: VolumeSummary?, name: String?, androidRuns: Bool, writesWait: Bool) -> StorageSpace? {
+        // The Mac's own disk, also when it cannot be described: no record names another.
+        let onMac = volume?.isInternal ?? (name == nil)
+        if writesWait { return .full(volume: volume?.name ?? name ?? "", onMac: onMac) }
+        guard androidRuns, let volume, volume.freeBytes < StorageSpace.lowBytes else { return nil }
+        return .low(volume: volume.name, onMac: onMac, freeBytes: volume.freeBytes)
+    }
+
+    /// Notes whether Android runs and whether its writes wait, and looks at
+    /// the room left; true when that is not what Control Panels were told.
+    func noteSpace(androidRuns: Bool? = nil, writesWait: Bool? = nil) -> Bool {
+        if let androidRuns { self.androidRuns = androidRuns }
+        if let writesWait { self.writesWait = writesWait }
+        guard self.androidRuns || self.writesWait || toldSpace != nil else { return false }
+        let resolution = resolve()
+        let volume = resolution.problem == nil ? Self.volumeSummary(for: resolution.folder) : nil
+        let space = Self.space(on: volume, name: resolution.record?.volumeName, androidRuns: self.androidRuns, writesWait: self.writesWait)
+        defer { toldSpace = space }
+        return space != toldSpace
+    }
+
     // MARK: Status
 
     func status() -> StorageLocationStatus {
@@ -212,6 +243,7 @@ actor StorageLocations {
                 status.internalCopy?.checkpoints = CheckpointStore.count(in: paths.vm)
             }
         }
+        status.space = Self.space(on: status.volume, name: status.volumeName, androidRuns: androidRuns, writesWait: writesWait)
         guardVolume(resolution, volume: status.volume)
         return status
     }

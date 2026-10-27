@@ -7870,6 +7870,16 @@
         }
       }
     },
+    "Open Storage Settings" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buka Pengaturan Penyimpanan"
+          }
+        }
+      }
+    },
     "Open System Settings" : {
       "localizations" : {
         "id" : {

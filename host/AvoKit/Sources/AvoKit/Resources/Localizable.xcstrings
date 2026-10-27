@@ -398,6 +398,26 @@
         }
       }
     },
+    "Android is waiting because the Mac’s disk is full. Free some space, and Android goes on." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android menunggu karena disk Mac penuh. Kosongkan sebagian ruang, lalu Android berjalan lagi."
+          }
+        }
+      }
+    },
+    "Android is waiting because “%@” is full. Free some space on it, and Android goes on." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android menunggu karena “%@” penuh. Kosongkan sebagian ruang di sana, lalu Android berjalan lagi."
+          }
+        }
+      }
+    },
     "Android keeps its storage on this disk. Avo is stopping Android; eject the disk again in a moment." : {
       "localizations" : {
         "id" : {
@@ -2025,6 +2045,16 @@
         }
       }
     },
+    "The Mac’s disk has only %@ free. When it is full, Android waits until you free some space." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disk Mac hanya punya %@ ruang kosong. Jika penuh, Android menunggu sampai Anda mengosongkan sebagian ruang."
+          }
+        }
+      }
+    },
     "The Magisk download is not the expected file" : {
       "localizations" : {
         "id" : {
@@ -3012,6 +3042,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "paket tidak ditandatangani"
+          }
+        }
+      }
+    },
+    "“%@” has only %@ free. When it is full, Android waits until you free some space on it." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” hanya punya %2$@ ruang kosong. Jika penuh, Android menunggu sampai Anda mengosongkan sebagian ruang di sana."
           }
         }
       }
