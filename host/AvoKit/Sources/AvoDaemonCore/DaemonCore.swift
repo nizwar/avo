@@ -114,6 +114,8 @@ public actor DaemonCore {
     nonisolated let storage: StorageLocations
     /// What Android's GPS reports: this Mac, a place or a route (LocationCenter.swift).
     nonisolated let location: LocationCenter
+    /// What installs Android stopped in left behind (InstallPipeline.swift).
+    nonisolated let installJournal: InstallJournal
     private let adb: ADBForwarder
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "Daemon")
 
@@ -229,6 +231,7 @@ public actor DaemonCore {
         self.vm = vm
         fingerprints = FingerprintCenter(paths: deps.paths, engine: deps.engine)
         usage = AppUsageRecorder(url: deps.paths.usage)
+        installJournal = InstallJournal(paths: deps.paths)
         placedWidgets = Self.loadWidgets(deps.paths)
         adb = ADBForwarder { try await vm.adbSocket() }
         location = LocationCenter(engine: deps.engine as? any LocationEngine, wake: { try? await vm.wake() },
@@ -819,6 +822,7 @@ public actor DaemonCore {
                 storageCheckedAt = nil
                 _ = await dataDiskStatus()
                 Task { await refreshWidgetRules() }
+                Task { await tidyInstalls() }
             case .apps:
                 await syncApps()
                 Task { await refreshWidgetRules() }
@@ -843,6 +847,13 @@ public actor DaemonCore {
         default:
             break
         }
+    }
+
+    /// What an install Android stopped in left behind (its `pm` sessions,
+    /// a copy of game data that did not finish), tidied up once Android runs.
+    private func tidyInstalls() async {
+        guard installJournal.hasLeftovers, let adb = try? await vm.adbConnection() else { return }
+        await InstallPipeline.tidyUp(installJournal, adb: adb)
     }
 
     /// After boot, the guest's package list is authoritative.
@@ -1040,7 +1051,7 @@ public actor DaemonCore {
         let settings = self.settings
         do {
             let package = try await InstallPipeline().run(
-                request, file: file,
+                request, file: file, journal: installJournal,
                 ensureRunning: { [weak self] in
                     // Through the core: an interrupted Google apps commit
                     // is seen through before Android boots with it.

@@ -2936,6 +2936,26 @@
         }
       }
     },
+    "its game data (OBB) could not be copied to Android, so Avo uninstalled the app again: %@" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "data game-nya (OBB) tidak bisa disalin ke Android, jadi Avo menguninstal aplikasinya lagi: %@"
+          }
+        }
+      }
+    },
+    "its game data (OBB) could not be copied to Android: %@. Avo uninstalls the app the next time Android starts" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "data game-nya (OBB) tidak bisa disalin ke Android: %@. Avo menguninstal aplikasinya saat Android dimulai lagi"
+          }
+        }
+      }
+    },
     "macOS can’t translate between these languages." : {
       "localizations" : {
         "id" : {
@@ -3012,6 +3032,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "aplikasi butuh versi Android yang lebih baru"
+          }
+        }
+      }
+    },
+    "the app was updated, but its game data (OBB) could not be copied to Android: %@. Install it again to copy it" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "aplikasinya sudah diperbarui, tetapi data game-nya (OBB) tidak bisa disalin ke Android: %@. Instal lagi untuk menyalinnya"
           }
         }
       }

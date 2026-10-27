@@ -215,6 +215,8 @@ public final class FakeEngine: VMEngine, @unchecked Sendable {
     public var adbShellHandler: (@Sendable (String) -> (stdout: String, stderr: String, exit: UInt8))?
     /// Shell commands that adbd starts and never ends (FakeADBD.neverEnds).
     public var adbNeverEnds: (@Sendable (String) -> Bool)?
+    /// Why adbd refuses a push to a path (FakeADBD.pushFailure).
+    public var adbPushFailure: (@Sendable (String) -> String?)?
 
     public init(agent: FakeBridgeAgent, adbPublicKey: SecKey? = nil) {
         self.agent = agent
@@ -294,14 +296,16 @@ public final class FakeEngine: VMEngine, @unchecked Sendable {
                 throw IOError.handshake("no adbd")
             }
             let device = FakeADBD(fileDescriptor: guest, publicKey: adbPublicKey, maxPayload: 256 * 1024)
-            let (handler, neverEnds) = lock.withLock { () -> ((@Sendable (String) -> (stdout: String, stderr: String, exit: UInt8))?,
-                                                               (@Sendable (String) -> Bool)?) in
+            let (handler, neverEnds, pushFailure) = lock.withLock {
+                () -> ((@Sendable (String) -> (stdout: String, stderr: String, exit: UInt8))?, (@Sendable (String) -> Bool)?,
+                       (@Sendable (String) -> String?)?) in
                 adbd = device
-                return (adbShellHandler, adbNeverEnds)
+                return (adbShellHandler, adbNeverEnds, adbPushFailure)
             }
             Task {
                 if let handler { await device.setShellHandler(handler) }
                 if let neverEnds { await device.setStalls(neverEnds: neverEnds) }
+                if let pushFailure { await device.setPushFailure(pushFailure) }
                 await device.run()
             }
         default:

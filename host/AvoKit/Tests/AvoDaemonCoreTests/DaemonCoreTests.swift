@@ -574,6 +574,97 @@ struct Harness {
         #expect(await eventually { await harness.core.apps().contains { $0.package == "com.avodroid.fixture" } })
     }
 
+    /// adbd for an XAPK install: sessions are created and committed (the
+    /// commit makes Android announce the app), and `installed` says whether
+    /// Android had the app before (`pm path`).
+    static func installingADBD(_ harness: Harness, installed: Bool) -> @Sendable (String) -> (stdout: String, stderr: String, exit: UInt8) {
+        let agent = harness.agent
+        return { command in
+            if command.hasPrefix("pm install-create") { return ("Success: created install session [42]\n", "", 0) }
+            if command == "pm install-commit 42" {
+                Task { await agent.install(FakeBridgeAgent.app("com.avodroid.fixture", label: "Avo Fixture")) }
+                return ("Success\n", "", 0)
+            }
+            if command == "pm path 'com.avodroid.fixture'" {
+                return installed ? ("package:/data/app/com.avodroid.fixture/base.apk\n", "", 0) : ("", "", 1)
+            }
+            if command.hasPrefix("rm -f ") || command.hasPrefix("pm uninstall ") || command.hasPrefix("pm install-abandon ") {
+                return ("Success\n", "", 0)
+            }
+            return ("", "unexpected", 1)
+        }
+    }
+
+    static let fixtureOBB = "/sdcard/Android/obb/com.avodroid.fixture/main.42.com.avodroid.fixture.obb"
+
+    /// Android's storage fills while the game data is copied: the app,
+    /// new to Android, goes again with what was copied, and the install
+    /// says why, true to what Settings › Storage can do.
+    @Test func aGameWhoseDataCannotBeCopiedIsTakenOutAgain() async throws {
+        let harness = try Harness(apps: [])
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        let (panel, events) = await harness.connect(.controlPanel)
+        harness.engine.adbShellHandler = Self.installingADBD(harness, installed: false)
+        harness.engine.adbPushFailure = { _ in "write failed: No space left on device" }
+        let xapk = packageFixture("fixture.xapk")
+        await #expect(throws: (any Error).self) {
+            try await harness.core.install(InstallRequest(path: xapk.path), file: try open(xapk), client: panel)
+        }
+        let adbd = try #require(harness.engine.adbd)
+        let commands = await adbd.shellCommands
+        #expect(commands.contains("rm -f '\(Self.fixtureOBB)'"))
+        #expect(commands.contains("pm uninstall 'com.avodroid.fixture'"))
+        let failed = events.events.compactMap { if case .installProgress(let p) = $0, p.phase == .failed { p.message } else { nil } }
+        let message = try #require(failed.last)
+        #expect(message.contains("its game data (OBB) could not be copied to Android, so Avo uninstalled the app again"), "\(message)")
+        #expect(message.contains(InstallPipeline.outOfStorage))
+        #expect(!FileManager.default.fileExists(atPath: InstallJournal.url(harness.paths).path), "nothing left to tidy up")
+    }
+
+    /// The same for an update: the app stays (its data is the user's), and
+    /// the install says its game data still needs copying.
+    @Test func anUpdateWhoseDataCannotBeCopiedKeepsTheApp() async throws {
+        let harness = try Harness(apps: [])
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        let (panel, events) = await harness.connect(.controlPanel)
+        harness.engine.adbShellHandler = Self.installingADBD(harness, installed: true)
+        harness.engine.adbPushFailure = { _ in "write failed: Input/output error" }
+        let xapk = packageFixture("fixture.xapk")
+        await #expect(throws: (any Error).self) {
+            try await harness.core.install(InstallRequest(path: xapk.path), file: try open(xapk), client: panel)
+        }
+        let commands = await (try #require(harness.engine.adbd)).shellCommands
+        #expect(commands.contains("rm -f '\(Self.fixtureOBB)'"))
+        #expect(!commands.contains { $0.hasPrefix("pm uninstall") })
+        let failed = events.events.compactMap { if case .installProgress(let p) = $0, p.phase == .failed { p.message } else { nil } }
+        #expect(failed.last?.contains("the app was updated, but its game data (OBB) could not be copied to Android") == true)
+    }
+
+    /// Android stopped while the app was being installed: the abandon could
+    /// not reach it, so the next start abandons the session Android kept.
+    @Test func aSessionAndroidKeptAfterAStopIsAbandonedAtTheNextStart() async throws {
+        let harness = try Harness(apps: [])
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        let (panel, _) = await harness.connect(.controlPanel)
+        harness.engine.adbShellHandler = Self.installingADBD(harness, installed: false)
+        harness.engine.adbNeverEnds = { $0 == "pm install-commit 42" }
+        let xapk = packageFixture("fixture.xapk")
+        let core = harness.core
+        let install = Task { try await core.install(InstallRequest(path: xapk.path), file: try open(xapk), client: panel) }
+        #expect(await eventually { await harness.engine.adbd?.shellCommands.contains("pm install-commit 42") == true })
+        try await harness.core.stopVM(client: panel)
+        await #expect(throws: (any Error).self) { try await install.value }
+        #expect(harness.core.installJournal.leftovers().map(\.sessions) == [[42]])
+
+        harness.engine.adbNeverEnds = nil
+        try await harness.core.startVM(client: panel)
+        #expect(await eventually { await harness.engine.adbd?.shellCommands.contains("pm install-abandon 42") == true })
+        #expect(await eventually { !harness.core.installJournal.hasLeftovers })
+    }
+
     /// Android's storage keeps its size: the message says what frees room,
     /// in Indonesian too.
     @Test func outOfStorageSaysWhatFreesRoom() throws {

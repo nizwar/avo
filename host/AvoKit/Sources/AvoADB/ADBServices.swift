@@ -167,13 +167,19 @@ extension ADBConnection {
 
     /// Installs APKs with `pm install-create` / `install-write` / `install-commit`,
     /// abandoning the session on failure. `progress` receives bytes written.
+    /// `session` hears of the session once Android created it (`open`), and
+    /// again once Android committed or abandoned it: one it hears of only
+    /// once, Android may still keep, with what was written to it (the
+    /// connection went before the abandon).
     public func install(_ parts: [InstallPart], options: [String] = ["-r"],
-                        progress: (@Sendable (UInt64, UInt64) -> Void)? = nil) async throws {
+                        progress: (@Sendable (UInt64, UInt64) -> Void)? = nil,
+                        session report: (@Sendable (_ session: Int, _ open: Bool) -> Void)? = nil) async throws {
         let total = parts.reduce(UInt64(0)) { $0 + $1.size }
         let create = try await shell("pm install-create \(options.joined(separator: " ")) -S \(total)")
         guard let session = Self.sessionID(create.output) else {
             throw ADBError.install(Self.failure(create) ?? "could not create an install session")
         }
+        report?(session, true)
         do {
             var written: UInt64 = 0
             for part in parts {
@@ -195,8 +201,10 @@ extension ADBConnection {
             guard commit.output.contains("Success") else {
                 throw ADBError.install(Self.failure(commit) ?? "install-commit failed")
             }
+            report?(session, false)
         } catch {
-            _ = try? await shell("pm install-abandon \(session)")
+            // Android answered: the session is gone (a failed commit ends it too).
+            if (try? await shell("pm install-abandon \(session)")) != nil { report?(session, false) }
             throw error
         }
     }
