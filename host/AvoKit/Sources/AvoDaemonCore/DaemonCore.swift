@@ -1471,9 +1471,27 @@ public actor DaemonCore {
         guard await vm.status.state == .running, config.rooted, await !engine.bootedRooted() else { return }
         do {
             if await !engine.hasPatchedImage() { try await engine.prepareRoot() }
-            // Turned off meanwhile: the patched copy waits for the next time.
-            guard config.rooted else { return }
-            logger.notice("root: starting Android again with Magisk")
+        } catch {
+            logger.error("root: \(String(describing: error), privacy: .public)")
+            turnRootOff((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+            return
+        }
+        // Google apps that began changing Android meanwhile (the patch takes
+        // a minute) go on undisturbed: Android starts with Magisk after them.
+        while let run = googleAppsRun { _ = await run.result }
+        // Turned off meanwhile, its data moving, Avo quitting, or started with
+        // Magisk already (by Google apps' own restart): the patched copy
+        // waits for the next start, or is in use.
+        guard config.rooted, !storageChanging, !exiting, !exitingForUpdate,
+              await vm.status.state == .running, await !engine.bootedRooted() else { return }
+        do {
+            try await clearForVMChange(.restart)
+        } catch {
+            logger.notice("root: Google apps change Android; it starts with Magisk next time")
+            return
+        }
+        logger.notice("root: starting Android again with Magisk")
+        do {
             await vm.stop()
             bootedConfig = nil
             rootTrial = true
@@ -1481,15 +1499,30 @@ public actor DaemonCore {
             rootTrial = false
         } catch {
             logger.error("root: \(String(describing: error), privacy: .public)")
+            // No start with Magisk happened (Android's data moves, Avo quits),
+            // or a stop cut it short: no failed trial, and root stays on.
+            let rebooted = await vm.awaitsRestart
+            guard Self.failsRootTrial(error, rebooted: rebooted), !exiting else {
+                rootTrial = false
+                return
+            }
             // Android rebooted (androidRebooted may have seen to it first) or
             // did not get ready with Magisk: it starts again without.
             if rootTrial {
                 rootFailedToBoot()
-                try? await ensureRunning()
+                try? await ensureRunning(restarting: rebooted)
                 return
             }
             turnRootOff((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
         }
+    }
+
+    /// Whether the start with Magisk that ended with `error` failed: not
+    /// when it never began (Android's data moves meanwhile), nor when a
+    /// stop cut it short; it did when Android rebooted before it was ready.
+    static func failsRootTrial(_ error: any Error, rebooted: Bool) -> Bool {
+        if error as? AvoError == .storage(.changing) { return false }
+        return !(error is CancellationError) || rebooted
     }
 
     /// The first start with Magisk did not get Android ready: root goes off,

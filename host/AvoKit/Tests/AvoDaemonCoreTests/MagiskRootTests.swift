@@ -59,9 +59,11 @@ import Testing
 }
 
 /// FakeEngine that roots like VMMEngine: a start boots Magisk when root is
-/// on and an image was patched.
-final class RootFakeEngine: RootEngine, @unchecked Sendable {
+/// on and an image was patched. With a `guest`, its Android takes Google
+/// apps too (FakeSystemApps).
+final class RootFakeEngine: RootEngine, SystemAppsEngine, @unchecked Sendable {
     let inner: FakeEngine
+    let guest: FakeSystemApps?
     private let lock = NSLock()
     private var patched = false
     private var rooted = false
@@ -70,14 +72,25 @@ final class RootFakeEngine: RootEngine, @unchecked Sendable {
     /// Magisk does not start this Android: a rooted start never gets ready,
     /// and Android reboots soon after (avo-vmm's `AndroidRebooted` exit).
     var rebootsRooted = false
+    /// The patch waits for it (Magisk patched inside Android takes a while).
+    var patchGate: Gate?
     var name: String { inner.name }
     var exits: AsyncStream<EngineExit> { inner.exits }
 
-    init(inner: FakeEngine) { self.inner = inner }
+    init(inner: FakeEngine, guest: FakeSystemApps? = nil) {
+        self.inner = inner
+        self.guest = guest
+    }
 
     var launches: [EngineLaunch] { inner.launches }
 
+    func systemApps() async throws -> any SystemAppsGuest {
+        guard let guest else { throw AvoError.vmNotRunning }
+        return try await guest.whenReady()
+    }
+
     func start(_ launch: EngineLaunch) async throws {
+        await guest?.boot()
         let failing = lock.withLock {
             rooted = launch.config.rooted && patched
             return rooted && rebootsRooted
@@ -96,18 +109,44 @@ final class RootFakeEngine: RootEngine, @unchecked Sendable {
         }
     }
 
-    func stop() async { await inner.stop() }
+    func stop() async {
+        // A power off drops the guest's connection: a held commit fails.
+        await guest?.releaseCommit(failing: true)
+        await inner.stop()
+    }
+
     func snapshot(to url: URL) async throws { try await inner.snapshot(to: url) }
     func connect(port: UInt32) async throws -> any ByteStream { try await inner.connect(port: port) }
     func bootedRooted() async -> Bool { lock.withLock { rooted } }
     func hasPatchedImage() async -> Bool { lock.withLock { patched } }
 
     func prepareRoot() async throws {
-        try lock.withLock {
+        let gate = lock.withLock { () -> Gate? in
             prepares += 1
+            return patchGate
+        }
+        await gate?.wait()
+        try lock.withLock {
             if let failure { throw failure }
             patched = true
         }
+    }
+}
+
+/// Holds whoever waits until it opens.
+actor Gate {
+    private var open = false
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        guard !open else { return }
+        await withCheckedContinuation { waiting.append($0) }
+    }
+
+    func release() {
+        open = true
+        for waiter in waiting { waiter.resume() }
+        waiting.removeAll()
     }
 }
 
@@ -119,7 +158,7 @@ final class RootFakeEngine: RootEngine, @unchecked Sendable {
         let notifications = RecordingNotifications()
         let core: DaemonCore
 
-        init(bootTimeout: Duration = .seconds(5)) throws {
+        init(bootTimeout: Duration = .seconds(5), guest: FakeSystemApps? = nil) throws {
             root = FileManager.default.temporaryDirectory.appending(path: "avo-root-daemon-\(UUID().uuidString.prefix(8))")
             let paths = AvoPaths(home: root.appending(path: "home"), temporaryDirectory: root.appending(path: "tmp"))
             self.paths = paths
@@ -136,7 +175,7 @@ final class RootFakeEngine: RootEngine, @unchecked Sendable {
             var builder = ShimBuilder(template: template, hostApplication: URL(filePath: "/Applications/Avo.app"), directory: paths.shims)
             builder.registersWithLaunchServices = false
             let adbKey = try ADBKey.generate()
-            engine = RootFakeEngine(inner: FakeEngine(agent: FakeBridgeAgent(apps: [])))
+            engine = RootFakeEngine(inner: FakeEngine(agent: FakeBridgeAgent(apps: [])), guest: guest)
             let image = AndroidImage(schema: 1, version: "17.0.0-test", sdk: 37, kernel: "kernel", initrd: nil,
                                      partitions: ["system.img"], overlayStock: "overlay.img", overlayRooted: "overlay-rooted.img", files: [])
             let profiles = DeviceProfileCatalog(profiles: [DeviceProfile(id: DeviceProfile.defaultID, name: "Avo Virtual Device", properties: [:])])
@@ -153,6 +192,13 @@ final class RootFakeEngine: RootEngine, @unchecked Sendable {
         }
 
         func cleanUp() { try? FileManager.default.removeItem(at: root) }
+
+        /// The Control Panel's copy of a Google apps package, inside the cache.
+        func cachedPackage() throws -> URL {
+            let folder = paths.googleAppsCache.appending(path: UUID().uuidString, directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            return try googleAppsPackageFolder(in: folder)
+        }
     }
 
     private func rootedAndRunning(_ harness: Harness) async -> Bool {
@@ -218,6 +264,49 @@ final class RootFakeEngine: RootEngine, @unchecked Sendable {
         #expect(harness.notifications.posted.map(\.title) == ["Root could not be turned on"])
         let kept = try String(contentsOf: MagiskRoot.failedBootLog(harness.paths), encoding: .utf8)
         #expect(kept.contains("init: Reboot start, reason: test"))
+    }
+
+    /// Google apps begin changing Android while Magisk is patched: the patch
+    /// cuts nothing off, and the start they end with is Magisk's.
+    @Test func googleAppsDuringThePatchGoOnUndisturbed() async throws {
+        let guest = FakeSystemApps(verity: false, overlayReady: true)
+        await guest.set(holdCommit: true)
+        let harness = try Harness(guest: guest)
+        defer { harness.cleanUp() }
+        let gate = Gate()
+        harness.engine.patchGate = gate
+        let panel = await harness.controlPanel()
+        try await harness.core.startVM(client: panel)
+        var config = await harness.core.configurationSnapshot().config
+        config.rooted = true
+        _ = try await harness.core.updateConfiguration(config, client: panel)
+        #expect(await eventually { harness.engine.prepares == 1 })
+
+        let request = GoogleAppsInstallRequest(source: .local(path: try harness.cachedPackage().path))
+        let core = harness.core
+        let install = Task { try await core.installGoogleApps(request, client: panel) }
+        #expect(await eventually { await guest.commitIsHeld })
+        await gate.release()
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(await guest.commitIsHeld, "no restart cut the commit off")
+        #expect(harness.engine.launches.count == 1)
+        await guest.releaseCommit()
+        try await install.value
+        #expect(await eventually { await rootedAndRunning(harness) })
+        #expect(harness.engine.launches.map(\.config.rooted) == [false, true], "Google apps' restart is Magisk's start")
+        let after = await harness.core.configurationSnapshot().config
+        #expect(after.rooted && after.gms == .bringYourOwn)
+        #expect(harness.notifications.posted.isEmpty)
+    }
+
+    /// A start with Magisk that never began (Android's data moving), or that
+    /// a stop cut short, did not fail its trial; Android's own reboot did.
+    @Test func onlyAStartThatRanFailsTheRootTrial() {
+        #expect(DaemonCore.failsRootTrial(AvoError.timedOut("Android boot"), rebooted: false))
+        #expect(DaemonCore.failsRootTrial(AvoError.vmStartFailed("engine crashed"), rebooted: false))
+        #expect(!DaemonCore.failsRootTrial(AvoError.storage(.changing), rebooted: false))
+        #expect(!DaemonCore.failsRootTrial(CancellationError(), rebooted: false), "a stop")
+        #expect(DaemonCore.failsRootTrial(CancellationError(), rebooted: true), "Android's own reboot")
     }
 }
 

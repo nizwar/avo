@@ -267,6 +267,10 @@ public actor VMManager {
     /// no start under way, no reboot of Android's own still to take up.
     public var holdsNothing: Bool { !status.state.holdsAndroid && booting == nil && !restartPending }
 
+    /// Android rebooted itself or asked for its reset, and its start again
+    /// has not begun: a start that reboot cut short is the daemon's to see to.
+    public var awaitsRestart: Bool { restartPending || restartAwaited }
+
     /// The daemon took up Android's reboot or reset (`reboots`, `factoryResets`).
     public func restartTaken() {
         restartPending = false
