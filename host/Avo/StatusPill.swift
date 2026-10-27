@@ -60,11 +60,12 @@ struct StatusPill: View {
     @ViewBuilder private var actions: some View {
         let state = model.status.state
         let connected = model.daemonState == .connected
-        if state == .running {
+        // A boot can take minutes: it can be stopped too.
+        if state == .running || state == .starting {
             Button { model.stopVM() } label: { Image(systemName: "stop.fill").font(.system(size: 14)) }
                 .buttonStyle(HazeIconButtonStyle())
-                .disabled(model.googleAppsChangingAndroid)
-                .help("Stop Android. Open apps close.")
+                .disabled(!connected || model.googleAppsChangingAndroid)
+                .help(state == .starting ? Text("Stop Android while it starts.") : Text("Stop Android. Open apps close."))
                 .accessibilityLabel(Text("Stop Android"))
                 .transition(swap)
         } else {
@@ -75,10 +76,19 @@ struct StatusPill: View {
                 .help(state == .suspended ? Text("Resume Android") : Text("Start Android in the background."))
                 .accessibilityLabel(state == .suspended ? Text("Resume Android") : Text("Start Android"))
                 .transition(swap)
+            // Paused: resumed by Play, or stopped from here.
+            if state == .suspended {
+                Button { model.stopVM() } label: { Image(systemName: "stop.fill").font(.system(size: 14)) }
+                    .buttonStyle(HazeIconButtonStyle())
+                    .disabled(!connected || model.googleAppsChangingAndroid)
+                    .help("Stop Android. Open apps close.")
+                    .accessibilityLabel(Text("Stop Android"))
+                    .transition(swap)
+            }
         }
         Button { model.restartVM() } label: { Image(systemName: "arrow.clockwise").font(.system(size: 15, weight: .semibold)) }
             .buttonStyle(HazeIconButtonStyle(fill: model.pendingRestart ? Haze.accent.opacity(0.22) : Haze.button))
-            .disabled(state != .running || model.googleAppsChangingAndroid)
+            .disabled(state != .running || !connected || model.googleAppsChangingAndroid)
             .help(model.pendingRestart ? Text("Restart Android to apply your changes. Your apps and data are kept.") : Text("Restart Android"))
             .accessibilityLabel(Text("Restart Android"))
     }

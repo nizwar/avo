@@ -117,6 +117,7 @@ final class ControlPanelModel {
     @ObservationIgnored var locationWatchers = 0
     /// Packages opened while another had the install sheet, in turn.
     @ObservationIgnored private var queuedInstalls: [URL] = []
+    @ObservationIgnored private var lastVMAction: ContinuousClock.Instant?
     /// Installs hidden while they ran (Hide), by request, with their names.
     @ObservationIgnored private var hiddenInstalls: [UUID: String] = [:]
     /// How much each app was used, by package (the Library's statistics).
@@ -489,8 +490,23 @@ final class ControlPanelModel {
     // MARK: VM
 
     func startVM() { perform { try await $0.startVM() } }
-    func stopVM() { performUnlessInstalling { try await $0.stopVM() } }
-    func restartVM() { performUnlessInstalling { try await $0.restartVM() } }
+    func stopVM() {
+        guard takesVMAction() else { return }
+        performUnlessInstalling { try await $0.stopVM() }
+    }
+    func restartVM() {
+        guard takesVMAction() else { return }
+        performUnlessInstalling { try await $0.restartVM() }
+    }
+
+    /// Stop and Restart a second time within a second (a double-click,
+    /// before the daemon's new state arrives) ask nothing more.
+    private func takesVMAction() -> Bool {
+        let now = ContinuousClock.now
+        if let last = lastVMAction, now - last < .seconds(1) { return false }
+        lastVMAction = now
+        return true
+    }
     func retryGPU() { performUnlessInstalling { try await $0.retryGPU() } }
     func takeSnapshot() { performUnlessInstalling { try await $0.takeSnapshot() } }
 
