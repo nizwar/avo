@@ -248,6 +248,13 @@ public actor DaemonCore {
                 for await lock in updates { await self?.screenLockChanged(lock) }
             }
         }
+        // Android stopped answering (the Control Panel offers a Restart).
+        if let engine = deps.engine as? any ResponsivenessEngine {
+            let updates = engine.responsiveness
+            Task {
+                for await since in updates { await vm.setNotResponding(since: since) }
+            }
+        }
         // Before start, which already asks macOS: its answer reaches the Control Panel.
         deps.notifications.observePermission { [weak self] permission in
             Task { await self?.broadcast(.macNotifications(permission), to: { $0 == .controlPanel }) }
@@ -321,8 +328,10 @@ public actor DaemonCore {
     /// (System Status' samples tell while it shows: `processesSampled`).
     private func pollRunningApps() async {
         guard !systemMonitor.hasFreshProcesses() else { return }
+        // An Android that stopped answering is not asked again and again.
         guard clients.values.contains(where: { $0.role == .controlPanel }), await vm.status.state == .running,
-              let adb = try? await vm.adbConnection(), let output = try? await adb.shell("ps -A -o NAME").output else { return }
+              await !vm.status.isNotResponding, let adb = try? await vm.adbConnection(),
+              let output = try? await adb.shell("ps -A -o NAME", timeout: .seconds(10)).output else { return }
         let packages = Set(await registry.all().map(\.package))
         runningPackages = Self.packages(inProcessList: output, among: packages)
         publishActivity()
@@ -674,6 +683,9 @@ public actor DaemonCore {
                 await androidResumed()
                 break
             }
+            // Nothing to catch up on from an Android that stopped answering
+            // (asking would only hold the next statuses back); it is, once it answers.
+            guard !status.isNotResponding else { break }
             await syncApps()
             // Android keeps the cap in its settings: this start follows the
             // configuration, also one changed while Android was stopped.
@@ -864,10 +876,12 @@ public actor DaemonCore {
     }
 
     /// Android's storage for Settings › Storage: asked again from Android
-    /// while it runs (at most every 15 s), else what it said last.
+    /// while it runs and answers (at most every 15 s), else what it said
+    /// last. Every Control Panel and new window waits for it.
     private func dataDiskStatus() async -> DataDiskStatus {
         let store = DataDiskStore(paths: deps.paths)
-        if await vm.status.state == .running, let engine = deps.engine as? any GuestStorageEngine,
+        let status = await vm.status
+        if status.state == .running, !status.isNotResponding, let engine = deps.engine as? any GuestStorageEngine,
            storageCheckedAt.map({ ContinuousClock.now - $0 > .seconds(15) }) ?? true {
             storageCheckedAt = .now
             if let storage = await engine.androidStorage() { store.remember(storage) }
@@ -992,7 +1006,8 @@ public actor DaemonCore {
         try requireControlPanel(client)
         guard let engine = deps.engine as? any SystemAppsEngine else { return GoogleAppsStatus(supported: false) }
         var status = GoogleAppsStatus(supported: true)
-        if await vm.status.state == .running, let guest = try? await engine.systemApps() {
+        let android = await vm.status
+        if android.state == .running, !android.isNotResponding, let guest = try? await engine.systemApps() {
             status = await guest.googleAppsStatus()
             // Installed before Avo kept the record: the Android running now has them.
             if status.installed == true, googleAppsRun == nil, GoogleAppsRecord.load(deps.paths) == nil {

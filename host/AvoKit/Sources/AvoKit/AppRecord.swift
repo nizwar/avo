@@ -104,10 +104,15 @@ public struct VMStatus: Codable, Equatable, Sendable {
     /// While Android is paused or being paused (nil otherwise, and from an
     /// older daemon).
     public var pause: VMPause?
+    /// Android runs but stopped answering: since when it has not (about half
+    /// a minute before it is reported). Nil while it answers, while it is
+    /// paused or not running, and from an older daemon. A Restart is what
+    /// brings such an Android back.
+    public var notRespondingSince: Date?
 
     public init(state: VMState, detail: String? = nil, androidVersion: String? = nil,
                 protocolVersion: UInt32? = nil, bootedAt: Date? = nil, openDisplays: Int = 0, renderer: RendererStatus? = nil,
-                screenLock: AndroidScreenLock? = nil, pause: VMPause? = nil) {
+                screenLock: AndroidScreenLock? = nil, pause: VMPause? = nil, notRespondingSince: Date? = nil) {
         self.state = state
         self.detail = detail
         self.androidVersion = androidVersion
@@ -117,12 +122,16 @@ public struct VMStatus: Codable, Equatable, Sendable {
         self.renderer = renderer
         self.screenLock = screenLock
         self.pause = pause
+        self.notRespondingSince = notRespondingSince
     }
 
     public static let stopped = VMStatus(state: .stopped)
 
     /// Paused, or being paused: Android goes on by itself when used.
     public var isPaused: Bool { state == .suspended || state == .suspending }
+
+    /// Android runs but stopped answering (`notRespondingSince`).
+    public var isNotResponding: Bool { state == .running && notRespondingSince != nil }
 }
 
 /// Why and since when Android is paused.

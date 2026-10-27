@@ -57,6 +57,9 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     /// "Screen lock"), at every start and as it changes; ScreenLockEngine.
     public let screenLockUpdates: AsyncStream<AndroidScreenLock?>
     private let screenLockSink: AsyncStream<AndroidScreenLock?>.Continuation
+    /// Whether Android itself still answers (HostAgent's "Answers"); ResponsivenessEngine.
+    public let responsiveness: AsyncStream<Date?>
+    private let responsivenessSink: AsyncStream<Date?>.Continuation
     private let exitSink: AsyncStream<(any Error)?>.Continuation
     private let frameQueue: FrameDeliveryQueue
     private let linkSink: AsyncStream<URL>.Continuation
@@ -110,6 +113,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         (links, linkSink) = AsyncStream.makeStream(of: URL.self, bufferingPolicy: .bufferingNewest(16))
         (renderer, rendererSink) = AsyncStream.makeStream(of: RendererStatus.self, bufferingPolicy: .bufferingNewest(4))
         (screenLockUpdates, screenLockSink) = AsyncStream.makeStream(of: AndroidScreenLock?.self, bufferingPolicy: .bufferingNewest(8))
+        (responsiveness, responsivenessSink) = AsyncStream.makeStream(of: Date?.self, bufferingPolicy: .bufferingNewest(4))
     }
 
     /// avo-vmm's exit when Android asked for a factory reset (cuttlefish.rs).
@@ -371,6 +375,8 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         await agent.forwardLinks { linkSink.yield($0) }
         let screenLockSink = self.screenLockSink
         await agent.forwardScreenLock { screenLockSink.yield($0) }
+        let responsivenessSink = self.responsivenessSink
+        await agent.forwardResponsiveness { responsivenessSink.yield($0) }
         await agent.shareFolder(Self.sharedFolderFlags(launch.config).last.map { URL(filePath: $0, directoryHint: .isDirectory) })
         await agent.useDisplayRate(launch.displayRate)
         await agent.useBluetooth(bluetooth != nil)
@@ -829,6 +835,8 @@ extension VMMEngine: GuestStorageEngine {
         return await agent.storage()
     }
 }
+
+extension VMMEngine: ResponsivenessEngine {}
 
 extension VMMEngine: ScreenLockEngine {
     public func screenLock() async -> AndroidScreenLock? {

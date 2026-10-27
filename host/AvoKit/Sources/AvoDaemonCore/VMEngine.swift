@@ -67,6 +67,13 @@ public protocol PausableEngine: VMEngine {
     func onUse(_ wake: @escaping @Sendable () async -> Void)
 }
 
+/// An engine that tells when Android itself stops answering while the
+/// engine runs on (VMStatus.notRespondingSince).
+public protocol ResponsivenessEngine: VMEngine {
+    /// Nil while Android answers, else since when it has not.
+    var responsiveness: AsyncStream<Date?> { get }
+}
+
 public struct EngineActivity: Sendable, Equatable {
     /// Android plays sound, or records from the microphone.
     public var playing: Bool
