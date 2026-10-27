@@ -358,12 +358,12 @@
         }
       }
     },
-    "Android is out of storage; enlarge the data disk in Settings › Storage" : {
+    "Android is out of storage; uninstall apps or clear their data to make room, or use Change Size in Settings › Storage, which erases Android’s data" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "storage Android penuh; perbesar disk data di Pengaturan › Storage"
+            "value" : "penyimpanan Android penuh; uninstal aplikasi atau hapus datanya untuk memberi ruang, atau gunakan Ubah Ukuran di Pengaturan › Storage, yang menghapus data Android"
           }
         }
       }

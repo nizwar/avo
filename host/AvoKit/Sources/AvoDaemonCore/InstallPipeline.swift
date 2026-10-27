@@ -69,12 +69,18 @@ public struct InstallPipeline: Sendable {
         return summary.packageName
     }
 
+    /// Android's storage keeps the size it was created with: only erasing
+    /// Android's data changes it (Settings › Storage › Change Size).
+    static var outOfStorage: String {
+        String(localized: "Android is out of storage; uninstall apps or clear their data to make room, or use Change Size in Settings › Storage, which erases Android’s data",
+               bundle: .avoKit)
+    }
+
     /// Turns PackageManager failure codes into sentences.
     static func friendly(_ message: String) -> String {
         let known: [(String, String)] = [
             ("INSTALL_FAILED_NO_MATCHING_ABIS", String(localized: "the app has no 64-bit ARM code", bundle: .avoKit)),
-            ("INSTALL_FAILED_INSUFFICIENT_STORAGE",
-             String(localized: "Android is out of storage; enlarge the data disk in Settings › Storage", bundle: .avoKit)),
+            ("INSTALL_FAILED_INSUFFICIENT_STORAGE", outOfStorage),
             ("INSTALL_FAILED_UPDATE_INCOMPATIBLE",
              String(localized: "an installed version is signed with a different key; uninstall it first", bundle: .avoKit)),
             ("INSTALL_FAILED_VERSION_DOWNGRADE", String(localized: "a newer version is already installed", bundle: .avoKit)),
