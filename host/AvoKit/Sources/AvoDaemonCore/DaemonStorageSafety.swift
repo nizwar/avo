@@ -124,8 +124,7 @@ extension DaemonCore {
 
     /// What of the data's records Reset Android could not remove.
     static func resetLeftovers(_ names: [String]) -> AvoError? {
-        guard !names.isEmpty else { return nil }
-        return AvoError.internalError(String(localized: "Android was reset, but Avo couldn’t remove \(names.joined(separator: ", ")) beside its data.", bundle: .avoKit))
+        names.isEmpty ? nil : .resetLeftovers(names)
     }
 
     // MARK: Room for Android's writes (StorageSpace)

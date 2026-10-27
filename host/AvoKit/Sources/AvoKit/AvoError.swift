@@ -35,6 +35,9 @@ public enum AvoError: Error, Codable, Equatable, Sendable, LocalizedError {
     case storage(StorageProblem)
     /// Translate Screen's engine did not translate (ScreenTextRequests.swift).
     case translation(TranslationProblem)
+    /// Reset Android erased Android's data, but these stayed beside it (its
+    /// snapshots, checkpoints or records): the reset itself is done.
+    case resetLeftovers([String])
 
     public var errorDescription: String? {
         switch self {
@@ -62,6 +65,8 @@ public enum AvoError: Error, Codable, Equatable, Sendable, LocalizedError {
         case .fingerprint(let problem): problem.message
         case .storage(let problem): problem.message
         case .translation(let problem): problem.message
+        case .resetLeftovers(let names):
+            String(localized: "Android was reset, but Avo couldn’t remove \(names.joined(separator: ", ")) beside its data.", bundle: .avoKit)
         }
     }
 }

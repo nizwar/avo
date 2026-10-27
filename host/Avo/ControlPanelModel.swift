@@ -657,12 +657,24 @@ final class ControlPanelModel {
         Task {
             do {
                 let client = try await connectedClient()
-                try await client.resetAndroid()
+                // Reset, with something beside the data left: the data is
+                // gone all the same, so the new size applies; then that is said.
+                var leftovers: AvoError?
+                do {
+                    try await client.resetAndroid()
+                } catch let error as AvoError {
+                    guard case .resetLeftovers = error else { throw error }
+                    leftovers = error
+                }
                 var config = try await client.configuration().config
                 config.dataDiskGiB = gb
                 let result = try await client.updateConfiguration(config)
                 configIssues = result.issues
-                if let issue = result.issues.first(where: { $0.severity == .error }) { lastError = issue.message }
+                if let issue = result.issues.first(where: { $0.severity == .error }) {
+                    lastError = issue.message
+                } else if let leftovers {
+                    lastError = leftovers.localizedDescription
+                }
             } catch {
                 lastError = error.localizedDescription
             }
