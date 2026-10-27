@@ -9,7 +9,9 @@ import os
 /// a checkpoint restore cut short is finished or undone when the daemon
 /// starts, before anything can start Android on disks from two sides
 /// (every start tries again first, and `prepareForStart` refuses while it
-/// is not done).
+/// is not done). Then what a restore or a move cut short left goes: their
+/// staging folders, which on a drive without sparse files take the data
+/// disk's whole size.
 extension DaemonCore {
     private var safetyLogger: Logger { Logger(subsystem: AvoIdentifiers.logSubsystem, category: "Storage") }
 
@@ -19,6 +21,11 @@ extension DaemonCore {
 
     func recoverInterruptedWork() async {
         await finishInterruptedRestore()
+        // Only what nothing owns: a restore never waits between making its
+        // staging folder and removing it, so none runs across this actor's
+        // turns, and the storage actor leaves a move's alone while it runs.
+        CheckpointStore(paths: deps.paths).removeLeftoverStaging()
+        await storage.cleanInterruptedMoves()
     }
 
     // MARK: Reset Android (eraseAndroid)

@@ -1588,6 +1588,15 @@ the record, cached by the file's identity).
   `leavesCheckpoints` (the daemon refuses it otherwise, before anything
   changes). Replacing or removing the copy in Avo's own storage says how
   many checkpoints go with it.
+- **Left behind.** A move notes the folder it copies into
+  (`data-moves.json` in Application Support) until its copy is in place or
+  gone. As the daemon starts, once a restore cut short is finished and while
+  no move runs, the staging folders that work left go (`.avo-moving`, which
+  on a drive without sparse files is as big as the data disk, with the
+  folder the move made when it is empty; `.avo-restoring`), also those in
+  Avo's own storage and the data's folder from before moves were noted. A
+  noted drive that isn't connected is looked at again at the next start,
+  for a month.
 - **Checks** (`inspect`): FAT, network volumes, read-only volumes,
   cloud-synced folders and Avo's own folder are refused; exFAT and Mac OS
   Extended (no sparse files) and other formats warn; free space is checked

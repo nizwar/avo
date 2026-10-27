@@ -299,7 +299,7 @@ public actor DaemonCore {
         // guarded against an eject while Android uses it.
         let storage = self.storage
         Task { _ = await storage.status() }
-        // What a restore Avo did not see to its end left (DaemonStorageSafety.swift).
+        // What a restore or a move Avo did not see to its end left (DaemonStorageSafety.swift).
         startStorageSafety()
         if let volumes = deps.volumes {
             let volumeGuard = storage.volumeGuard
