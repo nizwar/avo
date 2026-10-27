@@ -984,12 +984,20 @@ private struct ReadyStep: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "bolt.horizontal.circle").font(.system(size: 18)).foregroundStyle(Haze.warning)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Avo’s background service isn’t running yet.").font(.mona(14, 600))
-                    if model.daemonState == .needsApproval {
+                    switch model.daemonState {
+                    case .unavailable(let reason):
+                        // Why, as the Library's banner says it, and its Retry.
+                        Text(verbatim: reason).font(.mona(14, 600)).fixedSize(horizontal: false, vertical: true)
+                        Button("Retry") { model.retryDaemon() }
+                            .buttonStyle(HazeButtonStyle(kind: .secondary, height: 34, fontSize: 13, horizontalPadding: 14))
+                    case .needsApproval:
+                        Text("Avo’s background service isn’t running yet.").font(.mona(14, 600))
                         Text("Allow Avo in System Settings › General › Login Items & Extensions.")
                             .font(.mona(12.5)).foregroundStyle(Haze.purpose)
                         Button("Open System Settings") { model.openLoginItemsSettings() }
                             .buttonStyle(HazeButtonStyle(kind: .secondary, height: 34, fontSize: 13, horizontalPadding: 14))
+                    case .connecting, .connected:
+                        Text("Connecting to Avo’s background service…").font(.mona(14, 600))
                     }
                 }
             }
