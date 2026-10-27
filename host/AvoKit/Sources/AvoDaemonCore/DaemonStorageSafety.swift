@@ -1,4 +1,5 @@
 import AvoKit
+import AvoPackages
 import Foundation
 import os
 
@@ -10,11 +11,75 @@ import os
 /// (every start tries again first, and `prepareForStart` refuses while it
 /// is not done).
 extension DaemonCore {
+    private var safetyLogger: Logger { Logger(subsystem: AvoIdentifiers.logSubsystem, category: "Storage") }
+
     func startStorageSafety() {
         Task { [weak self] in await self?.recoverInterruptedWork() }
     }
 
     func recoverInterruptedWork() async {
         await finishInterruptedRestore()
+    }
+
+    // MARK: Reset Android (eraseAndroid)
+
+    /// Reset Android erases the data where it is, then Avo's side of it
+    /// (the apps and their shims, Google apps, the fingers in Android).
+    /// Never Avo's side alone: not while the data can't be reached (its
+    /// drive unplugged: Avo would forget every app while the data stays on
+    /// the drive), nor while its place changes (the data disk a move copies
+    /// would come back at the new place).
+    func refuseEraseWithoutData() async throws {
+        let problem = await storage.status().problem
+        // Looked at last, with nothing to wait for before the erase.
+        if storageChanging {
+            throw AvoError.internalError(String(localized: "Avo is changing where Android’s data is. Reset Android once that is done.", bundle: .avoKit))
+        }
+        if let problem {
+            throw AvoError.internalError(String(localized: "Avo can’t reset Android while its data can’t be reached. \(problem.message)", bundle: .avoKit))
+        }
+    }
+
+    /// The data's part of Reset Android. The data disk goes first: when it
+    /// can't, the reset fails before anything else changes. Then the
+    /// snapshots, the checkpoints of the data that went and the records
+    /// that describe it; the names of those that stay (the reset goes on
+    /// without them, and says so once Avo's side is reset too).
+    func eraseAndroidData() throws -> [String] {
+        let paths = deps.paths
+        do {
+            if FileManager.default.fileExists(atPath: paths.dataDisk.path) { try FileManager.default.removeItem(at: paths.dataDisk) }
+        } catch {
+            safetyLogger.error("Reset Android: the data disk stays: \(error.localizedDescription, privacy: .public)")
+            throw AvoError.internalError(String(localized: "Avo couldn’t erase Android’s data: \(error.localizedDescription)", bundle: .avoKit))
+        }
+        var left: [String] = []
+        do {
+            if FileManager.default.fileExists(atPath: paths.snapshots.path) { try FileManager.default.removeItem(at: paths.snapshots) }
+        } catch {
+            safetyLogger.error("Reset Android: the snapshots stay: \(error.localizedDescription, privacy: .public)")
+            left.append(paths.snapshots.lastPathComponent)
+        }
+        do {
+            // Its checkpoints are of the data that went (Reset Android says so).
+            try CheckpointStore(paths: paths).removeAll()
+        } catch {
+            safetyLogger.error("Reset Android: the checkpoints stay: \(error.localizedDescription, privacy: .public)")
+            left.append(CheckpointStore.folderName)
+        }
+        DataDiskStore(paths: paths).forget()
+        GoogleAppsJournal.remove(paths)
+        GoogleAppsRecord.remove(paths)
+        for url in [DataDiskStore(paths: paths).record, GoogleAppsJournal.url(paths)] where FileManager.default.fileExists(atPath: url.path) {
+            safetyLogger.error("Reset Android: \(url.lastPathComponent, privacy: .public) stays")
+            left.append(url.lastPathComponent)
+        }
+        return left
+    }
+
+    /// What of the data's records Reset Android could not remove.
+    static func resetLeftovers(_ names: [String]) -> AvoError? {
+        guard !names.isEmpty else { return nil }
+        return AvoError.internalError(String(localized: "Android was reset, but Avo couldn’t remove \(names.joined(separator: ", ")) beside its data.", bundle: .avoKit))
     }
 }

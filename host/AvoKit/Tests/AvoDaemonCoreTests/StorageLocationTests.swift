@@ -704,6 +704,55 @@ import Testing
         try await harness.core.startVM(client: panel)
         #expect(await harness.core.status().state == .running)
     }
+
+    /// Reset Android with the data's drive unplugged would forget every app
+    /// while the data stays on the drive: refused, and nothing changes.
+    @Test func resetAndroidNeedsTheDataItErases() async throws {
+        let harness = try Harness(apps: [FakeBridgeAgent.app("org.fdroid.fdroid", label: "F-Droid")])
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        let (panel, _) = await harness.connect(.controlPanel)
+        try await harness.core.startVM(client: panel)
+        #expect(await harness.waitForShims(1))
+        let drive = harness.root.appending(path: "Drive", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: drive, withIntermediateDirectories: true)
+        try await harness.core.changeStorageLocation(StorageChangeRequest(destination: drive.path, action: .move(keepOldCopy: false),
+                                                                          stopAndroid: true), client: panel)
+        let folder = drive.appending(path: "Avo Android Data")
+        #expect(FileManager.default.fileExists(atPath: folder.appending(path: "userdata.img").path))
+
+        // Unplugged: the data's volume isn't connected.
+        let record = try #require(StorageLocationRecord.load(harness.paths))
+        try StorageLocationRecord(path: "/Volumes/AvoNoSuchDrive-\(UUID().uuidString.prefix(6))/Avo Android Data", volumeName: "Travel SSD",
+                                  volumeUUID: UUID().uuidString, dataID: record.dataID).save(harness.paths)
+        let error = await #expect(throws: AvoError.self) { try await harness.core.resetAndroid(client: panel) }
+        #expect(error?.errorDescription?.contains("“Travel SSD”, which isn’t connected") == true)
+        #expect(await harness.core.apps().count == 1, "the apps stay with the data they are in")
+        #expect(FileManager.default.fileExists(atPath: folder.appending(path: "userdata.img").path))
+
+        // Back: the reset erases the data there, then Avo's side.
+        try record.save(harness.paths)
+        try await harness.core.resetAndroid(client: panel)
+        #expect(!FileManager.default.fileExists(atPath: folder.appending(path: "userdata.img").path))
+        #expect(await harness.core.apps().isEmpty)
+    }
+
+    /// A data disk that can't be removed fails the reset before Avo forgets anything.
+    @Test func aDataDiskThatStaysFailsTheReset() async throws {
+        let harness = try Harness(apps: [FakeBridgeAgent.app("org.fdroid.fdroid", label: "F-Droid")])
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        let (panel, _) = await harness.connect(.controlPanel)
+        try await harness.core.startVM(client: panel)
+        #expect(await harness.waitForShims(1))
+        try await harness.core.stopVM(client: panel)
+        chmod(harness.paths.vm.path, 0o555)
+        defer { chmod(harness.paths.vm.path, 0o755) }
+        let error = await #expect(throws: AvoError.self) { try await harness.core.resetAndroid(client: panel) }
+        #expect(error?.errorDescription?.contains("couldn’t erase Android’s data") == true)
+        #expect(FileManager.default.fileExists(atPath: harness.paths.dataDisk.path))
+        #expect(await harness.core.apps().count == 1)
+    }
 }
 
 final class StorageProgressLog: @unchecked Sendable {
