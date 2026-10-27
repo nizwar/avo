@@ -83,6 +83,8 @@ public enum DiagnosticsReport {
     static let limits: [String: Int] = [
         "daemon.log": 4 << 20, "avo-vmm.log": 2 << 20, "avo-vmm-gpu-failed.log": 1 << 20,
         "kernel.log": 512 << 10, "logcat.log": 2 << 20, "bluetooth.log": 512 << 10,
+        // What came before avo-vmm's last rotation of a log it caps.
+        "kernel.1.log": 512 << 10, "logcat.1.log": 2 << 20,
     ]
     /// Avo's own log, from the unified log, this far back.
     static let daemonLogSpan = "3h"
@@ -163,10 +165,18 @@ public enum DiagnosticsReport {
         let failed = paths.logs.appending(path: "avo-vmm-gpu-failed.log")
         if fileManager.fileExists(atPath: failed.path) { copyLog(failed, as: "avo-vmm-gpu-failed.log") }
         copyLog(paths.instance.appending(path: "kernel.log"), as: "kernel.log")
+        // avo-vmm caps its logs: right after a rotation, the problem is in the
+        // part before it.
+        let kernelBefore = paths.instance.appending(path: "kernel.1.log")
+        if fileManager.fileExists(atPath: kernelBefore.path) { copyLog(kernelBefore, as: "kernel.1.log") }
         // Android's Bluetooth controller (Root Canal), when it ran.
         let bluetooth = paths.instance.appending(path: "bluetooth.log")
         if fileManager.fileExists(atPath: bluetooth.path) { copyLog(bluetooth, as: "bluetooth.log") }
-        if options.includeAndroidLog { copyLog(paths.instance.appending(path: "logcat.log"), as: "logcat.log") }
+        if options.includeAndroidLog {
+            copyLog(paths.instance.appending(path: "logcat.log"), as: "logcat.log")
+            let before = paths.instance.appending(path: "logcat.1.log")
+            if fileManager.fileExists(atPath: before.path) { copyLog(before, as: "logcat.1.log") }
+        }
         // Small state files: no secrets, only builds, sizes and paths.
         for file in [paths.vm.appending(path: "gpu-fallback.json"), paths.data.appending(path: "data-disk.json"),
                      paths.data.appending(path: "android-data.json"), paths.instance.appending(path: "avo-image.json")] {
