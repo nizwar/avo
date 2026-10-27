@@ -775,8 +775,10 @@ impl SharedDir {
             options.truncate(true);
         }
         let file = host(open_nofollow(&host_path, &mut options))?;
-        let fh = self.keep(Handle::File(file))?;
+        // The entry first: a handle kept for a reply that then fails would
+        // stay open, toward the cap, with nothing in the guest to release it.
         let mut out = self.entry(relative, &host_path)?;
+        let fh = self.keep(Handle::File(file))?;
         out.extend_from_slice(&Self::open_out(fh));
         Ok(out)
     }
@@ -836,11 +838,15 @@ impl SharedDir {
         let fd = self.dir_fd(&relative)?;
         let ino = stat_of_fd(fd.as_raw_fd())?.0.st_ino;
         let mut entries = vec![(ino, S_IFDIR >> 12, b".".to_vec()), (ino, S_IFDIR >> 12, b"..".to_vec())];
-        // fdopendir takes the fd (closedir frees it); readdir returns "." and
-        // ".." too, which we supply ourselves above.
-        let dir = unsafe { libc::fdopendir(fd.into_raw_fd()) };
+        // fdopendir takes the fd once it succeeds (closedir frees it); when it
+        // fails the fd is still ours to close. readdir returns "." and ".."
+        // too, which we supply ourselves above.
+        let raw = fd.into_raw_fd();
+        let dir = unsafe { libc::fdopendir(raw) };
         if dir.is_null() {
-            return Err(linux_errno(&io::Error::last_os_error()));
+            let error = io::Error::last_os_error();
+            unsafe { libc::close(raw) };
+            return Err(linux_errno(&error));
         }
         loop {
             let entry = unsafe { libc::readdir(dir) };
