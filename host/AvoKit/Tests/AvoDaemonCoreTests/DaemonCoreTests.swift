@@ -574,6 +574,17 @@ struct Harness {
         #expect(await eventually { await harness.core.apps().contains { $0.package == "com.avodroid.fixture" } })
     }
 
+    /// Android's storage keeps its size: the message says what frees room,
+    /// in Indonesian too.
+    @Test func outOfStorageSaysWhatFreesRoom() throws {
+        #expect(InstallPipeline.friendly("Failure [INSTALL_FAILED_INSUFFICIENT_STORAGE]")
+            == InstallPipeline.outOfStorage + " (INSTALL_FAILED_INSUFFICIENT_STORAGE)")
+        #expect(InstallPipeline.outOfStorage.contains("Change Size"))
+        #expect(!InstallPipeline.outOfStorage.contains("enlarge"))
+        let indonesian = try #require(Bundle.avoKit.path(forResource: "id", ofType: "lproj").flatMap(Bundle.init(path:)))
+        #expect(indonesian.localizedString(forKey: InstallPipeline.outOfStorage, value: nil, table: nil).hasPrefix("penyimpanan Android penuh"))
+    }
+
     @Test func rejectsPackagesAppleSiliconCannotRun() async throws {
         let harness = try Harness(apps: [])
         defer { harness.cleanUp() }
