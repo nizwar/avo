@@ -659,13 +659,15 @@ mod tests {
     fn dropping_a_subscriber_ends_a_write_that_is_stuck() {
         use std::io::Read;
         let (ours, mut theirs) = UnixStream::pair().unwrap();
+        // Before the subscriber can go: on a socket whose peer is gone
+        // macOS refuses SO_RCVTIMEO with EINVAL.
+        theirs.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
         let subscriber = Subscriber::start(ours).unwrap();
         // Long lines, so the writer soon waits for a reader that never comes.
         for i in 0..SUBSCRIBER_BACKLOG / 2 {
             assert!(subscriber.send(format!("sound playback {i:0>200}")));
         }
         drop(subscriber);
-        theirs.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
         let mut rest = Vec::new();
         assert!(theirs.read_to_end(&mut rest).is_ok(), "the reader hears the end instead of waiting");
     }
