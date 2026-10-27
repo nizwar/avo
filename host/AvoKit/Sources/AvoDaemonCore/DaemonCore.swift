@@ -1484,6 +1484,9 @@ public actor DaemonCore {
             if await !engine.hasPatchedImage() { try await engine.prepareRoot() }
         } catch {
             logger.error("root: \(String(describing: error), privacy: .public)")
+            // Cut short as Android stopped or restarted under it (a stop, Google
+            // apps' own restarts): the next start patches again.
+            guard googleAppsRun == nil, await vm.status.state == .running else { return }
             turnRootOff((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
             return
         }
