@@ -84,7 +84,15 @@ final class ControlPanelModel {
     @ObservationIgnored private var notificationPermissionGeneration = 0
     private(set) var snapshot: ConfigurationSnapshot?
     private(set) var configIssues: [ConfigIssue] = []
-    var pendingInstall: PendingInstall?
+    private(set) var pendingInstall: PendingInstall?
+    /// The install sheet's item (LibraryWindow). However the sheet closes
+    /// (its buttons, Esc, its window closing), it goes as `dismissInstall`
+    /// says: an install still running goes on hidden, and the next package
+    /// waiting gets the sheet.
+    var installSheet: PendingInstall? {
+        get { pendingInstall }
+        set { if newValue == nil, pendingInstall != nil { dismissInstall() } }
+    }
     var lastError: String?
     /// Settings › System › Google apps: what Android has (nil until asked).
     private(set) var googleApps: GoogleAppsStatus?
@@ -1115,8 +1123,9 @@ final class ControlPanelModel {
         }
     }
 
-    /// Closes the sheet (Cancel, Done, Hide). An install still running goes
-    /// on, hidden; the next package opened meanwhile gets the sheet.
+    /// Closes the sheet (Cancel, Done, Hide, or any other way: `installSheet`).
+    /// An install still running goes on, hidden; the next package opened
+    /// meanwhile gets the sheet.
     func dismissInstall() {
         if let pending = pendingInstall, let id = pending.requestID, let phase = pending.progress?.phase,
            phase != .finished, phase != .failed {
