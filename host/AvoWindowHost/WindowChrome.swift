@@ -41,13 +41,16 @@ final class WindowChrome: NSResponder {
     var pictureInPicture = false { didSet { if pictureInPicture != oldValue { refresh() } } }
     /// The header stays while this says so (Quick Settings is open under it).
     var keepsBar: () -> Bool = { false }
+    /// The window is on screen: not minimized, covered, run in the background
+    /// or closed. Only then is the pointer watched over other windows.
+    var onScreen = true { didSet { if onScreen != oldValue { updateOutsideWatch() } } }
     /// The phone style was turned on or off: the screen's place in the window changed.
     var onInsetsChange: () -> Void = {}
 
     private var tracking: NSTrackingArea?
-    /// The pointer's moves over other windows, while the header is hidden:
-    /// above the shrunk frame the window lets the pointer through, so it
-    /// would not hear it go out through the top.
+    /// The pointer's moves over other windows, while the header is hidden
+    /// (`updateOutsideWatch`): above the shrunk frame the window lets the
+    /// pointer through, so it would not hear it go out through the top.
     private var outsideWatch: Any?
     private var hideTimer: Timer?
     /// Menus from the header's buttons being open: the header stays.
@@ -172,7 +175,7 @@ final class WindowChrome: NSResponder {
         root.layoutSubtreeIfNeeded()
         updateCorners()
         installTracking()
-        watchOutside(phone)
+        updateOutsideWatch()
         hideTimer?.invalidate()
         hideTimer = nil
         // Full screen's bars are the controller's (FullScreenBars); a standard window's always show.
@@ -233,10 +236,15 @@ final class WindowChrome: NSResponder {
         pointerMoved()
     }
 
-    private func watchOutside(_ on: Bool) {
+    /// Watches the pointer over other windows only while the phone style's
+    /// header is hidden on a window on screen: the watch wakes the app at
+    /// every move of the mouse, anywhere.
+    private func updateOutsideWatch() {
+        let wanted = isPhone && !barShown && onScreen
+        guard wanted != (outsideWatch != nil) else { return }
         if let outsideWatch { NSEvent.removeMonitor(outsideWatch) }
         outsideWatch = nil
-        guard on else { return }
+        guard wanted else { return }
         outsideWatch = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.isPhone, !self.barShown, self.pointerAboveScreen else { return }
@@ -310,6 +318,7 @@ final class WindowChrome: NSResponder {
         let grown = !phone || shown
         guard shown != barShown || frameView.grown != grown || titlebarView.alphaValue != (shown ? 1 : 0) else { return }
         barShown = shown
+        updateOutsideWatch()
         frameView.headerRoom = headerRoom
         frameView.grown = grown
         guard animated else {
