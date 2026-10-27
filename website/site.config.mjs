@@ -19,9 +19,9 @@ export default {
   // not released yet and points to building from source and to GitHub.
   release: {
     available: true,
-    version: '0.3.1 Preview 4',
+    version: '1.0.0',
     // The disk image itself, so the button downloads at once. Update with each release.
-    downloadUrl: 'https://github.com/nizwar/avo/releases/download/v0.3.1-preview.4/Avo-0.3.1-b113.dmg',
+    downloadUrl: 'https://github.com/nizwar/avo/releases/download/v1.0.0/Avo-1.0.0-b123.dmg',
   },
 
   // Avo Hub, Avo's sibling app that connects the phone in your pocket, has a
