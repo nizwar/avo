@@ -15,6 +15,8 @@ struct ReportProblemView: View {
     @State private var includeAndroidLog = true
     @State private var includeApps = true
     @State private var phase = Phase.form
+    /// The report being collected: Cancel stops it, and no file is left.
+    @State private var collecting: Task<Void, Never>?
 
     enum Phase: Equatable {
         case form
@@ -103,7 +105,11 @@ struct ReportProblemView: View {
                     Text("Collecting Avo’s logs…").foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button("Cancel") { dismissWindow(id: Self.windowID) }
+                Button("Cancel") {
+                    collecting?.cancel()
+                    collecting = nil
+                    dismissWindow(id: Self.windowID)
+                }
                     .keyboardShortcut(.cancelAction)
                 Button("Save Report…") { chooseDestination() }
                     .keyboardShortcut(.defaultAction)
@@ -161,7 +167,7 @@ struct ReportProblemView: View {
         let window = NSApp.keyWindow
         let handle: (NSApplication.ModalResponse) -> Void = { response in
             guard response == .OK, let url = panel.url else { return }
-            Task { await save(to: url) }
+            collecting = Task { await save(to: url) }
         }
         if let window { panel.beginSheetModal(for: window, completionHandler: handle) } else { handle(panel.runModal()) }
     }
@@ -188,8 +194,18 @@ struct ReportProblemView: View {
         } else {
             facts.problems.append("the Runtime Daemon is not connected")
         }
+        guard !Task.isCancelled else {
+            phase = .form
+            return
+        }
         do {
             try await DiagnosticsReport.write(to: url, options: options, facts: facts, paths: AvoPaths())
+            // Cancelled while it was written: the report given up on goes.
+            if Task.isCancelled {
+                try? FileManager.default.removeItem(at: url)
+                phase = .form
+                return
+            }
             phase = .saved(url)
         } catch {
             phase = .failed(error.localizedDescription)
