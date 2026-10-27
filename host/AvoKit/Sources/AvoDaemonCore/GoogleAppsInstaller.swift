@@ -356,7 +356,7 @@ struct GoogleAppsInstaller: Sendable {
         do {
             report(removal(.startingVM))
             try await within(limits.restart, String(localized: "Starting Android", bundle: .avoKit)) { try await ensureRunning() }
-            let agent = try await guest()
+            let agent = try await withOverlayMounted(try await guest())
             report(removal(.removing, fraction: 0))
             let state = try await command { try await agent.commitState() }
             let system = try await command { try await agent.systemPackageNames() }
@@ -383,13 +383,29 @@ struct GoogleAppsInstaller: Sendable {
                 // Android never got ready: out over adbd, then a fresh start.
                 try await takeOutFiles()
             }
-            let agent = try await guest()
+            let agent = try await withOverlayMounted(try await guest())
             report(removal(.removing, fraction: 0))
             if try await command({ try await agent.commitState() }) != .none { try await takeOutFiles() }
             try await uninstallLeftovers(systemBefore)
         } catch {
             throw await removalError(error)
         }
+    }
+
+    /// Verified boot back on since Google apps went in (another build of the
+    /// Android they were made for, or something that turned it on): their
+    /// overlay is not mounted, so their files and the list of them are out
+    /// of sight, and a Remove that saw nothing would leave them to come back
+    /// once it goes off. Off first, as an install does, and Android restarts
+    /// with the overlay.
+    private func withOverlayMounted(_ agent: any SystemAppsGuest) async throws -> any SystemAppsGuest {
+        guard try await command({ [agent] in try await agent.verityEnabled() }) else { return agent }
+        try await checkpoint()
+        report(removal(.disablingVerity))
+        try await command { [agent] in try await agent.disableVerity() }
+        report(removal(.restarting, message: String(localized: "Android restarts with verified boot off.", bundle: .avoKit)))
+        try await restartAndroid()
+        return try await guest()
     }
 
     /// The install's files out (through the running guest, else over adbd),
