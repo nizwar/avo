@@ -129,6 +129,8 @@ final class ControlPanelModel {
     /// The daemon connection, for the panes' own calls (FingerprintsPane.swift).
     var daemonClient: DaemonClient? { client }
     private var eventTask: Task<Void, Never>?
+    /// Asks again for the apps or the configuration a refresh did not get (`askAgain`).
+    @ObservationIgnored private var refreshAgain: Task<Void, Never>?
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "ControlPanel")
     private static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
 
@@ -265,6 +267,7 @@ final class ControlPanelModel {
 
     func connect() {
         eventTask?.cancel()
+        refreshAgain?.cancel()
         client?.invalidate()
         let client = DaemonClient(role: .controlPanel, version: "avo-control-panel \(Self.version)", machService: daemonMachService)
         self.client = client
@@ -400,6 +403,11 @@ final class ControlPanelModel {
         return SecCodeCheckValidity(me, [], nil) != errSecSuccess
     }
 
+    /// What the hello does not bring: the apps, the configuration and the
+    /// usage, each on its own. The configuration waits on Android (its
+    /// storage) up to its time limit, and may fail with it: the apps neither
+    /// wait for it nor go with it. What the daemon did not say is asked
+    /// again, later each time, while this connection lasts.
     func refresh() async {
         guard let client else { return }
         // Apart, so a daemon from before usage statistics (which never
@@ -407,19 +415,54 @@ final class ControlPanelModel {
         Task {
             if let list = try? await client.appUsage() { usage = Dictionary(list.map { ($0.package, $0) }, uniquingKeysWith: { $1 }) }
         }
+        async let appsLoaded = loadApps(from: client)
+        async let configurationLoaded = loadConfiguration(from: client)
+        let (listed, configured) = await (appsLoaded, configurationLoaded)
+        if !listed || !configured { askAgain(apps: !listed, configuration: !configured, from: client) }
+    }
+
+    /// The apps, in the Library as soon as the daemon lists them; false when it did not.
+    private func loadApps(from client: DaemonClient) async -> Bool {
         do {
-            async let snapshot = client.configuration()
-            async let apps = client.apps()
-            self.snapshot = try await snapshot
-            storageLocation = self.snapshot?.storageLocation
-            self.apps = try await apps
-            refreshKeyMappings()
-            // Icons after, one at a time: the daemon's events (Android's
-            // state, installs) start without waiting for every app's.
-            let packages = self.apps.map(\.package)
-            Task { for package in packages { await loadIcon(package) } }
+            apps = try await client.apps()
         } catch {
-            lastError = error.localizedDescription
+            logger.notice("the daemon did not list the apps: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+        refreshKeyMappings()
+        // Icons after, one at a time: the daemon's events (Android's
+        // state, installs) start without waiting for every app's.
+        let packages = apps.map(\.package)
+        Task { for package in packages { await loadIcon(package) } }
+        return true
+    }
+
+    /// The configuration; false when the daemon did not give it.
+    private func loadConfiguration(from client: DaemonClient) async -> Bool {
+        do {
+            snapshot = try await client.configuration()
+        } catch {
+            logger.notice("the daemon did not give the configuration: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+        storageLocation = snapshot?.storageLocation
+        return true
+    }
+
+    /// Asks again for what a refresh did not get: 2, 4, 8… seconds later
+    /// (at most 30 apart), until the daemon gives it or this connection ends.
+    private func askAgain(apps: Bool, configuration: Bool, from client: DaemonClient) {
+        refreshAgain?.cancel()
+        refreshAgain = Task { [weak self] in
+            var (apps, configuration) = (apps, configuration)
+            var wait = Duration.seconds(2)
+            while apps || configuration {
+                try? await Task.sleep(for: wait)
+                guard let self, !Task.isCancelled, self.client === client, daemonState == .connected else { return }
+                if apps { apps = await !loadApps(from: client) }
+                if configuration { configuration = await !loadConfiguration(from: client) }
+                wait = min(wait * 2, .seconds(30))
+            }
         }
     }
 
