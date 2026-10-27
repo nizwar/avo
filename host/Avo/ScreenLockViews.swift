@@ -2,28 +2,9 @@ import AvoKit
 import AvoWindowHost
 import SwiftUI
 
-// Android started with a screen lock (VMStatus.screenLock): the banner above
-// every pane and the unlock sheet. The form is the one App Shim windows show
+// Android started with a screen lock (VMStatus.screenLock): the unlock sheet
+// the Library's banner opens. The form is the one App Shim windows show
 // (AvoWindowHost's ScreenLockForm); one unlock anywhere clears them all.
-
-/// Above every pane while Android's screen lock keeps it locked. Unlock…
-/// opens the sheet, which also opens by itself when Android starts locked.
-struct ScreenLockBanner: View {
-    @Environment(ControlPanelModel.self) private var model
-
-    var body: some View {
-        @Bindable var model = model
-        if let lock = model.screenLock, model.daemonState == .connected {
-            Banner(symbol: "lock.fill", tint: .orange,
-                   text: "Android is locked by its screen lock. Your apps open after you unlock it.") {
-                Button("Unlock…") { model.unlockSheetShown = true }
-            }
-            .sheet(isPresented: $model.unlockSheetShown) {
-                UnlockAndroidSheet(lock: lock)
-            }
-        }
-    }
-}
 
 /// The pattern, PIN or password, passed to Android; Cancel keeps the banner.
 struct UnlockAndroidSheet: View {

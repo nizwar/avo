@@ -10,7 +10,6 @@
 		0249D1AE6991C4C85CD03995 /* StatusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11C20BD16E21123B21D88FB /* StatusViews.swift */; };
 		0377651E36509377ADAA4FA2 /* OFL-HubotSans.txt in Resources */ = {isa = PBXBuildFile; fileRef = B6217556F6C55857D2B6072D /* OFL-HubotSans.txt */; };
 		06DFCA945F7939BDE0516D41 /* ScreenTextReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99B617285BBAE286BD51626 /* ScreenTextReader.swift */; };
-		06EF44144268EDA889E46D1C /* AppsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCD2536A0FD4B7C10F14C8E7 /* AppsView.swift */; };
 		0892E09C99877F8269BE8E9F /* LibraryOnboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1986CB9B7D4C96CDD6360302 /* LibraryOnboarding.swift */; };
 		0A9337658A7DD39148033B8D /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCA411BF620B4A6CD56B68BF /* main.swift */; };
 		0A98FA6FA78B0335C0A67623 /* HazePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 594482C7ACFF746F9F798377 /* HazePicker.swift */; };
@@ -79,7 +78,6 @@
 		893EDC5D5DC264EE1FACFCB7 /* AndroidVersionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E178860C79BAA4B07F19A2DA /* AndroidVersionViews.swift */; };
 		8C3D656C9512591B1D9F420F /* FrameRateHint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BC81EDA9B2997933033B2D0 /* FrameRateHint.swift */; };
 		8C5F051F2B360F228E7E072E /* PauseWhenIdleSetting.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40BE09C820BF322A5706F5B /* PauseWhenIdleSetting.swift */; };
-		9109B36B6B2C9AD9B5563C72 /* NotificationsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = E550F27CB336082281195F34 /* NotificationsPane.swift */; };
 		95568F6EAC87B4A342D6471D /* AvoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A444BBF9A53642B1FE34256B /* AvoApp.swift */; };
 		975035318C6C0A56A30D6A8B /* InstallSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CED382FE79AE02774664344 /* InstallSheet.swift */; };
 		99028270F79ABE0C17D6F690 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 53B819E4E9EC51B816486754 /* InfoPlist.xcstrings */; };
@@ -127,7 +125,6 @@
 		EB01F61B50DFA0D9586A8835 /* LibraryNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D722692C6D18A39B469780F /* LibraryNotifications.swift */; };
 		EBE23F89B051409E896BA37B /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1F46F80A9E9D0903E9D98E01 /* GameController.framework */; };
 		ECA7FE3A58397A06902EE5EA /* MacLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15CC47DB33A24C8B89FF454 /* MacLocation.swift */; };
-		ECB289C356315F65BD9872C6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BEACB0E1606E0C9E8530E4F /* ContentView.swift */; };
 		F240F02DAB0D7C254BD606D6 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 20EE5C5D0BA49AF0A56C43A9 /* Localizable.xcstrings */; };
 		F2C61EA7D38664A42D4CF16B /* FingerprintsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F288F116C105C8008B31139 /* FingerprintsPane.swift */; };
 		F691FF3BEFFD48314FC84EC7 /* PictureInPictureWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D936C74814C5B26B85DE5863 /* PictureInPictureWindow.swift */; };
@@ -297,7 +294,6 @@
 		86BC0FB987CE432E759E1499 /* OFL-MonaSans.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "OFL-MonaSans.txt"; sourceTree = "<group>"; };
 		8B51354EC56633B01822C753 /* mona-sans.woff2 */ = {isa = PBXFileReference; path = "mona-sans.woff2"; sourceTree = "<group>"; };
 		8BC81EDA9B2997933033B2D0 /* FrameRateHint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameRateHint.swift; sourceTree = "<group>"; };
-		8BEACB0E1606E0C9E8530E4F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		903260C33E7D650A332BF9E4 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		905C8E6CAB4242DDF3E1E469 /* LibraryWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryWidgets.swift; sourceTree = "<group>"; };
 		926265DAA0B720EAF8BF3858 /* StorageLocationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageLocationViews.swift; sourceTree = "<group>"; };
@@ -336,7 +332,6 @@
 		E178860C79BAA4B07F19A2DA /* AndroidVersionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AndroidVersionViews.swift; sourceTree = "<group>"; };
 		E1C757D8A5FB2A2B753C155E /* GoogleAppsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAppsViews.swift; sourceTree = "<group>"; };
 		E37F0548829F26D1E6A7E140 /* IconPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconPalette.swift; sourceTree = "<group>"; };
-		E550F27CB336082281195F34 /* NotificationsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsPane.swift; sourceTree = "<group>"; };
 		E5990156EBF343F953E52769 /* hubot-sans.woff2 */ = {isa = PBXFileReference; path = "hubot-sans.woff2"; sourceTree = "<group>"; };
 		E6B98E4EAC479449B37A4DA1 /* AndroidWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AndroidWindowController.swift; sourceTree = "<group>"; };
 		EADFC800FDCF147039B429D8 /* CaptureFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureFiles.swift; sourceTree = "<group>"; };
@@ -353,7 +348,6 @@
 		FA625055EC210032194EF7F3 /* DeviceSpecCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceSpecCard.swift; sourceTree = "<group>"; };
 		FAA3880E6FB2FA9A24EC952B /* RendererViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RendererViews.swift; sourceTree = "<group>"; };
 		FAF5216DF42DA9568829A3D0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		FCD2536A0FD4B7C10F14C8E7 /* AppsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppsView.swift; sourceTree = "<group>"; };
 		FDB1B4A99FEBAE35B7C8EDFE /* AppGraphicsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGraphicsSheet.swift; sourceTree = "<group>"; };
 		FEF2877E809E094D750822E0 /* LibraryData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryData.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -470,7 +464,6 @@
 				FDB1B4A99FEBAE35B7C8EDFE /* AppGraphicsSheet.swift */,
 				F4F9010B156E6BEDCE8E4756 /* AppIcon.icon */,
 				0A5963B852A5A1A6EEC52158 /* AppPage.swift */,
-				FCD2536A0FD4B7C10F14C8E7 /* AppsView.swift */,
 				4570E57C64A190DE0033F801 /* AppTileInteraction.swift */,
 				DE7330B0D5D68A947C812DFB /* AppUpdater.swift */,
 				133C04954F11344B77B5022D /* AppUsageCard.swift */,
@@ -478,7 +471,6 @@
 				D06BF8BFE54A40E75F1AA198 /* Avo.entitlements */,
 				A444BBF9A53642B1FE34256B /* AvoApp.swift */,
 				16EB0C6D06F2B4934D2B9DD6 /* CheckpointViews.swift */,
-				8BEACB0E1606E0C9E8530E4F /* ContentView.swift */,
 				FA39192F6A11BA3E0270D69A /* ControlPanelModel.swift */,
 				303350F925C8F3106A16A510 /* DaemonAgent.swift */,
 				FA625055EC210032194EF7F3 /* DeviceSpecCard.swift */,
@@ -502,7 +494,6 @@
 				801D5BA6131483549457E5CD /* LibraryWindow.swift */,
 				7ADF0EF092F403AF5496C807 /* Localizable.xcstrings */,
 				AE536E637F769B87027A72CC /* MacNotificationsViews.swift */,
-				E550F27CB336082281195F34 /* NotificationsPane.swift */,
 				F40BE09C820BF322A5706F5B /* PauseWhenIdleSetting.swift */,
 				27670785BC1057938A994E09 /* PermissionNames.swift */,
 				FAA3880E6FB2FA9A24EC952B /* RendererViews.swift */,
@@ -960,10 +951,8 @@
 				507F63A0B571560138FED47A /* AppTileInteraction.swift in Sources */,
 				2DEF97B8BD52DDBD134E34EE /* AppUpdater.swift in Sources */,
 				A3E94E28A8A33351A9FC58CC /* AppUsageCard.swift in Sources */,
-				06EF44144268EDA889E46D1C /* AppsView.swift in Sources */,
 				95568F6EAC87B4A342D6471D /* AvoApp.swift in Sources */,
 				C604772F7C31527C5492DA07 /* CheckpointViews.swift in Sources */,
-				ECB289C356315F65BD9872C6 /* ContentView.swift in Sources */,
 				C8AFDD75D978DCB7FBEDF4EC /* ControlPanelModel.swift in Sources */,
 				6755F96AA82D28645EF428A5 /* DaemonAgent.swift in Sources */,
 				BFFFD82BAD8867F03EF7BF3F /* DeviceSpecCard.swift in Sources */,
@@ -984,7 +973,6 @@
 				A1B784729F3E35B8F50ED563 /* LibraryWidgets.swift in Sources */,
 				824B4DCB7896D35C75E806E6 /* LibraryWindow.swift in Sources */,
 				BEB389B8C9A2E025B8131B2D /* MacNotificationsViews.swift in Sources */,
-				9109B36B6B2C9AD9B5563C72 /* NotificationsPane.swift in Sources */,
 				8C5F051F2B360F228E7E072E /* PauseWhenIdleSetting.swift in Sources */,
 				80F7B035228CE63F63182E75 /* PermissionNames.swift in Sources */,
 				7BAC06A4BDFE31BABDFF838D /* RendererViews.swift in Sources */,

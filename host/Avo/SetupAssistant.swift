@@ -1246,17 +1246,3 @@ private struct StageMark: View {
         .accessibilityHidden(true)
     }
 }
-
-/// Above the panes while Android has no image and the assistant is closed.
-struct SetupBanner: View {
-    @Environment(SetupAssistant.self) private var assistant
-    @Environment(AndroidImageManager.self) private var images
-
-    var body: some View {
-        if images.needsImage && !assistant.isPresented {
-            Banner(symbol: "shippingbox", tint: .accentColor, text: "Android isn’t set up yet. Choose a version to download or an image on this Mac.") {
-                Button("Set Up Android…") { assistant.show() }
-            }
-        }
-    }
-}

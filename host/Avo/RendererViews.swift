@@ -57,19 +57,3 @@ struct RendererStatusRow: View {
         }
     }
 }
-
-/// Above every pane after a GPU start failed, until the GPU is tried again
-/// or Software is chosen.
-struct GPUFallbackBanner: View {
-    @Environment(ControlPanelModel.self) private var model
-
-    var body: some View {
-        if model.status.renderer?.reason == .failed, model.config?.rendererMode != .software {
-            Banner(symbol: "exclamationmark.triangle", tint: .orange,
-                   text: "GPU rendering failed to start, so Android uses software rendering.") {
-                Button("Try GPU Again") { model.retryGPU() }
-                    .disabled(model.googleAppsChangingAndroid)
-            }
-        }
-    }
-}
