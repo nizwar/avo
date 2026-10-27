@@ -275,6 +275,8 @@ struct Tee {
 /// 3.2 it could not make; from the next start on that image, none is
 /// promised (`VMMEngine.es32Refuted`). A line may straddle two writes, so
 /// the tail of each is carried into the next look.
+///
+/// Its output also says Android's userspace runs (`ANDROID_UP`).
 struct LogcatWatch {
     file: std::fs::File,
     marker: PathBuf,
@@ -290,6 +292,7 @@ impl LogcatWatch {
 
 impl Write for LogcatWatch {
     fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        ANDROID_UP.store(true, std::sync::atomic::Ordering::Relaxed);
         self.file.write_all(data)?;
         const NEEDLE: &[u8] = b"contexts stay at their own cap";
         self.tail.extend_from_slice(data);
@@ -329,6 +332,55 @@ impl Write for Tee {
 /// The shell console of the machine that runs now (a reboot builds a new one).
 static SHELL: Mutex<Option<ConsoleInput>> = Mutex::new(None);
 static WATCH: std::sync::Once = std::sync::Once::new();
+/// Android's userspace runs on the machine that runs now (its logcat has
+/// spoken): its shell console takes `reboot -p`, and its data has writes to
+/// flush. Cleared as each machine boots.
+static ANDROID_UP: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// SIGTERM (the Mac shutting down, a `kill`) powers Android off cleanly, as
+/// the daemon going away does, once its userspace runs. Before that there is
+/// nothing to flush, and the daemon ends a start it gave up on this way and
+/// starts the next at once, which needs the instance lock: the signal then
+/// ends the process as it always did. Called before any thread starts, so
+/// each one inherits the blocked signal and only the waiting thread takes it
+/// (std clears the mask again for child processes).
+fn handle_termination() {
+    let mut set: libc::sigset_t = 0;
+    unsafe {
+        libc::sigemptyset(&mut set);
+        libc::sigaddset(&mut set, libc::SIGTERM);
+        libc::pthread_sigmask(libc::SIG_BLOCK, &set, std::ptr::null_mut());
+    }
+    std::thread::spawn(move || {
+        let mut signal = 0;
+        if unsafe { libc::sigwait(&set, &mut signal) } != 0 {
+            return;
+        }
+        if !ANDROID_UP.load(std::sync::atomic::Ordering::Relaxed) {
+            unsafe {
+                libc::signal(libc::SIGTERM, libc::SIG_DFL);
+                libc::pthread_sigmask(libc::SIG_UNBLOCK, &set, std::ptr::null_mut());
+                libc::raise(libc::SIGTERM);
+            }
+        }
+        // Inside the time macOS gives a process at shutdown before SIGKILL.
+        power_off("SIGTERM came", Duration::from_secs(10));
+    });
+}
+
+/// Asks Android to power off through its shell console. Power off ends the
+/// machine loop and the process; it leaves anyway after `wait`.
+fn power_off(why: &str, wait: Duration) -> ! {
+    eprintln!("[vmm] {why}; powering Android off");
+    // A paused Android would never read it.
+    crate::pause::GATE.resume();
+    if let Some(shell) = SHELL.lock().unwrap().as_ref() {
+        shell.send(b"\nsu 0 reboot -p\n");
+    }
+    std::thread::sleep(wait);
+    eprintln!("[vmm] Android did not power off; exiting");
+    exit(1);
+}
 
 /// When the process that started avo-vmm (the Runtime Daemon) goes away,
 /// Android powers off cleanly through its shell console instead of running
@@ -348,16 +400,7 @@ fn watch_parent(shell: ConsoleInput) {
             if unsafe { getppid() } == parent {
                 continue;
             }
-            eprintln!("[vmm] the process that started the engine went away; powering Android off");
-            // A paused Android would never read it.
-            crate::pause::GATE.resume();
-            if let Some(shell) = SHELL.lock().unwrap().as_ref() {
-                shell.send(b"\nsu 0 reboot -p\n");
-            }
-            // Power off ends the machine loop and the process; leave anyway if it does not come.
-            std::thread::sleep(Duration::from_secs(30));
-            eprintln!("[vmm] Android did not power off; exiting");
-            exit(1);
+            power_off("the process that started the engine went away", Duration::from_secs(30));
         });
     });
 }
@@ -475,6 +518,7 @@ pub fn exit(code: i32) -> ! {
 }
 
 pub fn run(options: Options) -> Result<(), String> {
+    handle_termination();
     let _lock = lock_instance(&options.instance)?;
     let _disks_lock = if options.disks != options.instance { lock_directory(&options.disks, false)? } else { None };
     prepare_instance(&options)?;
@@ -532,6 +576,7 @@ pub fn run(options: Options) -> Result<(), String> {
 }
 
 fn boot(options: &Options, renderer: Option<&RenderHost>, bluetooth: Option<&Arc<Bluetooth>>) -> Result<machine::Stop, String> {
+    ANDROID_UP.store(false, std::sync::atomic::Ordering::Relaxed);
     let image_init_boot = options.images.join("init_boot.img");
     let init_boot = options.init_boot.as_deref().or(Some(image_init_boot.as_path()).filter(|p| p.exists()));
     let images = android::load(&options.images.join("boot.img"), init_boot, &options.images.join("vendor_boot.img"))?;
@@ -793,3 +838,4 @@ mod console_tests {
         let _ = std::fs::remove_file(&path);
     }
 }
+
