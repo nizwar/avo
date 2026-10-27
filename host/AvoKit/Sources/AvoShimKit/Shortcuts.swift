@@ -69,12 +69,15 @@ public enum Shortcuts {
     private static func save(_ tiles: [[String: Any]], restartDock: Bool) -> Bool {
         CFPreferencesSetAppValue(persistentApps, tiles as CFArray, dockDomain)
         guard CFPreferencesAppSynchronize(dockDomain) else { return false }
-        if restartDock {
-            let process = Process()
-            process.executableURL = URL(filePath: "/usr/bin/killall")
-            process.arguments = ["Dock"]
-            try? process.run()
-        }
+        if restartDock { Self.restartDock() }
         return true
+    }
+
+    /// The Dock reads its tiles again (after changes made with `restartDock: false`).
+    public static func restartDock() {
+        let process = Process()
+        process.executableURL = URL(filePath: "/usr/bin/killall")
+        process.arguments = ["Dock"]
+        try? process.run()
     }
 }

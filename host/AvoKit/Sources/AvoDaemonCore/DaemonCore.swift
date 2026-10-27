@@ -140,6 +140,8 @@ public actor DaemonCore {
     private var nowPlayingArtwork: Data?
     /// Android widgets on the Mac (DaemonWidgets.swift).
     var placedWidgets: [PlacedWidget]
+    /// The shortcuts being made again (`rebuildShortcuts`).
+    private var shortcutRebuild: Task<Void, Never>?
     /// In-process watchers of the VM status (the menu bar). `vm.statusUpdates`
     /// is an AsyncStream, which hands each element to one reader only, so
     /// this actor is its only reader and passes every update on.
@@ -883,11 +885,7 @@ public actor DaemonCore {
             await engine.applyDeviceSettings(new)
         }
         if new.createDesktopAlias != old.createDesktopAlias || new.addToDock != old.addToDock {
-            for app in await registry.all() {
-                var updated = app
-                updated.shortcuts = deps.shortcuts.apply(app, info: nil, config: new)
-                await registry.update(updated)
-            }
+            await rebuildShortcuts(of: nil, for: new)
         }
         publish(new)
         return ConfigUpdateResult(effect: effect, issues: issues)
@@ -1050,11 +1048,39 @@ public actor DaemonCore {
 
     public func recreateShortcuts(for package: String?, client: ClientID) async throws {
         try requireControlPanel(client)
-        for app in await registry.all() where package == nil || app.package == package {
-            var updated = app
-            updated.shortcuts = deps.shortcuts.apply(app, info: nil, config: config)
-            await registry.update(updated)
+        await rebuildShortcuts(of: package.map { [$0] }, for: config)
+    }
+
+    /// Makes the shortcuts of these apps (every app's: nil) again for
+    /// `config`, one app after another off this actor: each copies its shim
+    /// and waits for codesign, and frames and input pass through here
+    /// meanwhile. The Dock restarts once at the end, not once an app. One
+    /// batch at a time, in the order asked.
+    private func rebuildShortcuts(of packages: Set<String>?, for config: VMConfig) async {
+        let previous = shortcutRebuild
+        let batch = Task { [weak self] in
+            await previous?.value
+            await self?.performShortcutRebuild(of: packages, for: config)
         }
+        shortcutRebuild = batch
+        await batch.value
+    }
+
+    private func performShortcutRebuild(of packages: Set<String>?, for config: VMConfig) async {
+        let shortcuts = deps.shortcuts
+        var dockChanged = false
+        for app in await registry.all() where packages?.contains(app.package) ?? true {
+            let made = await Task.detached { shortcuts.apply(app, info: nil, config: config, restartDock: false) }.value
+            dockChanged = dockChanged || made.inDock != app.shortcuts.inDock
+            // Uninstalled meanwhile: what was made for it goes too.
+            guard var current = await registry.record(app.package) else {
+                shortcuts.remove(made)
+                continue
+            }
+            current.shortcuts = made
+            await registry.update(current)
+        }
+        if dockChanged { Shortcuts.restartDock() }
     }
 
     /// Code directory hashes of every shim the daemon created (XPC caller check).
