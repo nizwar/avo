@@ -581,6 +581,8 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(toggleKeymapHints(_:)) { item.state = KeymapHints.visible ? .on : .off }
+        // A new window needs the service: once it went (or before it answered) one could only say so.
+        if item.action == #selector(newWindow) { return connected && !quitting }
         return true
     }
 
