@@ -269,7 +269,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// (ShimAppDelegate.runInBackground). Full screen ends first: its Space
     /// would stay behind, black, with no window, Dock icon or menu bar.
     @objc func runInBackground() {
-        guard !editingKeymap else { return }
+        guard !editingKeymap, !detached else { return }
         if let window, window.styleMask.contains(.fullScreen) {
             backgroundAfterFullScreen = true
             window.toggleFullScreen(nil)
@@ -726,6 +726,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
                 // Locked as the app was about to start: the same as above.
                 waitForUnlock(self.app?.screenLock, client: client, notificationKey: notificationKey)
             } catch {
+                // Detached meanwhile, the window says why already (`daemonGone`), or goes.
+                guard !detached else { return }
                 showProblem((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
             }
         }
@@ -749,6 +751,27 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     func closeFromGuest() {
         closingFromGuest = true
         close()
+    }
+
+    /// The daemon went away, and Android with it (ShimAppDelegate.daemonGone):
+    /// the window lets go of the display, a recording is finished with what
+    /// it has, and the window says what happened, over the last frame, with
+    /// nothing enabled that acts on the app. Closing it quits.
+    func daemonGone() {
+        if picture != nil {
+            // Back where it says so, without taking the keyboard from another app.
+            leavePictureInPicture(show: false)
+            window?.orderFront(nil)
+        }
+        if quickSettings.isShown { quickSettings.toggle() }
+        if translation.isActive { translation.toggle() }
+        hideLock()
+        detach()
+        // After the key mapping stopped: its editor closing enables the light again.
+        for button in titlebarActions { button.isEnabled = false }
+        backgroundLight.isEnabled = false
+        showProblem(String(localized: "Avo’s background service restarted, and Android with it. Close the window and open the app again.",
+                           bundle: .windowHost))
     }
 
     func detach() {
@@ -1308,6 +1331,12 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     }
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        // Closing, quitting, or the daemon gone: nothing acts on the app.
+        if detached, let action = item.action,
+           [#selector(sendBack), #selector(rotateWindow), #selector(shakeDevice), #selector(runInBackground),
+            #selector(togglePictureInPicture), #selector(toggleKeymapEditor), #selector(toggleGameMode)].contains(action) {
+            return false
+        }
         if item.action == #selector(toggleGameMode) {
             item.state = keymap?.gameMode == true ? .on : .off
             return keymap != nil

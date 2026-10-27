@@ -785,12 +785,12 @@
         }
       }
     },
-    "Avo’s background service restarted." : {
+    "Avo’s background service restarted, and Android with it. Close the window and open the app again." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Layanan latar belakang Avo dimulai ulang."
+            "value" : "Layanan latar belakang Avo dimulai ulang, begitu juga Android. Tutup jendela ini, lalu buka aplikasinya lagi."
           }
         }
       }

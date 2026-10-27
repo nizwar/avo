@@ -121,13 +121,7 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
                     window.editKeyMappingWhenReady()
                 }
                 for await event in client.events { handle(event) }
-                notificationCount = 0
-                updateDockBadge()
-                // The daemon restarted: our displays are gone (a recording keeps what it has).
-                for window in windows {
-                    window.stopRecording()
-                    window.showProblem(String(localized: "Avo’s background service restarted.", bundle: .windowHost))
-                }
+                daemonGone()
             } catch {
                 logger.error("cannot reach the daemon: \(error.localizedDescription, privacy: .public)")
                 let window = openWindow(notificationKey: nil, connect: false)
@@ -140,6 +134,23 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
                 }
             }
         }
+    }
+
+    /// The daemon went away (it restarted, or crashed), and the engine with
+    /// it: Android and this app in it are gone, and this connection does not
+    /// come back. Run in the background, the app quits at once, as nobody
+    /// sees it; otherwise its windows say so, with nothing left in them that
+    /// acts on the app, and closing them quits.
+    private func daemonGone() {
+        connected = false
+        notificationCount = 0
+        updateDockBadge()
+        guard !quitting else { return }
+        if inBackground {
+            NSApp.terminate(nil)
+            return
+        }
+        for window in windows { window.daemonGone() }
     }
 
     @discardableResult
