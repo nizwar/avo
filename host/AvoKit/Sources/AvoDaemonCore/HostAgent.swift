@@ -329,7 +329,10 @@ actor HostAgent: DisplayResizing {
         return AndroidStorage.parse(output)
     }
 
-    func shutdown() async {
+    /// Asks Android to power off; whether it could be asked (adbd is up:
+    /// Android had booted far enough).
+    @discardableResult
+    func shutdown() async -> Bool {
         polling?.cancel()
         watching?.cancel()
         defaultWatch?.cancel()
@@ -342,10 +345,12 @@ actor HostAgent: DisplayResizing {
         bluetoothWatch?.cancel()
         await bluetoothBridge?.stop()
         await sharedFolder?.stop()
+        let asked = await adb?.isOpen == true
         _ = try? await root("reboot -p")
         await adb?.close()
         adb = nil
         isReady = false
+        return asked
     }
 
     private func connectADB(deadline: ContinuousClock.Instant) async throws -> ADBConnection {

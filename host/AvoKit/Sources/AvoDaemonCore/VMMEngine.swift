@@ -97,6 +97,9 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     private var playing = false
     private var recording = false
     private var wakeHandler: (@Sendable () async -> Void)?
+    /// Every `stop()` counts: a launch that sees the count change was
+    /// stopped before it handed its process over (Stop while Android starts).
+    private var stops = 0
     /// Avo's version, for `ro.boot.avo.version` (AvoIdentity).
     private let avoVersion: String
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "avo-vmm")
@@ -243,6 +246,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     /// One avo-vmm process. A GPU plan is watched by a `GPUBootMonitor` and
     /// replaced by a software launch when it fails before Android is ready.
     private func launch(_ launch: EngineLaunch, plan: GPUPlan) async throws {
+        let generation = lock.withLock { stops }
         try launch.paths.validateSocketPaths()
         let version = avoVersion
         // Avo's Vulkan driver wrapper, unless it failed a GPU start; whether
@@ -322,6 +326,8 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
             }
             sink.yield(clean ? nil : AvoError.vmStartFailed(String(localized: "The VM engine exited with status \(Int(process.terminationStatus)).", bundle: .avoKit)))
         }
+        // Stopped while this launch got ready: no process starts.
+        guard lock.withLock({ stops == generation }) else { throw CancellationError() }
         do {
             try process.run()
         } catch {
@@ -351,16 +357,17 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
                 break
             }
             do {
+                // stop() meanwhile: nobody else knows this process yet.
+                guard lock.withLock({ stops == generation }) else { throw CancellationError() }
                 try await Task.sleep(for: .milliseconds(100))
             } catch {
-                // Cancelled (stop() during a start or a software relaunch):
-                // nobody else knows this process yet.
-                process.terminate()
+                // Cancelled too (a stop during a start or a software relaunch).
+                await Self.endUnseen(process)
                 throw error
             }
         }
         guard SuspendingClock.now < deadline else {
-            process.terminate()
+            await Self.endUnseen(process)
             throw AvoError.timedOut("avo-vmm startup")
         }
 
@@ -418,6 +425,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
             // Since the sockets came up, avo-vmm died on the GPU (the software
             // launch replacing it takes over) or stop() came: not the engine's state.
             if let monitor, monitor.hasFallenBack || monitor.isStopped { return (false, nil) }
+            if stops != generation { return (false, nil) }
             self.process = process
             self.cameras = cameras
             self.vsockPath = vsock
@@ -432,9 +440,10 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
             for task in tasks { task.cancel() }
             cameras?.stop()
             await control.close()
-            guard monitor?.isStopped == true else { return }
-            // stop() did not see this process yet.
-            process.terminate()
+            let stopped = monitor?.isStopped == true || lock.withLock { stops != generation }
+            guard stopped else { return }
+            // stop() did not see this process yet: it ends here.
+            await Self.endUnseen(process)
             throw CancellationError()
         }
         if let location { try? await control.send(location.command) }
@@ -446,9 +455,11 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
 
     public func stop() async {
         // Nothing may relaunch Android after a stop. The monitor stops under
-        // the lock fallBack(_:monitor:launch:plan:) hands its relaunch over in.
+        // the lock fallBack(_:monitor:launch:plan:) hands its relaunch over in,
+        // and a launch that has not handed its process over yet ends it (`stops`).
         let relaunch = lock.withLock { () -> Task<Void, Never>? in
             self.gpuMonitor?.stop()
+            stops += 1
             defer { self.relaunch = nil }
             return self.relaunch
         }
@@ -464,14 +475,19 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         }
         // A clean power off from Android flushes the data disk. A guest that
         // stopped answering would keep `reboot -p` waiting for good: then
-        // the process is terminated below.
-        if let agent { try? await Deadline.run(.seconds(30), what: "power off") { await agent.shutdown() } }
-        for _ in 0..<200 where process.isRunning { try? await Task.sleep(for: .milliseconds(100)) }
+        // the process is terminated below, as it is at once when Android was
+        // never asked (it had not booted far enough for adbd).
+        var asked = false
+        if let agent { asked = (try? await Deadline.run(.seconds(30), what: "power off") { await agent.shutdown() }) ?? true }
+        if asked { for _ in 0..<200 where process.isRunning { try? await Task.sleep(for: .milliseconds(100)) } }
         await Self.end(process)
         for task in tasks { task.cancel() }
-        lock.withLock { self.cameras }?.stop()
-        await lock.withLock { self.control }?.close()
+        let (cameras, control) = lock.withLock { (self.cameras, self.control) }
+        cameras?.stop()
+        await control?.close()
         lock.withLock {
+            // A start that came meanwhile (its own stop of this process first) keeps its process.
+            guard self.process === process else { return }
             self.process = nil
             self.cameras = nil
             self.vsockPath = nil
@@ -660,7 +676,7 @@ extension VMMEngine {
                 guard let self else { return }
                 let (process, agent, tasks, control) = lock.withLock { (self.process, self.agent, self.tasks, self.control) }
                 if let process, process.isRunning {
-                    if let agent { try? await Deadline.run(.seconds(10), what: "power off") { await agent.shutdown() } }
+                    if let agent { _ = try? await Deadline.run(.seconds(10), what: "power off") { await agent.shutdown() } }
                     await Self.end(process)
                 }
                 for task in tasks { task.cancel() }
@@ -691,6 +707,13 @@ extension VMMEngine {
         for _ in 0..<50 where process.isRunning { try? await Task.sleep(for: .milliseconds(100)) }
         if process.isRunning { kill(process.processIdentifier, SIGKILL) }
         for _ in 0..<10 where process.isRunning { try? await Task.sleep(for: .milliseconds(100)) }
+    }
+
+    /// `end` for a launch's own process nobody else knows, from a launch
+    /// that may be cancelled: its waits still wait (an engine that got no
+    /// time to go would be killed at once).
+    private static func endUnseen(_ process: Process) async {
+        await Task.detached { await end(process) }.value
     }
 
     /// Whether a GPU launch that exited before its sockets came up failed

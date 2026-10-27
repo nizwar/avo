@@ -144,6 +144,11 @@ public actor FakeBridgeAgent {
         if let current { await send(Avo_V1_Envelope(payload), on: current) }
     }
 
+    /// The agent goes away (it crashed): the Control connection closes.
+    public func dropConnection() {
+        current?.close()
+    }
+
     public func requests<T>(_ extract: (Avo_V1_Envelope.OneOf_Payload) -> T?) -> [T] {
         received.compactMap { $0.payload.flatMap(extract) }
     }
@@ -198,8 +203,14 @@ public final class FakeEngine: VMEngine, @unchecked Sendable {
     public private(set) var adbd: FakeADBD?
     private let lock = NSLock()
     private var running = false
+    private var stopped = 0
     public private(set) var launches: [EngineLaunch] = []
     public var refuseControlConnections = 0
+    /// How long a start takes, cancelled or not (avo-vmm's own start before
+    /// it hands its process over: a stop meanwhile does not end it).
+    public var startDelay: Duration = .zero
+    public var isRunning: Bool { lock.withLock { running } }
+    public var stops: Int { lock.withLock { stopped } }
     /// Shell handler installed on the fake adbd before it serves anything.
     public var adbShellHandler: (@Sendable (String) -> (stdout: String, stderr: String, exit: UInt8))?
 
@@ -210,6 +221,8 @@ public final class FakeEngine: VMEngine, @unchecked Sendable {
     }
 
     public func start(_ launch: EngineLaunch) async throws {
+        let delay = lock.withLock { startDelay }
+        if delay > .zero { await Task.detached { try? await Task.sleep(for: delay) }.value }
         lock.withLock {
             launches.append(launch)
             running = true
@@ -217,7 +230,10 @@ public final class FakeEngine: VMEngine, @unchecked Sendable {
     }
 
     public func stop() async {
-        lock.withLock { running = false }
+        lock.withLock {
+            running = false
+            stopped += 1
+        }
         exitSink.yield(nil)
     }
 

@@ -111,10 +111,14 @@ public actor VMManager {
         } catch {
             // Called off by a stop or by Android's own reboot, which tidy up
             // and say what happened themselves (the next boot may be under way).
-            if error is CancellationError { throw error }
+            if error is CancellationError || task.isCancelled || booting != task { throw error }
             await teardown()
             update(VMStatus(state: error as? AvoError == .imageMissing ? .notInstalled : .failed,
                             detail: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription))
+            // Nothing of a failed start runs on: avo-vmm would keep its memory,
+            // its CPU and the disks, and its host agent wait for Android, until
+            // the next start. (Its exit, as it ends, is no news: `engineExited`.)
+            await engine.stop()
             throw error
         }
     }
@@ -138,13 +142,25 @@ public actor VMManager {
                                     density: Int(settings.androidScreen.dpi))
         let configDisk = paths.vm.appending(path: "avo_config.img")
         try bootConfig.write(to: configDisk)
+        // Stopped meanwhile (Stop shows while Android starts): no engine starts.
+        // After each wait below likewise, the status stays the stop's, and what
+        // this start opened itself closes; the stop ends the engine.
+        try Task.checkCancellation()
         try await engine.start(EngineLaunch(config: settings.config, paths: paths, image: image, bootConfigDisk: configDisk,
                                             profile: settings.profile, displayRate: settings.displayRate,
                                             androidScreen: settings.androidScreen))
+        try Task.checkCancellation()
 
         update(VMStatus(state: .starting, detail: String(localized: "Waiting for Android to boot", bundle: .avoKit)))
         let session = try await connectControl(timeout: firstBoot ? max(bootTimeout, firstBootTimeout) : bootTimeout)
-        let hello = try await session.start()
+        let hello: Avo_V1_Hello
+        do {
+            hello = try await session.start()
+            try Task.checkCancellation()
+        } catch {
+            await session.close()
+            throw error
+        }
         control = session
         pumps.append(Task { [weak self] in
             for await event in session.events { await self?.forward(event) }
@@ -153,20 +169,28 @@ public actor VMManager {
 
         let inputStream = try await engine.connect(port: AvoProtocol.Port.input)
         let channel = InputChannel(stream: inputStream)
-        try await channel.start()
+        do {
+            try await channel.start()
+            try Task.checkCancellation()
+        } catch {
+            await channel.close()
+            throw error
+        }
         input = channel
         await started()
 
+        try Task.checkCancellation()
         update(VMStatus(state: .running, androidVersion: Self.androidVersion(sdk: Int(hello.androidSdk)),
                         protocolVersion: await session.negotiatedVersion, bootedAt: Date()))
         logger.notice("Android ready: \(hello.softwareVersion, privacy: .public)")
     }
 
-    /// Retries until the Bridge Agent listens (it starts late in boot).
+    /// Retries until the Bridge Agent listens (it starts late in boot). The
+    /// Mac asleep is no time Android had to boot.
     private func connectControl(timeout: Duration) async throws -> ControlSession {
-        let deadline = ContinuousClock.now + timeout
+        let deadline = SuspendingClock.now + timeout
         var lastError: (any Error)?
-        while ContinuousClock.now < deadline {
+        while SuspendingClock.now < deadline {
             try Task.checkCancellation()
             do {
                 let stream = try await engine.connect(port: AvoProtocol.Port.control)
@@ -180,14 +204,23 @@ public actor VMManager {
     }
 
     /// `reason`: why Android stopped, shown with the status (an eject).
+    /// A start under way ends too, with nothing of it left running.
     public func stop(reason: String? = nil) async {
         guard status.state != .stopped else { return }
         // A paused engine runs Android again for its power off (VMMEngine.stop).
         pausedAt = nil
         update(VMStatus(state: .stopping))
-        booting?.cancel()
+        let boot = booting
+        boot?.cancel()
         await teardown()
         await engine.stop()
+        if let boot {
+            // The start winds down (its engine start, its waits); an engine
+            // that came up after the stop above ends now.
+            _ = await boot.result
+            await teardown()
+            await engine.stop()
+        }
         update(VMStatus(state: .stopped, detail: reason))
     }
 
@@ -206,16 +239,27 @@ public actor VMManager {
     private func teardown() async {
         for pump in pumps { pump.cancel() }
         pumps.removeAll()
+        // Let go first: the session's pump, ending as it closes, must not
+        // take this for a channel lost while Android runs (`controlClosed`).
+        let (control, input, adb) = (self.control, self.input, self.adb)
+        self.control = nil
+        self.input = nil
+        self.adb = nil
         await control?.close()
         await input?.close()
         await adb?.close()
-        control = nil
-        input = nil
-        adb = nil
     }
 
     private func engineExited(_ error: (any Error)?) async {
-        guard status.state != .stopped else { return }
+        // The engine of a stop, or of a start that failed (both stop it
+        // themselves), says nothing new as it ends.
+        switch status.state {
+        case .stopped, .stopping, .failed, .notInstalled: return
+        default: break
+        }
+        // Android ran (or was paused) and nothing stopped it: its engine ended
+        // by itself. A start under way stops its engine when it fails.
+        let unexpected = status.state != .starting
         pausedAt = nil
         // Android itself rebooted or asked for a reset: a boot still waiting
         // for its Control channel ends now instead of at its timeout
@@ -245,12 +289,17 @@ public actor VMManager {
         } else {
             update(.stopped)
         }
+        // What it left (its host agent and watches) goes now, not at the next start.
+        if unexpected { await engine.stop() }
     }
 
     private func controlClosed(_ session: ControlSession) async {
         guard control === session, status.state == .running else { return }
         logger.error("Control channel closed while running")
         update(VMStatus(state: .failed, detail: String(localized: "Android stopped responding", bundle: .avoKit)))
+        // A failed Android holds nothing: its engine powers it off and ends.
+        await teardown()
+        await engine.stop()
     }
 
     // MARK: Channels
@@ -288,9 +337,10 @@ public actor VMManager {
     /// at once when the engine is not running.
     public func rescueShell(_ command: String, timeout: Duration) async throws -> ShellResult {
         if usedWhilePaused() { try? await wake() }
-        let deadline = ContinuousClock.now + timeout
+        // The Mac asleep is no time the repair had.
+        let deadline = SuspendingClock.now + timeout
         var lastError: (any Error)?
-        while ContinuousClock.now < deadline {
+        while SuspendingClock.now < deadline {
             try Task.checkCancellation()
             let stream: any ByteStream
             do {
