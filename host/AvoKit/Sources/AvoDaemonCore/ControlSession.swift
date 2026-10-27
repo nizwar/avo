@@ -88,7 +88,7 @@ public actor ControlSession {
             pending[id] = continuation
             timers[id] = Task { [weak self] in
                 try? await Task.sleep(for: timeout, clock: .suspending)
-                await self?.expire(id, AvoError.timedOut(envelope.payloadName))
+                await self?.expire(id, timedOut: payload, name: envelope.payloadName)
             }
             Task { await self.writeOrFail(envelope, id: id) }
         }
@@ -173,8 +173,17 @@ public actor ControlSession {
         pending.removeValue(forKey: id)?.resume(throwing: error)
     }
 
+    /// A request ran out of time: its caller hears it in the user's words
+    /// (`timedOut`), the log in the protocol's.
+    private func expire(_ id: UInt64, timedOut payload: Payload, name: String) {
+        guard pending[id] != nil else { return }
+        logger.notice("\(name, privacy: .public) timed out")
+        expire(id, Self.timedOut(payload))
+    }
+
     private func expireHello() {
-        helloWaiter?.resume(throwing: AvoError.timedOut("Bridge Agent hello"))
+        logger.notice("the Bridge Agent's hello timed out")
+        helloWaiter?.resume(throwing: AvoError.guestUnavailable)
         helloWaiter = nil
     }
 
@@ -250,6 +259,26 @@ public actor ControlSession {
         case nil:
             break
         }
+    }
+
+    /// A request that ran out of time, as the user reads it: what was being
+    /// done for the ones a person waits on ("Opening the app timed out."),
+    /// Android not responding for the rest. The protocol's own name for the
+    /// request ("launch") goes to the log.
+    static func timedOut(_ payload: Payload) -> AvoError {
+        let operation: String? = switch payload {
+        case .launch: String(localized: "Opening the app", bundle: .avoKit)
+        case .resize: String(localized: "Resizing the app’s window", bundle: .avoKit)
+        case .uninstall: String(localized: "Uninstalling the app", bundle: .avoKit)
+        case .forceStop: String(localized: "Stopping the app", bundle: .avoKit)
+        case .deleteAppData: String(localized: "Clearing the app’s data", bundle: .avoKit)
+        case .getPermissions: String(localized: "Reading the app’s permissions", bundle: .avoKit)
+        case .setPermission: String(localized: "Changing the app’s permission", bundle: .avoKit)
+        case .openNotification: String(localized: "Opening the notification", bundle: .avoKit)
+        case .shareFiles: String(localized: "Sharing the files", bundle: .avoKit)
+        default: nil
+        }
+        return operation.map { .timedOut($0) } ?? .guestUnavailable
     }
 
     static func error(for reply: Avo_V1_Reply) -> AvoError {
