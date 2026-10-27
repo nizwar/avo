@@ -312,7 +312,8 @@ actor HostAgent: DisplayResizing {
 
     /// Android's storage (`statfs` of /data and /system), once Android is ready.
     func storage() async -> AndroidStorage? {
-        guard isReady, let output = try? await shell(AndroidStorage.statCommand) else { return nil }
+        // A quick statfs that Settings and every new window wait for.
+        guard isReady, let output = try? await shell(AndroidStorage.statCommand, timeout: .seconds(5)) else { return nil }
         return AndroidStorage.parse(output)
     }
 
@@ -351,17 +352,18 @@ actor HostAgent: DisplayResizing {
         throw AvoError.timedOut("ADB (\(lastError.map { "\($0)" } ?? "no answer"))")
     }
 
-    private func shell(_ command: String) async throws -> String {
+    /// `timeout`: how long Android has to finish (nil: the caller's own limit applies).
+    private func shell(_ command: String, timeout: Duration? = ADBConnection.shellTimeout) async throws -> String {
         guard let adb else { throw AvoError.guestUnavailable }
-        let result = try await adb.shell(command)
+        let result = try await adb.shell(command, timeout: timeout)
         return result.output
     }
 
     /// Runs `command` as root through su (userdebug images).
     @discardableResult
-    private func root(_ command: String) async throws -> ShellResult {
+    private func root(_ command: String, timeout: Duration? = ADBConnection.shellTimeout) async throws -> ShellResult {
         guard let adb else { throw AvoError.guestUnavailable }
-        return try await adb.shell("su 0 sh -c " + Self.quote(command))
+        return try await adb.shell("su 0 sh -c " + Self.quote(command), timeout: timeout)
     }
 
     /// Before `prepare`: the folder avo-vmm serves this start (nil: none).
@@ -1119,9 +1121,9 @@ actor HostAgent: DisplayResizing {
         }
     }
 
-    private func adbShell(_ command: String) async throws -> ShellResult {
+    private func adbShell(_ command: String, timeout: Duration? = ADBConnection.shellTimeout) async throws -> ShellResult {
         guard let adb else { throw AvoError.guestUnavailable }
-        return try await adb.shell(command)
+        return try await adb.shell(command, timeout: timeout)
     }
 
     // MARK: Displays
@@ -3043,7 +3045,7 @@ extension HostAgent {
             let data = try Data(contentsOf: file)
             try await adb.push(AsyncStream { $0.yield(data); $0.finish() }, to: "\(staging)/\(name)")
         }
-        let result = try await root(MagiskRoot.patchScript)
+        let result = try await root(MagiskRoot.patchScript, timeout: .seconds(300))
         guard result.succeeded else {
             let detail = (result.output + "\n" + result.errorOutput).trimmingCharacters(in: .whitespacesAndNewlines)
             throw AvoError.installFailed(String(localized: "Magisk could not patch Android’s boot ramdisk", bundle: .avoKit)
@@ -3053,7 +3055,7 @@ extension HostAgent {
         guard MagiskRoot.looksPatched(patched) else {
             throw AvoError.installFailed(String(localized: "Magisk’s patched boot ramdisk is not a boot image", bundle: .avoKit))
         }
-        let install = (try? await shell("pm install -r \(staging)/magisk.apk")) ?? ""
+        let install = (try? await shell("pm install -r \(staging)/magisk.apk", timeout: .seconds(300))) ?? ""
         if !install.contains("Success") { logger.error("root: Magisk's app did not install: \(install.trimmed, privacy: .public)") }
         return patched
     }
@@ -3425,7 +3427,8 @@ extension HostAgent: SystemAppsGuest {
     func remount(afterRestart: Bool) async throws -> RemountResult {
         // The first time, remount creates the overlayfs scratch partition and
         // wants a reboot before /product and /system_ext take writes.
-        let result = try await root("remount 2>&1")
+        // The installer gives each step its own time (GoogleAppsInstaller.Limits).
+        let result = try await root("remount 2>&1", timeout: nil)
         if !afterRestart, Self.remountWantsReboot(result.output) { return .needsRestart }
         let probe = try await root("touch /product/.avo-probe /system_ext/.avo-probe && rm -f /product/.avo-probe /system_ext/.avo-probe")
         guard probe.succeeded else {
@@ -3484,7 +3487,7 @@ extension HostAgent: SystemAppsGuest {
         } catch let error as ADBError {
             throw AvoError.installFailed("\(layout.script): \(error.description)")
         }
-        let result = try await root("sh " + layout.script)
+        let result = try await root("sh " + layout.script, timeout: nil)
         guard result.succeeded else {
             throw AvoError.installFailed(Self.failure(result, String(localized: "copying into the system partitions failed", bundle: .avoKit)))
         }
@@ -3500,7 +3503,8 @@ extension HostAgent: SystemAppsGuest {
     }
 
     func rollBackCommit() async throws {
-        let result = try await root(GoogleAppsCommit.rollbackScript(layout: GoogleAppsCommit.Layout(staging: Self.googleAppsStaging)))
+        let result = try await root(GoogleAppsCommit.rollbackScript(layout: GoogleAppsCommit.Layout(staging: Self.googleAppsStaging)),
+                                    timeout: nil)
         guard result.succeeded else {
             throw AvoError.installFailed(Self.failure(result, String(localized: "removing the copied files failed", bundle: .avoKit)))
         }
