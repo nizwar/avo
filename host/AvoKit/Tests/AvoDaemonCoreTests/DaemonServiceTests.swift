@@ -48,6 +48,28 @@ import Testing
         return (service, listener)
     }
 
+    /// Before its hello a connection gets nothing: no status, no apps, no
+    /// action (a call sent then would escape the code requirement the hello sets).
+    @Test func nothingIsAnsweredBeforeAValidHello() async throws {
+        let harness = try Harness(apps: [])
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        let (service, listener) = Self.service(harness)
+        _ = service
+        let peer = try Peer(listener)
+        defer { peer.connection.invalidate() }
+
+        #expect((try? AvoXPC.decode(VMStatus.self, from: await peer.status())) == nil)
+        #expect(await peer.stopVM()?.code == AvoXPC.nsError(AvoError.unauthorizedCaller).code)
+
+        let hello = try await peer.hello()
+        #expect(hello.status.state == .stopped)
+        #expect(try AvoXPC.decode(VMStatus.self, from: await peer.status()).state == .stopped)
+        #expect(await peer.stopVM() == nil)
+        // A second hello is refused.
+        await #expect(throws: (any Error).self) { try await peer.hello() }
+    }
+
     /// A client that goes while its hello is checked is not left behind
     /// (a ghost Control Panel kept Android from pausing when idle for good).
     @Test func aClientGoneDuringItsHelloIsNotLeftRegistered() async throws {

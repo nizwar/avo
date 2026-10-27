@@ -152,6 +152,11 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
     /// A connection says hello once: its code requirement is set then (`authorize`).
     private let helloLock = NSLock()
     private var saidHello = false
+    /// Its hello passed: it is registered with the core, and held to its
+    /// code requirement. Until then nothing else is answered: a call sent
+    /// before the hello finished would escape that requirement (the hello
+    /// checks the caller by its pid only), and no client of Avo's sends one.
+    private var admitted = false
     /// The connection went (`invalidated`): a hello still being checked
     /// registers nothing for good.
     private var gone = false
@@ -168,7 +173,10 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
         input.continuation.finish()
     }
 
+    private var isAdmitted: Bool { helloLock.withLock { admitted } }
+
     private func run(_ reply: @escaping @Sendable (NSError?) -> Void, _ body: @escaping @Sendable () async throws -> Void) {
+        guard isAdmitted else { return reply(AvoXPC.nsError(AvoError.unauthorizedCaller)) }
         Task {
             do {
                 try await body()
@@ -180,6 +188,11 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
     }
 
     private func run(_ reply: @escaping @Sendable (Data?, NSError?) -> Void, _ body: @escaping @Sendable () async throws -> Data) {
+        guard isAdmitted else { return reply(nil, AvoXPC.nsError(AvoError.unauthorizedCaller)) }
+        answer(reply, body)
+    }
+
+    private func answer(_ reply: @escaping @Sendable (Data?, NSError?) -> Void, _ body: @escaping @Sendable () async throws -> Data) {
         Task {
             do {
                 reply(try await body(), nil)
@@ -189,10 +202,17 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
         }
     }
 
+    /// The answers without an error to give (status, configuration, apps):
+    /// before the hello, nothing a client can read (it fails to decode).
+    private func answerAdmitted(_ reply: @escaping @Sendable (Data) -> Void, _ body: @escaping @Sendable () async -> Data) {
+        guard isAdmitted else { return reply(Data()) }
+        Task { reply(await body()) }
+    }
+
     // MARK: Session
 
     func hello(_ request: Data, reply: @escaping @Sendable (Data?, NSError?) -> Void) {
-        run(reply) { [self] in
+        answer(reply) { [self] in
             let hello = try AvoXPC.decode(ClientHello.self, from: request)
             let first = helloLock.withLock {
                 defer { saidHello = true }
@@ -203,7 +223,11 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
             let answer = await core.register(id, role: hello.role, proxy: ClientProxy(proxy))
             // The client went while it was checked: its disconnect may have
             // come before it was registered, so it goes again now.
-            guard !helloLock.withLock({ gone }) else {
+            let present = helloLock.withLock { () -> Bool in
+                if !gone { admitted = true }
+                return !gone
+            }
+            guard present else {
                 await core.disconnect(id)
                 throw AvoError.daemonUnreachable("the client went")
             }
@@ -213,7 +237,10 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
 
     /// The connection was invalidated: the client quit or crashed.
     func invalidated() {
-        helloLock.withLock { gone = true }
+        helloLock.withLock {
+            gone = true
+            admitted = false
+        }
         let (core, id) = (core, id)
         Task { await core.disconnect(id) }
     }
@@ -221,7 +248,7 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
     // MARK: VM
 
     func status(reply: @escaping @Sendable (Data) -> Void) {
-        Task { reply(AvoXPC.encode(await core.status())) }
+        answerAdmitted(reply) { [self] in AvoXPC.encode(await core.status()) }
     }
 
     func startVM(reply: @escaping @Sendable (NSError?) -> Void) { run(reply) { [self] in try await core.startVM(client: id) } }
@@ -291,7 +318,7 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
     // MARK: Configuration
 
     func configuration(reply: @escaping @Sendable (Data) -> Void) {
-        Task { reply(AvoXPC.encode(await core.configurationSnapshot())) }
+        answerAdmitted(reply) { [self] in AvoXPC.encode(await core.configurationSnapshot()) }
     }
 
     func updateConfiguration(_ config: Data, reply: @escaping @Sendable (Data?, NSError?) -> Void) {
@@ -315,14 +342,16 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
     // MARK: Apps
 
     func apps(reply: @escaping @Sendable (Data) -> Void) {
-        Task { reply(AvoXPC.encode(await core.apps())) }
+        answerAdmitted(reply) { [self] in AvoXPC.encode(await core.apps()) }
     }
 
     func icon(forPackage package: String, reply: @escaping @Sendable (Data?) -> Void) {
+        guard isAdmitted else { return reply(nil) }
         Task { reply(await core.icon(for: package)) }
     }
 
     func install(_ request: Data, file: FileHandle, reply: @escaping @Sendable (NSError?) -> Void) {
+        guard isAdmitted else { return reply(AvoXPC.nsError(AvoError.unauthorizedCaller)) }
         // Own a duplicate: the FileHandle closes its descriptor when released.
         let descriptor = OwnedDescriptor(dup(file.fileDescriptor))
         run(reply) { [self] in
@@ -518,27 +547,35 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
         run(reply) { [self] in try await core.resizeDisplay(displayID, width: width, height: height, dpi: dpi, client: id) }
     }
 
+    // The calls without an answer are dropped before the hello.
+
     func closeDisplay(_ displayID: UInt32) {
+        guard isAdmitted else { return }
         Task { [self] in await core.closeDisplay(displayID, client: id) }
     }
 
     func setDisplayVisible(_ displayID: UInt32, visible: Bool) {
+        guard isAdmitted else { return }
         Task { [self] in await core.setDisplayVisible(displayID, visible: visible, client: id) }
     }
 
     func setDisplayInBackground(_ displayID: UInt32, inBackground: Bool) {
+        guard isAdmitted else { return }
         Task { [self] in await core.setDisplayInBackground(displayID, inBackground: inBackground, client: id) }
     }
 
     func focusDisplay(_ displayID: UInt32) {
+        guard isAdmitted else { return }
         Task { [self] in await core.focusDisplay(displayID, client: id) }
     }
 
     func sendInput(_ record: Data) {
+        guard isAdmitted else { return }
         input.continuation.yield(record)
     }
 
     func shareFiles(_ displayID: UInt32, files: [FileHandle], names: [String], reply: @escaping @Sendable (NSError?) -> Void) {
+        guard isAdmitted else { return reply(AvoXPC.nsError(AvoError.unauthorizedCaller)) }
         let descriptors = files.map { OwnedDescriptor(dup($0.fileDescriptor)) }
         run(reply) { [self] in
             guard descriptors.count == names.count else { throw AvoError.internalError("file and name counts differ") }
@@ -549,6 +586,7 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
     // MARK: Engine
 
     func engineSetSurfaces(_ displayID: UInt32, surfaces: [IOSurface]) {
+        guard isAdmitted else { return }
         let list = SurfaceList(surfaces)
         Task { [self] in
             guard await core.role(of: id) == .engine else { return }
@@ -557,6 +595,7 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
     }
 
     func enginePresent(_ displayID: UInt32, surfaceIndex: Int, sequence: UInt64) {
+        guard isAdmitted else { return }
         Task { [self] in
             guard await core.role(of: id) == .engine else { return }
             await core.enginePresent(displayID, surfaceIndex: surfaceIndex, sequence: sequence)
