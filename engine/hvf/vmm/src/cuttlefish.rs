@@ -467,7 +467,15 @@ fn serve_console(path: &Path, input: ConsoleInput, clients: Arc<Mutex<Vec<UnixSt
     let _ = std::fs::remove_file(path);
     let listener = UnixListener::bind(path).map_err(|e| format!("{}: {e}", path.display()))?;
     std::thread::spawn(move || {
-        for stream in listener.incoming().flatten() {
+        for stream in listener.incoming() {
+            let stream = match stream {
+                Ok(stream) => stream,
+                // Back off instead of spinning when the fd table is full.
+                Err(_) => {
+                    std::thread::sleep(Duration::from_millis(100));
+                    continue;
+                }
+            };
             let Ok(writer) = stream.try_clone() else { continue };
             let Some((_, clients)) = CONSOLE.lock().unwrap().clone() else { continue };
             clients.lock().unwrap().push(writer);
@@ -766,7 +774,7 @@ fn boot(options: &Options, renderer: Option<&RenderHost>, bluetooth: Option<&Arc
     // Mobile accept only controllers whose name they know.
     let gamepad = Input::new(Description::gamepad("Xbox Wireless Controller"));
     let controls = Controls::new(touchscreens, keyboard.sender(), gamepad.sender(), displays, frame_handle,
-                                 options.display, gnss, sensors.clone());
+                                 options.display, gnss, sensors.clone(), options.instance.clone());
     machine.add_virtio(Box::new(keyboard));
     control::serve(&options.runtime.join("control.sock"), controls)?;
 
