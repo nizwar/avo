@@ -218,10 +218,16 @@ impl Vsock {
 
 /// A host client asked for a guest port.
 fn host_connect(shared: Arc<Shared>, stream: UnixStream) {
-    let mut reader = BufReader::new(match stream.try_clone() {
+    // The CONNECT line is short; bound the wait and the length so a client
+    // that never sends a newline cannot hold the thread or grow the buffer
+    // (the stream becomes non-blocking once connected, so this timeout is
+    // only for the handshake).
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
+    let clone = match stream.try_clone() {
         Ok(s) => s,
         Err(_) => return,
-    });
+    };
+    let mut reader = BufReader::new(clone.take(256));
     let mut line = String::new();
     if reader.read_line(&mut line).is_err() {
         return;
