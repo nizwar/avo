@@ -192,6 +192,8 @@ public actor DaemonCore {
     private var starting = 0
     /// This daemon ends to restart on an updated Avo: nothing starts Android any more.
     private(set) var exitingForUpdate = false
+    /// Android's reboots of its own since it was last ready (RebootLimit).
+    private var reboots = RebootLimit()
     /// Clients whose Location panel is open (`locationStatus(watch:)`).
     var locationWatchers: Set<ClientID> = []
     /// Control Panels whose System Status shows (`systemActivity(watch:)`), and its sampling (SystemMonitor.swift).
@@ -529,6 +531,14 @@ public actor DaemonCore {
         defer { restartWork -= 1 }
         await vm.restartTaken()
         if rootTrial { rootFailedToBoot() }
+        // Rebooting again and again before it gets ready (the installer of
+        // Google apps restarts Android itself, and has its own limits): it
+        // stays stopped, and says so, instead of starting over for good.
+        if googleAppsRun == nil, !reboots.reboot(at: .now) {
+            reboots.ready()
+            await vm.reportFailure(Self.keepsRestartingMessage)
+            return
+        }
         do {
             try await ensureRunning()
         } catch {
@@ -536,6 +546,9 @@ public actor DaemonCore {
         }
     }
 
+    static var keepsRestartingMessage: String {
+        String(localized: "Android keeps restarting, so Avo stopped it. Start Android to try again.", bundle: .avoKit)
+    }
 
     private func eraseAndroid(force: Bool = false) async throws {
         try await clearForVMChange(.reset, force: force)
@@ -734,6 +747,8 @@ public actor DaemonCore {
                 await androidResumed()
                 break
             }
+            // Ready: its reboots from now on count anew.
+            reboots.ready()
             // Nothing to catch up on from an Android that stopped answering
             // (asking would only hold the next statuses back); it is, once it answers.
             guard !status.isNotResponding else { break }
