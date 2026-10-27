@@ -17,6 +17,7 @@
 //!                                    sticks -32768..=32767 with y down,
 //!                                    triggers 0..=1023, hat -1..=1 (y down)
 //! snapshot <index> <path>            next frame of a scanout as a BMP
+//!                                     (path must be inside the instance dir)
 //! location <lat> <lng> [alt] [accuracy] [speed] [bearing]   GPS fix for Android (gnss.rs)
 //! location off                       no fix
 //! shake                              the phone shaken for a second: the
@@ -289,6 +290,8 @@ pub struct Controls {
     pub primary: (u32, u32),
     pub gnss: Arc<Gnss>,
     pub sensors: Arc<Sensors>,
+    /// Where `snapshot` may write (the instance directory); nothing else.
+    snapshot_dir: PathBuf,
     touch: Mutex<Vec<TouchState>>,
     pad: Mutex<PadState>,
     subscribers: Arc<Mutex<Vec<Subscriber>>>,
@@ -296,7 +299,8 @@ pub struct Controls {
 
 impl Controls {
     pub fn new(touchscreens: Vec<InputSender>, keyboard: InputSender, gamepad: InputSender, displays: DisplayControl,
-               frames: FrameHandle, primary: (u32, u32), gnss: Arc<Gnss>, sensors: Arc<Sensors>) -> Arc<Controls> {
+               frames: FrameHandle, primary: (u32, u32), gnss: Arc<Gnss>, sensors: Arc<Sensors>, snapshot_dir: PathBuf) -> Arc<Controls> {
+        let snapshot_dir = snapshot_dir.canonicalize().unwrap_or(snapshot_dir);
         let touch = Mutex::new((0..touchscreens.len()).map(|_| TouchState::default()).collect());
         // The process's streams: a subscription goes on across guest reboots.
         let subscribers = SUBSCRIBERS.clone();
@@ -307,7 +311,18 @@ impl Controls {
             fanout.lock().unwrap().retain(|s| s.send(event.clone()));
         }));
         let pad = Mutex::new(PadState::default());
-        Arc::new(Controls { touchscreens, keyboard, gamepad, displays, frames, primary, gnss, sensors, touch, pad, subscribers })
+        Arc::new(Controls { touchscreens, keyboard, gamepad, displays, frames, primary, gnss, sensors, snapshot_dir, touch, pad, subscribers })
+    }
+
+    /// A `snapshot` destination, kept inside the instance directory so the
+    /// command cannot overwrite an arbitrary file the user can write.
+    fn snapshot_path(&self, path: &str) -> Result<PathBuf, String> {
+        let requested = Path::new(path);
+        let full = if requested.is_absolute() { requested.to_path_buf() } else { self.snapshot_dir.join(requested) };
+        if full.components().any(|c| c == std::path::Component::ParentDir) || !full.starts_with(&self.snapshot_dir) {
+            return Err("snapshot path must be inside the instance directory".into());
+        }
+        Ok(full)
     }
 
     fn gamepad(&self, report: GamepadReport) {
@@ -395,7 +410,7 @@ impl Controls {
             Some("snapshot") => {
                 let index = int(1)? as usize;
                 let path = words.get(2).ok_or("snapshot needs a path")?;
-                self.frames.snapshot(index, PathBuf::from(path));
+                self.frames.snapshot(index, self.snapshot_path(path)?);
             }
             Some("tap") => {
                 let (x, y) = self.scale(int(1)? as i32, int(2)? as i32);
@@ -662,7 +677,16 @@ mod tests {
         let handle = frames.handle();
         let displays = crate::virtio::gpu::Gpu::new(&[(64, 64)], Box::new(frames)).control();
         let sender = || input::Input::new(input::Description::keyboard("Test Keyboard")).sender();
-        (Controls::new(vec![sender()], sender(), sender(), displays, handle, (64, 64), Gnss::new(), Sensors::new()), dir)
+        (Controls::new(vec![sender()], sender(), sender(), displays, handle, (64, 64), Gnss::new(), Sensors::new(), dir.clone()), dir)
+    }
+
+    #[test]
+    fn snapshot_stays_in_the_instance_directory() {
+        let (controls, dir) = machine("snap");
+        assert!(controls.run("snapshot 0 shot.bmp").is_ok(), "a plain name goes in the instance dir");
+        assert!(controls.run("snapshot 0 /tmp/evil.bmp").is_err(), "an absolute path outside is refused");
+        assert!(controls.run("snapshot 0 ../escape.bmp").is_err(), "a parent-dir escape is refused");
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

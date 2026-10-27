@@ -526,7 +526,7 @@ The control socket (`control.sock`, one text command per line):
 | `shake` | shakes the phone: Android's accelerometer swings ±15 m/s² sideways five times a second for one second, as a hand shaking it would, then reads still again (sensors.rs); an error until Android has turned its sensors on |
 | `microphone on\|off` | whether Android may use the Mac's microphone (Settings › Devices › Microphone); off, it records silence and the microphone is never opened (virtio/sound.rs) |
 | `camera feed` | turns the connection into the cameras' frames: each a 16-byte header (camera, width, height, length; u32 little endian) and that many bytes of JPEG (camera.rs) |
-| `snapshot <i> <path>` | next frame as a BMP |
+| `snapshot <i> <path>` | next frame as a BMP (path must be inside the instance directory) |
 | `pause` / `resume` | stop the vCPUs / let them run again (both idempotent); `pause` answers once no vCPU runs guest code, or with an error when one does not stop within 5 s (the others go on) |
 | `subscribe` | events: `frames …` (new layout), `frame <i> <seq>`, `frames-off <i>`, `microphone` (Android started recording), `sound playback on\|off` and `sound capture on\|off` (sticky: Android's sound streams), `paused` and `resumed <ms>` (how long the guest stood still), `audio playback <epoch> <path>` (sticky: the ring of what Android played), `camera <i> on <w> <h> <fps>` and `camera <i> off` (sticky: Android streams camera *i*, 0 back and 1 front, with `--cameras`), `disk full on` and `disk full off` (sticky: Android's writes wait for room on the Mac's disk, and none waits any more); with the GPU also `gpu active <device>`, `gpu context` (Android's first rendering context this boot), `gpu first-frame <i>` and `gpu stalled <ms>` |
 
