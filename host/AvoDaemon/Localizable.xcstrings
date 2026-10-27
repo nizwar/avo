@@ -438,12 +438,42 @@
         }
       }
     },
+    "Restart Android" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mulai Ulang Android"
+          }
+        }
+      }
+    },
     "Restart Android to Finish Updating Avo" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mulai Ulang Android untuk Menyelesaikan Pembaruan Avo"
+          }
+        }
+      }
+    },
+    "Restart Anyway" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tetap Mulai Ulang"
+          }
+        }
+      }
+    },
+    "Restart it to go on. Your apps and data are kept." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mulai ulang untuk melanjutkan. Aplikasi dan data Anda tetap ada."
           }
         }
       }
@@ -554,16 +584,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tetap Hentikan"
-          }
-        }
-      }
-    },
-    "Stop it and start it again to go on. Your apps and data are kept." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hentikan lalu jalankan lagi untuk melanjutkan. Aplikasi dan data Anda tetap ada."
           }
         }
       }

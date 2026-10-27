@@ -60,6 +60,7 @@ struct MenuBarActions {
     var start: () -> Void
     var pause: () -> Void
     var resume: () -> Void
+    var restart: () -> Void
     var stop: () -> Void
     var open: (AppRecord) -> Void
     var openAvo: () -> Void
@@ -124,6 +125,12 @@ struct MenuBarPanel: View {
                     }
                 }
             }
+            // Android stopped answering: the way on is right under what says so
+            // (its windows send the user here for it).
+            if model.status.isNotResponding {
+                Button { actions.restart() } label: { Label("Restart Android", systemImage: "arrow.clockwise") }
+                    .buttonStyle(HazeButtonStyle(kind: .primary, height: 32, fontSize: 12, horizontalPadding: 14))
+            }
             if model.status.state == .running || model.status.isPaused, let engine = model.snapshot.engine {
                 HStack(spacing: 8) {
                     stat("CPU", model.cpuPercent.map { "\(Int($0.rounded()))%" } ?? "—")
@@ -171,7 +178,7 @@ struct MenuBarPanel: View {
         case nil: break
         }
         let status = model.status
-        if status.isNotResponding { return String(localized: "Stop it and start it again to go on. Your apps and data are kept.") }
+        if status.isNotResponding { return String(localized: "Restart it to go on. Your apps and data are kept.") }
         switch status.state {
         case .running:
             var parts: [String] = []
@@ -264,11 +271,14 @@ struct MenuBarPanel: View {
                     .buttonStyle(HazeButtonStyle(kind: .primary, height: 32, fontSize: 12, horizontalPadding: 14))
                     .disabled(state == .suspending)
                 stopButton
+            case .starting:
+                // A start can take minutes: it can be stopped too, as in the Library.
+                stopButton
             default:
                 Button { actions.start() } label: { Label("Start", systemImage: "play.fill") }
                     .buttonStyle(HazeButtonStyle(kind: .primary, height: 32, fontSize: 12, horizontalPadding: 14))
                     // The installer starts Android itself (and may be repairing it).
-                    .disabled([.starting, .stopping, .notInstalled].contains(state) || model.googleAppsWork != nil)
+                    .disabled([.stopping, .notInstalled].contains(state) || model.googleAppsWork != nil)
             }
             Spacer(minLength: 0)
             Button("Quit Avo", action: actions.quit)
