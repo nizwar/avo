@@ -297,19 +297,19 @@ final class ControlPanelModel {
     }
 
     /// Stops Android so an update installs cleanly (AppUpdater's Stop
-    /// Android and Install): true once Android holds nothing, within a minute.
-    func stopAndroidForUpdate() async -> Bool {
-        guard let client else { return false }
+    /// Android and Install): nil once Android holds nothing, within a
+    /// minute; otherwise why not, for the player.
+    func stopAndroidForUpdate() async -> String? {
+        guard let client else { return String(localized: "Avo’s background service isn’t running yet.") }
         do {
             try await client.stopVM()
         } catch {
-            lastError = error.localizedDescription
-            return false
+            return error.localizedDescription
         }
         for _ in 0..<120 where status.state.holdsAndroid {
             try? await Task.sleep(for: .milliseconds(500))
         }
-        return !status.state.holdsAndroid
+        return status.state.holdsAndroid ? String(localized: "It was still running after a minute.") : nil
     }
 
     /// This process runs code its app bundle no longer has (Avo was updated

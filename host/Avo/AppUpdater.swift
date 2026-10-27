@@ -121,19 +121,29 @@ extension AppUpdater: SPUUpdaterDelegate {
         alert.addButton(withTitle: String(localized: "Install Now"))
         alert.addButton(withTitle: String(localized: "Later"))
         NSApp.activate()
+        let version = item.displayVersionString
         switch alert.runModal() {
         case .alertFirstButtonReturn:
             Task { @MainActor in
-                if await model.stopAndroidForUpdate() {
+                guard let problem = await model.stopAndroidForUpdate() else {
                     installHandler()
-                } else {
-                    self.logger.error("Android did not stop for the update; it installs when Avo quits")
+                    return
                 }
+                self.logger.error("Android did not stop for the update: \(problem, privacy: .public)")
+                // Said, not only logged: the player waits for the install.
+                let failed = NSAlert()
+                failed.alertStyle = .warning
+                failed.messageText = String(localized: "Android did not stop")
+                failed.informativeText = String(localized: "\(problem) Avo \(version) installs when you quit Avo, or now with Install Now: Android goes on running the version of Avo you have until it restarts.")
+                failed.addButton(withTitle: String(localized: "Install Now"))
+                failed.addButton(withTitle: String(localized: "Later"))
+                NSApp.activate()
+                if failed.runModal() == .alertFirstButtonReturn { installHandler() }
             }
         case .alertSecondButtonReturn:
             installHandler()
         default:
-            logger.notice("update \(item.displayVersionString, privacy: .public) waits for Avo to quit")
+            logger.notice("update \(version, privacy: .public) waits for Avo to quit")
         }
         return true
     }

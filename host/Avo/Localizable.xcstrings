@@ -9463,6 +9463,42 @@
         }
       }
     },
+    "%@ Avo %@ installs when you quit Avo, or now with Install Now: Android goes on running the version of Avo you have until it restarts." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ Avo %2$@ installs when you quit Avo, or now with Install Now: Android goes on running the version of Avo you have until it restarts."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ Avo %2$@ dipasang saat Anda keluar dari Avo, atau sekarang dengan Pasang Sekarang: Android tetap berjalan di versi Avo yang Anda punya sampai dimulai ulang."
+          }
+        }
+      }
+    },
+    "Android did not stop" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android tidak berhenti"
+          }
+        }
+      }
+    },
+    "It was still running after a minute." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android masih berjalan setelah satu menit."
+          }
+        }
+      }
+    },
     "Stop Android before installing Avo %@?" : {
       "localizations" : {
         "id" : {
