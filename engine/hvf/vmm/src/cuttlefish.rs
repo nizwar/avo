@@ -488,6 +488,13 @@ pub const EXIT_FACTORY_RESET: i32 = 76;
 /// folder, audio) as it does every boot.
 pub const EXIT_GUEST_REBOOT: i32 = 77;
 
+/// Exit code when a vCPU faulted (machine.rs `Stop::Failed`): an
+/// `hv_vcpu_run` error, an unhandled exit, or a register that would not set.
+/// The daemon treats any non-zero exit but 75/76/77 as a start/run failure,
+/// and this one is not the GPU's (75) or a signal, so it never turns the GPU
+/// off; it simply ends the process so the daemon can start Android again.
+pub const EXIT_VCPU_FAULT: i32 = 70;
+
 /// misc's bootloader_message (bootable/recovery/bootloader_message.h):
 /// command[32], status[32], recovery[768], stage[32], reserved[1184].
 const BCB_SIZE: usize = 2048;
@@ -599,6 +606,10 @@ pub fn run(options: Options) -> Result<(), String> {
                 exit(EXIT_GUEST_REBOOT);
             }
             machine::Stop::Reset => eprintln!("[vmm] guest rebooted"),
+            machine::Stop::Failed => {
+                eprintln!("[vmm] a vCPU faulted; exiting so the daemon can start Android again");
+                exit(EXIT_VCPU_FAULT);
+            }
             _ => return Ok(()),
         }
     }

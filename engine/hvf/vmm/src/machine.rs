@@ -81,6 +81,10 @@ pub enum Stop {
     PowerOff,
     Reset,
     Timeout,
+    /// A vCPU could not go on (an `hv_vcpu_run` error, an unhandled exit, or a
+    /// register it could not set): the whole machine stops so the process
+    /// exits (cuttlefish.rs `EXIT_VCPU_FAULT`) and the daemon can restart it.
+    Failed,
 }
 
 impl Machine {
@@ -495,6 +499,17 @@ impl Running {
     }
 
     fn vcpu_thread(self: Arc<Self>, index: usize, mut seat: Seat<'static>) -> Result<(), String> {
+        let result = self.run_vcpu_thread(index, &mut seat);
+        // A vCPU that failed (rather than powered off or hit a machine-wide
+        // stop) ends the whole machine, so the run loop breaks and the process
+        // exits instead of waiting forever with one vCPU thread gone.
+        if result.is_err() {
+            self.stop_all(Stop::Failed);
+        }
+        result
+    }
+
+    fn run_vcpu_thread(&self, index: usize, seat: &mut Seat<'static>) -> Result<(), String> {
         let vcpu = Vcpu::new(&self.vm).map_err(|e| e.to_string())?;
         // CNTVCT = host counter - offset; a pause adds what the guest did not see.
         let offset = vcpu.vtimer_offset().map_err(|e| e.to_string())?;
@@ -538,7 +553,7 @@ impl Running {
                 e(vcpu.set_x(register, 0))?;
             }
             e(vcpu.set_cpsr(0x3c5))?; // EL1h, DAIF masked
-            match self.run_vcpu(&mut vcpu, index, &mut seat, offset)? {
+            match self.run_vcpu(&mut vcpu, index, seat, offset)? {
                 Some(stop) => {
                     self.stop_all(stop);
                     return Ok(());

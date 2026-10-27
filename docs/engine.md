@@ -163,6 +163,12 @@ device comes last (see "Shared folder" below). Frames go to shared memory
   `--wipe_data` on misc (Android's factory reset) exits 76
   (EXIT_FACTORY_RESET) either way; a recovery request left on misc from
   before is dropped before each boot.
+- **vCPU fault** (`machine.rs`, `cuttlefish.rs`): an `hv_vcpu_run` error, an
+  unhandled guest exit, or a register that would not set stops the whole
+  machine and exits 70 (EXIT_VCPU_FAULT) instead of leaving the process
+  hanging with one vCPU thread gone; the daemon treats it as a failure (not
+  75/76/77, not the GPU's) and starts Android again. A panic anywhere aborts
+  the process for the same reason (`panic = "abort"` in the release profile).
 - The engine raises its threads to user-initiated QoS (the sound clock to
   user-interactive): the daemon it inherits from runs at utility.
 
