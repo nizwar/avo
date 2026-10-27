@@ -543,7 +543,10 @@ final class ControlPanelModel {
 
     // MARK: VM
 
-    func startVM() { perform { try await $0.startVM() } }
+    func startVM() {
+        guard takesVMAction() else { return }
+        perform { try await $0.startVM() }
+    }
     func stopVM() {
         guard takesVMAction() else { return }
         performUnlessInstalling { try await $0.stopVM() }
@@ -553,8 +556,9 @@ final class ControlPanelModel {
         performUnlessInstalling { try await $0.restartVM() }
     }
 
-    /// Stop and Restart a second time within a second (a double-click,
-    /// before the daemon's new state arrives) ask nothing more.
+    /// Start, Stop and Restart within a second of one of them (a
+    /// double-click) ask nothing more: Stop takes Play's place as soon as
+    /// Android starts, and a double-click on Play would stop it again.
     private func takesVMAction() -> Bool {
         let now = ContinuousClock.now
         if let last = lastVMAction, now - last < .seconds(1) { return false }
