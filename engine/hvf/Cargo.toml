@@ -12,7 +12,9 @@ publish = false
 
 # A panic anywhere (a device thread, the render thread, a vCPU) ends the
 # process instead of only unwinding its own thread and leaving the machine
-# stuck; the daemon then starts Android again. Tests build with the dev/test
-# profile, which keeps unwinding, so `#[should_panic]` and catch_unwind work.
+# stuck. avo-vmm's panic hook ends it first, with exit status 101 (75 on the
+# renderer's threads; cuttlefish::exit_on_panic), so the daemon never takes a
+# bug for a GPU crash (SIGABRT). Tests build with the dev/test profile, which
+# keeps unwinding, so `#[should_panic]` and catch_unwind work.
 [profile.release]
 panic = "abort"

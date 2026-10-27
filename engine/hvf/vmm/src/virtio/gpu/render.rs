@@ -85,6 +85,16 @@ const INIT_LIMIT: Duration = Duration::from_secs(20);
 /// a fence of a guest that was reset can never complete the next one's.
 const EPOCH_SHIFT: u32 = 48;
 
+/// The render thread's name, and the frame reader's.
+const RENDER_THREAD: &str = "gpu-render";
+const FRAMES_THREAD: &str = "gpu-frames";
+
+/// Whether the thread named `name` is one of the renderer's (a panic there
+/// is the GPU's failure: cuttlefish::exit_on_panic).
+pub fn is_renderer_thread(name: &str) -> bool {
+    name == RENDER_THREAD || name == FRAMES_THREAD
+}
+
 /// The renderer for the life of the process (cheap to clone).
 #[derive(Clone)]
 pub struct RenderHost {
@@ -165,7 +175,7 @@ pub fn start(emulator: &Path, display: (u32, u32), hwc: Hwc, verbose: bool) -> R
     let fences = tx.clone();
     let dir = emulator.to_path_buf();
     std::thread::Builder::new()
-        .name("gpu-render".into())
+        .name(RENDER_THREAD.into())
         .spawn(move || match Renderer::new(&dir, display, fences, verbose) {
             Ok((renderer, device)) => {
                 let _ = ready.send(Ok(device));
@@ -291,7 +301,7 @@ impl FrameReader {
         let shared = Arc::new((Mutex::new(Reads::default()), Condvar::new()));
         let worker = shared.clone();
         std::thread::Builder::new()
-            .name("gpu-frames".into())
+            .name(FRAMES_THREAD.into())
             .spawn(move || Self::run(readback, &worker, &first_frame))
             .ok()?;
         // Before a layout's memory goes, gfxstream lets go of what it imported.

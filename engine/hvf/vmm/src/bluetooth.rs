@@ -107,6 +107,19 @@ impl Bluetooth {
         Box::new(Packets(self.clone()))
     }
 
+    /// Ends the controller's process without waiting for a lock or for it
+    /// to go: a panic is ending avo-vmm, and may hold this one's locks.
+    pub fn kill(&self) {
+        let mut child = match self.child.try_lock() {
+            Ok(child) => child,
+            Err(std::sync::TryLockError::Poisoned(poisoned)) => poisoned.into_inner(),
+            Err(std::sync::TryLockError::WouldBlock) => return,
+        };
+        if let Some(child) = child.as_mut() {
+            let _ = child.kill();
+        }
+    }
+
     /// Ends the controller (avo-vmm is leaving).
     pub fn stop(&self) {
         if let Some(stream) = self.state.lock().unwrap().stream.take() {
