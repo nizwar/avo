@@ -168,18 +168,6 @@ private struct ContinuePlayingHero: View {
         let usage = model.usage[game.package]
         let nudged = hovering && !reduceMotion
         ZStack(alignment: .leading) {
-            // The game's colours bloom in as its icon arrives.
-            ZStack {
-                HazeBackground(base: Haze.heroBase,
-                               linear: HazeLinear(angle: 110, stops: [.init(color: 0x10140C, location: 0), .init(color: 0x1E2514, location: 0.46),
-                                                                      .init(color: palette.baseEnd(from: 0x1E2514, amount: 0.14), location: 1)]),
-                               glows: [HazeGlow(x: .fraction(0.78), y: .fraction(0.30), rx: 420, ry: 260, color: palette.accent, alpha: 0.55),
-                                       HazeGlow(x: .fraction(1), y: .fraction(1), rx: 520, ry: 300, color: palette.deep, alpha: 0.55),
-                                       HazeGlow(x: .fraction(0.55), y: .fraction(-0.20), rx: 380, ry: 240, color: 0xD8E8A7, alpha: 0.20)])
-                    .id(palette.accent)
-                    .transition(.opacity)
-            }
-            .animation(.easeInOut(duration: 0.6), value: palette)
             AppIconView(icon: model.icons[game.package], size: 156, cornerRadius: 38)
                 .overlay { RoundedRectangle(cornerRadius: 38, style: .continuous).strokeBorder(Haze.highlight.opacity(0.08)) }
                 .hazeEdgeLight(cornerRadius: 38, reach: 240)
@@ -217,9 +205,26 @@ private struct ContinuePlayingHero: View {
                 .padding(.top, 6)
             }
             .padding(.horizontal, 40)
-            .frame(maxWidth: 560, maxHeight: .infinity, alignment: .leading)
+            .padding(.vertical, 32)
+            .frame(maxWidth: 560, alignment: .leading)
         }
-        .frame(height: 262)
+        // A name on two lines makes the card taller instead of crowding it,
+        // with as much room above the label as below the buttons.
+        .frame(minHeight: 262)
+        .background {
+            // The game's colours bloom in as its icon arrives.
+            ZStack {
+                HazeBackground(base: Haze.heroBase,
+                               linear: HazeLinear(angle: 110, stops: [.init(color: 0x10140C, location: 0), .init(color: 0x1E2514, location: 0.46),
+                                                                      .init(color: palette.baseEnd(from: 0x1E2514, amount: 0.14), location: 1)]),
+                               glows: [HazeGlow(x: .fraction(0.78), y: .fraction(0.30), rx: 420, ry: 260, color: palette.accent, alpha: 0.55),
+                                       HazeGlow(x: .fraction(1), y: .fraction(1), rx: 520, ry: 300, color: palette.deep, alpha: 0.55),
+                                       HazeGlow(x: .fraction(0.55), y: .fraction(-0.20), rx: 380, ry: 240, color: 0xD8E8A7, alpha: 0.20)])
+                    .id(palette.accent)
+                    .transition(.opacity)
+            }
+            .animation(.easeInOut(duration: 0.6), value: palette)
+        }
         .hazePointerGlow(hovering, cornerRadius: 22, color: Haze.glow(palette.accent))
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         // A wide card turns less.
