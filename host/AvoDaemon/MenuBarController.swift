@@ -236,7 +236,9 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     }
 
     private static func title(for status: VMStatus) -> String {
-        switch status.state {
+        // Not responding, over the windows it has open.
+        if status.isNotResponding { return MenuBarPanel.title(for: status) }
+        return switch status.state {
         case .running where status.openDisplays > 0: String(localized: "Android is running · \(status.openDisplays) open windows")
         case .failed: status.detail.map { String(localized: "Android stopped: \($0)") } ?? String(localized: "Android stopped with an error")
         default: MenuBarPanel.title(for: status)

@@ -508,7 +508,7 @@ private struct SettingsStatusHeader: View {
     private var dotColor: Color {
         guard model.daemonState == .connected else { return Haze.textTertiary }
         switch model.status.state {
-        case .running: return Haze.running
+        case .running: return model.status.isNotResponding ? Haze.warning : Haze.running
         case .failed: return Haze.danger
         case .starting, .stopping, .suspending: return Haze.warning
         default: return Haze.textTertiary
@@ -518,6 +518,8 @@ private struct SettingsStatusHeader: View {
     /// "Running · GPU".
     private var detail: String {
         guard model.daemonState == .connected else { return String(localized: "Not connected") }
+        // It runs, but stopped answering: not "Running" (the banner offers a restart).
+        if model.status.isNotResponding { return String(localized: "Not responding") }
         var text = String(localized: model.status.state.labelResource)
         if model.status.state == .running, let renderer = model.status.renderer {
             text += " · " + (renderer.mode == .gpu ? "GPU" : String(localized: "Software"))

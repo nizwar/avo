@@ -86,8 +86,9 @@ struct StatusPill: View {
                     .transition(swap)
             }
         }
+        // Lit when a restart is the way on: changes wait for it, or Android stopped answering.
         Button { model.restartVM() } label: { Image(systemName: "arrow.clockwise").font(.system(size: 15, weight: .semibold)) }
-            .buttonStyle(HazeIconButtonStyle(fill: model.pendingRestart ? Haze.accent.opacity(0.22) : Haze.button))
+            .buttonStyle(HazeIconButtonStyle(fill: model.pendingRestart || model.status.isNotResponding ? Haze.accent.opacity(0.22) : Haze.button))
             .disabled(state != .running || !connected || model.googleAppsChangingAndroid)
             .help(model.pendingRestart ? Text("Restart Android to apply your changes. Your apps and data are kept.") : Text("Restart Android"))
             .accessibilityLabel(Text("Restart Android"))
@@ -110,7 +111,7 @@ struct StatusPill: View {
     private var dotColor: Color {
         guard model.daemonState == .connected else { return Haze.textTertiary }
         switch model.status.state {
-        case .running: return Haze.running
+        case .running: return model.status.isNotResponding ? Haze.warning : Haze.running
         case .starting, .stopping, .suspending: return Haze.warning
         case .failed: return Haze.danger
         default: return Haze.textTertiary
@@ -126,6 +127,7 @@ struct StatusPill: View {
         }
         let android = Self.shortVersion(model.status.androidVersion) ?? "Android"
         switch model.status.state {
+        case .running where model.status.isNotResponding: return String(localized: "Android is not responding")
         case .running: return String(localized: "\(android) is running")
         case .starting: return String(localized: "Android is starting…")
         case .stopping: return String(localized: "Android is stopping…")

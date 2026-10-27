@@ -1729,6 +1729,16 @@
         }
       }
     },
+    "Android is not responding" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android tidak merespons"
+          }
+        }
+      }
+    },
     "Android is not running" : {
       "localizations" : {
         "id" : {
@@ -7565,6 +7575,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Belum pernah dimainkan"
+          }
+        }
+      }
+    },
+    "Not responding" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidak merespons"
           }
         }
       }
