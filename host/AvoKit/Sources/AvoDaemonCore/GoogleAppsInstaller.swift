@@ -172,8 +172,8 @@ struct GoogleAppsInstaller: Sendable {
     let guest: @Sendable () async throws -> any SystemAppsGuest
     let report: Report
     /// Runs `GoogleAppsCommit.rollbackScript` over a fresh adbd connection,
-    /// for an Android that never finished booting (`vmNotRunning` when the
-    /// engine itself is not running).
+    /// for an Android that never finished booting, starting an engine for it
+    /// when none runs (VMManager.rescueShell).
     var rescue: @Sendable () async throws -> Void = { throw AvoError.guestUnavailable }
     /// Right before the commit (the daemon writes `GoogleAppsJournal`).
     var committing: @Sendable () async -> Void = {}

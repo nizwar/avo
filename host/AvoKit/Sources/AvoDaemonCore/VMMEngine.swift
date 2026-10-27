@@ -129,7 +129,8 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     /// Arguments for a launch; pure, so the contract with avo-vmm is testable.
     /// Software adds nothing: avo-vmm then runs exactly as before GPU support.
     /// A reboot from inside Android (Restart, `adb reboot`) ends avo-vmm, and
-    /// the daemon starts Android again: its start prepares every boot.
+    /// the daemon starts Android again: its start prepares every boot. An
+    /// engine for a repair alone boots Android again inside instead.
     public static func arguments(images: URL, launch: EngineLaunch, gpu: GPUPlan = .software(.chosen, nil),
                                  bluetooth: URL? = nil, initBoot: URL? = nil, host: HostInfo = .current()) -> [String] {
         let config = launch.config
@@ -149,8 +150,9 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
                 "--mem", "\(config.androidMemoryMiB(profile: launch.profile, host: host))",
                 "--display", "\(launch.androidScreen.width)x\(launch.androidScreen.height)",
                 "--density", "\(launch.androidScreen.dpi)",
-                "--properties", identityFile(paths).path,
-                "--exit-on-reboot"] + gpuFlags + sharedFolderFlags(config) + refreshRateFlags(launch.displayRate)
+                "--properties", identityFile(paths).path]
+                + (launch.exitOnReboot ? ["--exit-on-reboot"] : [])
+                + gpuFlags + sharedFolderFlags(config) + refreshRateFlags(launch.displayRate)
                 + (bluetooth.map { ["--bluetooth", $0.path] } ?? [])
                 + (initBoot.map { ["--init-boot", $0.path] } ?? [])
                 + config.cameraFlags

@@ -300,6 +300,10 @@ import Testing
         phone.androidScreen = DisplayRequest(width: 1080, height: 2400, dpi: 395)
         let screen = VMMEngine.arguments(images: images, launch: phone)
         #expect(screen.contains(["--display", "1080x2400"]) && screen.contains(["--density", "395"]))
+        // An engine for a repair alone boots Android again inside at its reboots.
+        var repair = launch
+        repair.exitOnReboot = false
+        #expect(VMMEngine.arguments(images: images, launch: repair) == Array(software.dropLast()))
     }
 
     @Test func findsTheEmulatorsNetsimd() throws {

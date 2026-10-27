@@ -117,6 +117,44 @@ import Testing
         #expect(!harness.engine.isRunning)
     }
 
+    /// A repair over adbd while no engine runs (the start before failed, or
+    /// Android's own reboot ended it): an engine starts for the repair
+    /// alone, one that runs on through Android's reboots, and stops after.
+    @Test func aRepairWithNoEngineStartsOneOfItsOwn() async throws {
+        let harness = try Harness(apps: [])
+        defer { harness.cleanUp() }
+        try Self.bootedBefore(harness)
+        harness.engine.adbShellHandler = { $0 == "echo repaired" ? ("repaired\n", "", 0) : ("", "unexpected", 1) }
+        let vm = harness.core.vm
+        let settings = VMManager.Settings(config: VMConfig(), profile: nil)
+        let result = try await vm.rescueShell("echo repaired", timeout: .seconds(10), detail: "Restoring Android", settings: settings)
+        #expect(result.output == "repaired\n")
+        #expect(harness.engine.launches.map(\.exitOnReboot) == [false])
+        #expect(!harness.engine.isRunning)
+        #expect(await vm.status.state == .stopped)
+        // Android starts as usual after it.
+        try await vm.ensureRunning(settings)
+        #expect(harness.engine.launches.map(\.exitOnReboot) == [false, true])
+    }
+
+    /// Stop during such a repair ends it, and its engine, at once.
+    @Test func aStopEndsARepairAndItsOwnEngine() async throws {
+        let harness = try Harness(apps: [])
+        defer { harness.cleanUp() }
+        try Self.bootedBefore(harness)
+        harness.engine.adbNeverEnds = { _ in true }
+        let vm = harness.core.vm
+        let settings = VMManager.Settings(config: VMConfig(), profile: nil)
+        let repair = Task { try await vm.rescueShell("sleep 1000", timeout: .seconds(40), detail: "Restoring Android", settings: settings) }
+        #expect(await eventually { await vm.status.detail == "Restoring Android" && harness.engine.adbd != nil })
+        let stopped = ContinuousClock.now
+        await vm.stop()
+        await #expect(throws: (any Error).self) { try await repair.value }
+        #expect(ContinuousClock.now - stopped < .seconds(10))
+        #expect(await vm.status.state == .stopped)
+        #expect(!harness.engine.isRunning)
+    }
+
     /// The Control channel closed while Android ran: Android failed, and its
     /// engine powers it off instead of running on unseen.
     @Test func aLostControlChannelStopsTheEngine() async throws {

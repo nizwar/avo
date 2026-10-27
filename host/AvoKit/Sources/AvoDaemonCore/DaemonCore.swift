@@ -1561,11 +1561,15 @@ public actor DaemonCore {
     }
 
     /// Takes out a commit over a fresh adbd connection: Android may never
-    /// get ready with it (system_server crashing), but adbd is up.
+    /// get ready with it (system_server crashing), but adbd is up. With the
+    /// engine gone (that boot failed, or Android rebooted itself), one starts
+    /// for the repair alone and runs on through Android's reboots.
     private func rescueGoogleApps() async throws {
         let layout = GoogleAppsCommit.Layout(staging: HostAgent.googleAppsStaging)
+        let settings = self.settings
         let result = try await vm.rescueShell(GoogleAppsCommit.rootCommand(GoogleAppsCommit.rollbackScript(layout: layout)),
-                                             timeout: .seconds(120))
+                                             timeout: .seconds(120), detail: String(localized: "Restoring Android", bundle: .avoKit),
+                                             settings: settings)
         guard result.succeeded else {
             let detail = (result.errorOutput + "\n" + result.output).trimmingCharacters(in: .whitespacesAndNewlines)
             throw AvoError.installFailed(String(localized: "removing the copied files failed", bundle: .avoKit)

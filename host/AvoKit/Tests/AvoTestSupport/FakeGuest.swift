@@ -213,6 +213,8 @@ public final class FakeEngine: VMEngine, @unchecked Sendable {
     public var stops: Int { lock.withLock { stopped } }
     /// Shell handler installed on the fake adbd before it serves anything.
     public var adbShellHandler: (@Sendable (String) -> (stdout: String, stderr: String, exit: UInt8))?
+    /// Shell commands that adbd starts and never ends (FakeADBD.neverEnds).
+    public var adbNeverEnds: (@Sendable (String) -> Bool)?
 
     public init(agent: FakeBridgeAgent, adbPublicKey: SecKey? = nil) {
         self.agent = agent
@@ -292,12 +294,14 @@ public final class FakeEngine: VMEngine, @unchecked Sendable {
                 throw IOError.handshake("no adbd")
             }
             let device = FakeADBD(fileDescriptor: guest, publicKey: adbPublicKey, maxPayload: 256 * 1024)
-            let handler = lock.withLock { () -> (@Sendable (String) -> (stdout: String, stderr: String, exit: UInt8))? in
+            let (handler, neverEnds) = lock.withLock { () -> ((@Sendable (String) -> (stdout: String, stderr: String, exit: UInt8))?,
+                                                               (@Sendable (String) -> Bool)?) in
                 adbd = device
-                return adbShellHandler
+                return (adbShellHandler, adbNeverEnds)
             }
             Task {
                 if let handler { await device.setShellHandler(handler) }
+                if let neverEnds { await device.setStalls(neverEnds: neverEnds) }
                 await device.run()
             }
         default:

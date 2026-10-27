@@ -64,6 +64,10 @@ public actor VMManager {
     /// meanwhile called it off (`stop(reason:callingOffRestart:)`).
     private var restartAwaited = false
     private var restartCalledOff = false
+    /// A repair with an engine of its own, started while none ran
+    /// (`rescueShell`), and how that engine ended when it ended first.
+    private var rescue: Task<ShellResult, any Error>?
+    private var rescueEnded: (any Error)?
     private var pumps: [Task<Void, Never>] = []
     /// Pauses and wakes, one after the other ("Pause" below).
     private var pauseTransition: Task<Void, Never>?
@@ -116,6 +120,8 @@ public actor VMManager {
     /// `restarting`: the start again after Android's own reboot or reset,
     /// which a stop since then calls off (CancellationError).
     public func ensureRunning(_ settings: @autoclosure @Sendable () -> Settings, restarting: Bool = false) async throws {
+        // A repair's own engine ends with the repair: this start comes after.
+        if let rescue { _ = await rescue.result }
         // Paused: it goes on (a failed wake starts it again below).
         if usedWhilePaused() { try? await wake() }
         if status.state == .running, let control, await control.isOpen { return }
@@ -160,30 +166,11 @@ public actor VMManager {
 
     private func boot(_ settings: Settings) async throws {
         update(VMStatus(state: .starting, detail: "Starting Android"))
-        try await preflight()
-        let image = try loadImage()
-        try paths.createDirectories()
-        let dataDisk = DataDiskStore(paths: paths)
-        let firstBoot = try dataDisk.ensure(gb: settings.config.dataDiskGiB)
-        dataDisk.clearFactoryResetProtection()
-
-        var adbKeys = [try adbKey.androidPublicKey(comment: "avo-daemon")]
-        // ADB support: adb on this Mac authenticates with its own key.
-        if settings.config.adbEnabled,
-           let key = try? String(contentsOf: paths.home.appending(path: ".android/adbkey.pub"), encoding: .utf8) {
-            adbKeys.append(key.trimmingCharacters(in: .whitespacesAndNewlines))
-        }
-        let bootConfig = BootConfig(adbKeys: adbKeys, profile: settings.profile, config: settings.config,
-                                    density: Int(settings.androidScreen.dpi))
-        let configDisk = paths.vm.appending(path: "avo_config.img")
-        try bootConfig.write(to: configDisk)
+        let (launch, firstBoot) = try await prepareLaunch(settings)
         // Stopped meanwhile (Stop shows while Android starts): no engine starts.
         // After each wait below likewise, the status stays the stop's, and what
         // this start opened itself closes; the stop ends the engine.
         try Task.checkCancellation()
-        let launch = EngineLaunch(config: settings.config, paths: paths, image: image, bootConfigDisk: configDisk,
-                                  profile: settings.profile, displayRate: settings.displayRate,
-                                  androidScreen: settings.androidScreen)
         engineInstance = launch.instance
         engineStarting = true
         do {
@@ -229,6 +216,33 @@ public actor VMManager {
         update(VMStatus(state: .running, androidVersion: Self.androidVersion(sdk: Int(hello.androidSdk)),
                         protocolVersion: await session.negotiatedVersion, bootedAt: Date()))
         logger.notice("Android ready: \(hello.softwareVersion, privacy: .public)")
+    }
+
+    /// What every start of the engine needs, made for this one: Android's
+    /// data where Avo keeps it, the image, the data disk, and the BootConfig
+    /// disk with the keys adbd lets in. Whether Android never wrote its data.
+    private func prepareLaunch(_ settings: Settings) async throws -> (EngineLaunch, firstBoot: Bool) {
+        try await preflight()
+        let image = try loadImage()
+        try paths.createDirectories()
+        let dataDisk = DataDiskStore(paths: paths)
+        let firstBoot = try dataDisk.ensure(gb: settings.config.dataDiskGiB)
+        dataDisk.clearFactoryResetProtection()
+
+        var adbKeys = [try adbKey.androidPublicKey(comment: "avo-daemon")]
+        // ADB support: adb on this Mac authenticates with its own key.
+        if settings.config.adbEnabled,
+           let key = try? String(contentsOf: paths.home.appending(path: ".android/adbkey.pub"), encoding: .utf8) {
+            adbKeys.append(key.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        let bootConfig = BootConfig(adbKeys: adbKeys, profile: settings.profile, config: settings.config,
+                                    density: Int(settings.androidScreen.dpi))
+        let configDisk = paths.vm.appending(path: "avo_config.img")
+        try bootConfig.write(to: configDisk)
+        let launch = EngineLaunch(config: settings.config, paths: paths, image: image, bootConfigDisk: configDisk,
+                                  profile: settings.profile, displayRate: settings.displayRate,
+                                  androidScreen: settings.androidScreen)
+        return (launch, firstBoot)
     }
 
     /// Retries until the Bridge Agent listens (it starts late in boot). The
@@ -286,6 +300,8 @@ public actor VMManager {
         bootEnded = nil
         let boot = booting
         boot?.cancel()
+        let repair = rescue
+        repair?.cancel()
         await teardown()
         await engine.stop()
         if let boot {
@@ -293,6 +309,11 @@ public actor VMManager {
             // that came up after the stop above ends now.
             _ = await boot.result
             await teardown()
+            await engine.stop()
+        }
+        if let repair {
+            // Likewise a repair's own engine.
+            _ = await repair.result
             await engine.stop()
         }
         update(VMStatus(state: .stopped, detail: reason))
@@ -334,6 +355,12 @@ public actor VMManager {
         switch status.state {
         case .stopped, .stopping, .failed, .notInstalled: return
         default: break
+        }
+        // A repair's own engine ended: the repair ends now, with how it ended.
+        if let rescue, booting == nil, status.state == .starting, !(error is AndroidFactoryReset) {
+            rescueEnded = error ?? AvoError.vmStartFailed(String(localized: "The VM engine exited with status \(0).", bundle: .avoKit))
+            rescue.cancel()
+            return
         }
         // Android ran (or was paused) and nothing stopped it: its engine ended
         // by itself. A start under way stops its engine when it fails.
@@ -421,10 +448,58 @@ public actor VMManager {
     /// Runs `command` over a fresh adbd connection, also while Android has
     /// not finished booting or keeps restarting (system_server crashing):
     /// adbd is up long before `sys.boot_completed`. For repairs only (taking
-    /// out a Google apps install that broke the boot). Throws `vmNotRunning`
-    /// at once when the engine is not running.
-    public func rescueShell(_ command: String, timeout: Duration) async throws -> ShellResult {
+    /// out a Google apps install that broke the boot).
+    ///
+    /// With no engine running (the start before failed, or Android rebooted
+    /// itself and its engine ended), one starts for the repair alone, its
+    /// status `detail`: an Android that cannot get ready reboots itself
+    /// (RescueParty), so this engine runs on through Android's reboots
+    /// (`exitOnReboot` off) and reaches adbd early in any of its boots. It
+    /// stops once the repair is done, and a stop ends it as it ends a start.
+    public func rescueShell(_ command: String, timeout: Duration, detail: String,
+                            settings: @autoclosure @Sendable () -> Settings) async throws -> ShellResult {
         if usedWhilePaused() { try? await wake() }
+        guard booting == nil, rescue == nil, status.state == .stopped || status.state == .failed else {
+            return try await shellOverADB(command, timeout: timeout)
+        }
+        let settings = settings()
+        let task = Task { try await self.rescueWithOwnEngine(command, timeout: timeout, detail: detail, settings: settings) }
+        rescue = task
+        defer { if rescue == task { rescue = nil } }
+        return try await task.value
+    }
+
+    private func rescueWithOwnEngine(_ command: String, timeout: Duration, detail: String,
+                                     settings: Settings) async throws -> ShellResult {
+        update(VMStatus(state: .starting, detail: detail))
+        engineInstance = nil
+        rescueEnded = nil
+        do {
+            var (launch, _) = try await prepareLaunch(settings)
+            launch.exitOnReboot = false
+            try Task.checkCancellation()
+            engineInstance = launch.instance
+            logger.notice("starting the engine for a repair over adbd")
+            try await engine.start(launch)
+            let result = try await shellOverADB(command, timeout: timeout)
+            await endRescue()
+            return result
+        } catch {
+            await endRescue()
+            if error is CancellationError, let ended = rescueEnded { throw ended }
+            throw error
+        }
+    }
+
+    /// The repair's own engine stops with it (a stop meanwhile ended it, and says so).
+    private func endRescue() async {
+        guard status.state == .starting else { return }
+        await engine.stop()
+        update(.stopped)
+    }
+
+    /// `rescueShell` over the engine that runs.
+    private func shellOverADB(_ command: String, timeout: Duration) async throws -> ShellResult {
         // The Mac asleep is no time the repair had.
         let deadline = SuspendingClock.now + timeout
         var lastError: (any Error)?
@@ -442,9 +517,14 @@ public actor VMManager {
             }
             let connection = ADBConnection(transport: stream, key: adbKey, keyComment: "avo-daemon")
             do {
-                _ = try await connection.connect(timeout: .seconds(15))
-                // A repair may take its caller's whole time.
-                let result = try await connection.shell(command, timeout: timeout)
+                // Called off (a stop): the connection closes, whatever it waits for.
+                let result = try await withTaskCancellationHandler {
+                    _ = try await connection.connect(timeout: .seconds(15))
+                    // A repair may take its caller's whole time.
+                    return try await connection.shell(command, timeout: timeout)
+                } onCancel: {
+                    Task { await connection.close() }
+                }
                 await connection.close()
                 return result
             } catch {
