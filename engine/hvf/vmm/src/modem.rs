@@ -245,7 +245,15 @@ pub fn serve(path: &Path) -> Result<(), String> {
     std::thread::Builder::new()
         .name("avo-modem".into())
         .spawn(move || {
-            for stream in listener.incoming().flatten() {
+            for stream in listener.incoming() {
+                let stream = match stream {
+                    Ok(stream) => stream,
+                    // Back off instead of spinning when the fd table is full.
+                    Err(_) => {
+                        std::thread::sleep(Duration::from_millis(100));
+                        continue;
+                    }
+                };
                 let _ = std::thread::Builder::new().name("avo-modem-session".into()).spawn(move || session(stream, &CELLULAR));
             }
         })

@@ -241,7 +241,38 @@ fn is_hardware_name(name: &str) -> bool {
     (1..=32).contains(&name.len()) && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-')
 }
 
+/// Raises the soft open-file limit toward the hard one (bounded by
+/// kern.maxfilesperproc). launchd starts the daemon with a soft limit near
+/// 256, while the guest alone can open thousands of flows (up to 2048 TCP and
+/// 1024 UDP), a few descriptors per vsock connection and many virtio-fs
+/// handles; at EMFILE `shm_open` fails (a display freezes on resize) and the
+/// accept loops would spin. Best effort: a VM that cannot raise it still runs.
+fn raise_file_limit() {
+    unsafe {
+        let mut limit: libc::rlimit = std::mem::zeroed();
+        if libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit) != 0 {
+            return;
+        }
+        let mut max: libc::c_int = 0;
+        let mut size = std::mem::size_of::<libc::c_int>();
+        let name = c"kern.maxfilesperproc";
+        let ceiling = if libc::sysctlbyname(name.as_ptr(), &mut max as *mut _ as *mut libc::c_void, &mut size, std::ptr::null_mut(), 0) == 0
+            && max > 0
+        {
+            max as libc::rlim_t
+        } else {
+            10240
+        };
+        let target = if limit.rlim_max == libc::RLIM_INFINITY { ceiling } else { limit.rlim_max.min(ceiling) };
+        if limit.rlim_cur < target {
+            limit.rlim_cur = target;
+            let _ = libc::setrlimit(libc::RLIMIT_NOFILE, &limit);
+        }
+    }
+}
+
 fn main() -> ExitCode {
+    raise_file_limit();
     // The daemon that starts the engine runs at utility QoS, where macOS
     // coalesces timers by tens of milliseconds and schedules behind apps;
     // the engine is the device the user is using. Threads started from here

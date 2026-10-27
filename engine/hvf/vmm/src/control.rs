@@ -453,7 +453,16 @@ pub fn serve(path: &Path, controls: Arc<Controls>) -> Result<(), String> {
     std::thread::Builder::new()
         .name("control".into())
         .spawn(move || {
-            for stream in listener.incoming().flatten() {
+            for stream in listener.incoming() {
+                let stream = match stream {
+                    Ok(stream) => stream,
+                    // A full fd table (EMFILE/ENFILE) returns at once; waiting
+                    // keeps this loop off a core until a descriptor frees up.
+                    Err(_) => {
+                        std::thread::sleep(Duration::from_millis(100));
+                        continue;
+                    }
+                };
                 std::thread::spawn(move || {
                     let Ok(mut writer) = stream.try_clone() else { return };
                     let mut reader = BufReader::new(stream);
