@@ -517,8 +517,7 @@ public final class DaemonClient: @unchecked Sendable {
     }
 
     private func call<T: Sendable>(_ body: (AvoDaemonXPC, @escaping @Sendable (Result<T, AvoError>) -> Void) -> Void) async throws -> T {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, any Error>) in
-            let once = ResumeOnce(continuation)
+        try await Self.answer { once in
             let proxy = connection.remoteObjectProxyWithErrorHandler { error in
                 once.resume(with: .failure(AvoError.daemonUnreachable(error.localizedDescription)))
             }
@@ -527,6 +526,21 @@ public final class DaemonClient: @unchecked Sendable {
                 return
             }
             body(daemon) { result in once.resume(with: result.mapError { $0 as any Error }) }
+        }
+    }
+
+    /// Makes a call (`start`) and waits for its answer through `once`. A
+    /// caller whose task is cancelled (a time limit ran out, its view went
+    /// away) stops waiting at once with CancellationError, and one cancelled
+    /// already makes no call: the daemon may answer late, or never when it hangs.
+    static func answer<T: Sendable>(_ start: (ResumeOnce<T>) -> Void) async throws -> T {
+        let once = ResumeOnce<T>()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                if once.wait(in: continuation) { start(once) }
+            }
+        } onCancel: {
+            once.resume(with: .failure(CancellationError()))
         }
     }
 
@@ -562,19 +576,42 @@ public final class DaemonClient: @unchecked Sendable {
     }
 }
 
-/// Resumes a continuation at most once (XPC may call both the reply and the
-/// error handler when a connection dies mid-call).
+/// Resumes a call's continuation at most once: XPC may call both the reply
+/// and the error handler when a connection dies mid-call, and a cancelled
+/// caller stops waiting before either, even before the continuation is
+/// there (the answer then waits for it).
 final class ResumeOnce<T: Sendable>: Sendable {
-    private let state: OSAllocatedUnfairLock<CheckedContinuation<T, any Error>?>
+    private struct State: Sendable {
+        var continuation: CheckedContinuation<T, any Error>?
+        /// An answer that came before the continuation: a cancellation.
+        var early: Result<T, any Error>?
+        var answered = false
+    }
 
-    init(_ continuation: CheckedContinuation<T, any Error>) {
-        state = OSAllocatedUnfairLock(initialState: continuation)
+    private let state = OSAllocatedUnfairLock(initialState: State())
+
+    /// Waits in `continuation` for the answer. False when it came already:
+    /// `continuation` has it now, and there is no call to make.
+    func wait(in continuation: CheckedContinuation<T, any Error>) -> Bool {
+        let early = state.withLock { state -> Result<T, any Error>? in
+            if state.early == nil { state.continuation = continuation }
+            return state.early
+        }
+        guard let early else { return true }
+        continuation.resume(with: early)
+        return false
     }
 
     func resume(with result: Result<T, any Error>) {
-        let continuation = state.withLock { value -> CheckedContinuation<T, any Error>? in
-            defer { value = nil }
-            return value
+        let continuation = state.withLock { state -> CheckedContinuation<T, any Error>? in
+            guard !state.answered else { return nil }
+            state.answered = true
+            guard let continuation = state.continuation else {
+                state.early = result
+                return nil
+            }
+            state.continuation = nil
+            return continuation
         }
         continuation?.resume(with: result)
     }

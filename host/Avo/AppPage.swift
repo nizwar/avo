@@ -704,9 +704,13 @@ private struct PermissionsCard: View {
 
     private func load() async {
         do {
-            permissions = try await model.permissions(for: app)
+            let found = try await model.permissions(for: app)
+            // Another app's page, or Android stopping, asks for its own.
+            guard !Task.isCancelled else { return }
+            permissions = found
             failure = nil
         } catch {
+            guard !Task.isCancelled, !(error is CancellationError) else { return }
             failure = error.localizedDescription
         }
     }

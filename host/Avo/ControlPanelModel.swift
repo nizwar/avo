@@ -553,7 +553,9 @@ final class ControlPanelModel {
 
     /// The GPU shader cache's size (Settings › Storage).
     func refreshGPUCache() async {
-        gpuCache = try? await client?.gpuCacheStatus()
+        let status = try? await client?.gpuCacheStatus()
+        // The pane went away meanwhile: it asks again when it is back.
+        if !Task.isCancelled { gpuCache = status }
     }
 
     func clearGPUCache() {
@@ -888,6 +890,8 @@ final class ControlPanelModel {
         do {
             widgetProviders = try await client.widgetProviders()
             widgetProvidersProblem = nil
+        } catch is CancellationError {
+            // The section went away or asks again: what it shows stays.
         } catch {
             widgetProvidersProblem = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
@@ -960,8 +964,9 @@ final class ControlPanelModel {
             return
         }
         let volume = try? await client.androidVolume()
-        // Not over a level the slider is sending.
-        if volumeWanted == nil, !volumeSending { androidVolume = volume }
+        // Not over a level the slider is sending, nor once the row went away
+        // or Android changed (the row asks again).
+        if volumeWanted == nil, !volumeSending, !Task.isCancelled { androidVolume = volume }
     }
 
     /// The slider moved: Android follows, one change at a time, the latest level last.
@@ -1099,7 +1104,9 @@ final class ControlPanelModel {
         defer { isRefreshingGoogleApps = false }
         repeat {
             refreshGoogleAppsAgain = false
-            guard let status = try? await client.googleAppsStatus() else { return }
+            // Apart from the caller's task: Settings' view going away or asking
+            // again (its task cancelled) would drop a question asked meanwhile.
+            guard let status = try? await Task(operation: { try await client.googleAppsStatus() }).value else { return }
             googleApps = status
             if let off = status.verityDisabled { verityKnownOff = off }
             // The daemon notes it once Android lists them.
