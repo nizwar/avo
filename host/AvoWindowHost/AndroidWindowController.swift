@@ -22,6 +22,9 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// for the unlock to open (see "Screen lock" below).
     private let lockOverlay = ScreenLockOverlay()
     private var pendingAttach: (client: DaemonClient, notificationKey: String?)?
+    /// Files dropped before the display opened (on the Dock icon, as the app
+    /// started): they go to the app once it has.
+    private var filesToShare: [URL] = []
     /// The key mapping over the game while playing ("Show on game").
     private lazy var hints = KeymapHintsView(displayRect: { [weak self] in self?.displayView.displayRect ?? .zero })
     private var client: DaemonClient?
@@ -708,6 +711,11 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
                 displayView.keymap = keymap
                 displayView.send = { [weak self] record in self?.sendInput(record) }
                 for button in titlebarActions { button.isEnabled = true }
+                if !filesToShare.isEmpty {
+                    let files = filesToShare
+                    filesToShare = []
+                    share(files)
+                }
                 self.app?.displayAttached(self, displayID: id)
                 if window?.isKeyWindow == true { focusGamepad() }
                 if editKeyMappingOnAttach {
@@ -758,13 +766,29 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         self.displayID = nil
     }
 
+    /// Files dropped on the window or on the app's Dock icon: copied to
+    /// Android's Downloads folder and shared with the app. Before the
+    /// display has opened they wait for it. What happened shows as a
+    /// notice, never as the placeholder: that one takes every click, and
+    /// only a display opening takes it away.
     func share(_ urls: [URL]) {
-        guard let client, let displayID else { return }
+        guard !detached, let app else { return }
+        guard DisplayView.sharesFiles(urls) else {
+            showNotice(String(localized: "Only files can be shared with \(app.label), not folders.", bundle: .windowHost))
+            return
+        }
+        guard let client, let displayID else {
+            filesToShare += urls
+            showNotice(String(localized: "The files go to \(app.label) once it has opened.", bundle: .windowHost))
+            return
+        }
         Task {
             do {
                 try await client.shareFiles(urls, with: displayID)
+                showNotice(String(localized: "Copied to Android’s Downloads folder.", bundle: .windowHost))
             } catch {
-                showProblem(error.localizedDescription)
+                let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                showNotice(String(localized: "Could not share the files: \(message)", bundle: .windowHost))
             }
         }
     }
