@@ -127,7 +127,7 @@ public actor VMManager {
     }
 
     private func boot(_ settings: Settings) async throws {
-        update(VMStatus(state: .starting, detail: "Starting Android"))
+        update(VMStatus(state: .starting, detail: String(localized: "Starting Android", bundle: .avoKit)))
         try await preflight()
         let image = try loadImage()
         try paths.createDirectories()
