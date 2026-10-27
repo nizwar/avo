@@ -1010,11 +1010,11 @@ final class ControlPanelModel {
     // MARK: Widgets
 
     func refreshWidgetProviders() async {
-        guard let client else { return }
         widgetProviderAsks += 1
         defer { widgetProviderAsks -= 1 }
         do {
-            widgetProviders = try await client.widgetProviders()
+            // After the hello: asked while Avo connects, the daemon would refuse it.
+            widgetProviders = try await connectedClient().widgetProviders()
             widgetProvidersProblem = nil
         } catch is CancellationError {
             // The section went away or asks again: what it shows stays.
