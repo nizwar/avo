@@ -500,8 +500,9 @@ public actor VMManager {
         // Stopped or failed meanwhile.
         guard status.state == .suspending else { return }
         pausedAt = .now
-        await control?.holdKeepalive(true)
         setPause(.suspended, status.pause)
+        // After the status, with no wait before it: a stop may come at any wait.
+        await control?.holdKeepalive(true)
         logger.notice("Android paused (\(automatic ? "idle" : "by the user", privacy: .public))")
     }
 
