@@ -67,6 +67,8 @@ public enum ADBError: Error, Equatable, Sendable, CustomStringConvertible {
     case shell(String)
     case sync(String)
     case install(String)
+    /// adbd took no stream, or a command did not finish, in the time it had.
+    case timedOut(String)
 
     public var description: String {
         switch self {
@@ -82,6 +84,7 @@ public enum ADBError: Error, Equatable, Sendable, CustomStringConvertible {
         case .shell(let detail): "shell: \(detail)"
         case .sync(let detail): "sync: \(detail)"
         case .install(let detail): detail
+        case .timedOut(let detail): detail
         }
     }
 }

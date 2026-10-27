@@ -142,6 +142,47 @@ private func fixture(_ name: String) throws -> URL {
         await client.close()
     }
 
+    /// An Android that stopped answering holds no caller for good, and the
+    /// connection goes on serving the commands after it.
+    @Test func aCommandAndroidNeverFinishesTimesOut() async throws {
+        let (client, device, task) = try pair()
+        defer { task.cancel() }
+        await device.setShellHandler { _ in ("ok\n", "", 0) }
+        await device.setStalls(neverEnds: { $0 == "dumpsys window" })
+        _ = try await client.connect(timeout: .seconds(5))
+        let started = ContinuousClock.now
+        await #expect(throws: ADBError.self) { try await client.shell("dumpsys window", timeout: .milliseconds(300)) }
+        #expect(ContinuousClock.now - started < .seconds(5))
+        #expect(try await client.shell("echo ok").output == "ok\n")
+        await client.close()
+    }
+
+    @Test func aStreamAdbdNeverTakesTimesOut() async throws {
+        let (client, device, task) = try pair()
+        defer { task.cancel() }
+        await device.setStalls(neverOpens: { $0.hasPrefix("sync:") })
+        _ = try await client.connect(timeout: .seconds(5))
+        await #expect(throws: ADBError.self) { try await client.open("sync:", timeout: .milliseconds(300)) }
+        #expect(try await client.shell("true").exitCode == 0)
+        await client.close()
+    }
+
+    /// The caller gave up (a window closed, a deadline passed): it stops
+    /// waiting at once instead of when adbd answers.
+    @Test func aCancelledCallerStopsWaitingForAdbd() async throws {
+        let (client, device, task) = try pair()
+        defer { task.cancel() }
+        await device.setStalls(neverOpens: { $0.hasPrefix("shell,v2,raw:getprop") })
+        _ = try await client.connect(timeout: .seconds(5))
+        let waiting = Task { try await client.shell("getprop sys.boot_completed") }
+        try await Task.sleep(for: .milliseconds(100))
+        let started = ContinuousClock.now
+        waiting.cancel()
+        await #expect(throws: CancellationError.self) { try await waiting.value }
+        #expect(ContinuousClock.now - started < .seconds(2))
+        await client.close()
+    }
+
     @Test func refusedServiceThrows() async throws {
         let (client, _, task) = try pair()
         defer { task.cancel() }
