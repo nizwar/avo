@@ -62,6 +62,11 @@ import Testing
         /// Runs a script with sh; returns its exit status.
         @discardableResult
         func run(_ script: String, failOn: String = "", rmFailOn: String = "") throws -> Int32 {
+            try runSaying(script, failOn: failOn, rmFailOn: rmFailOn).status
+        }
+
+        /// Runs a script with sh; its exit status and what it said on stderr.
+        func runSaying(_ script: String, failOn: String = "", rmFailOn: String = "") throws -> (status: Int32, said: String) {
             let file = root.appending(path: "script-\(UUID().uuidString).sh")
             try script.write(to: file, atomically: true, encoding: .utf8)
             let process = Process()
@@ -69,10 +74,12 @@ import Testing
             process.arguments = [file.path]
             process.environment = ["PATH": stubs.path + ":/usr/bin:/bin:/usr/sbin:/sbin", "FAIL_ON": failOn, "RM_FAIL_ON": rmFailOn]
             process.standardOutput = FileHandle.nullDevice
-            process.standardError = FileHandle.nullDevice
+            let said = Pipe()
+            process.standardError = said
             try process.run()
+            let text = String(decoding: said.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
             process.waitUntilExit()
-            return process.terminationStatus
+            return (process.terminationStatus, text)
         }
 
         /// Every file and folder under the partitions, with file contents.
@@ -254,6 +261,65 @@ import Testing
         #expect(!GoogleAppsCommit.isSafe("product/app/$(reboot)/x.apk"))
         #expect(!GoogleAppsCommit.isSafe("product/app/x\nproduct/etc/y.apk"))
         #expect(!GoogleAppsCommit.isSafe("product/app/it's.apk"))
+    }
+
+    /// Android's overlays as Remove meets them: /product and /system_ext
+    /// read-only, the package in the overlays' upper folders (`upper`),
+    /// listed in `mounts`, and a `remount` that behaves as `remounts`.
+    private func overlaid(remounting remounts: String) throws -> (Android, upper: URL, layout: GoogleAppsCommit.Layout) {
+        let android = try Android()
+        #expect(try android.run(GoogleAppsCommit.script(Self.package, layout: android.layout)) == 0)
+        let upper = android.root.appending(path: "upper")
+        try FileManager.default.copyItem(at: android.partitions, to: upper)
+        let mounts = android.root.appending(path: "mounts")
+        try GoogleAppsCommit.partitions.map { "overlay /\($0) overlay ro,lowerdir=/\($0),upperdir=\(upper.path)/\($0),workdir=/w 0 0" }
+            .joined(separator: "\n").appending("\n").write(to: mounts, atomically: true, encoding: .utf8)
+        try Android.stub("remount", remounts.replacingOccurrences(of: "$MOUNTS", with: mounts.path), in: android.stubs)
+        for partition in GoogleAppsCommit.partitions {
+            try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: android.partitions.appending(path: partition).path)
+        }
+        var layout = android.layout
+        layout.android = true
+        layout.mounts = mounts.path
+        return (android, upper, layout)
+    }
+
+    private func writable(_ android: Android) {
+        for partition in GoogleAppsCommit.partitions {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: android.partitions.appending(path: partition).path)
+        }
+    }
+
+    /// b79: verified boot was back on, and `remount` turned it off and left
+    /// the overlays out of /proc/mounts. The upper folders read before it
+    /// still take the files out.
+    @Test func aRemoveFindsTheOverlaysThatRemountHides() throws {
+        let (android, upper, layout) = try overlaid(remounting: #"printf 'Successfully disabled verity\nNow reboot your device for settings to take effect\n'; : > "$MOUNTS"; exit 0"#)
+        defer {
+            writable(android)
+            android.cleanUp()
+        }
+        let result = try android.runSaying(GoogleAppsCommit.rollbackScript(layout: layout))
+        #expect(result.status == 0, "\(result.said)")
+        for path in Self.package { #expect(!FileManager.default.fileExists(atPath: upper.appending(path: path).path), "\(path)") }
+        #expect(!FileManager.default.fileExists(atPath: upper.appending(path: GoogleAppsCommit.manifest).path))
+        for path in Self.stock { #expect(FileManager.default.fileExists(atPath: upper.appending(path: path).path), "\(path)") }
+    }
+
+    /// Nowhere to take the files out of: the Remove fails, saying where it
+    /// looked and what `remount` answered, instead of failing silently.
+    @Test func aRemoveWithNowhereToRemoveFromSaysWhy() throws {
+        let (android, _, layout) = try overlaid(remounting: #"echo 'remount failed: overlayfs is not supported'; : > "$MOUNTS"; exit 1"#)
+        defer {
+            writable(android)
+            android.cleanUp()
+        }
+        // No overlay to begin with either.
+        try "".write(toFile: layout.mounts, atomically: true, encoding: .utf8)
+        let result = try android.runSaying(GoogleAppsCommit.rollbackScript(layout: layout))
+        #expect(result.status != 0)
+        #expect(result.said.contains("product (not writable)"), "\(result.said)")
+        #expect(result.said.contains("remount (1): remount failed: overlayfs is not supported"), "\(result.said)")
     }
 
     @Test func theRollbackDoesNotStopItself() {
