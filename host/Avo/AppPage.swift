@@ -675,7 +675,9 @@ private struct PermissionsCard: View {
         .animation(Haze.Motion.fade, value: permissions == nil)
         .task(id: "\(app.package)-\(model.status.state.rawValue)") {
             guard model.status.state == .running else { return }
-            permissions = await model.permissions(for: app)
+            let found = await model.permissions(for: app)
+            // Another app's page, or Android stopping, asks for its own.
+            if !Task.isCancelled { permissions = found }
         }
     }
 }
