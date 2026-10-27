@@ -308,4 +308,17 @@ final class PausingEngine: PausableEngine, @unchecked Sendable {
         try await harness.core.resumeFromMenuBar()
         #expect(await eventually { await !harness.core.fingerprints.paused })
     }
+
+    /// The menu bar's Restart (where an app's window sends the user when
+    /// Android stops answering): Android stops and starts again.
+    @Test func theMenuBarRestartsAndroid() async throws {
+        let (harness, _) = try harness(minutes: 0)
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        try await harness.core.startVMFromMenuBar()
+        #expect(await harness.waitForShims(1))
+        try await harness.core.restartVMFromMenuBar()
+        #expect(await harness.core.status().state == .running)
+        #expect(harness.engine.launches.count == 2)
+    }
 }

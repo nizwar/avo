@@ -607,6 +607,17 @@ public actor DaemonCore {
         try await ensureRunning()
     }
 
+    /// The menu bar's Restart Android, as the Control Panel's (`restartVM`):
+    /// the way on for an Android that stopped answering, whose windows say
+    /// to restart it from there. Refused like `stopVMFromMenuBar`.
+    public func restartVMFromMenuBar(force: Bool = false) async throws {
+        restartWork += 1
+        defer { restartWork -= 1 }
+        try await clearForVMChange(.restart, force: force)
+        await vm.stop()
+        try await ensureRunning()
+    }
+
     /// The menu bar's Stop Android. Refused while Google apps change Android,
     /// unless `force` (the user chose Stop Anyway): the next start then
     /// finishes or takes out that install.

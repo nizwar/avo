@@ -151,6 +151,7 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
             start: { [weak self] in self?.startVM() },
             pause: { [weak self] in self?.pauseVM() },
             resume: { [weak self] in self?.resumeVM() },
+            restart: { [weak self] in self?.restartVM() },
             stop: { [weak self] in self?.stopVM() },
             open: { [weak self] app in
                 self?.popover.performClose(nil)
@@ -183,6 +184,11 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
                 menu.addItem(withTitle: String(localized: "Pause Android"), action: #selector(pauseVM), keyEquivalent: "").symbol("pause.circle")
                     .target = self
             }
+            menu.addItem(withTitle: String(localized: "Restart Android"), action: #selector(restartVM), keyEquivalent: "")
+                .symbol("arrow.clockwise.circle").target = self
+            menu.addItem(withTitle: String(localized: "Stop Android"), action: #selector(stopVM), keyEquivalent: "").symbol("stop.circle").target = self
+        case .starting:
+            // A start can take minutes: it can be stopped too.
             menu.addItem(withTitle: String(localized: "Stop Android"), action: #selector(stopVM), keyEquivalent: "").symbol("stop.circle").target = self
         case .suspended, .suspending:
             let resume = menu.addItem(withTitle: String(localized: "Resume Android"), action: #selector(resumeVM), keyEquivalent: "")
@@ -196,7 +202,7 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
             start.symbol("play.circle")
             // The installer starts Android itself (and may be repairing it);
             // without an Android image there is nothing to start (as in the panel).
-            start.isEnabled = ![.starting, .stopping, .notInstalled].contains(status.state) && googleAppsWork == nil
+            start.isEnabled = ![.stopping, .notInstalled].contains(status.state) && googleAppsWork == nil
         }
         menu.addItem(.separator())
 
@@ -248,15 +254,50 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     // MARK: Actions
 
     @objc private func startVM() {
-        Task { try? await core.startVMFromMenuBar() }
+        Task {
+            do {
+                try await core.startVMFromMenuBar()
+            } catch {
+                show(error)
+            }
+        }
     }
 
     @objc private func pauseVM() {
-        Task { try? await core.pauseFromMenuBar() }
+        Task {
+            do {
+                try await core.pauseFromMenuBar()
+            } catch {
+                show(error)
+            }
+        }
     }
 
     @objc private func resumeVM() {
-        Task { try? await core.resumeFromMenuBar() }
+        Task {
+            do {
+                try await core.resumeFromMenuBar()
+            } catch {
+                show(error)
+            }
+        }
+    }
+
+    @objc private func restartVM() {
+        Task {
+            do {
+                try await core.restartVMFromMenuBar()
+            } catch {
+                // Google apps change Android: it asks first, as Stop does.
+                guard googleAppsWork != nil else { return show(error) }
+                guard confirmForce(error, action: String(localized: "Restart Anyway")) else { return }
+                do {
+                    try await core.restartVMFromMenuBar(force: true)
+                } catch {
+                    show(error)
+                }
+            }
+        }
     }
 
     @objc private func stopVM() {
@@ -311,6 +352,19 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
             try? await Task.sleep(for: .milliseconds(Self.removalGraceMilliseconds))
             exit(0)
         }
+    }
+
+    /// Says why an action from the panel or the menu failed, in an alert as
+    /// Stop's question is shown; nothing of a start that a stop called off
+    /// (the user's own Stop, mostly), which the status says.
+    private func show(_ error: any Error) {
+        guard !(error is CancellationError), error as? AvoError != .startCalledOff else { return }
+        popover.performClose(nil)
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        NSApp.activate()
+        alert.runModal()
     }
 
     /// Google apps are changing Android: stopping it now can leave it unable
