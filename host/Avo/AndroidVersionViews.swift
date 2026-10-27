@@ -116,6 +116,9 @@ struct AndroidVersionList: View {
     var maxCardsHeight: CGFloat = 300
     @State private var chooseImage = false
     @State private var showOlder = false
+    /// An image to remove, once confirmed: it may be the one Switch Back
+    /// needs, and downloading it again takes a while.
+    @State private var removing: AndroidImageSummary?
     /// The cards' own height: the list is never taller.
     @State private var cardsHeight: CGFloat?
 
@@ -176,6 +179,13 @@ struct AndroidVersionList: View {
             }
         }
         .task { await images.loadCatalog() }
+        .confirmationDialog(Text("Remove \(removing?.title ?? "") from this Mac?"),
+                            isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+                            titleVisibility: .visible, presenting: removing) { image in
+            Button("Remove", role: .destructive) { images.remove(image) }
+        } message: { image in
+            Text("It frees \(formatBytes(image.size)). Android keeps its data; using this version again means downloading or importing it again.")
+        }
     }
 
     private func card(_ row: AndroidVersionRow) -> some View {
@@ -185,8 +195,8 @@ struct AndroidVersionList: View {
         }
         .hazeContextMenu {
             guard let image = row.image, image.isManaged else { return [] }
-            return [.item(HazeMenuItem(title: String(localized: "Remove from This Mac"), symbol: "trash", role: .destructive,
-                                       isEnabled: canRemove(image)) { images.remove(image) })]
+            return [.item(HazeMenuItem(title: String(localized: "Remove from This Mac…"), symbol: "trash", role: .destructive,
+                                       isEnabled: canRemove(image)) { removing = image })]
         }
     }
 
