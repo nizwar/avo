@@ -48,7 +48,7 @@ public struct InstallPipeline: Sendable {
                                        fraction: fraction, package: summary.packageName))
             }
         } catch let error as ADBError {
-            throw AvoError.installFailed(Self.friendly(error.description))
+            throw AvoError.installFailed(Self.friendly(error.localizedDescription))
         }
 
         if !summary.obbFiles.isEmpty {

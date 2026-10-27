@@ -31,6 +31,10 @@ final class ControlPanelModel {
         var startedAt: Date?
         var progress: InstallProgress?
         var finishedPackage: String?
+        /// How it ended is the install call's own error (the connection
+        /// went, the file did not open), which the daemon's failed progress,
+        /// saying more, may still replace.
+        var endedByCall = false
 
         /// What messages call it: the app's name once inspected.
         var displayName: String { summary?.label ?? url.lastPathComponent }
@@ -1114,17 +1118,21 @@ final class ControlPanelModel {
             do {
                 try await client.install(request)
             } catch {
-                installProgressed(InstallProgress(id: request.id, phase: .failed, message: error.localizedDescription))
+                installProgressed(InstallProgress(id: request.id, phase: .failed, message: error.localizedDescription), byCall: true)
             }
         }
     }
 
     /// Progress of an install: its sheet's, or one hidden while it ran,
     /// which says how it ended only if it failed (a finished one shows up
-    /// in the Library).
-    private func installProgressed(_ progress: InstallProgress) {
+    /// in the Library). `byCall`: the install call's own error.
+    private func installProgressed(_ progress: InstallProgress, byCall: Bool = false) {
         if var pending = pendingInstall, pending.requestID == progress.id {
+            // How it ended is said once: the daemon's failed progress, in
+            // its own words, comes before its call's error, which says less.
+            if let phase = pending.progress?.phase, phase == .failed || phase == .finished, byCall || !pending.endedByCall { return }
             pending.progress = progress
+            pending.endedByCall = byCall
             if progress.phase == .finished { pending.finishedPackage = progress.package }
             pendingInstall = pending
             return

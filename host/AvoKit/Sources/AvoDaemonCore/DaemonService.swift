@@ -1,3 +1,4 @@
+import AvoADB
 import AvoKit
 import Foundation
 import IOSurface
@@ -614,6 +615,33 @@ extension AvoError {
         if let error = error as? AvoError { return error }
         if error is CancellationError { return .startCalledOff }
         return .internalError(error.localizedDescription)
+    }
+}
+
+/// ADB's failures as the user reads them, wherever they are shown (a drop
+/// on a window, the widgets Android offers, an install's game data): what
+/// happened in Android, without the protocol's words, which `description`
+/// keeps for the logs. AvoADB has no text of its own to show.
+extension ADBError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .timedOut: String(localized: "Android did not respond.", bundle: .avoKit)
+        case .authenticationRejected, .handshakeTimedOut: String(localized: "Android did not let Avo connect.", bundle: .avoKit)
+        case .streamRefused: String(localized: "Android refused Avo’s request.", bundle: .avoKit)
+        case .streamClosed, .connectionClosed: String(localized: "Android closed the connection before Avo was done.", bundle: .avoKit)
+        case .badMagic, .unknownCommand, .payloadTooLarge, .unexpected:
+            String(localized: "Android answered in a way Avo did not understand.", bundle: .avoKit)
+        case .shell: String(localized: "A command in Android did not finish.", bundle: .avoKit)
+        case .sync(let detail):
+            // adbd's refusal ends with the reason Android gave ("…: No space
+            // left on device"); the path and adbd's own words come before it.
+            if let reason = detail.components(separatedBy: ": ").last, detail.contains(": "), !reason.isEmpty {
+                String(localized: "Android could not save the file: \(reason).", bundle: .avoKit)
+            } else {
+                String(localized: "Android could not save the file.", bundle: .avoKit)
+            }
+        case .install(let detail): detail
+        }
     }
 }
 
