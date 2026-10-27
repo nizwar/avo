@@ -405,7 +405,15 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
             for window in pictures { window.togglePictureInPicture() }
             return true
         }
-        if !flag, connected { openWindow(notificationKey: nil) }
+        // Every window minimized, which macOS counts as none visible: one
+        // comes back, as in other apps (also when the Library, the menu bar
+        // item or a notification opens the app). A new window opens only
+        // when the app has none.
+        if !flag, let minimized = windows.first(where: { $0.window?.isMiniaturized == true }) {
+            minimized.window?.deminiaturize(nil)
+            return false
+        }
+        if windows.isEmpty, connected { openWindow(notificationKey: nil) }
         return true
     }
 
