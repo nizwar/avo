@@ -215,6 +215,14 @@ public actor VMManager {
         restartPending = false
     }
 
+    /// Android, stopped after a reboot of its own, is not started again (it
+    /// kept rebooting before it was ready): it failed, and the status says why.
+    public func reportFailure(_ detail: String) {
+        guard status.state == .stopped else { return }
+        logger.error("\(detail, privacy: .public)")
+        update(VMStatus(state: .failed, detail: detail))
+    }
+
     /// `reason`: why Android stopped, shown with the status (an eject).
     /// A start under way ends too, with nothing of it left running.
     public func stop(reason: String? = nil) async {
