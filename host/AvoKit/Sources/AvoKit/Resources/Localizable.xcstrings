@@ -408,6 +408,16 @@
         }
       }
     },
+    "Android keeps restarting, so Avo stopped it. Start Android to try again." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android terus memulai ulang, jadi Avo menghentikannya. Jalankan Android untuk mencoba lagi."
+          }
+        }
+      }
+    },
     "Android needs %@ free in %@ but has %@." : {
       "localizations" : {
         "en" : {
@@ -874,6 +884,26 @@
         }
       }
     },
+    "Avo is quitting." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avo sedang ditutup."
+          }
+        }
+      }
+    },
+    "Avo is restarting to finish its update. Try again in a moment." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avo sedang memulai ulang untuk menyelesaikan pembaruannya. Coba lagi sebentar lagi."
+          }
+        }
+      }
+    },
     "Avo keeps up to %lld fingers. Remove one first." : {
       "localizations" : {
         "id" : {
@@ -900,6 +930,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Avo hanya menghapus image yang dipasangnya sendiri."
+          }
+        }
+      }
+    },
+    "Avo’s background service" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Layanan latar belakang Avo"
           }
         }
       }
