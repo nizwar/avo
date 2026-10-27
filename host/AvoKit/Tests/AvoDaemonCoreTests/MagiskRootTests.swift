@@ -299,6 +299,42 @@ actor Gate {
         #expect(harness.notifications.posted.isEmpty)
     }
 
+    /// The patch cut short as Google apps restart Android under it: root
+    /// stays on, and the next start patches again.
+    @Test func aPatchCutShortByGoogleAppsIsTriedAgain() async throws {
+        let guest = FakeSystemApps(verity: false, overlayReady: true)
+        await guest.set(holdCommit: true)
+        let harness = try Harness(guest: guest)
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        let gate = Gate()
+        harness.engine.patchGate = gate
+        harness.engine.failure = AvoError.guestUnavailable
+        let panel = await harness.controlPanel()
+        try await harness.core.startVM(client: panel)
+        var config = await harness.core.configurationSnapshot().config
+        config.rooted = true
+        _ = try await harness.core.updateConfiguration(config, client: panel)
+        #expect(await eventually { harness.engine.prepares == 1 })
+
+        let request = GoogleAppsInstallRequest(source: .local(path: try harness.cachedPackage().path))
+        let core = harness.core
+        let install = Task { try await core.installGoogleApps(request, client: panel) }
+        #expect(await eventually { await guest.commitIsHeld })
+        await gate.release()
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(await harness.core.configurationSnapshot().config.rooted)
+        #expect(harness.notifications.posted.isEmpty)
+
+        harness.engine.failure = nil
+        await guest.releaseCommit()
+        try await install.value
+        #expect(await eventually { await rootedAndRunning(harness) })
+        #expect(harness.engine.prepares == 2)
+        #expect(await harness.core.configurationSnapshot().config.rooted)
+        #expect(harness.notifications.posted.isEmpty)
+    }
+
     /// A start with Magisk that never began (Android's data moving), or that
     /// a stop cut short, did not fail its trial; Android's own reboot did.
     @Test func onlyAStartThatRanFailsTheRootTrial() {
