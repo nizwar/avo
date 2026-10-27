@@ -71,7 +71,7 @@ final class RootFakeEngine: RootEngine, @unchecked Sendable {
     /// and Android reboots soon after (avo-vmm's `AndroidRebooted` exit).
     var rebootsRooted = false
     var name: String { inner.name }
-    var exits: AsyncStream<(any Error)?> { inner.exits }
+    var exits: AsyncStream<EngineExit> { inner.exits }
 
     init(inner: FakeEngine) { self.inner = inner }
 
@@ -228,7 +228,7 @@ final class DeviceSettingsFakeEngine: DeviceSettingsEngine, @unchecked Sendable 
     private var _applied: [VMConfig] = []
     var applied: [VMConfig] { lock.withLock { _applied } }
     var name: String { inner.name }
-    var exits: AsyncStream<(any Error)?> { inner.exits }
+    var exits: AsyncStream<EngineExit> { inner.exits }
 
     func start(_ launch: EngineLaunch) async throws { try await inner.start(launch) }
     func stop() async { await inner.stop() }

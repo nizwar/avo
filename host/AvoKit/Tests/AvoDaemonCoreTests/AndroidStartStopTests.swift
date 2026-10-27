@@ -88,6 +88,55 @@ import Testing
         #expect(!harness.engine.isRunning)
     }
 
+    /// The engine crashed while Android booted: the start fails at once with
+    /// the crash, not at the boot's time limit, and nothing of it runs on.
+    @Test func aCrashWhileAndroidBootsFailsTheStartAtOnce() async throws {
+        let harness = try Harness(apps: [], bootTimeout: .seconds(40))
+        defer { harness.cleanUp() }
+        try Self.bootedBefore(harness)
+        await harness.core.start()
+        let (panel, _) = await harness.connect(.controlPanel)
+        harness.engine.refuseControlConnections = Int.max
+        let start = Task { try await harness.core.startVM(client: panel) }
+        #expect(await eventually { await harness.core.status().detail == "Waiting for Android to boot" })
+        let stops = harness.engine.stops
+        let crashed = ContinuousClock.now
+        harness.engine.crash()
+        await #expect(throws: AvoError.vmStartFailed("engine crashed")) { try await start.value }
+        #expect(ContinuousClock.now - crashed < .seconds(10))
+        let status = await harness.core.status()
+        #expect(status.state == .failed)
+        #expect(status.detail?.contains("engine crashed") == true)
+        #expect(harness.engine.stops > stops, "its host agent and watches go too")
+        // Android starts again as usual.
+        harness.engine.refuseControlConnections = 0
+        try await harness.core.startVM(client: panel)
+        #expect(await harness.core.status().state == .running)
+    }
+
+    /// The engine a restart stopped takes its time to end: its exit, coming
+    /// once the next start is under way, changes nothing of that start.
+    @Test func aLateExitOfAnEarlierEngineLeavesTheNextStartAlone() async throws {
+        let harness = try Harness(apps: [])
+        defer { harness.cleanUp() }
+        try Self.bootedBefore(harness)
+        await harness.core.start()
+        let (panel, _) = await harness.connect(.controlPanel)
+        try await harness.core.startVM(client: panel)
+        let first = try #require(harness.engine.launches.last)
+        harness.engine.refuseControlConnections = Int.max
+        let restart = Task { try await harness.core.restartVM(client: panel) }
+        #expect(await eventually { await harness.core.status().detail == "Waiting for Android to boot" })
+        harness.engine.exit(AvoError.vmStartFailed("engine crashed"), of: first)
+        harness.engine.exit(AndroidRebooted(), of: first)
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(await harness.core.status().detail == "Waiting for Android to boot")
+        harness.engine.refuseControlConnections = 0
+        try await restart.value
+        #expect(await harness.core.status().state == .running)
+        #expect(harness.engine.launches.count == 2, "not started again for the earlier engine's reboot")
+    }
+
     /// An engine that ended by itself while Android ran is tidied up at
     /// once (its host agent and watches), not at the next start.
     @Test func anEngineThatEndedByItselfIsTidiedUp() async throws {

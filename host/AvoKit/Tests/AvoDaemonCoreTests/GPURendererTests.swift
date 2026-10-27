@@ -363,7 +363,7 @@ final class GPUCrashTestEngine: GPUFallbackEngine, @unchecked Sendable {
     var forgotten: Int { lock.withLock { _forgotten } }
 
     var name: String { base.name }
-    var exits: AsyncStream<(any Error)?> { base.exits }
+    var exits: AsyncStream<EngineExit> { base.exits }
     func start(_ launch: EngineLaunch) async throws { try await base.start(launch) }
     func stop() async { await base.stop() }
     func snapshot(to url: URL) async throws { try await base.snapshot(to: url) }

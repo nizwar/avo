@@ -117,9 +117,10 @@ struct Harness {
     /// `configure` changes the saved configuration the daemon starts with.
     /// `wrap` puts another engine around the fake one (one that can pause).
     /// `screenText`: Translate Screen's engine (none by default).
+    /// `bootTimeout`: how long a start waits for Android.
     init(apps: [Avo_V1_AppInfo], desktopAliases: Bool = false, configure: (inout VMConfig) -> Void = { _ in },
          wrap: (FakeEngine) -> any VMEngine = { $0 }, screenText: ScreenTextEngine? = nil,
-         clipboard: any ClipboardBridge = NoClipboard()) throws {
+         clipboard: any ClipboardBridge = NoClipboard(), bootTimeout: Duration = .seconds(5)) throws {
         root = FileManager.default.temporaryDirectory.appending(path: "avo-daemon-\(UUID().uuidString.prefix(8))")
         paths = AvoPaths(home: root.appending(path: "home"), temporaryDirectory: root.appending(path: "tmp"))
         try FileManager.default.createDirectory(at: paths.desktop, withIntermediateDirectories: true)
@@ -151,7 +152,7 @@ struct Harness {
         let host = HostInfo(physicalMemoryBytes: 32 << 30, performanceCores: 8, efficiencyCores: 4, isAppleSilicon: true, macOSVersion: "27.0")
         core = DaemonCore(.init(paths: paths, engine: wrap(engine), adbKey: adbKey, profiles: profiles, host: host,
                                 shortcuts: ShortcutManager(builder: builder, paths: paths), notifications: notifications,
-                                nowPlaying: nowPlaying, clipboard: clipboard, softwareVersion: "avo-host test", bootTimeout: .seconds(5),
+                                nowPlaying: nowPlaying, clipboard: clipboard, softwareVersion: "avo-host test", bootTimeout: bootTimeout,
                                 screenText: screenText,
                                 loadImage: { image }))
     }

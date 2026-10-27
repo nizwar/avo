@@ -43,7 +43,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     public let name = "avo-vmm"
     public let executable: URL
     public let images: URL
-    public let exits: AsyncStream<(any Error)?>
+    public let exits: AsyncStream<EngineExit>
     /// Frames for App Shim windows, in order; the daemon forwards them. A
     /// slow consumer skips presents, never anything else (FrameDeliveryQueue).
     public let frames: AsyncStream<FrameDelivery>
@@ -60,7 +60,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     /// Whether Android itself still answers (HostAgent's "Answers"); ResponsivenessEngine.
     public let responsiveness: AsyncStream<Date?>
     private let responsivenessSink: AsyncStream<Date?>.Continuation
-    private let exitSink: AsyncStream<(any Error)?>.Continuation
+    private let exitSink: AsyncStream<EngineExit>.Continuation
     private let frameQueue: FrameDeliveryQueue
     private let linkSink: AsyncStream<URL>.Continuation
     private let rendererSink: AsyncStream<RendererStatus>.Continuation
@@ -111,7 +111,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         self.images = images
         self.adbKey = adbKey
         self.avoVersion = avoVersion
-        (exits, exitSink) = AsyncStream.makeStream(of: (any Error)?.self)
+        (exits, exitSink) = AsyncStream.makeStream(of: EngineExit.self)
         let frameQueue = FrameDeliveryQueue()
         self.frameQueue = frameQueue
         frames = AsyncStream(unfolding: { await frameQueue.next() }, onCancel: { frameQueue.finish() })
@@ -301,7 +301,9 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         let logHandle = try FileHandle(forWritingTo: log)
         process.standardOutput = logHandle
         process.standardError = logHandle
+        // Every avo-vmm of this start (a software relaunch too) ends it.
         let sink = exitSink
+        let instance = launch.instance
         // The frames and sound it shares, whatever way it ends (SharedMemoryNames).
         let sharedMemory = SharedMemoryNames()
         process.terminationHandler = { [weak self, logger] process in
@@ -310,11 +312,11 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
             let clean = process.terminationReason == .exit && process.terminationStatus == 0
             logger.notice("avo-vmm exited with status \(process.terminationStatus)")
             if process.terminationReason == .exit, process.terminationStatus == Self.factoryResetStatus {
-                sink.yield(AndroidFactoryReset())
+                sink.yield(EngineExit(instance: instance, error: AndroidFactoryReset()))
                 return
             }
             if process.terminationReason == .exit, process.terminationStatus == Self.guestRebootStatus {
-                sink.yield(AndroidRebooted())
+                sink.yield(EngineExit(instance: instance, error: AndroidRebooted()))
                 return
             }
             // A failed GPU boot is not an exit: a software launch replaces it.
@@ -326,7 +328,8 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
             case .forward(crashedRunning: true)?: self?.crashedOnGPU(launch: launch, plan: plan)
             case .forward(crashedRunning: false)?, nil: break
             }
-            sink.yield(clean ? nil : AvoError.vmStartFailed(String(localized: "The VM engine exited with status \(Int(process.terminationStatus)).", bundle: .avoKit)))
+            sink.yield(EngineExit(instance: instance, error: clean ? nil
+                : AvoError.vmStartFailed(String(localized: "The VM engine exited with status \(Int(process.terminationStatus)).", bundle: .avoKit))))
         }
         // Stopped while this launch got ready: no process starts.
         guard lock.withLock({ stops == generation }) else { throw CancellationError() }
@@ -690,7 +693,7 @@ extension VMMEngine {
                     try await self.launch(launch, plan: next)
                 } catch is CancellationError {
                 } catch {
-                    exitSink.yield(error)
+                    exitSink.yield(EngineExit(instance: launch.instance, error: error))
                 }
             }
         }

@@ -129,7 +129,7 @@ final class ScreenLockFakeEngine: ScreenLockEngine, @unchecked Sendable {
     let right: String
 
     var name: String { inner.name }
-    var exits: AsyncStream<(any Error)?> { inner.exits }
+    var exits: AsyncStream<EngineExit> { inner.exits }
     /// Every credential that reached "Android".
     var received: [String] { lock.withLock { _received } }
 

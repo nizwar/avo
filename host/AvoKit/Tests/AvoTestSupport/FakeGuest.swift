@@ -195,8 +195,8 @@ public actor FakeInputSink {
 /// An engine that boots instantly and wires vsock ports to in-process fakes.
 public final class FakeEngine: VMEngine, @unchecked Sendable {
     public let name = "fake"
-    public let exits: AsyncStream<(any Error)?>
-    private let exitSink: AsyncStream<(any Error)?>.Continuation
+    public let exits: AsyncStream<EngineExit>
+    private let exitSink: AsyncStream<EngineExit>.Continuation
     public let agent: FakeBridgeAgent
     public let input = FakeInputSink()
     public let adbPublicKey: SecKey?
@@ -217,7 +217,7 @@ public final class FakeEngine: VMEngine, @unchecked Sendable {
     public init(agent: FakeBridgeAgent, adbPublicKey: SecKey? = nil) {
         self.agent = agent
         self.adbPublicKey = adbPublicKey
-        (exits, exitSink) = AsyncStream.makeStream(of: (any Error)?.self)
+        (exits, exitSink) = AsyncStream.makeStream(of: EngineExit.self)
     }
 
     public func start(_ launch: EngineLaunch) async throws {
@@ -230,15 +230,15 @@ public final class FakeEngine: VMEngine, @unchecked Sendable {
     }
 
     public func stop() async {
-        let wasRunning = lock.withLock {
+        let (wasRunning, instance) = lock.withLock {
             defer {
                 running = false
                 stopped += 1
             }
-            return running
+            return (running, launches.last?.instance)
         }
         // As an engine process does: one exit when it ends, none when it had ended already.
-        if wasRunning { exitSink.yield(nil) }
+        if wasRunning, let instance { exitSink.yield(EngineExit(instance: instance, error: nil)) }
     }
 
     public func snapshot(to url: URL) async throws {
@@ -247,14 +247,22 @@ public final class FakeEngine: VMEngine, @unchecked Sendable {
 
     /// Simulates the engine process exiting with `error` (nil: a clean exit).
     public func exit(_ error: (any Error)?) {
-        lock.withLock { running = false }
-        exitSink.yield(error)
+        let instance = lock.withLock {
+            running = false
+            return launches.last?.instance ?? UUID()
+        }
+        exitSink.yield(EngineExit(instance: instance, error: error))
+    }
+
+    /// The exit of the engine `launch` started, coming late: after the
+    /// next start began (an engine that took its time to end).
+    public func exit(_ error: (any Error)?, of launch: EngineLaunch) {
+        exitSink.yield(EngineExit(instance: launch.instance, error: error))
     }
 
     /// Simulates a crash of the engine process.
     public func crash() {
-        lock.withLock { running = false }
-        exitSink.yield(AvoError.vmStartFailed("engine crashed"))
+        exit(AvoError.vmStartFailed("engine crashed"))
     }
 
     public func connect(port: UInt32) async throws -> any ByteStream {

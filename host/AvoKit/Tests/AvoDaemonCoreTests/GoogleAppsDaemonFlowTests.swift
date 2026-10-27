@@ -14,7 +14,7 @@ final class SystemAppsFakeEngine: SystemAppsEngine, @unchecked Sendable {
     let inner: FakeEngine
     let guest: FakeSystemApps
     var name: String { inner.name }
-    var exits: AsyncStream<(any Error)?> { inner.exits }
+    var exits: AsyncStream<EngineExit> { inner.exits }
 
     init(inner: FakeEngine, guest: FakeSystemApps) {
         self.inner = inner

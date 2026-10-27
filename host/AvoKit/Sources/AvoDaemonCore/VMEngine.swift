@@ -18,10 +18,13 @@ public struct EngineLaunch: Sendable {
     public var displayRate: Int
     /// Android's own screen, display 0 (VMConfig.androidScreen).
     public var androidScreen: DisplayRequest
+    /// This start, as its engine's exit names it (`EngineExit`): the exit
+    /// of an engine stopped before is never taken for this one's.
+    public var instance: UUID
 
     public init(config: VMConfig, paths: AvoPaths, image: AndroidImage, bootConfigDisk: URL, restoreSnapshot: URL? = nil,
                 profile: DeviceProfile? = nil, displayRate: Int = FrameRates.standardRate,
-                androidScreen: DisplayRequest = DisplayRequest(width: 720, height: 1280, dpi: 320)) {
+                androidScreen: DisplayRequest = DisplayRequest(width: 720, height: 1280, dpi: 320), instance: UUID = UUID()) {
         self.config = config
         self.paths = paths
         self.image = image
@@ -30,6 +33,19 @@ public struct EngineLaunch: Sendable {
         self.profile = profile
         self.displayRate = displayRate
         self.androidScreen = androidScreen
+        self.instance = instance
+    }
+}
+
+/// An engine's end, and the start it ended (`EngineLaunch.instance`).
+public struct EngineExit: Sendable {
+    public var instance: UUID
+    /// Nil for a clean shutdown.
+    public var error: (any Error)?
+
+    public init(instance: UUID, error: (any Error)?) {
+        self.instance = instance
+        self.error = error
     }
 }
 
@@ -48,8 +64,8 @@ public protocol VMEngine: AnyObject, Sendable {
     /// The same as a blocking socket the caller owns (for splicing to a
     /// TCP client, see ADBForwarder).
     func connectSocket(port: UInt32) async throws -> Int32
-    /// Yields once when the engine exits; nil for a clean shutdown.
-    var exits: AsyncStream<(any Error)?> { get }
+    /// Yields once when the engine exits, with the start it came from.
+    var exits: AsyncStream<EngineExit> { get }
 }
 
 /// An engine that can pause Android: its vCPUs stop and its clock stands
@@ -124,8 +140,8 @@ extension VMEngine {
 public final class CrosvmEngine: VMEngine, @unchecked Sendable {
     public let name = "crosvm-hvf"
     public let executable: URL
-    public let exits: AsyncStream<(any Error)?>
-    private let exitSink: AsyncStream<(any Error)?>.Continuation
+    public let exits: AsyncStream<EngineExit>
+    private let exitSink: AsyncStream<EngineExit>.Continuation
     private let lock = NSLock()
     private var process: Process?
     private var launch: EngineLaunch?
@@ -133,7 +149,7 @@ public final class CrosvmEngine: VMEngine, @unchecked Sendable {
 
     public init(executable: URL) {
         self.executable = executable
-        (exits, exitSink) = AsyncStream.makeStream(of: (any Error)?.self)
+        (exits, exitSink) = AsyncStream.makeStream(of: EngineExit.self)
     }
 
     /// `crosvm run` arguments for a launch. Pure, so the contract is testable.
@@ -190,11 +206,13 @@ public final class CrosvmEngine: VMEngine, @unchecked Sendable {
         process.standardOutput = logHandle
         process.standardError = logHandle
         let sink = exitSink
+        let instance = launch.instance
         process.terminationHandler = { [logger] process in
             try? logHandle.close()
             let clean = process.terminationReason == .exit && process.terminationStatus == 0
             logger.notice("crosvm exited with status \(process.terminationStatus)")
-            sink.yield(clean ? nil : AvoError.vmStartFailed(String(localized: "The VM engine exited with status \(Int(process.terminationStatus)).", bundle: .avoKit)))
+            sink.yield(EngineExit(instance: instance, error: clean ? nil
+                : AvoError.vmStartFailed(String(localized: "The VM engine exited with status \(Int(process.terminationStatus)).", bundle: .avoKit))))
         }
         do {
             try process.run()
