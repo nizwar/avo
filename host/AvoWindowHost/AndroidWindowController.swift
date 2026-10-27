@@ -283,7 +283,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     func sendToBackground() {
         if picture != nil { leavePictureInPicture(show: false) }
         if quickSettings.isShown { quickSettings.toggle() }
-        keymap?.focusLost()
+        releaseInput()
         GamepadForwarder.shared.resign(self)
         window?.orderOut(nil)
         setOnScreen(false)
@@ -757,8 +757,10 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         pendingAttach = nil
         // The window closes or the app quits: finish the movie with what it has.
         stopRecording()
-        // A mouse locked for aiming comes free and the menu bar comes back,
-        // also while the quit waits for that movie.
+        // Nothing stays pressed in Android; a mouse locked for aiming comes
+        // free and the menu bar comes back, also while the quit waits for
+        // that movie.
+        displayView.releaseAll()
         keymap?.stop()
         bars.stop()
         GamepadForwarder.shared.remove(self)
@@ -1036,8 +1038,16 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     func windowDidResignKey(_ notification: Notification) {
         chrome?.windowStateChanged()
         // Never keep keys or the pointer captured after focus leaves the game.
-        keymap?.focusLost()
+        releaseInput()
         GamepadForwarder.shared.resign(self)
+    }
+
+    /// Focus left the game: nothing stays pressed in Android, neither what
+    /// the key mapping pressed nor the window's own keys and touches, and a
+    /// mouse locked for aiming comes free.
+    private func releaseInput() {
+        keymap?.focusLost()
+        displayView.releaseAll()
     }
 
     /// The key window's app has Android's input focus, as the one app on a
@@ -1445,7 +1455,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
             return
         }
         if quickSettings.isShown { quickSettings.toggle() }
-        keymap?.focusLost()
+        releaseInput()
         let size = lastSent.map { CGSize(width: Int($0.width), height: Int($0.height)) } ?? displayView.renderer.frameSize ?? content.bounds.size
         // Out of the window first: the window would take it back out of the panel.
         chrome?.pictureInPicture = true
@@ -1466,7 +1476,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
             if key {
                 becameKey()
             } else {
-                keymap?.focusLost()
+                releaseInput()
                 GamepadForwarder.shared.resign(self)
             }
         }
