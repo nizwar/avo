@@ -134,6 +134,10 @@ public actor DaemonCore {
     /// watched now: only while Android runs, not paused (`watchClipboard`).
     private var clipboardShared = false
     private var clipboardWatched = false
+    /// A start's catching up with Android (`catchUpWithStart`), apart from
+    /// the status updates: the next update (a pause, a stop) is not held up
+    /// behind it. A later start or a stop calls it off.
+    private var startWork: Task<Void, Never>?
     private var androidAwake = false
     /// Android's notifications since the daemon started, newest first.
     private var recentNotifications: [AndroidNotification] = []
@@ -838,25 +842,24 @@ public actor DaemonCore {
             reboots.ready()
             switch startSync.work(for: status) {
             case .start:
-                await syncApps()
-                // Android keeps the cap in its settings: this start follows the
-                // configuration, also one changed while Android was stopped.
-                await applyFrameRateLimit(config.fpsLimit)
-                rootIfAsked()
-                storageCheckedAt = nil
-                _ = await dataDiskStatus()
-                Task { await refreshWidgetRules() }
-                Task { await tidyInstalls() }
+                startWork?.cancel()
+                startWork = Task { await catchUpWithStart() }
             case .apps:
-                await syncApps()
-                Task { await refreshWidgetRules() }
+                Task {
+                    await syncApps()
+                    await refreshWidgetRules()
+                }
             case .none:
                 break
             }
         case .starting, .stopping:
             startSync = StartSync()
+            startWork?.cancel()
+            startWork = nil
         case .stopped, .failed, .notInstalled:
             startSync = StartSync()
+            startWork?.cancel()
+            startWork = nil
             bootedConfig = nil
             for display in displays.values { clients[display.owner]?.proxy.send(.displayClosed(displayID: display.id)) }
             usageWindowsClosed()
@@ -871,6 +874,24 @@ public actor DaemonCore {
         default:
             break
         }
+    }
+
+    /// What a start of Android catches up on: its apps, the frame-rate cap,
+    /// root, storage, widget rules, an install's leftovers. Each asks
+    /// Android, which can take seconds (a slow answer waits for its time
+    /// limit), so it runs apart from the status updates (`startWork`).
+    private func catchUpWithStart() async {
+        await syncApps()
+        guard !Task.isCancelled else { return }
+        // Android keeps the cap in its settings: this start follows the
+        // configuration, also one changed while Android was stopped.
+        await applyFrameRateLimit(config.fpsLimit)
+        guard !Task.isCancelled else { return }
+        rootIfAsked()
+        storageCheckedAt = nil
+        _ = await dataDiskStatus()
+        Task { await refreshWidgetRules() }
+        Task { await tidyInstalls() }
     }
 
     /// What an install Android stopped in left behind (its `pm` sessions,

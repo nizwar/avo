@@ -143,7 +143,8 @@ extension DaemonCore {
         autoPause.lastCPU = nil
         if let text = autoPause.clipboard {
             autoPause.clipboard = nil
-            await hostClipboardChanged(text)
+            // Apart from the status updates, as it waits on Android.
+            Task { await hostClipboardChanged(text) }
         }
     }
 
