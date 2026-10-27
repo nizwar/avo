@@ -659,7 +659,7 @@ struct SystemPane: View {
                     if value { confirmADB = true } else { model.update { $0.adbEnabled = false } }
                 })) {
                     HelpTitle("ADB support") {
-                        Text("Lets adb, Android Studio or scrcpy on this Mac control Android. Only this Mac can connect, but any app on it can then install apps and read Android’s data, so turn it off when you don’t need it.")
+                        Text("Lets adb, Android Studio or scrcpy on this Mac control Android. Avo lets in only adb’s own key on this Mac (~/.android/adbkey), which they share, but whatever uses it can install apps and read Android’s data, so turn it off when you don’t need it.")
                         if let adb = model.snapshot?.adb, adb.problem == nil, adb.port == VMConfig.defaultADBPort {
                             Text("adb also finds Android by itself, as emulator-5554, while it runs.")
                         }
@@ -723,7 +723,7 @@ struct SystemPane: View {
         .confirmationDialog("Turn on ADB support?", isPresented: $confirmADB, titleVisibility: .visible) {
             Button("Turn On ADB Support") { model.update { $0.adbEnabled = true } }
         } message: {
-            Text("Lets adb, Android Studio or scrcpy on this Mac control Android. Only this Mac can connect, but any app on it can then install apps and read Android’s data, so turn it off when you don’t need it.")
+            Text("Lets adb, Android Studio or scrcpy on this Mac control Android. Avo lets in only adb’s own key on this Mac (~/.android/adbkey), which they share, but whatever uses it can install apps and read Android’s data, so turn it off when you don’t need it.")
         }
         .confirmationDialog("Turn on root access?", isPresented: $confirmRoot, titleVisibility: .visible) {
             Button("Turn On Root") { model.update { $0.rooted = true } }
