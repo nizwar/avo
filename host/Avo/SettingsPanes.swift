@@ -707,7 +707,7 @@ struct SystemPane: View {
                     HelpTitle("Apps in the Dock", help: "Each Android app gets a tile in the Dock. Turning this off removes Avo’s tiles; turning it on adds one for every app, and for apps you install later.")
                 }
                 LabeledContent {
-                    Button("Recreate Shortcuts") { model.recreateShortcuts() }
+                    RecreateShortcutsButton()
                 } label: {
                     HelpTitle("App shortcuts", help: "Makes every app’s Mac app, icon, alias and Dock tile again, for example after moving Avo.")
                 }
@@ -991,6 +991,49 @@ extension View {
     /// This section, or nothing.
     @ViewBuilder func shown(_ visible: Bool) -> some View {
         if visible { self }
+    }
+}
+
+/// Recreate Shortcuts makes every app's Mac app, alias and Dock tile again,
+/// one app after another (each is copied and signed), which takes a while
+/// with many: a spinner while it works, a check for a moment once done.
+private struct RecreateShortcutsButton: View {
+    @Environment(ControlPanelModel.self) private var model
+    @State private var working = false
+    @State private var done = false
+    /// The latest press: an older one's check does not hide the newer one's.
+    @State private var press = 0
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if working {
+                ProgressView().controlSize(.small)
+            } else if done {
+                Label {
+                    Text("Done").foregroundStyle(Haze.textSecondary)
+                } icon: {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Haze.running)
+                }
+                .font(.mona(12))
+                .transition(.opacity)
+            }
+            Button("Recreate Shortcuts") {
+                press += 1
+                let this = press
+                working = true
+                done = false
+                Task {
+                    let made = await model.recreateShortcuts()
+                    working = false
+                    done = made
+                    guard made else { return }
+                    try? await Task.sleep(for: .seconds(4))
+                    if press == this { done = false }
+                }
+            }
+            .disabled(working)
+        }
+        .animation(Haze.Motion.fade, value: done)
     }
 }
 

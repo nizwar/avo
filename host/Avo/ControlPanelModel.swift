@@ -1070,7 +1070,16 @@ final class ControlPanelModel {
     func uninstall(_ app: AppRecord) { perform { try await $0.uninstall(app.package) } }
     func forceStop(_ app: AppRecord) { perform { try await $0.forceStop(app.package) } }
     func deleteData(_ app: AppRecord) { perform { try await $0.deleteAppData(app.package) } }
-    func recreateShortcuts() { perform { try await $0.recreateShortcuts() } }
+    /// Makes every app's shortcuts again; true once they are (Settings shows it).
+    func recreateShortcuts() async -> Bool {
+        do {
+            try await connectedClient().recreateShortcuts()
+            return true
+        } catch {
+            report(error)
+            return false
+        }
+    }
 
     func permissions(for app: AppRecord) async throws -> [AppPermission] {
         try await connectedClient().permissions(for: app.package)
