@@ -6,9 +6,13 @@
 //!   was last looked up by, relative to the folder. Paths, not descriptors:
 //!   a removable volume can still be ejected while nothing is open.
 //! - **Inside the folder only.** Names with a slash, "." or ".." are refused,
-//!   every directory a request names is checked to be one (never a symlink),
-//!   and files open with O_NOFOLLOW. Symlinks are shown as symlinks: the guest
-//!   resolves them in its own tree, never on the Mac.
+//!   every directory a request names is checked to be one, and no host call
+//!   follows a symlink in *any* component of a path (O_NOFOLLOW_ANY,
+//!   AT_SYMLINK_NOFOLLOW_ANY, RENAME_NOFOLLOW_ANY; directory handles come from
+//!   a fd opened the same way). Symlinks are shown as symlinks: the guest
+//!   resolves them in its own tree, the host never follows one — so a guest
+//!   with root cannot reach the Mac by planting a link, even one it renames a
+//!   real folder out from under.
 //! - **Ownership** is Android's media storage's: every file is media_rw's
 //!   (1023), rw for it and its group, so MediaProvider (in that group) and
 //!   root reach everything. What Android creates belongs to the Mac user,
@@ -20,11 +24,12 @@
 //!   …) is left out of listings.
 
 use std::collections::HashMap;
-use std::ffi::{CString, OsStr};
-use std::fs::{File, Metadata, OpenOptions};
+use std::ffi::{CString, OsStr, c_char};
+use std::fs::{File, OpenOptions};
 use std::io;
+use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd};
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::{DirEntryExt, FileExt, MetadataExt, OpenOptionsExt};
+use std::os::unix::fs::{FileExt, MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -93,6 +98,17 @@ const L_TRUNC: u32 = 0o1000;
 const RENAME_NOREPLACE: u32 = 1;
 const RENAME_EXCHANGE: u32 = 2;
 
+// macOS 11+ path-resolution guards missing from libc 0.2 (O_NOFOLLOW_ANY is
+// there). They reject a symlink in *any* component of a path, where
+// O_NOFOLLOW / AT_SYMLINK_NOFOLLOW guard only its last component.
+const AT_SYMLINK_NOFOLLOW_ANY: libc::c_int = 0x0800;
+const RENAME_NOFOLLOW_ANY: libc::c_uint = 0x0010;
+
+/// Most open file and directory handles the guest may hold at once. Past it
+/// OPEN, OPENDIR and CREATE answer ENFILE, so a guest cannot exhaust the
+/// process's descriptors through the share (the kernel closes what it had).
+const MAX_HANDLES: usize = 4096;
+
 const S_IFMT: u32 = 0o170000;
 const S_IFDIR: u32 = 0o040000;
 const S_IFREG: u32 = 0o100000;
@@ -141,6 +157,7 @@ mod libc_linux {
     // The host's EEXIST maps itself (linux_errno); the tests name it.
     #[cfg(test)]
     pub const EEXIST: i32 = 17;
+    pub const ENFILE: i32 = 23;
     pub const ENOTDIR: i32 = 20;
     pub const EINVAL: i32 = 22;
     pub const ENAMETOOLONG: i32 = 36;
@@ -260,6 +277,20 @@ struct Node {
     lookups: u64,
 }
 
+/// The host `stat` fields the server reports, taken without following any
+/// symlink in the path (`lstat_nofollow`) or from a descriptor (`stat_of_fd`).
+struct Stat(libc::stat);
+
+impl Stat {
+    fn key(&self) -> (u64, u64) {
+        (self.0.st_dev as u64, self.0.st_ino)
+    }
+
+    fn is_dir(&self) -> bool {
+        self.0.st_mode as u32 & S_IFMT == S_IFDIR
+    }
+}
+
 enum Handle {
     File(File),
     /// A listing taken at OPENDIR: (inode, type, name).
@@ -268,6 +299,9 @@ enum Handle {
 
 pub struct SharedDir {
     root: PathBuf,
+    /// The volume folds case (APFS usually does): `moved` then matches paths
+    /// the same way, so a case-only rename does not strand a node's children.
+    case_insensitive: bool,
     nodes: HashMap<u64, Node>,
     by_key: HashMap<(u64, u64), u64>,
     next_node: u64,
@@ -282,9 +316,11 @@ impl SharedDir {
             return Err(io::Error::new(io::ErrorKind::NotADirectory, "not a folder"));
         }
         let root = root.canonicalize()?;
+        let case_insensitive = volume_case_insensitive(&root);
         let key = (metadata.dev() as u64, metadata.ino());
         let mut shared = SharedDir {
             root,
+            case_insensitive,
             nodes: HashMap::new(),
             by_key: HashMap::new(),
             next_node: ROOT + 1,
@@ -395,15 +431,39 @@ impl SharedDir {
         Ok(self.root.join(&node.path))
     }
 
-    /// A directory a request names: a directory on the Mac now, never a symlink.
+    /// A directory a request names: a directory on the Mac now, reached
+    /// without following a symlink in any component (never a symlink itself).
     fn dir_path(&self, node: u64) -> Result<(PathBuf, PathBuf)> {
         let entry = self.nodes.get(&node).ok_or(libc_linux::ENOENT)?;
         let host_path = self.root.join(&entry.path);
-        let metadata = host(std::fs::symlink_metadata(&host_path))?;
-        if !metadata.is_dir() {
+        if !lstat_nofollow(&host_path)?.is_dir() {
             return Err(libc_linux::ENOTDIR);
         }
         Ok((host_path, entry.path.clone()))
+    }
+
+    /// A directory fd for the share-relative `relative`, opened so that no
+    /// symlink is followed anywhere in the path and the target is a real
+    /// directory. Operations on a single leaf name then go through *at() calls
+    /// on this fd, which the guest cannot redirect by swapping a component.
+    fn dir_fd(&self, relative: &Path) -> Result<OwnedFd> {
+        let path = c_path(&self.root.join(relative))?;
+        let flags = libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW_ANY | libc::O_CLOEXEC;
+        let fd = unsafe { libc::open(path.as_ptr(), flags) };
+        if fd < 0 {
+            return Err(linux_errno(&io::Error::last_os_error()));
+        }
+        Ok(unsafe { OwnedFd::from_raw_fd(fd) })
+    }
+
+    /// A directory fd of `parent` (no symlink in its path) and a child name
+    /// checked to be one component, with the child's relative path.
+    fn child_in_dir(&self, parent: u64, name: &[u8]) -> Result<(OwnedFd, CString, PathBuf)> {
+        let name = Self::checked_name(name)?;
+        let (_, relative) = self.dir_path(parent)?;
+        let fd = self.dir_fd(&relative)?;
+        let leaf = CString::new(name.as_bytes()).map_err(|_| libc_linux::EINVAL)?;
+        Ok((fd, leaf, relative.join(name)))
     }
 
     fn checked_name(name: &[u8]) -> Result<&OsStr> {
@@ -424,8 +484,7 @@ impl SharedDir {
     }
 
     /// A node for a file just looked up (one more lookup for it).
-    fn remember(&mut self, relative: PathBuf, metadata: &Metadata) -> u64 {
-        let key = (metadata.dev() as u64, metadata.ino());
+    fn remember(&mut self, relative: PathBuf, key: (u64, u64)) -> u64 {
         if let Some(&node) = self.by_key.get(&key) {
             let entry = self.nodes.get_mut(&node).unwrap();
             entry.lookups += 1;
@@ -455,11 +514,11 @@ impl SharedDir {
     }
 
     fn entry(&mut self, relative: PathBuf, host_path: &Path) -> Result<Vec<u8>> {
-        let metadata = host(std::fs::symlink_metadata(host_path))?;
-        let node = self.remember(relative, &metadata);
+        let stat = lstat_nofollow(host_path)?;
+        let node = self.remember(relative, stat.key());
         let mut out = Writer::default();
         out.u64(node).u64(0).u64(TIMEOUT.as_secs()).u64(TIMEOUT.as_secs()).u32(0).u32(0);
-        attributes(&mut out, &metadata);
+        attributes(&mut out, &stat);
         Ok(out.0)
     }
 
@@ -474,11 +533,11 @@ impl SharedDir {
         let flags = reader.u32().unwrap_or(0);
         let _ = reader.u32();
         let fh = reader.u64().unwrap_or(0);
-        let metadata = match self.handles.get(&fh) {
-            Some(Handle::File(file)) if flags & GETATTR_FH != 0 => host(file.metadata())?,
-            _ => host(std::fs::symlink_metadata(self.node_path(node)?))?,
+        let stat = match self.handles.get(&fh) {
+            Some(Handle::File(file)) if flags & GETATTR_FH != 0 => stat_of_fd(file.as_raw_fd())?,
+            _ => lstat_nofollow(&self.node_path(node)?)?,
         };
-        Ok(attr_out(&metadata))
+        Ok(attr_out(&stat))
     }
 
     fn setattr(&mut self, node: u64, reader: &mut Reader) -> Result<Vec<u8>> {
@@ -511,24 +570,40 @@ impl SharedDir {
             };
             let times = [time(FATTR_ATIME, FATTR_ATIME_NOW, atime, atimensec), time(FATTR_MTIME, FATTR_MTIME_NOW, mtime, mtimensec)];
             let c_path = c_path(&path)?;
-            if unsafe { libc::utimensat(libc::AT_FDCWD, c_path.as_ptr(), times.as_ptr(), libc::AT_SYMLINK_NOFOLLOW) } != 0 {
+            let flags = libc::AT_SYMLINK_NOFOLLOW | AT_SYMLINK_NOFOLLOW_ANY;
+            if unsafe { libc::utimensat(libc::AT_FDCWD, c_path.as_ptr(), times.as_ptr(), flags) } != 0 {
                 return Err(linux_errno(&io::Error::last_os_error()));
             }
         }
         // Mode, owner and group are Android's media storage's (see above).
-        Ok(attr_out(&host(std::fs::symlink_metadata(&path))?))
+        Ok(attr_out(&lstat_nofollow(&path)?))
     }
 
     fn readlink(&mut self, node: u64) -> Result<Vec<u8>> {
-        let target = host(std::fs::read_link(self.node_path(node)?))?;
-        Ok(target.as_os_str().as_bytes().to_vec())
+        // Read the link relative to a fd of its parent (no symlink followed in
+        // the parent's path); the leaf itself is the symlink we are reading.
+        let relative = self.nodes.get(&node).ok_or(libc_linux::ENOENT)?.path.clone();
+        let leaf = relative.file_name().ok_or(libc_linux::EINVAL)?;
+        let fd = self.dir_fd(relative.parent().unwrap_or(Path::new("")))?;
+        let leaf = CString::new(leaf.as_bytes()).map_err(|_| libc_linux::EINVAL)?;
+        let mut buffer = vec![0u8; libc::PATH_MAX as usize];
+        let n = unsafe { libc::readlinkat(fd.as_raw_fd(), leaf.as_ptr(), buffer.as_mut_ptr() as *mut c_char, buffer.len()) };
+        if n < 0 {
+            return Err(linux_errno(&io::Error::last_os_error()));
+        }
+        buffer.truncate(n as usize);
+        Ok(buffer)
     }
 
     fn symlink(&mut self, parent: u64, reader: &mut Reader) -> Result<Vec<u8>> {
         let name = reader.name()?.to_vec();
-        let target = reader.name()?;
-        let (host_path, relative) = self.child(parent, &name)?;
-        host(std::os::unix::fs::symlink(OsStr::from_bytes(target), &host_path))?;
+        let target = reader.name()?.to_vec();
+        let (fd, leaf, relative) = self.child_in_dir(parent, &name)?;
+        let target = CString::new(target).map_err(|_| libc_linux::EINVAL)?;
+        if unsafe { libc::symlinkat(target.as_ptr(), fd.as_raw_fd(), leaf.as_ptr()) } != 0 {
+            return Err(linux_errno(&io::Error::last_os_error()));
+        }
+        let host_path = self.root.join(&relative);
         self.entry(relative, &host_path)
     }
 
@@ -547,14 +622,24 @@ impl SharedDir {
     fn mkdir(&mut self, parent: u64, reader: &mut Reader) -> Result<Vec<u8>> {
         reader.skip(8)?;
         let name = reader.name()?.to_vec();
-        let (host_path, relative) = self.child(parent, &name)?;
-        host(std::fs::create_dir(&host_path))?;
+        let (fd, leaf, relative) = self.child_in_dir(parent, &name)?;
+        if unsafe { libc::mkdirat(fd.as_raw_fd(), leaf.as_ptr(), 0o755) } != 0 {
+            return Err(linux_errno(&io::Error::last_os_error()));
+        }
+        let host_path = self.root.join(&relative);
         self.entry(relative, &host_path)
     }
 
     fn remove(&mut self, parent: u64, name: &[u8], directory: bool) -> Result<Vec<u8>> {
+        // The whole path is resolved with no symlink followed in any
+        // component; the leaf symlink itself (UNLINK) is removed, not its
+        // target (AT_SYMLINK_NOFOLLOW_ANY guards only intermediate components).
         let (host_path, _) = self.child(parent, name)?;
-        host(if directory { std::fs::remove_dir(&host_path) } else { std::fs::remove_file(&host_path) })?;
+        let path = c_path(&host_path)?;
+        let flags = AT_SYMLINK_NOFOLLOW_ANY | if directory { libc::AT_REMOVEDIR } else { 0 };
+        if unsafe { libc::unlinkat(libc::AT_FDCWD, path.as_ptr(), flags) } != 0 {
+            return Err(linux_errno(&io::Error::last_os_error()));
+        }
         Ok(Vec::new())
     }
 
@@ -577,8 +662,11 @@ impl SharedDir {
             RENAME_EXCHANGE => libc::RENAME_SWAP,
             _ => return Err(libc_linux::EINVAL), // RENAME_WHITEOUT
         };
+        // No symlink is followed in either path's intermediate components; a
+        // leaf symlink is moved as itself.
         let (from, to) = (c_path(&old_host)?, c_path(&new_host)?);
-        if unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), host_flags) } != 0 {
+        let flags = host_flags | RENAME_NOFOLLOW_ANY;
+        if unsafe { libc::renameatx_np(libc::AT_FDCWD, from.as_ptr(), libc::AT_FDCWD, to.as_ptr(), flags) } != 0 {
             return Err(linux_errno(&io::Error::last_os_error()));
         }
         if flags == RENAME_EXCHANGE {
@@ -593,8 +681,9 @@ impl SharedDir {
 
     /// Nodes at or under `from` are now at or under `to`.
     fn moved(&mut self, from: &Path, to: &Path) {
+        let case_insensitive = self.case_insensitive;
         for node in self.nodes.values_mut() {
-            if let Ok(rest) = node.path.strip_prefix(from) {
+            if let Some(rest) = strip_prefix(&node.path, from, case_insensitive) {
                 node.path = if rest.as_os_str().is_empty() { to.to_path_buf() } else { to.join(rest) };
             }
         }
@@ -603,17 +692,28 @@ impl SharedDir {
     fn link(&mut self, parent: u64, reader: &mut Reader) -> Result<Vec<u8>> {
         let old = reader.u64()?;
         let name = reader.name()?.to_vec();
-        let source = self.node_path(old)?;
+        let source = c_path(&self.node_path(old)?)?;
         let (host_path, relative) = self.child(parent, &name)?;
-        host(std::fs::hard_link(&source, &host_path))?;
+        let target = c_path(&host_path)?;
+        // No symlink is followed in either path; a leaf symlink is linked as
+        // itself (AT_SYMLINK_NOFOLLOW_ANY).
+        let made = unsafe {
+            libc::linkat(libc::AT_FDCWD, source.as_ptr(), libc::AT_FDCWD, target.as_ptr(), AT_SYMLINK_NOFOLLOW_ANY)
+        };
+        if made != 0 {
+            return Err(linux_errno(&io::Error::last_os_error()));
+        }
         self.entry(relative, &host_path)
     }
 
-    fn keep(&mut self, handle: Handle) -> u64 {
+    fn keep(&mut self, handle: Handle) -> Result<u64> {
+        if self.handles.len() >= MAX_HANDLES {
+            return Err(libc_linux::ENFILE);
+        }
         let fh = self.next_handle;
         self.next_handle += 1;
         self.handles.insert(fh, handle);
-        fh
+        Ok(fh)
     }
 
     fn open_out(fh: u64) -> Vec<u8> {
@@ -630,7 +730,7 @@ impl SharedDir {
             options.truncate(true);
         }
         let file = host(open_nofollow(&path, &mut options))?;
-        let fh = self.keep(Handle::File(file));
+        let fh = self.keep(Handle::File(file))?;
         Ok(Self::open_out(fh))
     }
 
@@ -638,6 +738,10 @@ impl SharedDir {
         let flags = reader.u32()?;
         reader.skip(12)?; // mode, umask, open flags
         let name = reader.name()?.to_vec();
+        // Refuse before making the file, so a guest at the cap leaves nothing.
+        if self.handles.len() >= MAX_HANDLES {
+            return Err(libc_linux::ENFILE);
+        }
         let (host_path, relative) = self.child(parent, &name)?;
         // Creating needs write access on the Mac, even for O_RDONLY | O_CREAT.
         let mut options = access(if flags & L_ACCMODE == 0 { L_RDWR } else { flags });
@@ -651,8 +755,8 @@ impl SharedDir {
             options.truncate(true);
         }
         let file = host(open_nofollow(&host_path, &mut options))?;
+        let fh = self.keep(Handle::File(file))?;
         let mut out = self.entry(relative, &host_path)?;
-        let fh = self.keep(Handle::File(file));
         out.extend_from_slice(&Self::open_out(fh));
         Ok(out)
     }
@@ -705,24 +809,40 @@ impl SharedDir {
     }
 
     fn opendir(&mut self, node: u64) -> Result<Vec<u8>> {
-        let (host_path, _) = self.dir_path(node)?;
-        let directory = host(std::fs::metadata(&host_path))?;
-        let mut entries = vec![(directory.ino(), S_IFDIR >> 12, b".".to_vec()), (directory.ino(), S_IFDIR >> 12, b"..".to_vec())];
-        for entry in host(std::fs::read_dir(&host_path))? {
-            let Ok(entry) = entry else { continue };
-            let name = entry.file_name().as_bytes().to_vec();
-            if hidden(&name) {
+        let (_, relative) = self.dir_path(node)?;
+        // The listing is taken through a fd opened with no symlink followed in
+        // the path, so the guest cannot redirect it by swapping a component
+        // after dir_path checked it.
+        let fd = self.dir_fd(&relative)?;
+        let ino = stat_of_fd(fd.as_raw_fd())?.0.st_ino;
+        let mut entries = vec![(ino, S_IFDIR >> 12, b".".to_vec()), (ino, S_IFDIR >> 12, b"..".to_vec())];
+        // fdopendir takes the fd (closedir frees it); readdir returns "." and
+        // ".." too, which we supply ourselves above.
+        let dir = unsafe { libc::fdopendir(fd.into_raw_fd()) };
+        if dir.is_null() {
+            return Err(linux_errno(&io::Error::last_os_error()));
+        }
+        loop {
+            let entry = unsafe { libc::readdir(dir) };
+            if entry.is_null() {
+                break;
+            }
+            let entry = unsafe { &*entry };
+            let len = (entry.d_namlen as usize).min(entry.d_name.len());
+            let name: Vec<u8> = entry.d_name[..len].iter().map(|&c| c as u8).collect();
+            if hidden(&name) || name == b"." || name == b".." {
                 continue;
             }
-            let kind = match entry.file_type() {
-                Ok(t) if t.is_dir() => S_IFDIR,
-                Ok(t) if t.is_symlink() => S_IFLNK,
-                Ok(t) if t.is_file() => S_IFREG,
+            let kind = match entry.d_type {
+                libc::DT_DIR => S_IFDIR >> 12,
+                libc::DT_LNK => S_IFLNK >> 12,
+                libc::DT_REG => S_IFREG >> 12,
                 _ => 0,
             };
-            entries.push((entry.ino(), kind >> 12, name));
+            entries.push((entry.d_ino, kind, name));
         }
-        let fh = self.keep(Handle::Dir(entries));
+        unsafe { libc::closedir(dir) };
+        let fh = self.keep(Handle::Dir(entries))?;
         Ok(Self::open_out(fh))
     }
 
@@ -770,6 +890,53 @@ fn c_path(path: &Path) -> Result<CString> {
     CString::new(path.as_os_str().as_bytes()).map_err(|_| libc_linux::EINVAL)
 }
 
+/// lstat (the link itself, not its target) that also fails if a symlink is a
+/// component of the path, so the host never resolves one the guest planted.
+fn lstat_nofollow(path: &Path) -> Result<Stat> {
+    let path = c_path(path)?;
+    let mut stat = std::mem::MaybeUninit::<libc::stat>::uninit();
+    let flags = libc::AT_SYMLINK_NOFOLLOW | AT_SYMLINK_NOFOLLOW_ANY;
+    if unsafe { libc::fstatat(libc::AT_FDCWD, path.as_ptr(), stat.as_mut_ptr(), flags) } != 0 {
+        return Err(linux_errno(&io::Error::last_os_error()));
+    }
+    Ok(Stat(unsafe { stat.assume_init() }))
+}
+
+fn stat_of_fd(fd: libc::c_int) -> Result<Stat> {
+    let mut stat = std::mem::MaybeUninit::<libc::stat>::uninit();
+    if unsafe { libc::fstat(fd, stat.as_mut_ptr()) } != 0 {
+        return Err(linux_errno(&io::Error::last_os_error()));
+    }
+    Ok(Stat(unsafe { stat.assume_init() }))
+}
+
+/// Whether `path`'s volume folds case (APFS does by default); assume so
+/// unless pathconf says it is definitely case-sensitive.
+fn volume_case_insensitive(path: &Path) -> bool {
+    let Ok(path) = c_path(path) else { return true };
+    unsafe { libc::pathconf(path.as_ptr(), libc::_PC_CASE_SENSITIVE) != 1 }
+}
+
+/// `path` with `prefix` removed, matching components case-insensitively when
+/// the volume folds case, so a case-only rename still finds a node's
+/// children. ASCII folding only: a miss costs just a stale node path (the
+/// confused file is still inside the share — every host call refuses
+/// symlinks), never a path the host would follow out.
+fn strip_prefix(path: &Path, prefix: &Path, case_insensitive: bool) -> Option<PathBuf> {
+    if !case_insensitive {
+        return path.strip_prefix(prefix).ok().map(Path::to_path_buf);
+    }
+    let mut components = path.components();
+    for want in prefix.components() {
+        let got = components.next()?;
+        let (a, b) = (got.as_os_str().as_bytes(), want.as_os_str().as_bytes());
+        if a.len() != b.len() || !a.iter().zip(b).all(|(x, y)| x.eq_ignore_ascii_case(y)) {
+            return None;
+        }
+    }
+    Some(components.as_path().to_path_buf())
+}
+
 fn access(flags: u32) -> OpenOptions {
     let mut options = OpenOptions::new();
     match flags & L_ACCMODE {
@@ -781,39 +948,40 @@ fn access(flags: u32) -> OpenOptions {
 }
 
 fn open_nofollow(path: &Path, options: &mut OpenOptions) -> io::Result<File> {
-    options.custom_flags(libc::O_NOFOLLOW).open(path)
+    options.custom_flags(libc::O_NOFOLLOW_ANY).open(path)
 }
 
 /// `fuse_attr` for a host file, as Android's media storage owns it.
-fn attributes(out: &mut Writer, metadata: &Metadata) {
-    let kind = metadata.mode() as u32 & S_IFMT;
+fn attributes(out: &mut Writer, stat: &Stat) {
+    let s = &stat.0;
+    let kind = s.st_mode as u32 & S_IFMT;
     let mode = match kind {
         S_IFDIR => S_IFDIR | 0o770,
         S_IFLNK => S_IFLNK | 0o777,
         _ => kind | 0o660,
     };
-    out.u64(metadata.ino())
-        .u64(metadata.size())
-        .u64(metadata.blocks())
-        .u64(metadata.atime() as u64)
-        .u64(metadata.mtime() as u64)
-        .u64(metadata.ctime() as u64)
-        .u32(metadata.atime_nsec() as u32)
-        .u32(metadata.mtime_nsec() as u32)
-        .u32(metadata.ctime_nsec() as u32)
+    out.u64(s.st_ino)
+        .u64(s.st_size as u64)
+        .u64(s.st_blocks as u64)
+        .u64(s.st_atime as u64)
+        .u64(s.st_mtime as u64)
+        .u64(s.st_ctime as u64)
+        .u32(s.st_atime_nsec as u32)
+        .u32(s.st_mtime_nsec as u32)
+        .u32(s.st_ctime_nsec as u32)
         .u32(mode)
-        .u32(metadata.nlink() as u32)
+        .u32(s.st_nlink as u32)
         .u32(MEDIA_RW)
         .u32(MEDIA_RW)
         .u32(0)
-        .u32(metadata.blksize() as u32)
+        .u32(s.st_blksize as u32)
         .u32(0);
 }
 
-fn attr_out(metadata: &Metadata) -> Vec<u8> {
+fn attr_out(stat: &Stat) -> Vec<u8> {
     let mut out = Writer::default();
     out.u64(TIMEOUT.as_secs()).u32(0).u32(0);
-    attributes(&mut out, metadata);
+    attributes(&mut out, stat);
     out.0
 }
 
@@ -1063,6 +1231,101 @@ mod tests {
         assert_eq!(guest.call(GETATTR, node, &[0; 16]).err(), Some(libc_linux::ENOENT));
         assert!(guest.call(STATFS, ROOT, &[]).unwrap().len() == 80);
         assert_eq!(guest.call(0x7d0, ROOT, &[]).err(), Some(libc_linux::ENOSYS), "Android's FUSE_CANONICAL_PATH");
+    }
+
+    /// Size-only SETATTR (truncate) request bytes.
+    fn truncate_to(size: u64) -> Vec<u8> {
+        let mut setattr = Writer::default();
+        setattr.u32(FATTR_SIZE).u32(0).u64(0).u64(size).u64(0).u64(0).u64(0).u64(0).u32(0).u32(0).u32(0);
+        setattr.u32(0).u32(0).u32(0).u32(0).u32(0);
+        setattr.0
+    }
+
+    #[test]
+    fn a_symlink_in_a_middle_component_is_refused() {
+        let folder = Folder::new("midlink");
+        let outside = Folder::new("midlink-secret");
+        std::fs::write(outside.0.join("f"), b"outside secret").unwrap();
+        std::fs::create_dir(folder.0.join("d")).unwrap();
+        std::fs::write(folder.0.join("d/f"), b"inside").unwrap();
+        let mut guest = Guest::new(&folder);
+        // Look the file up while the whole path is real.
+        let (dir, _, _) = guest.lookup(ROOT, "d").unwrap();
+        let (file, _, _) = guest.lookup(dir, "f").unwrap();
+        let fh = guest.open(file, 0).unwrap();
+        assert_eq!(guest.read(file, fh, 0, 10), b"inside");
+        guest.release(file, fh);
+        // Swap the middle directory for a symlink to the outside, as a rooted
+        // guest or the Mac side could between two requests.
+        std::fs::remove_file(folder.0.join("d/f")).unwrap();
+        std::fs::remove_dir(folder.0.join("d")).unwrap();
+        std::os::unix::fs::symlink(&outside.0, folder.0.join("d")).unwrap();
+        // Every way back to the stale node refuses to follow the middle link.
+        assert!(guest.open(file, 0).is_err(), "OPEN must not follow a middle symlink");
+        assert!(guest.call(GETATTR, file, &[0; 16]).is_err(), "GETATTR must not follow it");
+        assert!(guest.call(SETATTR, file, &truncate_to(0)).is_err(), "SETATTR truncate must not follow it");
+        assert_eq!(std::fs::read(outside.0.join("f")).unwrap(), b"outside secret", "the outside file is untouched");
+        // Nor can the link be walked into by a fresh lookup.
+        let (link, mode, _) = guest.lookup(ROOT, "d").unwrap();
+        assert_eq!(mode & S_IFMT, S_IFLNK, "d now looks up as a symlink, not its target");
+        assert_eq!(guest.lookup(link, "f").err(), Some(libc_linux::ENOTDIR));
+    }
+
+    #[test]
+    fn a_case_only_rename_cannot_be_followed_outside() {
+        let folder = Folder::new("caselink");
+        let outside = Folder::new("caselink-secret");
+        std::fs::write(outside.0.join("secret"), b"outside secret").unwrap();
+        std::fs::create_dir(folder.0.join("D")).unwrap();
+        std::fs::write(folder.0.join("D/secret"), b"inside").unwrap();
+        let mut guest = Guest::new(&folder);
+        let (dir, _, _) = guest.lookup(ROOT, "D").unwrap();
+        let (sec, _, _) = guest.lookup(dir, "secret").unwrap(); // node path "D/secret"
+        // Re-look up the directory by another case; the node's path follows it.
+        assert_eq!(guest.lookup(ROOT, "d").unwrap().0, dir);
+        // Rename the directory away by that lowercase name. `moved` must track
+        // the child across the case difference (it did not, before).
+        let mut rename = Writer::default();
+        rename.u64(ROOT);
+        rename.0.extend_from_slice(&Guest::name("d"));
+        rename.0.extend_from_slice(&Guest::name("gone"));
+        guest.call(RENAME, ROOT, &rename.0).unwrap();
+        // Plant a symlink at the old name pointing outside the share.
+        std::os::unix::fs::symlink(&outside.0, folder.0.join("D")).unwrap();
+        // The child node still names the real (moved) inside file, never the
+        // planted link's target.
+        let fh = guest.open(sec, 0).unwrap();
+        assert_eq!(guest.read(sec, fh, 0, 64), b"inside", "reads the moved file, not the link target");
+        guest.release(sec, fh);
+        let size = guest.call(GETATTR, sec, &[0; 16]).map(|out| u64::from_le_bytes(out[24..32].try_into().unwrap()));
+        assert_eq!(size, Ok(6), "GETATTR reports the inside file, not the 14-byte outside one");
+        let _ = guest.call(SETATTR, sec, &truncate_to(0));
+        assert_eq!(std::fs::read(outside.0.join("secret")).unwrap(), b"outside secret", "the outside file is untouched");
+    }
+
+    #[test]
+    fn deep_real_paths_still_work() {
+        let folder = Folder::new("deep");
+        std::fs::create_dir_all(folder.0.join("a/b")).unwrap();
+        std::fs::write(folder.0.join("a/b/c.txt"), b"nested").unwrap();
+        let mut guest = Guest::new(&folder);
+        let (a, _, _) = guest.lookup(ROOT, "a").unwrap();
+        let (b, _, _) = guest.lookup(a, "b").unwrap();
+        let (c, _, size) = guest.lookup(b, "c.txt").unwrap();
+        assert_eq!(size, 6);
+        let fh = guest.open(c, 0).unwrap();
+        assert_eq!(guest.read(c, fh, 0, 64), b"nested");
+        guest.release(c, fh);
+        assert_eq!(guest.list(b), [".", "..", "c.txt"]);
+        // A new nested directory and file, created through the device.
+        let mut args = Writer::default();
+        args.u32(0o755).u32(0o022);
+        args.0.extend_from_slice(&Guest::name("d"));
+        let (d, _, _) = Guest::entry(&guest.call(MKDIR, b, &args.0).unwrap());
+        let (file, fh) = guest.create(d, "e.txt");
+        guest.write(file, fh, 0, b"made");
+        guest.release(file, fh);
+        assert_eq!(std::fs::read(folder.0.join("a/b/d/e.txt")).unwrap(), b"made");
     }
 
     #[test]
