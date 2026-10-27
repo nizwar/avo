@@ -370,10 +370,11 @@ private struct AppGraphicsCard: View {
                         case .deviceProfile:
                             let phone = model.deviceProfile
                             ResolutionReadout(value: phone?.display.map { "\($0.width) × \($0.height) · \($0.dpi) dpi" } ?? "—",
-                                              note: "Phone\(phone.map { " (\($0.name))" } ?? "") — from the device profile")
+                                              note: phone.map { String(localized: "Phone (\($0.name)) — from the device profile") }
+                                                  ?? String(localized: "Phone — from the device profile"))
                         case .followWindow:
-                            ResolutionReadout(value: "Follows the window",
-                                              note: "\(settings.renderScale)% render scale")
+                            ResolutionReadout(value: String(localized: "Follows the window"),
+                                              note: String(localized: "\(settings.renderScale)% render scale"))
                         }
                     }
                     HStack(spacing: 4) {
@@ -396,19 +397,28 @@ private struct AppGraphicsCard: View {
                             model.setAppGraphicsSettings(changed, for: app.package)
                         }
                     }
-                    HStack(spacing: 8) {
-                        HStack(spacing: 4) {
-                            Text("Max FPS").font(.mona(14)).lineLimit(1)
-                            HelpButton("Max FPS", "Android draws at most this many frames per second, in every app. A screen’s own rate between 60 and 120 appears too, so Android runs in step with it. A rate above the one Android started at applies after a restart. 30 saves power and heat.")
+                    let rates = FrameRates.choices(for: ScreenRefresh.attached, keeping: config.fpsLimit)
+                    let fpsTitle = HStack(spacing: 4) {
+                        Text("Max FPS").font(.mona(14)).lineLimit(1)
+                        HelpButton("Max FPS", "Android draws at most this many frames per second, in every app. A screen’s own rate between 60 and 120 appears too, so Android runs in step with it. A rate above the one Android started at applies after a restart. 30 saves power and heat.")
+                    }
+                    let fpsChoices = HazeSegmented(options: rates.map { ($0, Text(verbatim: "\($0)")) },
+                                                   selection: Binding(get: { config.fpsLimit },
+                                                                      set: { value in model.update { $0.fpsLimit = value } }),
+                                                   height: 28, cornerRadius: 10, fontSize: 12, fill: Haze.inset,
+                                                   selectedFill: Haze.accent.opacity(0.2), segmentPadding: 8)
+                        .fixedSize()
+                    // In the narrowest window the rates (five with a 75 Hz screen) go under the title.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 8) {
+                            fpsTitle
+                            Spacer(minLength: 4)
+                            fpsChoices
                         }
-                        Spacer(minLength: 4)
-                        let rates = FrameRates.choices(for: ScreenRefresh.attached, keeping: config.fpsLimit)
-                        HazeSegmented(options: rates.map { ($0, Text(verbatim: "\($0)")) },
-                                      selection: Binding(get: { config.fpsLimit },
-                                                         set: { value in model.update { $0.fpsLimit = value } }),
-                                      height: 28, cornerRadius: 10, fontSize: 12, fill: Haze.inset, selectedFill: Haze.accent.opacity(0.2),
-                                      segmentPadding: 8)
-                            .fixedSize()
+                        VStack(alignment: .leading, spacing: 8) {
+                            fpsTitle
+                            fpsChoices
+                        }
                     }
                     FrameRateNote(cap: config.fpsLimit)
                     IssueText(field: "graphicsOverrides.\(app.package).sharpness")
