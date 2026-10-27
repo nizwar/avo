@@ -626,6 +626,8 @@ private struct PermissionsCard: View {
     @Environment(ControlPanelModel.self) private var model
     let app: AppRecord
     @State private var permissions: [AppPermission]?
+    /// Android did not say (busy, or the daemon went away): why, with Try Again.
+    @State private var failure: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -640,6 +642,16 @@ private struct PermissionsCard: View {
                         .buttonStyle(HazeButtonStyle(kind: .secondary, height: 30, fontSize: 12, horizontalPadding: 14))
                         .disabled(model.status.state.isBusy || model.daemonState != .connected)
                 }
+            } else if let failure, permissions == nil {
+                HStack(spacing: 12) {
+                    Text("Android did not say what this app may use. \(failure)")
+                        .font(.mona(13))
+                        .foregroundStyle(Haze.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    Button("Try Again") { Task { await load() } }
+                        .buttonStyle(HazeButtonStyle(kind: .secondary, height: 30, fontSize: 12, horizontalPadding: 14))
+                }
             } else if let permissions {
                 let runtime = permissions.filter(\.runtime)
                 if runtime.isEmpty {
@@ -652,7 +664,8 @@ private struct PermissionsCard: View {
                             Toggle(isOn: Binding(get: { permission.granted }, set: { granted in
                                 Task {
                                     await model.setPermission(permission, granted: granted, for: app)
-                                    self.permissions = await model.permissions(for: app)
+                                    // What Android has now; the list stays as it was if it does not say.
+                                    if let now = try? await model.permissions(for: app) { self.permissions = now }
                                 }
                             })) {
                                 Text(PermissionNames.label(for: permission.name, fallback: permission.label))
@@ -675,7 +688,16 @@ private struct PermissionsCard: View {
         .animation(Haze.Motion.fade, value: permissions == nil)
         .task(id: "\(app.package)-\(model.status.state.rawValue)") {
             guard model.status.state == .running else { return }
-            permissions = await model.permissions(for: app)
+            await load()
+        }
+    }
+
+    private func load() async {
+        do {
+            permissions = try await model.permissions(for: app)
+            failure = nil
+        } catch {
+            failure = error.localizedDescription
         }
     }
 }

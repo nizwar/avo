@@ -939,8 +939,8 @@ final class ControlPanelModel {
     func deleteData(_ app: AppRecord) { perform { try await $0.deleteAppData(app.package) } }
     func recreateShortcuts() { perform { try await $0.recreateShortcuts() } }
 
-    func permissions(for app: AppRecord) async -> [AppPermission] {
-        (try? await client?.permissions(for: app.package)) ?? []
+    func permissions(for app: AppRecord) async throws -> [AppPermission] {
+        try await requireClient().permissions(for: app.package)
     }
 
     // MARK: Android's volume (Settings › Devices › Sound)
