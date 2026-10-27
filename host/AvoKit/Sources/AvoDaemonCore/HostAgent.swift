@@ -1241,8 +1241,8 @@ actor HostAgent: DisplayResizing {
         // run concurrently. A closed window's scanout waits until Android has
         // let it go (`release`), so when only those are left, so does this.
         var free = Self.freeScanout(in: Self.scanouts, taken: takenScanouts)
-        let deadline = ContinuousClock.now + .seconds(6)
-        while free == nil, !releasing.isEmpty, ContinuousClock.now < deadline {
+        let deadline = SuspendingClock.now + .seconds(6)
+        while free == nil, !releasing.isEmpty, SuspendingClock.now < deadline {
             try await Task.sleep(for: .milliseconds(50))
             free = Self.freeScanout(in: Self.scanouts, taken: takenScanouts)
         }
@@ -1363,8 +1363,8 @@ actor HostAgent: DisplayResizing {
     private func resize(_ id: UInt32, inPlaceTo mode: DisplayMode) async throws -> Bool {
         guard let display = displays[id], let androidID = display.androidID else { return false }
         try await engine.send("display \(display.scanout) \(mode.width) \(mode.height) \(displayRate)")
-        let deadline = ContinuousClock.now + .seconds(3)
-        while ContinuousClock.now < deadline {
+        let deadline = SuspendingClock.now + .seconds(3)
+        while SuspendingClock.now < deadline {
             try await Task.sleep(for: .milliseconds(30))
             guard var current = displays[id] else { return true } // closed meanwhile
             let size = Self.modeSize(androidID: androidID, in: try await shell("cmd display get-displays"))
@@ -2114,9 +2114,9 @@ actor HostAgent: DisplayResizing {
     /// app with it. A plug before Android noticed at all would also keep the
     /// old mode.
     private func waitForDisplayRemoved(scanout: Int, uniqueID: String?) async throws {
-        let deadline = ContinuousClock.now + .seconds(5)
+        let deadline = SuspendingClock.now + .seconds(5)
         let marker = Self.shellMarker()
-        while ContinuousClock.now < deadline {
+        while SuspendingClock.now < deadline {
             let output = try await shell("dumpsys SurfaceFlinger --display-id; echo \(marker); cmd display get-displays")
             let parts = Self.sections(of: output, marker: marker)
             if parts.count == 2,
@@ -2187,8 +2187,8 @@ actor HostAgent: DisplayResizing {
 
     /// The Android display behind `scanout` (its HWC port), once it appears.
     private func waitForDisplay(scanout: Int) async throws -> (Int, String) {
-        let deadline = ContinuousClock.now + .seconds(15)
-        while ContinuousClock.now < deadline {
+        let deadline = SuspendingClock.now + .seconds(15)
+        while SuspendingClock.now < deadline {
             let physical = try await shell("dumpsys SurfaceFlinger --display-id")
             if let id = Self.physicalDisplayID(port: scanout, in: physical) {
                 let uniqueID = "local:\(id)"
@@ -2630,7 +2630,7 @@ actor HostAgent: DisplayResizing {
         var reports: [String: HelperAppInfo] = [:]
         var pending = packages
         var failures = 0
-        let deadline = ContinuousClock.now + .seconds(Self.appInfoSeconds)
+        let deadline = SuspendingClock.now + .seconds(Self.appInfoSeconds)
         while !pending.isEmpty {
             let left = Int((deadline - .now).components.seconds)
             guard left >= 2 else {
@@ -3359,18 +3359,18 @@ extension HostAgent {
     /// Starts audioserver again (init restarts the audio HALs with it) and
     /// waits until the new one has the HAL's modules.
     private func restartAudioServer(for files: [String]) async {
-        let started = ContinuousClock.now
+        let started = SuspendingClock.now
         let before = (try? await shell("pidof audioserver"))?.trimmed ?? ""
         guard (try? await root("setprop ctl.restart audioserver"))?.succeeded == true else {
             logger.error("audio: audioserver did not restart; MMAP and offload stay on until it does")
             return
         }
-        while ContinuousClock.now < started + .seconds(20) {
+        while SuspendingClock.now < started + .seconds(20) {
             try? await Task.sleep(for: .milliseconds(250))
             let pid = (try? await shell("pidof audioserver"))?.trimmed ?? ""
             guard !pid.isEmpty, pid != before, let dump = try? await shell("dumpsys media.audio_policy"),
                   GuestAudioPolicy.hasModules(dump: dump) else { continue }
-            let milliseconds = Int((ContinuousClock.now - started) / .milliseconds(1))
+            let milliseconds = Int((SuspendingClock.now - started) / .milliseconds(1))
             if GuestAudioPolicy.offersStubPorts(dump: dump) {
                 logger.error("audio: audioserver still offers MMAP or offload streams (\(files.joined(separator: ", "), privacy: .public))")
             } else {
@@ -3971,8 +3971,8 @@ extension HostAgent {
             throw AvoError.internalError(String(localized: "Android could not check the screen lock.", bundle: .avoKit))
         }
         // The storage opens within a moment; the lock screen goes as its bouncer takes the credential.
-        let deadline = ContinuousClock.now + .seconds(15)
-        while ContinuousClock.now < deadline {
+        let deadline = SuspendingClock.now + .seconds(15)
+        while SuspendingClock.now < deadline {
             await checkScreenLock()
             if screenLock == nil { return }
             try? await Task.sleep(for: .milliseconds(500))
