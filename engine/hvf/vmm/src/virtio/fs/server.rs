@@ -920,9 +920,14 @@ fn volume_case_insensitive(path: &Path) -> bool {
 
 /// `path` with `prefix` removed, matching components case-insensitively when
 /// the volume folds case, so a case-only rename still finds a node's
-/// children. ASCII folding only: a miss costs just a stale node path (the
-/// confused file is still inside the share — every host call refuses
-/// symlinks), never a path the host would follow out.
+/// children ("Ä" renamed by the name "ä" too). Letters fold by Unicode's
+/// lowercase mapping, close to the case folding APFS does. Not matched: one
+/// name in two Unicode normalizations (APFS takes the precomposed "Ä" and
+/// "A" with a combining diaeresis for the same name; matching them needs
+/// Unicode's decomposition tables), and the few letters whose lowercase is
+/// not their case folding (the Greek final sigma). A miss costs just a stale
+/// node path (the confused file is still inside the share — every host call
+/// refuses symlinks), never a path the host would follow out.
 fn strip_prefix(path: &Path, prefix: &Path, case_insensitive: bool) -> Option<PathBuf> {
     if !case_insensitive {
         return path.strip_prefix(prefix).ok().map(Path::to_path_buf);
@@ -930,12 +935,21 @@ fn strip_prefix(path: &Path, prefix: &Path, case_insensitive: bool) -> Option<Pa
     let mut components = path.components();
     for want in prefix.components() {
         let got = components.next()?;
-        let (a, b) = (got.as_os_str().as_bytes(), want.as_os_str().as_bytes());
-        if a.len() != b.len() || !a.iter().zip(b).all(|(x, y)| x.eq_ignore_ascii_case(y)) {
+        if !same_name_ignoring_case(got.as_os_str().as_bytes(), want.as_os_str().as_bytes()) {
             return None;
         }
     }
     Some(components.as_path().to_path_buf())
+}
+
+/// Whether two names are one on a volume that folds case: equal letter by
+/// letter after Unicode's lowercase mapping (APFS names are UTF-8; bytes that
+/// are not fold as ASCII).
+fn same_name_ignoring_case(a: &[u8], b: &[u8]) -> bool {
+    match (std::str::from_utf8(a), std::str::from_utf8(b)) {
+        (Ok(a), Ok(b)) => a.chars().flat_map(char::to_lowercase).eq(b.chars().flat_map(char::to_lowercase)),
+        _ => a.eq_ignore_ascii_case(b),
+    }
 }
 
 fn access(flags: u32) -> OpenOptions {
@@ -1374,5 +1388,40 @@ mod tests {
         // And a new lookup of either name finds the same nodes.
         assert_eq!(guest.lookup(ROOT, "b.txt").unwrap().0, a);
         assert_eq!(guest.lookup(ROOT, "a.txt").unwrap().0, b);
+    }
+
+    #[test]
+    fn a_case_rename_outside_ascii_takes_the_folders_children_along() {
+        let folder = Folder::new("unicase");
+        if !volume_case_insensitive(&folder.0) {
+            return;
+        }
+        std::fs::create_dir(folder.0.join("Ä")).unwrap();
+        std::fs::write(folder.0.join("Ä/x.txt"), b"old").unwrap();
+        let mut guest = Guest::new(&folder);
+        let (dir, _, _) = guest.lookup(ROOT, "Ä").unwrap();
+        let (x, _, _) = guest.lookup(dir, "x.txt").unwrap(); // node path "Ä/x.txt"
+        // Another app names the folder "ä" (on APFS the same folder) and renames it.
+        assert_eq!(guest.lookup(ROOT, "ä").unwrap().0, dir);
+        guest.call(RENAME, ROOT, &rename_args(ROOT, None, "ä", "Z")).unwrap();
+        // A new "Ä/x.txt" appears (made by Android or the Mac).
+        std::fs::create_dir(folder.0.join("Ä")).unwrap();
+        std::fs::write(folder.0.join("Ä/x.txt"), b"new").unwrap();
+        // The old node is Z/x.txt to the guest; it must not open the new file.
+        let fh = guest.open(x, 0).unwrap();
+        assert_eq!(guest.read(x, fh, 0, 16), b"old", "node x is Z/x.txt, not the new Ä/x.txt");
+        guest.release(x, fh);
+    }
+
+    #[test]
+    fn names_fold_case_letter_by_letter() {
+        assert!(same_name_ignoring_case("Photos".as_bytes(), "PHOTOS".as_bytes()));
+        assert!(same_name_ignoring_case("Äpfel".as_bytes(), "äPFEL".as_bytes()));
+        assert!(same_name_ignoring_case("Фото".as_bytes(), "фото".as_bytes()));
+        assert!(!same_name_ignoring_case("Ä".as_bytes(), "A".as_bytes()));
+        assert!(!same_name_ignoring_case("Photo".as_bytes(), "Photos".as_bytes()));
+        // Bytes that are not UTF-8 still fold as ASCII.
+        assert!(same_name_ignoring_case(b"A\xff", b"a\xff"));
+        assert!(!same_name_ignoring_case(b"A\xff", b"a\xfe"));
     }
 }
