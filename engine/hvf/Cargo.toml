@@ -9,3 +9,10 @@ version = "0.1.0"
 edition = "2024"
 license = "BSD-3-Clause"
 publish = false
+
+# A panic anywhere (a device thread, the render thread, a vCPU) ends the
+# process instead of only unwinding its own thread and leaving the machine
+# stuck; the daemon then starts Android again. Tests build with the dev/test
+# profile, which keeps unwinding, so `#[should_panic]` and catch_unwind work.
+[profile.release]
+panic = "abort"
