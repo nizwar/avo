@@ -18,6 +18,11 @@ public enum AvoError: Error, Codable, Equatable, Sendable, LocalizedError {
     case socketPathTooLong(String)
     case timedOut(String)
     case internalError(String)
+    /// A start that a stop called off (the user's Stop, Quit, an eject, or
+    /// Android restarting itself meanwhile), and what waited on it: an
+    /// install, an app's window. The status says what happened: a client
+    /// says nothing of a start or restart of its own that ended so.
+    case startCalledOff
     /// Android's screen lock keeps it locked: apps open once it is unlocked
     /// (`VMStatus.screenLock`).
     case androidLocked
@@ -49,6 +54,7 @@ public enum AvoError: Error, Codable, Equatable, Sendable, LocalizedError {
         case .socketPathTooLong(let path): String(localized: "Socket path is too long: \(path)", bundle: .avoKit)
         case .timedOut(let operation): String(localized: "\(operation) timed out.", bundle: .avoKit)
         case .internalError(let detail): detail
+        case .startCalledOff: String(localized: "Android was stopped before it was ready.", bundle: .avoKit)
         case .androidLocked: String(localized: "Android is locked by its screen lock. Unlock it in Avo to open your apps.", bundle: .avoKit)
         case .screenLockRejected(throttled: false): String(localized: "That’s not Android’s screen lock. Try again.", bundle: .avoKit)
         case .screenLockRejected(throttled: true):

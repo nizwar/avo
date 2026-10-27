@@ -182,7 +182,7 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
                 try await body()
                 reply(nil)
             } catch {
-                reply(AvoXPC.nsError(error))
+                reply(AvoXPC.nsError(AvoError.reported(error)))
             }
         }
     }
@@ -197,7 +197,7 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
             do {
                 reply(try await body(), nil)
             } catch {
-                reply(nil, AvoXPC.nsError(error))
+                reply(nil, AvoXPC.nsError(AvoError.reported(error)))
             }
         }
     }
@@ -600,6 +600,20 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
             guard await core.role(of: id) == .engine else { return }
             await core.enginePresent(displayID, surfaceIndex: surfaceIndex, sequence: sequence)
         }
+    }
+}
+
+// MARK: - What a client is told of a failure
+
+extension AvoError {
+    /// A failure as it crosses to a client: the daemon's own errors as they
+    /// are, a start that a stop called off (its CancellationError) as
+    /// `startCalledOff`, which clients tell apart, and anything else in its
+    /// own words.
+    static func reported(_ error: any Error) -> AvoError {
+        if let error = error as? AvoError { return error }
+        if error is CancellationError { return .startCalledOff }
+        return .internalError(error.localizedDescription)
     }
 }
 

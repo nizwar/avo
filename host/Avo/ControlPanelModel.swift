@@ -714,7 +714,8 @@ final class ControlPanelModel {
             do {
                 try await action(client)
             } catch {
-                lastError = error.localizedDescription
+                // A restore restarts an Android that ran: a Stop meanwhile is no failure.
+                report(error)
             }
             checkpointWork = nil
             await refreshCheckpoints()
@@ -755,9 +756,17 @@ final class ControlPanelModel {
             do {
                 try await action(client)
             } catch {
-                lastError = error.localizedDescription
+                report(error)
             }
         }
+    }
+
+    /// Says what went wrong, but nothing of a start (or restart) that a stop
+    /// called off: the status says that already, and it was mostly the
+    /// user's own Stop, shown while Android starts.
+    private func report(_ error: any Error) {
+        guard error as? AvoError != .startCalledOff else { return }
+        lastError = error.localizedDescription
     }
 
     // MARK: Configuration
