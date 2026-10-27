@@ -526,7 +526,8 @@ public actor DaemonCore {
         try requireControlPanel(client)
         restartWork += 1
         defer { restartWork -= 1 }
-        try await eraseAndroid()
+        // Reset, but something beside Android's data stayed: the user hears it.
+        if let error = Self.resetLeftovers(try await eraseAndroid()) { throw error }
     }
 
     /// Android's own factory reset (Settings › System › Reset options, or a
@@ -545,7 +546,15 @@ public actor DaemonCore {
             logger.notice("Android stays stopped after its factory reset: it was stopped meanwhile")
         } catch {
             logger.error("factory reset from Android: \(error.localizedDescription, privacy: .public)")
+            // Not "Erasing Android's data" for good: the status says it failed, and why.
+            await vm.reportFailure(Self.factoryResetFailure(error))
         }
+    }
+
+    /// The status of an Android whose own factory reset Avo could not carry out.
+    static func factoryResetFailure(_ error: any Error) -> String {
+        let reason = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        return String(localized: "Android’s factory reset didn’t finish: \(reason)", bundle: .avoKit)
     }
 
     /// Android rebooted itself (its Restart, `adb reboot`): avo-vmm ended, and
@@ -577,7 +586,11 @@ public actor DaemonCore {
         String(localized: "Android keeps restarting, so Avo stopped it. Start Android to try again.", bundle: .avoKit)
     }
 
-    private func eraseAndroid(force: Bool = false) async throws {
+    /// Erases Android's data and Avo's side of it; returns what stayed beside
+    /// the data (`eraseAndroidData`), which Reset Android says and Android's
+    /// own reset leaves to the logs: its fresh Android starts all the same.
+    @discardableResult
+    private func eraseAndroid(force: Bool = false) async throws -> [String] {
         // Never Avo's side without the data itself (DaemonStorageSafety.swift).
         try await refuseEraseWithoutData()
         try await clearForVMChange(.reset, force: force)
@@ -599,7 +612,7 @@ public actor DaemonCore {
             await registry.remove(app.package)
             broadcast(.appRemoved(package: app.package))
         }
-        if let error = Self.resetLeftovers(left) { throw error }
+        return left
     }
 
     /// Start Android from the daemon's own menu bar item (same process, no XPC caller).

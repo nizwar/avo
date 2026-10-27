@@ -237,4 +237,41 @@ import Testing
         #expect(await harness.core.status().state == .failed)
         #expect(await harness.core.status().detail?.contains("engine crashed") == true)
     }
+
+    /// Android's own factory reset that Avo could not carry out (its data
+    /// disk would not go): the status says so, not "Erasing Android's
+    /// data" for good.
+    @Test func aFactoryResetThatFailsSaysSo() async throws {
+        let harness = try Harness(apps: [])
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        let (panel, _) = await harness.connect(.controlPanel)
+        try await harness.core.startVM(client: panel)
+        let folder = harness.paths.dataDisk.deletingLastPathComponent()
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: folder.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path) }
+        harness.engine.exit(AndroidFactoryReset())
+        #expect(await eventually { await harness.core.status().state == .failed })
+        #expect(await harness.core.status().detail?.hasPrefix("Android’s factory reset didn’t finish: Avo couldn’t erase Android’s data") == true)
+    }
+
+    /// What a factory reset could not remove beside Android's data (its
+    /// snapshots here) is no reason to keep the fresh Android from starting.
+    @Test func aFactoryResetStartsAndroidDespiteWhatStayed() async throws {
+        let harness = try Harness(apps: [])
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        let (panel, _) = await harness.connect(.controlPanel)
+        try await harness.core.startVM(client: panel)
+        let snapshots = harness.paths.snapshots
+        try FileManager.default.createDirectory(at: snapshots, withIntermediateDirectories: true)
+        try Data([1]).write(to: snapshots.appending(path: "quickboot.snap"))
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: snapshots.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: snapshots.path) }
+        let launches = harness.engine.launches.count
+        harness.engine.exit(AndroidFactoryReset())
+        #expect(await eventually { harness.engine.launches.count == launches + 1 })
+        #expect(await eventually { await harness.core.status().state == .running })
+        #expect(FileManager.default.fileExists(atPath: snapshots.path), "it stayed, and only the logs say so")
+    }
 }
