@@ -70,8 +70,9 @@ public struct InstallPipeline: Sendable {
         }
 
         if !summary.obbFiles.isEmpty {
-            let copy = InstallJournal.Copy(package: summary.packageName, fresh: fresh,
-                                           files: summary.obbFiles.map { "/sdcard/" + $0.destination })
+            let copy = InstallJournal.Copy(package: summary.packageName, fresh: fresh, files: summary.obbFiles.map {
+                InstallJournal.Copy.File(path: "/sdcard/" + $0.destination, size: $0.size)
+            })
             journal?.copying(copy, by: id)
             let total = summary.obbBytes
             var copied: UInt64 = 0
@@ -108,7 +109,7 @@ public struct InstallPipeline: Sendable {
     /// not have it before; false when Android did not answer.
     static func undo(_ copy: InstallJournal.Copy, adb: ADBConnection) async -> Bool {
         do {
-            if !copy.files.isEmpty { _ = try await adb.shell("rm -f " + copy.files.map(ADBConnection.shellQuote).joined(separator: " ")) }
+            if !copy.files.isEmpty { _ = try await adb.shell("rm -f " + copy.files.map { ADBConnection.shellQuote($0.path) }.joined(separator: " ")) }
             if copy.fresh { _ = try await adb.shell("pm uninstall " + ADBConnection.shellQuote(copy.package)) }
             return true
         } catch {
@@ -126,9 +127,25 @@ public struct InstallPipeline: Sendable {
                 if (try? await adb.shell("pm install-abandon \(session)")) != nil { abandoned.append(session) }
             }
             var undone = false
-            if let copy = entry.copy { undone = await undo(copy, adb: adb) }
+            if let copy = entry.copy {
+                // One that got to its end before it could be noted stands.
+                if (try? await isComplete(copy, adb: adb)) == true {
+                    undone = true
+                } else {
+                    undone = await undo(copy, adb: adb)
+                }
+            }
             journal.tidied(entry.install, sessions: abandoned, copy: undone)
         }
+    }
+
+    /// Whether every file of `copy` is in Android at its full size.
+    static func isComplete(_ copy: InstallJournal.Copy, adb: ADBConnection) async throws -> Bool {
+        for file in copy.files {
+            let result = try await adb.shell("stat -c %s " + ADBConnection.shellQuote(file.path))
+            guard result.succeeded, UInt64(result.output.trimmingCharacters(in: .whitespacesAndNewlines)) == file.size else { return false }
+        }
+        return true
     }
 
     /// Why the install failed when its game data could not be copied.
@@ -186,10 +203,15 @@ public final class InstallJournal: @unchecked Sendable {
 
     /// The game data an install copies, and whether its app is new to Android.
     struct Copy: Codable, Equatable, Sendable {
+        struct File: Codable, Equatable, Sendable {
+            /// Where in Android (/sdcard/Android/obb/<package>/…).
+            var path: String
+            var size: UInt64
+        }
+
         var package: String
         var fresh: Bool
-        /// Where in Android (/sdcard/Android/obb/<package>/…).
-        var files: [String]
+        var files: [File]
     }
 
     private let paths: AvoPaths

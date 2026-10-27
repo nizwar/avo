@@ -124,14 +124,15 @@ extension AvoPaths {
     /// key; misc and frp; super and vbmeta, which Google apps change) with
     /// the record of the image they came from, the newest Android that used
     /// it, Android's storage figures, Avo's fingers (enrolled in Android),
-    /// an unfinished Google apps commit and which Android has Google apps
-    /// (GoogleAppsRecord). Everything else is this Mac's.
+    /// an unfinished Google apps commit, which Android has Google apps
+    /// (GoogleAppsRecord) and what installs left in it (InstallJournal).
+    /// Everything else is this Mac's.
     public static let portableDataItems = [
         "userdata.img",
         "cuttlefish/metadata.img", "cuttlefish/misc.img", "cuttlefish/frp.img",
         "cuttlefish/super.img", "cuttlefish/vbmeta.img", "cuttlefish/avo-image.json",
         "android-data.json", "data-disk.json", "fingerprints.json", "google-apps-commit.json", "google-apps.json",
-        dataManifestName,
+        "installs.json", dataManifestName,
     ]
 
     /// Creates Android's data folder in Avo's own storage; a folder elsewhere
