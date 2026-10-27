@@ -120,8 +120,8 @@ public enum AudioRing {
 }
 
 /// Reads a ring as it fills: each call returns the blocks the engine added
-/// since the last one. Maps the file read-only and keeps it mapped (the
-/// engine replaces it with a new file, never shrinks it). One queue only.
+/// since the last one. Maps the ring read-only and keeps it mapped (the
+/// engine replaces it with a new one, never shrinks it). One queue only.
 public final class AudioTapReader: @unchecked Sendable {
     public let location: AudioTapLocation
     private let base: UnsafeMutableRawPointer
@@ -131,7 +131,7 @@ public final class AudioTapReader: @unchecked Sendable {
 
     /// Maps the ring at `location`; reading starts with what is added from now on.
     public init?(location: AudioTapLocation) {
-        let fd = open(location.path, O_RDONLY)
+        let fd = SharedMemory.openForReading(location.path)
         guard fd >= 0 else { return nil }
         defer { close(fd) }
         var info = stat()

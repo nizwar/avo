@@ -94,6 +94,7 @@ mod pause;
 mod pci;
 mod sensors;
 mod serial;
+mod shm;
 mod sparse;
 mod virtio;
 

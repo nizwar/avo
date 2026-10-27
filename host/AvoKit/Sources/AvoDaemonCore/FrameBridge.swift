@@ -106,9 +106,12 @@ final class FrameBridge: @unchecked Sendable {
     /// Displays whose window nobody sees (`setVisible`).
     private var hidden: Set<UInt32> = []
     private let deliver: @Sendable (FrameDelivery) -> Void
+    /// The engine's shared memory, removed when it exits (VMMEngine).
+    private let sharedMemory: SharedMemoryNames?
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "Frames")
 
-    init(deliver: @escaping @Sendable (FrameDelivery) -> Void) {
+    init(sharedMemory: SharedMemoryNames? = nil, deliver: @escaping @Sendable (FrameDelivery) -> Void) {
+        self.sharedMemory = sharedMemory
         self.deliver = deliver
     }
 
@@ -145,14 +148,16 @@ final class FrameBridge: @unchecked Sendable {
     }
 
     /// One event line from the engine:
-    /// `frames <scanout> <generation> <width> <height> <stride> <format> <path…>`,
+    /// `frames <scanout> <generation> <width> <height> <stride> <format> <location…>`,
     /// `frame <scanout> <sequence>`, `frames-off <scanout>`, `microphone`
-    /// or `audio playback <epoch> <path…>`.
+    /// or `audio playback <epoch> <location…>`. A location is `shm:<name>`
+    /// (SharedMemory), or a path from an older engine.
     func handle(_ line: String) {
         let words = line.split(separator: " ", maxSplits: 7, omittingEmptySubsequences: false).map(String.init)
         switch words.first {
         case "frames" where words.count == 8:
             guard let scanout = Int(words[1]), let generation = UInt32(words[2]) else { return }
+            sharedMemory?.note(words[7])
             mapLayout(scanout: scanout, generation: generation, path: words[7])
         case "frame" where words.count >= 3:
             guard let scanout = Int(words[1]), let sequence = UInt64(words[2]) else { return }
@@ -160,7 +165,10 @@ final class FrameBridge: @unchecked Sendable {
         case "microphone":
             deliver(.microphone)
         case "audio":
-            if let location = AudioTapLocation(event: line) { deliver(.audioTap(location)) }
+            if let location = AudioTapLocation(event: line) {
+                sharedMemory?.note(location.path)
+                deliver(.audioTap(location))
+            }
         case "frames-off" where words.count >= 2:
             // Unplugged: let go of its memory and surfaces now, not when the scanout is reused.
             guard let scanout = Int(words[1]) else { return }
@@ -172,9 +180,9 @@ final class FrameBridge: @unchecked Sendable {
     }
 
     private func mapLayout(scanout: Int, generation: UInt32, path: String) {
-        let fd = open(path, O_RDONLY)
+        let fd = SharedMemory.openForReading(path)
         guard fd >= 0 else {
-            logger.error("cannot open \(path, privacy: .public)")
+            logger.error("cannot open \(path, privacy: .public): \(String(cString: strerror(errno)), privacy: .public)")
             return
         }
         defer { close(fd) }
