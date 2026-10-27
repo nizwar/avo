@@ -500,6 +500,7 @@ public actor VMManager {
         // Stopped or failed meanwhile.
         guard status.state == .suspending else { return }
         pausedAt = .now
+        await control?.holdKeepalive(true)
         setPause(.suspended, status.pause)
         logger.notice("Android paused (\(automatic ? "idle" : "by the user", privacy: .public))")
     }
@@ -508,6 +509,7 @@ public actor VMManager {
         guard status.state == .suspended, let engine = engine as? any PausableEngine else { return }
         let pausedFor = pausedAt.map { ContinuousClock.now - $0 } ?? .zero
         try await engine.resume(pausedFor: pausedFor)
+        await control?.holdKeepalive(false)
         guard status.state == .suspended else { return }
         pausedAt = nil
         setPause(.running, nil)
