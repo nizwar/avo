@@ -109,6 +109,22 @@ import Testing
                 == "[ -n \"$(getprop init.svc.vendor.threadnetwork_hal)\" ] && setprop ctl.stop vendor.threadnetwork_hal")
     }
 
+    /// What `content call … scan_file` prints: the file's URI in Android's media index.
+    @Test func readsTheURIAFileWasIndexedUnder() {
+        #expect(HostAgent.contentURI(inScanOutput: "Result: Bundle[{android.intent.extra.STREAM=content://media/external_primary/file/1000000042}]\n")
+            == "content://media/external_primary/file/1000000042")
+        #expect(HostAgent.contentURI(inScanOutput: "Result: Bundle[{android.intent.extra.STREAM=null}]\n") == nil)
+        #expect(HostAgent.contentURI(inScanOutput: "Result: null\n") == nil)
+        #expect(HostAgent.contentURI(inScanOutput: "") == nil)
+    }
+
+    /// The shell's ACTION_SEND: the stream is the data too, which `am` grants a read of.
+    @Test func sharesAFileAsTheShellDoes() {
+        #expect(HostAgent.shareCommand(uri: "content://media/external_primary/file/7", type: "image/png", package: "org.telegram.messenger", display: 3)
+            == "am start --user 0 --display 3 -a android.intent.action.SEND -t 'image/png' -d 'content://media/external_primary/file/7' "
+            + "--eu android.intent.extra.STREAM 'content://media/external_primary/file/7' --grant-read-uri-permission 'org.telegram.messenger'")
+    }
+
     @Test func startsAppsLikeALauncher() {
         // NEW_TASK | RESET_TASK_IF_NEEDED with the launcher intent: a running task moves, it does not restart.
         #expect(HostAgent.startCommand("com.avodroid.hello/.MainActivity", display: 4)

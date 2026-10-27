@@ -1128,6 +1128,9 @@ actor HostAgent: DisplayResizing {
             case .focusDisplay(let request)?:
                 await focusDisplay(request.displayID)
                 await reply(envelope)
+            case .shareFiles(let request)?:
+                try await share(request)
+                await reply(envelope)
             default:
                 if envelope.requestID != 0 { await reply(envelope, .unsupported) }
             }
@@ -1326,6 +1329,47 @@ actor HostAgent: DisplayResizing {
         }
         let component = try await launcherComponent(display.package)
         _ = try await shell(Self.startCommand(component, display: androidID))
+    }
+
+    /// Files dropped on a window, already in Downloads, offered to its app as
+    /// the Bridge Agent offers them: Android's media index gives each one a
+    /// content URI, and ACTION_SEND starts on the window's display, letting
+    /// the app read it. `am` cannot pass a list of streams (ACTION_SEND_MULTIPLE):
+    /// of several files, the app gets the first; all are in Downloads. An app
+    /// that takes no shared files leaves them there.
+    private func share(_ request: Avo_V1_ShareFiles) async throws {
+        guard let display = displays[request.displayID], let androidID = display.androidID else {
+            throw AvoError.displayUnavailable("unknown display")
+        }
+        var shared: (uri: String, type: String)?
+        for (index, path) in request.paths.enumerated() where shared == nil {
+            let output = (try? await shell(GuestSharedFolder.scanCommand(path), timeout: .seconds(15))) ?? ""
+            guard let uri = Self.contentURI(inScanOutput: output) else { continue }
+            shared = (uri, index < request.mimeTypes.count ? request.mimeTypes[index] : "*/*")
+        }
+        guard let shared else { throw AvoError.internalError("Android could not index the shared files") }
+        if request.paths.count > 1 {
+            logger.notice("shared the first of \(request.paths.count) files with \(display.package, privacy: .public); all are in Downloads")
+        }
+        // As the shell, which may grant what it reads (the system itself may not).
+        let output = try await shell(Self.shareCommand(uri: shared.uri, type: shared.type, package: display.package, display: androidID))
+        if output.contains("Error") || output.contains("Exception") {
+            logger.notice("\(display.package, privacy: .public) takes no shared files: \(output.trimmed, privacy: .public)")
+        }
+    }
+
+    /// The URI `content call … scan_file` answers with (its Bundle's EXTRA_STREAM).
+    static func contentURI(inScanOutput output: String) -> String? {
+        guard let start = output.range(of: "content://") else { return nil }
+        let uri = output[start.lowerBound...].prefix { !$0.isWhitespace && !",}]".contains($0) }
+        return uri.count > "content://".count ? String(uri) : nil
+    }
+
+    /// ACTION_SEND of one stream to `package` on `display`. The URI is the
+    /// intent's data too: `am` grants a read of the data, not of an extra.
+    static func shareCommand(uri: String, type: String, package: String, display: Int) -> String {
+        "am start --user 0 --display \(display) -a android.intent.action.SEND -t \(quote(type)) -d \(quote(uri)) "
+            + "--eu android.intent.extra.STREAM \(quote(uri)) --grant-read-uri-permission \(quote(package))"
     }
 
     /// Starts the app the way a launcher does (NEW_TASK | RESET_TASK_IF_NEEDED):
