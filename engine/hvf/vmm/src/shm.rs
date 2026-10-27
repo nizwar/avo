@@ -11,10 +11,18 @@
 //! as `shm:<name>`, and opened by name to read. Its owner removes the name
 //! when it lets go of the memory; mappings stay valid until unmapped. The
 //! daemon removes every name it was told of when avo-vmm exits, so one left
-//! by a crash does not hold memory until the Mac restarts.
+//! by a crash does not hold memory until the Mac restarts. avo-vmm removes
+//! the names it still has as it ends (`unlink_all`, from `cuttlefish::exit`
+//! and the panic hook), whose owners are never dropped (the audio ring is
+//! the process's; `exit` skips destructors), for when the daemon is gone.
 
 use std::ffi::CString;
 use std::io;
+use std::sync::{Mutex, TryLockError};
+use std::time::{Duration, Instant};
+
+/// The names this process made and has not removed.
+static LIVE: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
 /// Longest name macOS takes, the slash included (PSHMNAMLEN).
 const NAME_MAX: usize = 31;
@@ -48,10 +56,10 @@ pub fn location(name: &str) -> String {
 /// writing. One of the same name left behind (by an earlier process with
 /// this pid) is replaced. The caller unmaps it and calls `unlink`.
 pub fn create(name: &str, len: usize) -> io::Result<*mut u8> {
-    let name = c_name(name)?;
-    unsafe {
-        libc::shm_unlink(name.as_ptr());
-        let fd = libc::shm_open(name.as_ptr(), libc::O_CREAT | libc::O_EXCL | libc::O_RDWR, 0o600 as libc::c_uint);
+    let cname = c_name(name)?;
+    let map = unsafe {
+        libc::shm_unlink(cname.as_ptr());
+        let fd = libc::shm_open(cname.as_ptr(), libc::O_CREAT | libc::O_EXCL | libc::O_RDWR, 0o600 as libc::c_uint);
         if fd < 0 {
             return Err(io::Error::last_os_error());
         }
@@ -64,19 +72,46 @@ pub fn create(name: &str, len: usize) -> io::Result<*mut u8> {
         libc::close(fd);
         // An object that could not be made leaves no name behind.
         if mapped.is_err() {
-            libc::shm_unlink(name.as_ptr());
+            libc::shm_unlink(cname.as_ptr());
         }
-        mapped
+        mapped?
+    };
+    let mut live = LIVE.lock().unwrap_or_else(|e| e.into_inner());
+    if !live.iter().any(|known| known == name) {
+        live.push(name.to_string());
     }
+    Ok(map)
 }
 
 /// Removes the name `name`: no new reader can open it, and the memory goes
 /// once the last mapping does.
 pub fn unlink(name: &str) {
-    if let Ok(name) = c_name(name) {
-        unsafe { libc::shm_unlink(name.as_ptr()) };
+    if let Ok(cname) = c_name(name) {
+        unsafe { libc::shm_unlink(cname.as_ptr()) };
+    }
+    LIVE.lock().unwrap_or_else(|e| e.into_inner()).retain(|known| known != name);
+}
+
+/// Removes every name this process still has: it is ending. Waits for the
+/// names' lock only briefly, as a panicking thread may be the one that
+/// holds it.
+pub fn unlink_all() {
+    let deadline = Instant::now() + Duration::from_millis(100);
+    let mut live = loop {
+        match LIVE.try_lock() {
+            Ok(live) => break live,
+            Err(TryLockError::Poisoned(poisoned)) => break poisoned.into_inner(),
+            Err(TryLockError::WouldBlock) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(1)),
+            Err(TryLockError::WouldBlock) => return,
+        }
+    };
+    for name in live.drain(..) {
+        if let Ok(name) = c_name(&name) {
+            unsafe { libc::shm_unlink(name.as_ptr()) };
+        }
     }
 }
+
 
 fn c_name(name: &str) -> io::Result<CString> {
     if !name.starts_with('/') || name.len() > NAME_MAX {
@@ -139,6 +174,18 @@ mod tests {
             libc::munmap(first.cast(), 16384);
             libc::munmap(second.cast(), 16384);
         }
+    }
+
+    #[test]
+    fn names_made_are_remembered_until_removed() {
+        let name = name("test.live");
+        let map = create(&name, 16384).unwrap();
+        assert!(LIVE.lock().unwrap().contains(&name), "unlink_all would remove it");
+        unlink(&name);
+        assert!(!LIVE.lock().unwrap().contains(&name));
+        assert!(create("no-slash", 16384).is_err());
+        assert!(!LIVE.lock().unwrap().iter().any(|known| known == "no-slash"), "a name never made is not remembered");
+        unsafe { libc::munmap(map.cast(), 16384) };
     }
 
     #[test]
