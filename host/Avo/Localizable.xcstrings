@@ -15,6 +15,7 @@
       }
     },
     "%@ (%lld)" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -141,6 +142,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Data %1$@ di %2$@"
+          }
+        }
+      }
+    },
+    "%@ did not open. %@ If it keeps failing, use “Recreate Shortcuts” in Settings › General." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ did not open. %2$@ If it keeps failing, use “Recreate Shortcuts” in Settings › General."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ tidak terbuka. %2$@ Jika terus gagal, gunakan “Buat Ulang Pintasan” di Pengaturan › Umum."
           }
         }
       }
@@ -357,6 +374,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ dibanding minggu lalu"
+          }
+        }
+      }
+    },
+    "%@ was not installed. %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ was not installed. %2$@"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ tidak terinstal. %2$@"
           }
         }
       }
@@ -595,6 +628,16 @@
         }
       }
     },
+    "%@’s shortcut is missing. Use “Recreate Shortcuts” in Settings › General." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pintasan %@ tidak ada. Gunakan “Buat Ulang Pintasan” di Pengaturan › Umum."
+          }
+        }
+      }
+    },
     "%lld FPS" : {
       "localizations" : {
         "id" : {
@@ -636,6 +679,7 @@
       }
     },
     "%lld more" : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -725,12 +769,62 @@
         }
       }
     },
+    "%lld%% render scale" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skala render %lld%%"
+          }
+        }
+      }
+    },
     "1:1 sharp" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "1:1 tajam"
+          }
+        }
+      }
+    },
+    "2.0" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2.0"
+          }
+        }
+      }
+    },
+    "3.0" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3.0"
+          }
+        }
+      }
+    },
+    "3.1" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3.1"
+          }
+        }
+      }
+    },
+    "3.2" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3.2"
           }
         }
       }
@@ -1448,6 +1542,16 @@
         }
       }
     },
+    "Android did not say what this app may use. %@" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android tidak memberi tahu apa saja yang boleh dipakai aplikasi ini. %@"
+          }
+        }
+      }
+    },
     "Android draws at most this many frames per second, in every app. A screen’s own rate between 60 and 120 appears too, so Android runs in step with it. A rate above the one Android started at applies after a restart. 30 saves power and heat." : {
       "localizations" : {
         "id" : {
@@ -1610,6 +1714,7 @@
       }
     },
     "Android is paused to save energy. Opening an app resumes it too." : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -1646,6 +1751,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Android sedang menyimpan statusnya…"
+          }
+        }
+      }
+    },
+    "Android is starting" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android sedang dimulai"
           }
         }
       }
@@ -2177,22 +2292,22 @@
         }
       }
     },
-    "Android’s apps and data can no longer go back to it. The space only this checkpoint takes becomes free." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aplikasi dan data Android tidak bisa lagi dikembalikan ke checkpoint ini. Ruang yang hanya dipakai checkpoint ini menjadi kosong."
-          }
-        }
-      }
-    },
     "Android’s apps and data are kept as they are now. A running Android holds still for a moment." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aplikasi dan data Android disimpan seperti sekarang. Android yang sedang berjalan berhenti sejenak."
+          }
+        }
+      }
+    },
+    "Android’s apps and data can no longer go back to it. The space only this checkpoint takes becomes free." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aplikasi dan data Android tidak bisa lagi dikembalikan ke checkpoint ini. Ruang yang hanya dipakai checkpoint ini menjadi kosong."
           }
         }
       }
@@ -2258,6 +2373,7 @@
       }
     },
     "App Info…" : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -2337,6 +2453,16 @@
         }
       }
     },
+    "Applies after Android restarts, with the GPU renderer." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Berlaku setelah Android dimulai ulang, dengan renderer GPU."
+          }
+        }
+      }
+    },
     "Applies after Android restarts." : {
       "localizations" : {
         "id" : {
@@ -2405,6 +2531,7 @@
       }
     },
     "Apps and Games are the two presets in Settings › Graphics. Avo picks one by itself (an app with key mapping, or one Android lists as a game, is a game); the changes made on this page stay on top of either." : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -2531,6 +2658,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aplikasi juga menulis ke log ini. Avo menghapus alamat email, nama akun, dan token darinya."
+          }
+        }
+      }
+    },
+    "Apps, Games and Phone are the presets in Settings › Graphics. Avo picks Apps or Games by itself (an app with key mapping, or one Android lists as a game, is a game). Phone gives the app the screen of the phone in Settings › Privacy, at its density, as on that phone. The changes made on this page stay on top of any of them." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aplikasi, Game, dan Ponsel adalah preset di Pengaturan › Grafis. Avo memilih Aplikasi atau Game sendiri (aplikasi yang punya pemetaan tombol, atau yang dicatat Android sebagai game, dianggap game). Ponsel memberi aplikasi layar ponsel yang dipilih di Pengaturan › Privasi, dengan DPI-nya, seperti di ponsel itu. Perubahan di halaman ini tetap berlaku di atas preset mana pun."
           }
         }
       }
@@ -2796,6 +2933,16 @@
         }
       }
     },
+    "Avo is running from a temporary copy macOS made of it. Quit Avo, move it to the Applications folder, and open it from there." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avo berjalan dari salinan sementara yang dibuat macOS. Keluar dari Avo, pindahkan ke folder Aplikasi, lalu buka dari sana."
+          }
+        }
+      }
+    },
     "Avo keeps the previous version, so you can switch back." : {
       "localizations" : {
         "id" : {
@@ -2993,6 +3140,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Layanan latar belakang Avo belum berjalan."
+          }
+        }
+      }
+    },
+    "Avo’s background service stopped while installing %@. If it is not in the Library, install it again." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Layanan latar belakang Avo berhenti saat menginstal %@. Jika aplikasinya tidak ada di Pustaka, instal lagi."
           }
         }
       }
@@ -3364,6 +3521,7 @@
       }
     },
     "Change…" : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -3503,22 +3661,22 @@
         }
       }
     },
-    "Checkpoints share their space with Android’s data and take more only as Android changes it. They need Android’s data on an APFS drive. Reset Android and moving Android’s data erase them." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Checkpoint berbagi ruang dengan data Android dan hanya memakai lebih banyak ruang saat Android mengubahnya. Checkpoint memerlukan data Android di drive APFS. Reset Android dan memindahkan data Android akan menghapusnya."
-          }
-        }
-      }
-    },
     "Checkpoints" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Checkpoint"
+          }
+        }
+      }
+    },
+    "Checkpoints share their space with Android’s data and take more only as Android changes it. They need Android’s data on an APFS drive. Reset Android and moving Android’s data erase them." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checkpoint berbagi ruang dengan data Android dan hanya memakai lebih banyak ruang saat Android mengubahnya. Checkpoint memerlukan data Android di drive APFS. Reset Android dan memindahkan data Android akan menghapusnya."
           }
         }
       }
@@ -4004,12 +4162,12 @@
         }
       }
     },
-    "Create Checkpoint…" : {
+    "Create" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Buat Checkpoint…"
+            "value" : "Buat"
           }
         }
       }
@@ -4024,12 +4182,12 @@
         }
       }
     },
-    "Create" : {
+    "Create Checkpoint…" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Buat"
+            "value" : "Buat Checkpoint…"
           }
         }
       }
@@ -4155,22 +4313,22 @@
         }
       }
     },
-    "Delete “%@”?" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hapus “%@”?"
-          }
-        }
-      }
-    },
     "Delete Checkpoint" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hapus Checkpoint"
+          }
+        }
+      }
+    },
+    "Delete “%@”?" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hapus “%@”?"
           }
         }
       }
@@ -4694,16 +4852,6 @@
         }
       }
     },
-    "For development: apps read this phone’s SoC, hardware name, CPU, GPU, memory and screen, so a build’s per-device code paths (a chipset or brand check) run as they would on the real phone. Android gets the phone’s memory while it is on." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Untuk pengembangan: aplikasi membaca SoC, nama perangkat keras, CPU, GPU, memori, dan layar ponsel ini, sehingga jalur kode per perangkat (pemeriksaan chipset atau merek) berjalan seperti di ponsel aslinya. Selama aktif, Android mendapat memori ponsel tersebut."
-          }
-        }
-      }
-    },
     "FPS" : {
       "localizations" : {
         "id" : {
@@ -4824,6 +4972,16 @@
         }
       }
     },
+    "Follows the window" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mengikuti jendela"
+          }
+        }
+      }
+    },
     "For %@ (%@)" : {
       "localizations" : {
         "id" : {
@@ -4841,6 +4999,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Untuk pengembangan: aplikasi membaca SoC, CPU, GPU, dan layar ponsel ini, sehingga jalur kode per perangkat (pemeriksaan chipset atau merek) berjalan seperti di ponsel aslinya."
+          }
+        }
+      }
+    },
+    "For development: apps read this phone’s SoC, hardware name, CPU, GPU, memory and screen, so a build’s per-device code paths (a chipset or brand check) run as they would on the real phone. Android gets the phone’s memory while it is on." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untuk pengembangan: aplikasi membaca SoC, nama perangkat keras, CPU, GPU, memori, dan layar ponsel ini, sehingga jalur kode per perangkat (pemeriksaan chipset atau merek) berjalan seperti di ponsel aslinya. Selama aktif, Android mendapat memori ponsel tersebut."
           }
         }
       }
@@ -5506,6 +5674,7 @@
       }
     },
     "Graphics Settings for %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -5516,6 +5685,7 @@
       }
     },
     "Graphics Settings…" : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -5798,6 +5968,7 @@
       }
     },
     "Install App…" : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -5897,6 +6068,16 @@
         }
       }
     },
+    "Installation failed." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instalasi gagal."
+          }
+        }
+      }
+    },
     "Installed" : {
       "localizations" : {
         "id" : {
@@ -5934,6 +6115,7 @@
       }
     },
     "Installed by" : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -6047,6 +6229,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Langsung berlaku untuk semua app; Android tetap menyebut dirinya tersambung ke Wi-Fi."
+          }
+        }
+      }
+    },
+    "It frees %@. Android keeps its data; using this version again means downloading or importing it again." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ruang %@ dikosongkan. Android tetap menyimpan datanya; untuk memakai versi ini lagi, Anda perlu mengunduh atau mengimpornya lagi."
           }
         }
       }
@@ -7514,6 +7706,16 @@
         }
       }
     },
+    "OpenGL ES" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenGL ES"
+          }
+        }
+      }
+    },
     "Opening an app resumes it." : {
       "localizations" : {
         "id" : {
@@ -7734,6 +7936,16 @@
         }
       }
     },
+    "Phone (%@) — from the device profile" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ponsel (%@) — dari profil perangkat"
+          }
+        }
+      }
+    },
     "Phone status" : {
       "localizations" : {
         "id" : {
@@ -7750,6 +7962,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gaya ponsel"
+          }
+        }
+      }
+    },
+    "Phone — from the device profile" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ponsel — dari profil perangkat"
           }
         }
       }
@@ -8055,6 +8277,16 @@
         }
       }
     },
+    "Remove %@ from this Mac?" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hapus %@ dari Mac ini?"
+          }
+        }
+      }
+    },
     "Remove Copy" : {
       "localizations" : {
         "id" : {
@@ -8116,11 +8348,22 @@
       }
     },
     "Remove from This Mac" : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hapus dari Mac Ini"
+          }
+        }
+      }
+    },
+    "Remove from This Mac…" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hapus dari Mac Ini…"
           }
         }
       }
@@ -8385,42 +8628,12 @@
         }
       }
     },
-    "Restoring the checkpoint…" : {
+    "Restore" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Memulihkan checkpoint…"
-          }
-        }
-      }
-    },
-    "Restoring one stops Android, keeps what it has now as another checkpoint, and starts it again with the checkpoint’s apps and data, and its root, Google apps and device profile settings." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Memulihkan checkpoint menghentikan Android, menyimpan isinya saat ini sebagai checkpoint lain, lalu memulainya lagi dengan aplikasi dan data checkpoint itu, beserta pengaturan root, aplikasi Google, dan profil perangkatnya."
-          }
-        }
-      }
-    },
-    "Restore…" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pulihkan…"
-          }
-        }
-      }
-    },
-    "Restore “%@”?" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pulihkan “%@”?"
+            "value" : "Pulihkan"
           }
         }
       }
@@ -8435,12 +8648,42 @@
         }
       }
     },
-    "Restore" : {
+    "Restore “%@”?" : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pulihkan"
+            "value" : "Pulihkan “%@”?"
+          }
+        }
+      }
+    },
+    "Restore…" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pulihkan…"
+          }
+        }
+      }
+    },
+    "Restoring one stops Android, keeps what it has now as another checkpoint, and starts it again with the checkpoint’s apps and data, and its root, Google apps and device profile settings." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memulihkan checkpoint menghentikan Android, menyimpan isinya saat ini sebagai checkpoint lain, lalu memulainya lagi dengan aplikasi dan data checkpoint itu, beserta pengaturan root, aplikasi Google, dan profil perangkatnya."
+          }
+        }
+      }
+    },
+    "Restoring the checkpoint…" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memulihkan checkpoint…"
           }
         }
       }
@@ -8471,6 +8714,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lanjutkan Android"
+          }
+        }
+      }
+    },
+    "Resume Android to see the widgets its apps offer. Widgets you added come back when it runs." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lanjutkan Android untuk melihat widget yang disediakan aplikasinya. Widget yang Anda tambahkan muncul lagi saat Android berjalan."
           }
         }
       }
@@ -8590,6 +8843,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sama seperti game"
+          }
+        }
+      }
+    },
+    "Same as the phone" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sama seperti ponsel"
           }
         }
       }
@@ -9328,6 +9591,7 @@
       }
     },
     "Start the Android VM in the background." : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -9520,6 +9784,16 @@
         }
       }
     },
+    "Stop Android while it starts." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hentikan Android selagi dimulai."
+          }
+        }
+      }
+    },
     "Stop Android. Open apps close." : {
       "localizations" : {
         "id" : {
@@ -9531,6 +9805,7 @@
       }
     },
     "Stop the Android VM. Open apps close." : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -9823,6 +10098,16 @@
         }
       }
     },
+    "The highest version of OpenGL ES apps get. 3.2 is everything this Mac’s GPU offers, short of geometry shaders, which it has no hardware for; pick a lower one to test an app against a weaker phone’s GPU." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versi OpenGL ES tertinggi yang didapat aplikasi. 3.2 adalah semua yang ditawarkan GPU Mac ini, kecuali geometry shader, yang tidak ada perangkat kerasnya; pilih versi yang lebih rendah untuk menguji aplikasi dengan GPU ponsel yang lebih lemah."
+          }
+        }
+      }
+    },
     "The image couldn’t be added" : {
       "localizations" : {
         "id" : {
@@ -9947,11 +10232,22 @@
       }
     },
     "The settings below are the Apps preset’s or the Games preset’s. Games are apps with a key mapping, or apps you set to the Games preset on their page." : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pengaturan di bawah adalah milik preset Aplikasi atau preset Game. Game adalah aplikasi yang punya pemetaan tombol, atau aplikasi yang Anda atur ke preset Game di halamannya."
+          }
+        }
+      }
+    },
+    "The settings below are the Apps, Games or Phone preset’s. Games are apps with a key mapping, or apps you set to the Games preset on their page. Phone is for apps you set to it on their page: the phone’s own screen, at its density." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pengaturan di bawah adalah milik preset Aplikasi, Game, atau Ponsel. Game adalah aplikasi yang punya pemetaan tombol, atau aplikasi yang Anda atur ke preset Game di halamannya. Ponsel untuk aplikasi yang Anda atur ke preset itu di halamannya: layar ponsel itu sendiri, dengan DPI-nya."
           }
         }
       }
@@ -9982,6 +10278,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ukuran jendela pertama sebuah aplikasi, diputar sesuai orientasi di Resolusi dan Penskalaan; tidak perlu memulai ulang. Setelah itu, jendela setiap aplikasi terbuka di posisi dan ukuran saat terakhir Anda tinggalkan."
+          }
+        }
+      }
+    },
+    "The widgets its apps offer show here once it runs." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Widget yang disediakan aplikasinya muncul di sini setelah Android berjalan."
           }
         }
       }
@@ -10617,6 +10923,7 @@
       }
     },
     "Updated" : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -11137,6 +11444,7 @@
       }
     },
     "Window (%lld%% render scale)" : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {

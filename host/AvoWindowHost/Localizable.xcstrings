@@ -684,7 +684,18 @@
         }
       }
     },
+    "Apps: Android takes the window’s size, sharp for reading. Games: a fixed 720p landscape screen that runs faster. Phone: the phone’s own screen, at its density. What you change below is kept on top." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aplikasi: Android mengikuti ukuran jendela, tajam untuk membaca. Game: layar 720p lanskap yang tetap, lebih cepat. Ponsel: layar ponsel itu sendiri, dengan DPI-nya. Yang Anda ubah di bawah tetap berlaku di atasnya."
+          }
+        }
+      }
+    },
     "Apps: Android takes the window’s size, sharp for reading. Games: a fixed 720p landscape screen that runs faster. What you change below is kept on top." : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
@@ -2215,6 +2226,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Preset: Game (tercatat sebagai game)"
+          }
+        }
+      }
+    },
+    "Preset: Phone" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preset: Ponsel"
           }
         }
       }
