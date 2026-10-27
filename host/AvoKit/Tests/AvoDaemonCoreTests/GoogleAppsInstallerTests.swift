@@ -148,7 +148,11 @@ actor FakeSystemApps: SystemAppsGuest {
         manifest = .complete
     }
 
-    func commitState() async throws -> CommitState { manifest }
+    /// With verified boot on the overlay is not mounted: nothing is listed.
+    func commitState() async throws -> CommitState { verity ? .none : manifest }
+
+    /// Verified boot on again (another build of the same Android, say).
+    func turnVerityOn() { verity = true }
 
     func rollBackCommit() async throws {
         steps.append("rollback")
@@ -442,6 +446,26 @@ private func installer(_ guest: FakeSystemApps, log: ProgressLog, interrupted: @
         #expect(log.items.allSatisfy { $0.removal })
         #expect(log.items.last?.phase == .removing)
         #expect(log.items.contains { $0.phase == .restarting })
+    }
+
+    /// Verified boot came back on after the install, which hides the
+    /// overlay and its list: Remove turns it off and restarts first, then
+    /// takes the files out, instead of finding nothing and leaving them to
+    /// come back.
+    @Test func removeWithVerifiedBootBackOnFindsTheOverlayFirst() async throws {
+        let folder = try googleAppsPackageFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let guest = FakeSystemApps(verity: false, overlayReady: true)
+        try await installer(guest, log: ProgressLog()).run(GoogleAppsPackage(url: folder))
+        await guest.turnVerityOn()
+        let installed = await guest.steps.count
+
+        let log = ProgressLog()
+        try await installer(guest, log: log).remove()
+        #expect(await Array(guest.steps.dropFirst(installed)) == ["disable-verity", "restart", "removing", "rollback", "restart", "removed"])
+        #expect(await guest.system.isEmpty)
+        #expect(await guest.manifest == .none)
+        #expect(log.items.contains { $0.phase == .disablingVerity && $0.removal })
     }
 
     /// The files are gone already (only Google Play's updates are left, as
