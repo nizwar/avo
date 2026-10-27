@@ -55,9 +55,15 @@ public struct AndroidEmulator: Equatable, Sendable {
 
     /// `override` (`defaults write com.avodroid.daemon AvoAndroidEmulator <dir>`)
     /// when it is set; else Avo's own build (`bundled`, in Avo.app); else the
-    /// emulator Android Studio's SDK Manager installs.
+    /// emulator Android Studio's SDK Manager installs. A release (`ownOnly`,
+    /// Developer ID) uses its own build alone: avo-vmm loads the renderer's
+    /// libraries without library validation, and holds Avo's permissions
+    /// (microphone, camera), so a folder named in defaults any app of the
+    /// user can write, or the SDK's, is no place to load them from.
     public static func lookup(home: URL, bundled: URL? = nil,
-                              override: String? = UserDefaults.standard.string(forKey: "AvoAndroidEmulator")) -> Lookup {
+                              override: String? = UserDefaults.standard.string(forKey: "AvoAndroidEmulator"),
+                              ownOnly: Bool = SigningIdentity.isDeveloperID) -> Lookup {
+        if ownOnly { return bundled.map(inspect) ?? .missing }
         if let override, !override.isEmpty { return inspect(URL(filePath: override, directoryHint: .isDirectory)) }
         if let bundled, case .found(let renderer) = inspect(bundled) { return .found(renderer) }
         return inspect(home.appending(path: "Library/Android/sdk/emulator", directoryHint: .isDirectory))
@@ -75,13 +81,17 @@ public struct AndroidEmulator: Equatable, Sendable {
     /// next to avo-vmm (`engine`), Contents/Resources/bluetooth/rootcanal
     /// (scripts/build-bluetooth.sh); else, for a build without it, the
     /// emulator's netsimd (Root Canal inside). avo-vmm only uses its HCI port.
+    /// A release (`ownOnly`) runs its own alone: the controller is avo-vmm's
+    /// child, with Avo's permissions.
     public static func bluetoothController(engine: URL?, home: URL,
-                                           override: String? = UserDefaults.standard.string(forKey: "AvoAndroidEmulator")) -> URL? {
+                                           override: String? = UserDefaults.standard.string(forKey: "AvoAndroidEmulator"),
+                                           ownOnly: Bool = SigningIdentity.isDeveloperID) -> URL? {
         if let engine {
             let rootcanal = engine.deletingLastPathComponent().deletingLastPathComponent()
                 .appending(path: "Resources/bluetooth/rootcanal")
             if FileManager.default.isExecutableFile(atPath: rootcanal.path) { return rootcanal }
         }
+        if ownOnly { return nil }
         return netsimd(home: home, override: override)
     }
 

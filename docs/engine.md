@@ -185,10 +185,12 @@ GLES 3.2 and Vulkan 1.3.
   0 by default, which never skips: Avo's guest layer keeps that deadlock
   away, and a host too busy to take a sent number in time would run commands
   out of order); and one that hides the linear ASTC sampling avo-vmm's layer
-  reports (below) from the guest. The daemon passes it unless
-  `defaults write com.avodroid.daemon AvoAndroidEmulator <dir>` names another; an
-  Android Emulator 37 or later (`~/Library/Android/sdk/emulator`) is the
-  fallback. avo-vmm loads `lib64/libgfxstream_backend.dylib` at run time by
+  reports (below) from the guest. A development build passes it unless
+  `defaults write com.avodroid.daemon AvoAndroidEmulator <dir>` names another,
+  with an Android Emulator 37 or later (`~/Library/Android/sdk/emulator`) as
+  the fallback; a release (Developer ID) loads only its own renderer and
+  Bluetooth controller, as avo-vmm loads the renderer without library
+  validation and holds Avo's permissions (`SigningIdentity.isDeveloperID`). avo-vmm loads `lib64/libgfxstream_backend.dylib` at run time by
   absolute path, an emulator's after the ten libraries it needs (Avo never
   ships those: Android SDK licence). The emulator's dylibs carry Google's Team
   ID, so avo-vmm is signed with `com.apple.security.cs.disable-library-validation`
