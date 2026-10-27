@@ -311,10 +311,10 @@ struct StorageSpaceBanner: View {
         if model.daemonState == .connected, let space = model.storageLocation?.space {
             HazeBanner(symbol: space.isFull ? "externaldrive.badge.xmark" : "externaldrive.badge.exclamationmark",
                        tint: space.isFull ? Haze.danger : Haze.warning, text: "\(space.message)") {
-                if let mountPoint = model.storageLocation?.volume?.mountPoint, model.storageLocation?.volume?.isInternal == false {
-                    Button("Show in Finder") { NSWorkspace.shared.open(URL(filePath: mountPoint, directoryHint: .isDirectory)) }
-                } else {
+                if space.isOnMac {
                     Button("Open Storage Settings") { StorageSpaceBanner.openStorageSettings() }
+                } else if let mountPoint = model.storageLocation?.volume?.mountPoint {
+                    Button("Show in Finder") { NSWorkspace.shared.open(URL(filePath: mountPoint, directoryHint: .isDirectory)) }
                 }
             }
         }
