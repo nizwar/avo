@@ -36,7 +36,8 @@ public struct ShortcutManager: Sendable {
                 shortcuts.desktopAliasPath = nil
             }
             shortcuts.shimPath = result.bundleURL.path
-            shortcuts.shimCDHash = result.cdhash
+            // The hash of the shim that is on disk now, which the daemon lets in.
+            shortcuts.shimCDHash = ShimBuilder.cdhash(of: result.bundleURL) ?? result.cdhash
         } catch {
             logger.error("shim for \(app.package, privacy: .public) failed: \(String(describing: error), privacy: .public)")
             return shortcuts

@@ -145,6 +145,8 @@ public actor DaemonCore {
     var placedWidgets: [PlacedWidget]
     /// The shortcuts being made again (`rebuildShortcuts`).
     private var shortcutRebuild: Task<Void, Never>?
+    /// Shim builds under way, one at a time for each app (`serializedShimBuild`).
+    private var shimBuilds: [String: Task<Void, Never>] = [:]
     /// In-process watchers of the VM status (the menu bar). `vm.statusUpdates`
     /// is an AsyncStream, which hands each element to one reader only, so
     /// this actor is its only reader and passes every update on.
@@ -1131,20 +1133,46 @@ public actor DaemonCore {
     }
 
     private func performShortcutRebuild(of packages: Set<String>?, for config: VMConfig) async {
-        let shortcuts = deps.shortcuts
         var dockChanged = false
         for app in await registry.all() where packages?.contains(app.package) ?? true {
-            let made = await Task.detached { shortcuts.apply(app, info: nil, config: config, restartDock: false) }.value
-            dockChanged = dockChanged || made.inDock != app.shortcuts.inDock
-            // Uninstalled meanwhile: what was made for it goes too.
-            guard var current = await registry.record(app.package) else {
-                shortcuts.remove(made)
-                continue
+            let changed = await serializedShimBuild(app.package) { [weak self] in
+                await self?.remakeShortcuts(of: app.package, for: config) ?? false
             }
-            current.shortcuts = made
-            await registry.update(current)
+            dockChanged = dockChanged || changed
         }
         if dockChanged { Shortcuts.restartDock() }
+    }
+
+    /// One app's shortcuts made again for `config`, from its record as the
+    /// builds before left it; whether its Dock tile came or went.
+    private func remakeShortcuts(of package: String, for config: VMConfig) async -> Bool {
+        guard let app = await registry.record(package) else { return false }
+        let shortcuts = deps.shortcuts
+        let made = await Task.detached { shortcuts.apply(app, info: nil, config: config, restartDock: false) }.value
+        // Uninstalled meanwhile: what was made for it goes too.
+        guard var current = await registry.record(package) else {
+            shortcuts.remove(made)
+            return false
+        }
+        current.shortcuts = made
+        await registry.update(current)
+        return made.inDock != app.shortcuts.inDock
+    }
+
+    /// Runs `build` once the shim builds of `package` asked before it have
+    /// ended. Two at once could swap their shims in one order and record
+    /// their hashes in the other: the hash the daemon lets the shim in by
+    /// (`shimHashes`) would then be the one of a shim no longer on disk.
+    private func serializedShimBuild<T: Sendable>(_ package: String, _ build: @escaping @Sendable () async -> T) async -> T {
+        let previous = shimBuilds[package]
+        let task = Task {
+            await previous?.value
+            return await build()
+        }
+        let done = Task { _ = await task.value }
+        shimBuilds[package] = done
+        defer { if shimBuilds[package] == done { shimBuilds[package] = nil } }
+        return await task.value
     }
 
     /// Code directory hashes of every shim the daemon created (XPC caller check).
@@ -1943,18 +1971,31 @@ public actor DaemonCore {
 
     private func appInstalled(_ info: Avo_V1_AppInfo, replacing: Bool, announce: Bool) async {
         guard info.launchable else { return }
-        let (record, iconChanged, labelChanged) = await registry.apply(info)
-        var updated = record
-        let shimMissing = record.shortcuts.shimPath.map { !FileManager.default.fileExists(atPath: $0) } ?? true
-        // Made by another Avo.app (Avo was replaced or moved): its windows would run that Avo's code.
-        let shimForAnotherAvo = !shimMissing && deps.shortcuts.madeForAnotherAvo(record.shortcuts)
-        if iconChanged || labelChanged || shimMissing || shimForAnotherAvo {
-            let shortcuts = deps.shortcuts
-            let config = self.config
-            updated.shortcuts = await Task.detached { shortcuts.apply(record, info: info, config: config) }.value
-            await registry.update(updated)
+        let (_, iconChanged, labelChanged) = await registry.apply(info)
+        await serializedShimBuild(info.package) { [weak self] in
+            await self?.makeShim(for: info, changed: iconChanged || labelChanged)
         }
-        if announce { broadcast(.appInstalled(updated), to: isControlPanel) }
+        if announce, let record = await registry.record(info.package) { broadcast(.appInstalled(record), to: isControlPanel) }
+    }
+
+    /// Makes `info`'s shim when its icon or name changed, it is missing, or
+    /// another Avo.app made it (Avo was replaced or moved: its windows would
+    /// run that Avo's code), from the record as the builds before left it.
+    private func makeShim(for info: Avo_V1_AppInfo, changed: Bool) async {
+        guard let record = await registry.record(info.package) else { return }
+        let shimMissing = record.shortcuts.shimPath.map { !FileManager.default.fileExists(atPath: $0) } ?? true
+        let shimForAnotherAvo = !shimMissing && deps.shortcuts.madeForAnotherAvo(record.shortcuts)
+        guard changed || shimMissing || shimForAnotherAvo else { return }
+        let shortcuts = deps.shortcuts
+        let config = self.config
+        let made = await Task.detached { shortcuts.apply(record, info: info, config: config) }.value
+        // Uninstalled meanwhile: what was made for it goes too.
+        guard var current = await registry.record(info.package) else {
+            shortcuts.remove(made)
+            return
+        }
+        current.shortcuts = made
+        await registry.update(current)
     }
 
     // MARK: Notifications (Control Panel list)

@@ -1,4 +1,5 @@
 import AvoKit
+import AvoProtocol
 import AvoShimKit
 import AvoTestSupport
 import Foundation
@@ -41,5 +42,30 @@ import Testing
         let notes = try #require(after.first { $0.package == "com.example.notes" })
         #expect(ShimBuilder.cdhash(of: URL(filePath: try #require(notes.shortcuts.shimPath))) == notes.shortcuts.shimCDHash)
         #expect(after.first { $0.package == "org.fdroid.fdroid" }?.shortcuts == before.first { $0.package == "org.fdroid.fdroid" }?.shortcuts)
+    }
+
+    /// Android tells of one app several times at once (its install, its
+    /// update, a listing): its shim is made one build after another, so the
+    /// hash the daemon lets the shim in by is the one of the shim on disk.
+    @Test func reportsOfAnAppAtOnceLeaveTheHashOfTheShimOnDisk() async throws {
+        let harness = try Harness(apps: [])
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        let core = harness.core
+        for round in 0..<3 {
+            await withTaskGroup(of: Void.self) { group in
+                for label in ["Notes \(round)a", "Notes \(round)b", "Notes \(round)c"] {
+                    var installed = Avo_V1_AppInstalled()
+                    installed.app = FakeBridgeAgent.app("com.example.notes", label: label)
+                    group.addTask { await core.handleGuest(.appInstalled(installed)) }
+                }
+            }
+            let notes = try #require(await core.apps().first)
+            let shim = try #require(notes.shortcuts.shimPath)
+            #expect(ShimBuilder.cdhash(of: URL(filePath: shim)) == notes.shortcuts.shimCDHash, "round \(round)")
+            #expect(await core.shimHashes()["com.example.notes"] == notes.shortcuts.shimCDHash)
+        }
+        let shims = try FileManager.default.contentsOfDirectory(atPath: harness.paths.shims.path).filter { !$0.hasPrefix(".") }
+        #expect(shims.count == 1, "one shim, under the app's last name: \(shims)")
     }
 }
