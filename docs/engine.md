@@ -20,7 +20,9 @@ which no shipping build uses.
 
 **The engine.** HVF with the in-kernel GICv3, SMP vCPUs and PSCI; virtio-pci
 devices in Cuttlefish's layout: block (composite GPT disk), 20 consoles,
-rng, vsock (hybrid `CONNECT <port>` socket), a virtio-gpu (2D, or gfxstream
+rng, vsock (hybrid `CONNECT <port>` socket; the guest may have 256
+connections to the Mac's services open at once, and more are refused), a
+virtio-gpu (2D, or gfxstream
 3D, see "GPU" below) with 16 hot-pluggable scanouts, one touchscreen per scanout, a keyboard, three NICs,
 a sound card and a gamepad (an Xbox One S pad, 045e:02ea, which
 Android maps with its stock key layout); with `--shared-dir`, a virtio-fs
@@ -145,9 +147,13 @@ device comes last (see "Shared folder" below). Frames go to shared memory
   <folder>`): virtio-fs (device 26, tag `avo_shared`, one request queue of
   1024, no DAX window) with a FUSE 7.31 server over the Mac folder: nodes
   are the Mac's inodes, found by path, so nothing stays open on a drive but
-  the files Android has open; names with a slash, "." or "..", directories
-  that are symlinks and symlinked files (O_NOFOLLOW) are refused, so nothing
-  outside the folder is reachable; every file is media_rw's (1023, 0770 and
+  the files Android has open; names with a slash, "." or ".." are refused,
+  and no host call follows a symlink in any component of a path
+  (O_NOFOLLOW_ANY, AT_SYMLINK_NOFOLLOW_ANY, RENAME_NOFOLLOW_ANY; directory
+  operations go through a descriptor opened the same way), so nothing outside
+  the folder is reachable, even through a link a rooted Android plants or a
+  folder renamed from under it; Android sees symlinks as symlinks and
+  resolves them in its own tree; every file is media_rw's (1023, 0770 and
   0660); errno values are translated to Linux's; names and attributes are
   good for a second, and the page cache follows size and time changes
   (AUTO_INVAL_DATA). Extended attributes, locks, fallocate and Android's
@@ -163,12 +169,18 @@ device comes last (see "Shared folder" below). Frames go to shared memory
   `--wipe_data` on misc (Android's factory reset) exits 76
   (EXIT_FACTORY_RESET) either way; a recovery request left on misc from
   before is dropped before each boot.
-- **vCPU fault** (`machine.rs`, `cuttlefish.rs`): an `hv_vcpu_run` error, an
-  unhandled guest exit, or a register that would not set stops the whole
-  machine and exits 70 (EXIT_VCPU_FAULT) instead of leaving the process
-  hanging with one vCPU thread gone; the daemon treats it as a failure (not
-  75/76/77, not the GPU's) and starts Android again. A panic anywhere aborts
-  the process for the same reason (`panic = "abort"` in the release profile).
+- **vCPU fault and panics** (`machine.rs`, `cuttlefish.rs`): an
+  `hv_vcpu_run` error, an unhandled guest exit, or a register that would not
+  set stops the whole machine and exits 70 (EXIT_VCPU_FAULT) instead of
+  leaving the process hanging with one vCPU thread gone. A panic on any
+  thread ends the process for the same reason: the panic hook
+  (`exit_on_panic`) logs its message and exits 101 (EXIT_PANIC), or 75 on
+  the renderer's threads (`gpu-render`, `gpu-frames`), the GPU's failure;
+  without the hook, `panic = "abort"` in the release profile would end it by
+  SIGABRT, which the daemon takes for a GPU crash. Neither 70 nor 101 is the
+  GPU's, and the daemon does not start Android again after them: the start
+  fails, or a running Android shows as failed ("The VM engine exited with
+  status 70."), until the user starts it again (`VMManager.engineExited`).
 - The engine raises its threads to user-initiated QoS (the sound clock to
   user-interactive): the daemon it inherits from runs at utility.
 
@@ -205,7 +217,8 @@ GLES 3.2 and Vulkan 1.3.
   them after `--properties`); none, or `--gpu 2d`, is the software engine bit
   for bit. `--hwc client|host` is a bring-up knob the daemon never passes.
 - **Exit 75**: the renderer could not load or initialise (within 20 s), before
-  any guest code ran; stderr has `error: gpu: <reason>`.
+  any guest code ran; stderr has `error: gpu: <reason>`. A panic on the
+  renderer's threads exits 75 too, after its message.
 - **Device**: features VIRGL, RESOURCE_BLOB and CONTEXT_INIT, capsets
   gfxstream-vulkan (3) and gfxstream-composer (9), and an 8 GiB 64-bit
   host-visible BAR2 in a MEM64 window at 0x8_0000_0000. Bootconfig switches
