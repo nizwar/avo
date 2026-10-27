@@ -221,11 +221,21 @@ import Testing
         defer { feed.stop() }
         feed.handle("camera 1 on 320 240 15")
         let fd = try UnixSocket.accept(listener)
+        // Answered at once on this thread, as avo-vmm does: the feed waits
+        // 2 s for the answer, less than a busy test run can take to come
+        // back to an async read.
+        var hello = [UInt8](repeating: 0, count: 12)
+        var got = 0
+        while got < hello.count {
+            let n = hello.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress! + got, $0.count - got) }
+            guard n > 0 else { break }
+            got += n
+        }
+        #expect(Data(hello) == Data("camera feed\n".utf8))
+        #expect(CameraFeed.writeAll(fd, Data("ok\n".utf8)))
         let stream = FileDescriptorStream(fileDescriptor: fd, label: "fake-avo-vmm")
         defer { stream.close() }
         var reader = StreamReader(stream)
-        #expect(try await reader.read(exactly: 12) == Data("camera feed\n".utf8))
-        try await stream.write(Data("ok\n".utf8))
         for _ in 0..<2 {
             let header = try await reader.read(exactly: 16)
             let word = { (i: Int) in Int(header[i * 4]) | Int(header[i * 4 + 1]) << 8 | Int(header[i * 4 + 2]) << 16 | Int(header[i * 4 + 3]) << 24 }
