@@ -317,17 +317,23 @@ impl LogcatWatch {
         LogcatWatch { file, path, written: 0, marker: instance.join(format!("es32-refuted-{name}")), tail: Vec::new() }
     }
 
-    /// The log so far becomes logcat.1.log (replacing the one before), and
-    /// a new logcat.log begins. One that cannot move is written on.
+    /// The log so far becomes logcat.1.log (replacing the one before), and a
+    /// new logcat.log begins. If it cannot be moved aside or a fresh file
+    /// cannot be opened, the current file is capped in place (truncated)
+    /// rather than written on without bound into logcat.1.log or logcat.log.
     fn rotate(&mut self) {
+        use std::io::{Seek, SeekFrom};
         self.written = 0;
         let _ = self.file.flush();
-        if std::fs::rename(&self.path, self.path.with_file_name("logcat.1.log")).is_err() {
-            return;
-        }
-        match std::fs::File::create(&self.path) {
+        let rotated = std::fs::rename(&self.path, self.path.with_file_name("logcat.1.log"))
+            .and_then(|_| std::fs::File::create(&self.path));
+        match rotated {
             Ok(file) => self.file = file,
-            Err(e) => eprintln!("[vmm] logcat.log: {e}; the log goes on in logcat.1.log"),
+            Err(e) => {
+                eprintln!("[vmm] logcat.log: {e}; capping the current log file in place");
+                let _ = self.file.set_len(0);
+                let _ = self.file.seek(SeekFrom::Start(0));
+            }
         }
     }
 }
