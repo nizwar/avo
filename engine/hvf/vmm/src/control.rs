@@ -51,7 +51,9 @@
 //! `bluetooth hci <port>` (sticky) is netsimd's HCI port, with `--bluetooth`
 //! (bluetooth.rs). `camera <index> on <width> <height> <fps>` and
 //! `camera <index> off` (sticky) say when Android streams a camera of
-//! `--cameras` (camera.rs).
+//! `--cameras` (camera.rs). `disk full on` and `disk full off` (sticky) say
+//! when Android's writes start waiting for room on the Mac's disk, and when
+//! none waits any more (virtio/block.rs).
 //!
 //! In GPU mode (virtio/gpu/render.rs) they also get `gpu active <device>`
 //! (the renderer runs, on that GPU), `gpu context` (the guest created its

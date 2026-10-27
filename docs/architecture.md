@@ -1658,7 +1658,8 @@ Restore points of Android's apps and data, beside the data wherever it is
   `VMManager.holdingStill` stops its vCPUs for the clone and lets them go on,
   the guest clock adjusted as after a pause; the status does not change. A
   stopped or paused Android needs no hold. avo-vmm handles every virtio-blk
-  request on the vCPU that notified it, so no write is half done while the
+  request on the vCPU that notified it, and its retrier of writes that wait
+  for room takes no try during a pause, so no write is half done while the
   vCPUs are stopped; each item is fsynced before it is cloned.
 - **Automatic checkpoints** come before a change Android cannot take back:
   root turned on and another device profile or its hardware

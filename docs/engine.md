@@ -520,7 +520,7 @@ The control socket (`control.sock`, one text command per line):
 | `camera feed` | turns the connection into the cameras' frames: each a 16-byte header (camera, width, height, length; u32 little endian) and that many bytes of JPEG (camera.rs) |
 | `snapshot <i> <path>` | next frame as a BMP |
 | `pause` / `resume` | stop the vCPUs / let them run again (both idempotent); `pause` answers once no vCPU runs guest code, or with an error when one does not stop within 5 s (the others go on) |
-| `subscribe` | events: `frames …` (new layout), `frame <i> <seq>`, `frames-off <i>`, `microphone` (Android started recording), `sound playback on\|off` and `sound capture on\|off` (sticky: Android's sound streams), `paused` and `resumed <ms>` (how long the guest stood still), `audio playback <epoch> <path>` (sticky: the ring of what Android played), `camera <i> on <w> <h> <fps>` and `camera <i> off` (sticky: Android streams camera *i*, 0 back and 1 front, with `--cameras`); with the GPU also `gpu active <device>`, `gpu context` (Android's first rendering context this boot), `gpu first-frame <i>` and `gpu stalled <ms>` |
+| `subscribe` | events: `frames …` (new layout), `frame <i> <seq>`, `frames-off <i>`, `microphone` (Android started recording), `sound playback on\|off` and `sound capture on\|off` (sticky: Android's sound streams), `paused` and `resumed <ms>` (how long the guest stood still), `audio playback <epoch> <path>` (sticky: the ring of what Android played), `camera <i> on <w> <h> <fps>` and `camera <i> off` (sticky: Android streams camera *i*, 0 back and 1 front, with `--cameras`), `disk full on` and `disk full off` (sticky: Android's writes wait for room on the Mac's disk, and none waits any more); with the GPU also `gpu active <device>`, `gpu context` (Android's first rendering context this boot), `gpu first-frame <i>` and `gpu stalled <ms>` |
 
 **Pause** (`pause.rs`). The vCPUs stop at a gate before their next
 `hv_vcpu_run` (a kick takes them out of the guest; one in WFI comes back
@@ -549,7 +549,23 @@ goes away during a pause, the engine resumes before it powers Android off.
 A pause is also how a checkpoint holds Android still (architecture.md,
 "Checkpoints"): virtio-blk handles each request on the vCPU that notified it
 (`Block::notify`), so once every vCPU waits at the gate no disk write is half
-done, and the daemon clones Android's disks before it resumes.
+done, and the daemon clones Android's disks before it resumes. The one
+exception, the retrier of writes that wait for room (below), takes no try
+while a pause is asked for, and a pause holds only once a try under way is
+done (a gate observer takes the device's lock).
+
+**A full Mac disk.** A write the disk has no room for (ENOSPC, or EDQUOT past
+a quota) is not failed to the guest: f2fs takes a failed write for a broken
+disk (lost writes, checkpoints that stop, a read-only /data, apps that
+crash). The request waits instead, every later request waits behind it in
+order, and a thread tries again after 100 ms, then with a pause that doubles
+up to 2 s (QEMU's `werror=enospc` stops the guest and retries the same way).
+Android's I/O waits until there is room, then goes on; a reset or a guest
+reboot lets go of what waited, as a power cut would. Subscribers hear
+`disk full on` and `disk full off`, and the daemon shows the Library's
+banner (architecture.md, "Where Android's data is"). Other failures still
+reach the guest as S_IOERR, and the log says so (the first, then at most
+one a minute).
 
 **Quick boot** (not there). Starting from a snapshot of a running Android
 needs everything the guest can see saved and put back: guest RAM (anonymous
