@@ -71,6 +71,29 @@ private let settings = CheckpointSettings(VMConfig())
         #expect(try dataText(paths) == "before")
     }
 
+    /// What only a checkpoint takes (what deleting it frees): little while
+    /// Android leaves the data as it was, the old blocks once it changes them.
+    @Test func aCheckpointsOwnSizeGrowsAsAndroidChangesItsData() throws {
+        let (root, paths) = try temporaryPaths()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = CheckpointStore(paths: paths)
+        try FileManager.default.createDirectory(at: paths.dataDisks, withIntermediateDirectories: true)
+        try Data(repeating: 0x5A, count: 1 << 20).write(to: paths.dataDisk)
+        try Data("key".utf8).write(to: paths.dataDisks.appending(path: "metadata.img"))
+        let checkpoint = Checkpoint(reason: .manual, settings: settings)
+        try store.create(checkpoint)
+        let fresh = try #require(store.ownBytes(of: checkpoint.id))
+        #expect(fresh < 1 << 20, "its disks share their blocks with the data")
+
+        let disk = try FileHandle(forWritingTo: paths.dataDisk)
+        try disk.write(contentsOf: Data(repeating: 0xA5, count: 1 << 20))
+        try disk.synchronize()
+        try disk.close()
+        let changed = try #require(store.ownBytes(of: checkpoint.id))
+        #expect(changed >= fresh + (1 << 20), "the data's old blocks are the checkpoint's alone now")
+        #expect(store.status().ownBytes?[checkpoint.id] == changed)
+    }
+
     @Test func onlyTheNewestAutomaticCheckpointsStay() throws {
         let (root, paths) = try temporaryPaths()
         defer { try? FileManager.default.removeItem(at: root) }

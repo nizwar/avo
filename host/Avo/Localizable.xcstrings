@@ -334,6 +334,16 @@
         }
       }
     },
+    "%@ of its own" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ miliknya sendiri"
+          }
+        }
+      }
+    },
     "%@ starts the next time Android restarts, and these Google apps stop working then. To use Google Play on %@, reset Android after the restart and install Google apps for it." : {
       "localizations" : {
         "id" : {

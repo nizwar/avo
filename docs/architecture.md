@@ -1658,7 +1658,9 @@ Restore points of Android's apps and data, beside the data wherever it is
 
 - **Clones only.** Every item is an APFS clone (`clonefile`): a checkpoint is
   made in a moment and shares its blocks with the data until Android changes
-  them. There is no copy fallback (a copy of the data disk takes minutes and
+  them. The list shows what only each one takes (`CheckpointStatus.ownBytes`,
+  the blocks no clone shares, getattrlist's `ATTR_CMNEXT_PRIVATESIZE`): what
+  deleting it frees. There is no copy fallback (a copy of the data disk takes minutes and
   as much space again): with the data on a drive that cannot clone, the pane
   says so (`CheckpointStatus.problem`) and Avo makes none.
 - **While Android runs.** `makeCheckpoint` has Android `sync` over adb (at

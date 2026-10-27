@@ -52,7 +52,43 @@ struct CheckpointStore {
     }
 
     func status() -> CheckpointStatus {
-        CheckpointStatus(checkpoints: list(), problem: problem())
+        let checkpoints = list()
+        var own: [UUID: Int64] = [:]
+        for checkpoint in checkpoints { own[checkpoint.id] = ownBytes(of: checkpoint.id) }
+        return CheckpointStatus(checkpoints: checkpoints, problem: problem(), ownBytes: own)
+    }
+
+    /// What only this checkpoint takes on the drive: the blocks of its
+    /// files that no clone shares (the data's, another checkpoint's).
+    /// Nil where the file system can't say.
+    func ownBytes(of id: UUID) -> Int64? {
+        let root = folder(of: id)
+        guard let enumerator = FileManager.default.enumerator(atPath: root.path) else { return nil }
+        var total: Int64 = 0
+        for case let relative as String in enumerator where enumerator.fileAttributes?[.type] as? FileAttributeType == .typeRegular {
+            guard let bytes = Self.privateBytes(of: root.appending(path: relative)) else { return nil }
+            total += bytes
+        }
+        return total
+    }
+
+    /// ATTR_CMNEXT_PRIVATESIZE: the bytes of `url` no clone shares.
+    static func privateBytes(of url: URL) -> Int64? {
+        var request = attrlist()
+        request.bitmapcount = u_short(ATTR_BIT_MAP_COUNT)
+        request.commonattr = attrgroup_t(ATTR_CMN_RETURNED_ATTRS)
+        request.forkattr = attrgroup_t(ATTR_CMNEXT_PRIVATESIZE)
+        // The reply: its length, the attributes returned (common, volume,
+        // directory, file, fork), then the size.
+        var reply = [UInt8](repeating: 0, count: 64)
+        let result = reply.withUnsafeMutableBytes {
+            getattrlist(url.path, &request, $0.baseAddress, $0.count, UInt32(FSOPT_ATTR_CMN_EXTENDED | FSOPT_NOFOLLOW))
+        }
+        guard result == 0 else { return nil }
+        return reply.withUnsafeBytes { bytes -> Int64? in
+            guard bytes.loadUnaligned(fromByteOffset: 20, as: UInt32.self) & UInt32(ATTR_CMNEXT_PRIVATESIZE) != 0 else { return nil }
+            return bytes.loadUnaligned(fromByteOffset: 24, as: Int64.self)
+        }
     }
 
     /// The checkpoints beside the data in `data`, as a move takes them
