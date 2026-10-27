@@ -295,7 +295,9 @@ A player on Avo is almost always using a keyboard and a mouse or trackpad.
    files) on Avo, or use adb.
 4. Turn on Settings › System › Developer › ADB support. `adb devices` then
    lists Avo as `emulator-5554` (or run `adb connect 127.0.0.1:5555`), and
-   `adb logcat`, `adb install` and Android Studio work as usual.
+   `adb logcat`, `adb install` and Android Studio work as usual. Avo lets in
+   adb's own key on your Mac (`~/.android/adbkey`, which Android Studio and
+   scrcpy use too); a tool with a key of its own is refused.
 5. Check what your game sees:
    `adb shell getprop | grep ro.boot.avo`, `adb shell pm list features | grep avo`.
 6. To see your game under a phone identity, choose a profile under Settings
