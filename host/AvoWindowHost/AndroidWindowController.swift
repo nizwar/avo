@@ -928,9 +928,18 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
             // Failed or not, the hold ends: it never outlives its re-plug. An
             // older reply leaves it to the newest resize, which may be a
             // density change only, so that one releases too (a no-op then).
-            try? await client.resizeDisplayAndWait(displayID, width: proposed.width, height: proposed.height, dpi: proposed.dpi)
-            guard self?.resizeGeneration == generation else { return }
+            var problem: String?
+            do {
+                try await client.resizeDisplayAndWait(displayID, width: proposed.width, height: proposed.height, dpi: proposed.dpi)
+            } catch {
+                problem = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+            guard let self, resizeGeneration == generation else { return }
             renderer.releaseHold()
+            // The picture may stay as it was, or stop: never without a word.
+            if let problem, !detached {
+                showNotice(String(localized: "Android couldn’t change the app’s screen: \(problem)", bundle: .windowHost))
+            }
         }
         if announce, !quiet { showNotice(String(localized: "Switching to \(switchLabel(proposed))…", bundle: .windowHost)) }
     }
