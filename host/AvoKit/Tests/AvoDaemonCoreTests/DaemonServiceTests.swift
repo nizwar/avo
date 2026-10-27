@@ -1,4 +1,5 @@
 import AvoADB
+import AvoIO
 import AvoKit
 import AvoProtocol
 import AvoTestSupport
@@ -134,6 +135,17 @@ import Testing
         // PackageManager's codes stay for InstallPipeline.friendly.
         #expect(ADBError.install("Failure [INSTALL_FAILED_OLDER_SDK]").localizedDescription == "Failure [INSTALL_FAILED_OLDER_SDK]")
         #expect(ADBError.streamClosed.description == "ADB stream closed", "the logs keep the protocol's words")
+    }
+
+    /// The sockets' failures likewise, not "(AvoIO.IOError error 0.)": what
+    /// happened, with the system's reason where there is one.
+    @Test func socketFailuresSayWhatHappened() {
+        let refused = IOError.posix(op: "connect", code: ECONNREFUSED)
+        #expect(refused.localizedDescription == "Avo could not reach Android (Connection refused).")
+        #expect(AvoError.reported(refused) == .internalError("Avo could not reach Android (Connection refused)."))
+        #expect(IOError.timedOut("socket read").localizedDescription == "Android did not respond.")
+        #expect(IOError.closed.localizedDescription == "Android closed the connection before Avo was done.")
+        #expect(refused.description == "connect: Connection refused", "the logs keep the call")
     }
 
     /// A request Android did not answer in time says what was being done,

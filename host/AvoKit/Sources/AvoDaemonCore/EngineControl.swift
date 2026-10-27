@@ -1,6 +1,9 @@
 import AvoIO
 import AvoKit
 import Foundation
+import os
+
+private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "avo-vmm")
 
 /// Client of avo-vmm's control socket (engine/hvf/vmm/src/control.rs): one
 /// text command per line, answered with `ok` or `error <message>`.
@@ -55,7 +58,9 @@ public actor EngineControl {
             try await stream.write(Data((command + "\n").utf8))
             guard let line = try await reader.next() else { throw IOError.closed }
             if line.hasPrefix("error") {
-                throw AvoError.internalError("avo-vmm: \(command): \(line.dropFirst(6))")
+                // Its reason is avo-vmm's own words: for the log.
+                logger.error("avo-vmm refused \(command, privacy: .public): \(line.dropFirst(6), privacy: .public)")
+                throw AvoError.internalError(String(localized: "The VM engine refused Avo’s request.", bundle: .avoKit))
             }
         } catch {
             // A broken connection is reopened on the next command.
@@ -66,7 +71,10 @@ public actor EngineControl {
                     self.reader = nil
                 }
             }
-            if SuspendingClock.now - started >= timeout { throw AvoError.timedOut("avo-vmm: \(command)") }
+            if SuspendingClock.now - started >= timeout {
+                logger.error("avo-vmm did not answer \(command, privacy: .public) in \(timeout, privacy: .public)")
+                throw AvoError.guestUnavailable
+            }
             throw error
         }
     }

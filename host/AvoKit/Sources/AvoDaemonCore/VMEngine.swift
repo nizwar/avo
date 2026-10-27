@@ -239,7 +239,7 @@ public final class CrosvmEngine: VMEngine, @unchecked Sendable {
             try await Task.sleep(for: .milliseconds(100))
         }
         process.terminate()
-        throw AvoError.timedOut("crosvm startup")
+        throw AvoError.timedOut(String(localized: "Starting the VM engine", bundle: .avoKit))
     }
 
     public func stop() async {

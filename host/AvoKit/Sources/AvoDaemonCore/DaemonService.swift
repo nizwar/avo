@@ -1,4 +1,5 @@
 import AvoADB
+import AvoIO
 import AvoKit
 import Foundation
 import IOSurface
@@ -641,6 +642,22 @@ extension ADBError: LocalizedError {
                 String(localized: "Android could not save the file.", bundle: .avoKit)
             }
         case .install(let detail): detail
+        }
+    }
+}
+
+/// The sockets' failures as the user reads them, wherever they are shown:
+/// what happened, with the system's reason where there is one;
+/// `description` keeps the rest for the logs. AvoIO has no text of its own
+/// to show.
+extension IOError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .timedOut: String(localized: "Android did not respond.", bundle: .avoKit)
+        case .closed: String(localized: "Android closed the connection before Avo was done.", bundle: .avoKit)
+        case .posix(_, let code): String(localized: "Avo could not reach Android (\(String(cString: strerror(code)))).", bundle: .avoKit)
+        case .handshake(let detail): String(localized: "Avo could not reach Android (\(detail)).", bundle: .avoKit)
+        case .pathTooLong(let path): String(localized: "Socket path is too long: \(path)", bundle: .avoKit)
         }
     }
 }

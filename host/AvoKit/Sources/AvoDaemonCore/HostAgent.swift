@@ -1431,7 +1431,7 @@ actor HostAgent: DisplayResizing {
             guard let uri = Self.contentURI(inScanOutput: output) else { continue }
             shared = (uri, index < request.mimeTypes.count ? request.mimeTypes[index] : "*/*")
         }
-        guard let shared else { throw AvoError.internalError("Android could not index the shared files") }
+        guard let shared else { throw AvoError.internalError(String(localized: "Android could not index the shared files.", bundle: .avoKit)) }
         if request.paths.count > 1 {
             logger.notice("shared the first of \(request.paths.count) files with \(display.package, privacy: .public); all are in Downloads")
         }
@@ -2299,7 +2299,7 @@ actor HostAgent: DisplayResizing {
         // nothing, which must never read as "every app was uninstalled":
         // Android always has system packages.
         guard result.succeeded, lists.count == 2, !system.isEmpty else {
-            throw AvoError.internalError("Android did not list its packages")
+            throw AvoError.internalError(String(localized: "Android did not list its apps.", bundle: .avoKit))
         }
         var packages = Self.parsePackages(lists[0], system: false)
         packages += includeSystem ? system : system.filter { Self.featuredSystemPackages.contains($0.package) }

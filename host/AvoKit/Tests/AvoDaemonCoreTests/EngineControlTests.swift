@@ -59,7 +59,8 @@ private final class StuckEngineSocket: Sendable {
         let started = ContinuousClock.now
         try await control.send("resume")
         #expect(ContinuousClock.now - started < .seconds(3))
-        await #expect(throws: AvoError.timedOut("avo-vmm: pause")) { try await stuck.value }
+        // The user reads Android not responding; the log names the command.
+        await #expect(throws: AvoError.guestUnavailable) { try await stuck.value }
         #expect(socket.connections.value.withLock { $0 } == 2)
         await control.close()
     }

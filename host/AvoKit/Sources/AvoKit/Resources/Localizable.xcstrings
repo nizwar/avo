@@ -258,6 +258,16 @@
         }
       }
     },
+    "Android could not index the shared files." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android tidak bisa mengindeks file yang dibagikan."
+          }
+        }
+      }
+    },
     "Android could not save the file." : {
       "localizations" : {
         "id" : {
@@ -304,6 +314,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Android tidak bisa mencantumkan aplikasinya"
+          }
+        }
+      }
+    },
+    "Android did not list its apps." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android tidak memberikan daftar aplikasinya."
           }
         }
       }
@@ -884,6 +904,16 @@
         }
       }
     },
+    "Avo Widgets did not answer." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avo Widgets tidak menjawab."
+          }
+        }
+      }
+    },
     "Avo cannot set this Android’s volume." : {
       "localizations" : {
         "id" : {
@@ -930,6 +960,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Avo tidak bisa memakai kamera Mac"
+          }
+        }
+      }
+    },
+    "Avo could not reach Android (%@)." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avo tidak bisa menghubungi Android (%@)."
           }
         }
       }
@@ -2069,6 +2109,16 @@
         }
       }
     },
+    "Starting the VM engine" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menjalankan engine VM"
+          }
+        }
+      }
+    },
     "Stopping the app" : {
       "localizations" : {
         "id" : {
@@ -2251,6 +2301,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Engine VM tidak ada di build Avo ini."
+          }
+        }
+      }
+    },
+    "The VM engine refused Avo’s request." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Engine VM menolak permintaan Avo."
           }
         }
       }

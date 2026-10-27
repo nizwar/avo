@@ -375,7 +375,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         }
         guard SuspendingClock.now < deadline else {
             await Self.endUnseen(process)
-            throw AvoError.timedOut("avo-vmm startup")
+            throw AvoError.timedOut(String(localized: "Starting the VM engine", bundle: .avoKit))
         }
 
         monitor?.booted()

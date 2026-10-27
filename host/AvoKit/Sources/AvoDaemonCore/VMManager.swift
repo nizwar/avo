@@ -260,7 +260,8 @@ public actor VMManager {
                 try await Task.sleep(for: .milliseconds(500))
             }
         }
-        throw AvoError.timedOut("Android boot (\(lastError.map { "\($0)" } ?? "no answer"))")
+        logger.error("Android did not get ready in time: \(lastError.map { String(describing: $0) } ?? "no answer", privacy: .public)")
+        throw AvoError.timedOut(String(localized: "Starting Android", bundle: .avoKit))
     }
 
     /// Android holds nothing, and nothing here is about to start it again:
@@ -464,7 +465,7 @@ public actor VMManager {
                             settings: @autoclosure @Sendable () -> Settings) async throws -> ShellResult {
         if usedWhilePaused() { try? await wake() }
         guard booting == nil, rescue == nil, status.state == .stopped || status.state == .failed else {
-            return try await shellOverADB(command, timeout: timeout)
+            return try await shellOverADB(command, timeout: timeout, detail: detail)
         }
         let settings = settings()
         let task = Task { try await self.rescueWithOwnEngine(command, timeout: timeout, detail: detail, settings: settings) }
@@ -485,7 +486,7 @@ public actor VMManager {
             engineInstance = launch.instance
             logger.notice("starting the engine for a repair over adbd")
             try await engine.start(launch)
-            let result = try await shellOverADB(command, timeout: timeout)
+            let result = try await shellOverADB(command, timeout: timeout, detail: detail)
             await endRescue()
             return result
         } catch {
@@ -502,8 +503,9 @@ public actor VMManager {
         update(.stopped)
     }
 
-    /// `rescueShell` over the engine that runs.
-    private func shellOverADB(_ command: String, timeout: Duration) async throws -> ShellResult {
+    /// `rescueShell` over the engine that runs; `detail` names the repair
+    /// when its time runs out.
+    private func shellOverADB(_ command: String, timeout: Duration, detail: String) async throws -> ShellResult {
         // The Mac asleep is no time the repair had.
         let deadline = SuspendingClock.now + timeout
         var lastError: (any Error)?
@@ -537,7 +539,8 @@ public actor VMManager {
                 try await Task.sleep(for: .seconds(1))
             }
         }
-        throw AvoError.timedOut("ADB (\(lastError.map { "\($0)" } ?? "no answer"))")
+        logger.error("adbd did not take the repair in time: \(lastError.map { String(describing: $0) } ?? "no answer", privacy: .public)")
+        throw AvoError.timedOut(detail)
     }
 
     /// A socket to adbd in Android for `adb` on the Mac ("ADB support").

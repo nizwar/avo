@@ -112,7 +112,7 @@ public actor InputChannel {
     }
 
     private func expirePreamble() {
-        preambleWaiter?.resume(throwing: AvoError.timedOut("Input channel preamble"))
+        preambleWaiter?.resume(throwing: AvoError.guestUnavailable)
         preambleWaiter = nil
     }
 

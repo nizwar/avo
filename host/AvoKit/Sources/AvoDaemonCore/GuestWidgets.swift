@@ -1,6 +1,7 @@
 import AvoKit
 import CryptoKit
 import Foundation
+import os
 
 /// Avo Widgets in Android (guest/widgets): the widgets Android's apps offer,
 /// and letting go of a removed panel's widget. HostAgent installs it.
@@ -29,7 +30,9 @@ enum GuestWidgets {
     /// `content read`'s output: Avo Widgets' JSON array, sorted by app and widget.
     static func providers(_ output: String) throws -> [WidgetProvider] {
         guard let start = output.firstIndex(of: "[") else {
-            throw AvoError.internalError("Avo Widgets did not answer: \(output.prefix(200))")
+            Logger(subsystem: AvoIdentifiers.logSubsystem, category: "widgets")
+                .error("Avo Widgets did not answer: \(output.prefix(200), privacy: .public)")
+            throw AvoError.internalError(String(localized: "Avo Widgets did not answer.", bundle: .avoKit))
         }
         let list = try JSONDecoder().decode([WidgetProvider].self, from: Data(output[start...].utf8))
         return list.sorted {
