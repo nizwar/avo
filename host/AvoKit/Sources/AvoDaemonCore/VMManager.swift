@@ -305,7 +305,8 @@ public actor VMManager {
             let connection = ADBConnection(transport: stream, key: adbKey, keyComment: "avo-daemon")
             do {
                 _ = try await connection.connect(timeout: .seconds(15))
-                let result = try await connection.shell(command)
+                // A repair may take its caller's whole time.
+                let result = try await connection.shell(command, timeout: timeout)
                 await connection.close()
                 return result
             } catch {
