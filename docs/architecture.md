@@ -1084,15 +1084,16 @@ key, the release steps and the code-signing rules.
 
 `AppUpdater` (Control Panel) owns Sparkle's standard updater:
 
-- **When it starts:** only when Info.plist's `SUFeedURL` is a real HTTPS feed
-  and `SUPublicEDKey` is an Ed25519 key (`AppUpdate.readiness`). The
-  placeholder feed `https://updates.avo.invalid/appcast.xml` leaves updates
-  off, quietly.
+- **When it starts:** only in a Developer ID build whose Info.plist has an
+  https `SUFeedURL` and an Ed25519 `SUPublicEDKey` (`AppUpdate.readiness`).
+  The feed is the latest GitHub release's `appcast.xml`; Sparkle checks it
+  once a day by itself.
 - **Where it shows:** Avo › Check for Updates…, the menu bar item, and
   Settings › About › Software Update (automatic checks, last check, Check for
   Updates…).
-- **Trust:** an update is trusted by its EdDSA signature. Ad hoc builds never
-  match each other's code signature, so the signature is the only proof.
+- **Trust:** an update is trusted by its EdDSA signature (in the feed), or
+  by the running app's Developer ID on the app it brings
+  (`docs/releasing.md`).
 
 Sparkle swaps `Avo.app` at the same path. Android is never taken away for
 that without the player's say:

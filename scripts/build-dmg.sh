@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds a Release Avo.app and packs it into a disk image.
 #
-#   scripts/build-dmg.sh --version 0.4.0 --build 125 [--out DIR] [--identity ID [--notarize]]
+#   scripts/build-dmg.sh --version 0.4.0 --build 125 [--out DIR] [--identity ID [--notarize [--tag TAG]]]
 #
 #     --version    CFBundleShortVersionString (MARKETING_VERSION): X.Y.Z, no
 #                  beta label (docs/versioning.md)
@@ -15,7 +15,12 @@
 #     --notarize   with a Developer ID: notarizes the app and staples it, then
 #                  the signed disk image too. Apple ID and app-specific
 #                  password from APPLE_ID and APPLE_APP_SPECIFIC_PASSWORD
-#                  (never printed); the team from the identity
+#                  (never printed); the team from the identity. Last, it
+#                  makes the release's update feed, appcast.xml next to the
+#                  disk image, with Sparkle's generate_appcast, which signs
+#                  the image with Avo's update key (the login Keychain's)
+#     --tag        the release's tag, for the feed's download link
+#                  (default: v<version>; a beta: v0.5.0-beta.2)
 #
 # Steps:
 #   1. the GPU renderer, scripts/build-gfxstream.sh, and Android's Bluetooth
@@ -50,11 +55,13 @@ while [[ $# -gt 0 ]]; do
     --out) OUT="$2"; shift 2 ;;
     --identity) IDENTITY="$2"; shift 2 ;;
     --notarize) NOTARIZE=1; shift ;;
-    -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
+    --tag) TAG="$2"; shift 2 ;;
+    -h|--help) sed -n '2,32p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
-[[ -n "$VERSION" && -n "$BUILD" ]] || { echo "usage: $0 --version X.Y.Z --build N [--out DIR] [--identity ID [--notarize]]" >&2; exit 2; }
+[[ -n "$VERSION" && -n "$BUILD" ]] || { echo "usage: $0 --version X.Y.Z --build N [--out DIR] [--identity ID [--notarize [--tag TAG]]]" >&2; exit 2; }
+TAG="${TAG:-v$VERSION}"
 if [[ "$IDENTITY" == "-" ]]; then
   SIGN_FLAGS=(--timestamp=none)
 else
@@ -201,6 +208,29 @@ if [[ "$NOTARIZE" == 1 ]]; then
   xcrun stapler staple -q "$DMG"
   xcrun stapler validate -q "$DMG"
   spctl --assess --type open --context context:primary-signature "$DMG"
+  # Sparkle installs an update only with the DMG's EdDSA signature, made
+  # with Avo's update key in the login Keychain (SUPublicEDKey). The
+  # release notes carry it (docs/releasing.md), so it is made last, on the
+  # disk image as published.
+  echo "== update feed"
+  SPARKLE_BIN="$DERIVED/SourcePackages/artifacts/sparkle/Sparkle/bin"
+  [[ -x "$SPARKLE_BIN/generate_appcast" && -x "$SPARKLE_BIN/generate_keys" ]] \
+    || { echo "no generate_appcast or generate_keys in $SPARKLE_BIN (Sparkle's package)" >&2; exit 1; }
+  # The key that signs must be the one installed copies check with, or they
+  # refuse the download (macOS may ask once to let the tools use the Keychain).
+  KEYCHAIN_KEY="$("$SPARKLE_BIN/generate_keys" -p 2>&1)" || { echo "generate_keys: $KEYCHAIN_KEY" >&2; exit 1; }
+  APP_KEY="$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$APP/Contents/Info.plist")"
+  [[ "$KEYCHAIN_KEY" == "$APP_KEY" ]] || { echo "the Keychain's update key is not Avo's SUPublicEDKey ($APP_KEY)" >&2; exit 1; }
+  # generate_appcast reads every archive in its folder: this one alone.
+  FEED_DIR="$STAGE/feed"
+  rm -rf "$FEED_DIR"
+  mkdir -p "$FEED_DIR"
+  cp -c "$DMG" "$FEED_DIR/" 2>/dev/null || cp "$DMG" "$FEED_DIR/"
+  FEED_LOG="$("$SPARKLE_BIN/generate_appcast" --download-url-prefix "https://github.com/nizwar/avo/releases/download/$TAG/" \
+    --link "https://github.com/nizwar/avo/releases/tag/$TAG" -o "$FEED_DIR/appcast.xml" "$FEED_DIR" 2>&1)" \
+    || { echo "generate_appcast failed: $FEED_LOG" >&2; exit 1; }
+  grep -q "sparkle:edSignature=" "$FEED_DIR/appcast.xml" || { echo "the feed has no signature: $FEED_LOG" >&2; exit 1; }
+  cp "$FEED_DIR/appcast.xml" "$OUT/appcast.xml"
 fi
 MOUNT="$(hdiutil attach -nobrowse -readonly "$DMG" | awk -F'\t' '/\/Volumes\//{print $NF}' | tail -1)"
 codesign --verify --deep --strict "$MOUNT/Avo.app"
@@ -218,3 +248,6 @@ done
 
 shasum -a 256 "$DMG"
 ls -lh "$DMG"
+if [[ "$NOTARIZE" == 1 ]]; then
+  echo "update feed: $OUT/appcast.xml (a release asset next to the disk image)"
+fi

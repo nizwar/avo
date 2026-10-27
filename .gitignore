@@ -6,8 +6,7 @@
 .idea/
 *.swp
 
-# Local build output: DerivedData, release staging, disk images, the update
-# feed mirror (scripts/release-update.sh) and logs.
+# Local build output: DerivedData, release staging, disk images and logs.
 build/
 *.dmg
 *.xcresult

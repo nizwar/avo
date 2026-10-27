@@ -1,28 +1,31 @@
 # Releasing Avo and its updates
 
 Avo updates itself with [Sparkle 2](https://sparkle-project.org) (2.10.0,
-through Swift Package Manager; `host/project.yml`), but it reads its own
-GitHub releases to find an update rather than a hosted appcast. The Control
-Panel (`host/Avo/AppUpdater.swift`, `AvoKit/GitHubUpdateFeed.swift`) fetches
-the repository's releases from the GitHub API, builds Sparkle's appcast from
-them, and lets Sparkle download and install the release's DMG. Nothing is
-hosted and no appcast is published: making a release *is* publishing it on
-GitHub.
+through Swift Package Manager; `host/project.yml`). Its feed (`SUFeedURL`)
+is the `appcast.xml` of the latest GitHub release,
+`https://github.com/nizwar/avo/releases/latest/download/appcast.xml`. Each
+release carries one next to its DMG, made by `build-dmg.sh --notarize` with
+Sparkle's `generate_appcast`, which signs the DMG with Avo's update key.
+Nothing else is hosted: making a release *is* publishing the update.
 
-Each DMG is notarized and Developer ID signed. Before installing, Sparkle
-checks a download's code signature against the running app's (the same team,
-`2Y5JPG373S`); that stands in for the EdDSA signature a hosted appcast would
-carry, so updates run only in a Developer ID build, never a local ad hoc one.
+Sparkle installs a DMG whose EdDSA signature is valid for the running app's
+key (`SUPublicEDKey`), or whose `Avo.app` carries the running app's
+Developer ID (the same team, `2Y5JPG373S`): see *How Sparkle trusts an
+update*. Updates run only in a Developer ID build, never a local ad hoc one
+(`AppUpdater.signedForUpdates`). No build before 0.4.0 updated itself: until
+0.3.0 the feed was a placeholder, then the Control Panel handed Sparkle a
+local file, which Sparkle does not load. Those builds move to 0.4.0 by hand.
 
 ## Where things are
 
 | What | Where |
 |---|---|
-| The releases read | `github.com/nizwar/avo` (`GitHubUpdateFeed.repository`) |
-| How a release is matched | its DMG asset's name, `Avo-<version>-b<build>.dmg`; the build number is the version Sparkle compares, so it rises every release |
-| What counts | a published release (pre-release or not) that has an Avo DMG; drafts are skipped |
-| Automatic checks | on by default (`SUEnableAutomaticChecks`); the Control Panel checks about 10 s after launch and once a day. Settings › About turns them off. |
-| Validation | Sparkle, against the running app's Developer ID (there is no `SUPublicEDKey` / EdDSA) |
+| The feed | `SUFeedURL` in `host/Avo/Info.plist`: the `appcast.xml` asset of GitHub's latest release, the newest one that is neither a pre-release nor a draft |
+| What it offers | that release's DMG, `Avo-<version>-b<build>.dmg`, when its build (`sparkle:version`, the app's `CFBundleVersion`) is above the running one's; build numbers only rise |
+| Betas | pre-releases, never "latest": they reach nobody by themselves ([versioning.md](versioning.md#who-gets-a-beta)) |
+| Automatic checks | on by default (`SUEnableAutomaticChecks`), once a day (`SUScheduledCheckInterval`), on Sparkle's own schedule. Settings › About turns them off. |
+| Validation | Sparkle: the DMG's EdDSA signature for `SUPublicEDKey`, or the app's Developer ID (*How Sparkle trusts an update*) |
+| The update key | the release Mac's login Keychain (Sparkle's `generate_keys`, account `ed25519`, made 2026-10-18); its public half is `SUPublicEDKey` |
 
 Avo does not update itself in a local (ad hoc) build: Settings › About says
 so and Avo › Check for Updates… is dimmed. Build a Developer ID release
@@ -31,10 +34,11 @@ newer release.
 
 ## Publishing a release
 
-A release is a GitHub release whose assets include the **notarized** DMG named
-`Avo-<version>-b<build>.dmg` (the `--notarize` build below). Avo offers the
-release with the highest build number above the running one, so build
-numbers only go up. A draft release is ignored until it is published.
+A release is a GitHub release whose assets are the **notarized** DMG named
+`Avo-<version>-b<build>.dmg` and the `appcast.xml` made with it (the
+`--notarize` build below). Installed copies read the feed of the latest
+release, so a final is published as the latest one (`gh release create
+--latest`); a draft is read by nobody until it is published.
 
 What a release is called, and which numbers go up when, is set out in
 [versioning.md](versioning.md): the version (`0.4.0`), the beta label
@@ -103,24 +107,31 @@ scripts/build-dmg.sh --version 0.4.0 --build 125 \
    ```
 
    It names the DMG `Avo-<version>-b<N>.dmg` and holds `Avo.app` at the top
-   level, which is how Avo finds the build and Sparkle finds the app.
-4. **Publish a GitHub release** with the DMG as an asset, tagged on the
-   release-prep commit. A final is a regular release:
+   level, which is how Sparkle finds the app. Last, it makes the update
+   feed, `appcast.xml`, next to the DMG: `generate_appcast` signs the DMG
+   with the update key, after the script has checked that the Keychain's key
+   is the app's `SUPublicEDKey` (macOS may ask once to let Sparkle's tools
+   use the Keychain: Always Allow). The feed is of that exact file: build
+   again, and it changes. A beta passes its tag, `--tag v0.5.0-beta.2`, so
+   the feed's links point at its release.
+4. **Publish a GitHub release** with the DMG and `appcast.xml` as assets,
+   tagged on the release-prep commit. A final is a regular release, the
+   latest:
 
    ```sh
-   gh release create v0.4.0 ~/Desktop/Avo-0.4.0-b<N>.dmg \
-       --title "Avo 0.4.0" --notes-file notes.md
+   gh release create v0.4.0 ~/Desktop/Avo-0.4.0-b<N>.dmg ~/Desktop/appcast.xml \
+       --title "Avo 0.4.0" --notes-file notes.md --latest
    ```
 
    A beta is a pre-release:
 
    ```sh
-   gh release create v0.5.0-beta.2 ~/Desktop/Avo-0.5.0-b<N>.dmg --prerelease \
+   gh release create v0.5.0-beta.2 ~/Desktop/Avo-0.5.0-b<N>.dmg ~/Desktop/appcast.xml --prerelease \
        --title "Avo 0.5.0 Beta 2" --notes-file notes.md
    ```
 
-   That is the whole update: installed copies read it on their next check and
-   Sparkle installs it. They read betas too
+   That is the whole update: installed copies read the latest release's feed
+   on their next check and Sparkle installs it. A beta's feed waits unread
    ([versioning.md](versioning.md#who-gets-a-beta)). Push the release-prep
    commit when the release is published, not before: the website deploys on
    every push that touches `website/`, and its download button points at the
@@ -128,12 +139,27 @@ scripts/build-dmg.sh --version 0.4.0 --build 125 \
 
 ## How Sparkle trusts an update
 
-Sparkle installs an update only when the new DMG's `Avo.app` carries a valid
-Developer ID signature from the **same team** (`2Y5JPG373S`) as the running
-app (`SUUpdateValidator` in Sparkle 2.10.0, the code-signing path). So every
-release that should update installed copies must be notarized with that
-identity; a build signed ad hoc, or by another team, is refused. There is no
-EdDSA key to keep or rotate.
+Sparkle (`SUUpdateValidator` in 2.10.0) installs an update when either
+holds:
+
+- the DMG's EdDSA signature, from the feed, is valid for the running app's
+  `SUPublicEDKey`;
+- the new `Avo.app` has a valid code signature that matches the running
+  app's: a Developer ID of the same team (`2Y5JPG373S`).
+
+Either one is enough, which is what lets one of them be replaced: a release
+signed with a new key installs on its Developer ID (and must then be valid
+for the new key it carries), one from a new signing identity on the key.
+Whatever the signatures, an update must keep an EdDSA key and a code
+signature (Sparkle refuses one that drops either), and a DMG with a valid
+EdDSA signature whose app's code signature is broken is refused. So every
+release is notarized with the Developer ID and signed with the update key,
+both.
+
+**Keep the update key.** Its private half is only in the release Mac's
+login Keychain. Back it up (`generate_keys -x <file>`, kept somewhere safe
+and offline). If it is lost, a release signed with a new key still installs
+on its Developer ID, and carries the new `SUPublicEDKey` from then on.
 
 - **Quarantine.** Sparkle removes the quarantine attribute from what it
   installs, so an update needs no Gatekeeper approval; only the first manual
@@ -211,13 +237,28 @@ never stopped for an update without the player's say.
 
 ## Testing an update by hand
 
-1. Build release N (notarized, Developer ID; a lower build number) and
-   install it in `/Applications`.
-2. Build release N+1 with a higher build number (`--build`), notarize it, and
-   publish it as a GitHub pre-release with its DMG.
-3. In N: Avo › Check for Updates…. Install with Android stopped, then again
-   with an app open, and check that:
-   - Avo asks before it stops Android;
-   - the daemon restarts on N+1 (its hello in Report a Problem shows the
-     new build);
-   - the app's shim is made again.
+An update can be tried end to end before anything is published: build N
+installed, N+1 served from this Mac.
+
+1. Build release N with `--identity` (Developer ID; notarizing is not needed
+   on the Mac that built it) and a lower build number, and install it in
+   `/Applications`.
+2. Build N+1 the same way with a higher build number, and make its feed
+   with the DMG's local address:
+
+   ```sh
+   mkdir -p /tmp/avo-feed && cp ~/Desktop/Avo-0.4.0-b<N+1>.dmg /tmp/avo-feed/
+   "$SPARKLE_BIN/generate_appcast" --download-url-prefix http://127.0.0.1:8765/ /tmp/avo-feed
+   (cd /tmp/avo-feed && python3 -m http.server 8765 --bind 127.0.0.1)
+   ```
+3. Point N at it, check, then put the feed back:
+
+   ```sh
+   defaults write com.avodroid.emulator SUFeedURL http://127.0.0.1:8765/appcast.xml
+   # Avo › Check for Updates…: install with Android stopped, then again with an app open
+   defaults delete com.avodroid.emulator SUFeedURL
+   ```
+
+   Check that Avo asks before it stops Android, that the daemon restarts on
+   N+1 (its hello in Report a Problem shows the new build), and that the
+   app's shim is made again.
