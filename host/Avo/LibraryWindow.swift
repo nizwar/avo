@@ -155,7 +155,7 @@ struct LibraryView: View {
             // An app uninstalled while its page showed.
             if let page = router.page, !packages.contains(page) { router.page = nil }
         }
-        .sheet(item: $model.pendingInstall) { _ in
+        .sheet(item: $model.installSheet) { _ in
             InstallSheet()
         }
         .sheet(isPresented: $model.unlockSheetShown) {
