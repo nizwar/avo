@@ -2,6 +2,7 @@ import AvoKit
 import Foundation
 import os
 import Security
+import ServiceManagement
 
 /// The Runtime Daemon as a LaunchAgent in ~/Library/LaunchAgents, which Avo
 /// installs and updates itself.
@@ -79,6 +80,20 @@ enum DaemonAgent {
     /// Android stops.
     static func legacyAgentHoldsAndroid() async -> Bool {
         await Task.detached(priority: .userInitiated) { legacyHoldsAndroid() }.value
+    }
+
+    /// Login Items › Allow in the Background is off for Avo: launchd does not
+    /// start the agent until the user turns it on.
+    static func requiresApproval() -> Bool {
+        SMAppService.statusForLegacyPlist(at: plistURL) == .requiresApproval
+    }
+
+    /// The agent's daemon runs (and may hold Android). launchctl prints a
+    /// running job's `pid`.
+    static func isRunning() async -> Bool {
+        await Task.detached(priority: .userInitiated) {
+            launchctlOutput(["print", "\(domain)/\(label)"]).split(separator: "\n").contains { $0.hasPrefix("\tpid = ") }
+        }.value
     }
 
     /// Starts the daemon again on this Avo's build: the agent loaded again
@@ -197,5 +212,23 @@ enum DaemonAgent {
         }
         process.waitUntilExit()
         return process.terminationStatus
+    }
+
+    /// What launchctl prints for `arguments` (empty when it fails).
+    private static func launchctlOutput(_ arguments: [String]) -> String {
+        let process = Process()
+        process.executableURL = URL(filePath: "/bin/launchctl")
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            return ""
+        }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return process.terminationStatus == 0 ? String(decoding: data, as: UTF8.self) : ""
     }
 }

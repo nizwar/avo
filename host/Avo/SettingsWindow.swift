@@ -580,7 +580,7 @@ private struct SettingsBanners: View {
                 }
             case .unavailable(let reason):
                 HazeBanner(symbol: "bolt.horizontal.circle", tint: Haze.danger, text: "Avo’s background service is not running. \(reason)") {
-                    Button("Retry") { model.connect() }
+                    Button("Retry") { model.retryDaemon() }
                 }
             }
             if model.pendingRestart {
