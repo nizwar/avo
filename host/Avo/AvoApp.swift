@@ -152,9 +152,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             library.requestedAppPage = package
             NSApp.activate()
         }
-        // One confirmation sheet at a time; extra files wait for the next drop.
-        if let url = urls.first(where: { ControlPanelModel.packageExtensions.contains($0.pathExtension.lowercased()) }) {
-            model.prepareInstall(url)
+        // One confirmation sheet at a time; the other packages wait their turn.
+        let packages = urls.filter { ControlPanelModel.packageExtensions.contains($0.pathExtension.lowercased()) }
+        if !packages.isEmpty {
+            for url in packages { model.prepareInstall(url) }
             NSApp.activate()
         }
     }

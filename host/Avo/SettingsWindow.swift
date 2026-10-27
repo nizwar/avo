@@ -216,6 +216,11 @@ struct SettingsWindow: View {
         .onChange(of: router.requestedAppPage) { _, package in
             if package != nil { openWindow(id: LibraryRouter.windowID) }
         }
+        // A package to install while the Library was closed (double-click,
+        // the Dock icon, ⌘O): its sheet is the Library's.
+        .onChange(of: model.pendingInstall?.id) { _, id in
+            if id != nil { openWindow(id: LibraryRouter.windowID) }
+        }
         .onChange(of: selection) { old, new in
             guard let new else { return }
             stored = new
