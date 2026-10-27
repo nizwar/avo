@@ -374,8 +374,14 @@ struct LibraryBanners: View {
                 }
             case .unavailable(let reason):
                 HazeBanner(symbol: "bolt.horizontal.circle", tint: Haze.danger, text: "Avo’s background service is not running. \(reason)") {
-                    Button("Retry") { model.connect() }
+                    Button("Retry") { model.retryDaemon() }
                 }
+            }
+            // Opened where it was downloaded: its background service would be
+            // registered in a place macOS removes.
+            if model.runsFromTemporaryCopy {
+                HazeBanner(symbol: "exclamationmark.triangle", tint: Haze.warning,
+                           text: "Avo is running from a temporary copy macOS made of it. Quit Avo, move it to the Applications folder, and open it from there.")
             }
             LibrarySetupBanner()
             // Android's data is on a drive that is not connected (StorageLocationViews.swift).
@@ -409,12 +415,13 @@ struct LibraryBanners: View {
 
     private var bannerState: [Bool] {
         [model.daemonState == .connected, model.daemonState == .connecting, model.daemonState == .needsApproval,
-         model.screenLock != nil, model.pendingRestart, images.needsImage && !assistant.isPresented,
+         model.runsFromTemporaryCopy, model.screenLock != nil, model.pendingRestart, images.needsImage && !assistant.isPresented,
          model.status.renderer?.reason == .failed && model.config?.rendererMode != .software]
     }
 
     private var hasBanner: Bool {
-        model.daemonState != .connected || (model.screenLock != nil && model.daemonState == .connected) || model.pendingRestart
+        model.daemonState != .connected || model.runsFromTemporaryCopy
+            || (model.screenLock != nil && model.daemonState == .connected) || model.pendingRestart
             || (images.needsImage && !assistant.isPresented)
             || (model.status.renderer?.reason == .failed && model.config?.rendererMode != .software)
     }

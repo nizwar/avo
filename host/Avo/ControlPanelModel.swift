@@ -45,6 +45,8 @@ final class ControlPanelModel {
     private(set) var daemonUpdatePending = false
     /// The agent's plist changed with the update and launchd still holds the old one.
     private var daemonAgentOutdated = false
+    /// A daemon that did not answer had its agent loaded again (`repairAgent`); Retry allows another.
+    @ObservationIgnored private var agentRepaired = false
     /// The daemon's Mach service: the former one while the agent of an Avo
     /// from before com.avodroid still runs it (DaemonAgent.legacyLabel), until
     /// it gives way to this build's (`finishDaemonUpdate`).
@@ -149,10 +151,21 @@ final class ControlPanelModel {
 
     // MARK: Connection
 
+    /// Development runs the daemon with launchctl instead (see host/README.md).
+    private var managesDaemonAgent: Bool {
+        !ProcessInfo.processInfo.arguments.contains("-AvoSkipDaemonRegistration")
+    }
+
+    /// Avo runs from the copy macOS makes of an app opened where it was
+    /// downloaded (App Translocation): its daemon would be registered there,
+    /// a place that goes away.
+    var runsFromTemporaryCopy: Bool {
+        Bundle.main.bundlePath.contains("/AppTranslocation/")
+    }
+
     func start() {
         refreshKeyMappingsWhenActive()
-        // Development: run the daemon with launchctl instead (see host/README.md).
-        if ProcessInfo.processInfo.arguments.contains("-AvoSkipDaemonRegistration") {
+        guard managesDaemonAgent else {
             connect()
             return
         }
@@ -195,6 +208,49 @@ final class ControlPanelModel {
         SMAppService.openSystemSettingsLoginItems()
     }
 
+    /// Waits for Avo to be allowed in Login Items, then starts its agent and
+    /// connects (the banner says what to do meanwhile).
+    private func connectOnceApproved() async {
+        while !Task.isCancelled, DaemonAgent.requiresApproval() {
+            try? await Task.sleep(for: .seconds(3))
+        }
+        guard !Task.isCancelled else { return }
+        daemonState = .connecting
+        daemonAgentOutdated = await DaemonAgent.install()
+        connect()
+    }
+
+    /// After a hello that failed: an agent launchd holds from where Avo was
+    /// before (moved to Applications, or updated while its daemon was
+    /// stopped) cannot start, and launchd only restarts what it has. A daemon
+    /// that does not run holds no Android, so the agent is loaded again from
+    /// this Avo's plist, once until Retry. True when it was.
+    private func repairAgent(after error: any Error) async -> Bool {
+        guard managesDaemonAgent, !agentRepaired, error as? AvoError != .unauthorizedCaller else { return false }
+        guard await !DaemonAgent.isRunning() else { return false }
+        agentRepaired = true
+        logger.notice("daemon agent loaded again after: \(error.localizedDescription, privacy: .public)")
+        await DaemonAgent.reload(plistChanged: true)
+        daemonAgentOutdated = false
+        return true
+    }
+
+    /// The banner's Retry: the agent installed again (and loaded again if it
+    /// is stale), then a new connection.
+    func retryDaemon() {
+        agentRepaired = false
+        daemonState = .connecting
+        guard managesDaemonAgent else {
+            connect()
+            return
+        }
+        Task { @MainActor [weak self] in
+            let outdated = await DaemonAgent.install()
+            self?.daemonAgentOutdated = outdated
+            self?.connect()
+        }
+    }
+
     func connect() {
         eventTask?.cancel()
         client?.invalidate()
@@ -213,10 +269,21 @@ final class ControlPanelModel {
                 if let self, locationWatchers > 0, let status = try? await client.location(watch: true) { location = status }
                 await self?.refresh()
             } catch {
-                guard let self, daemonState != .needsApproval else { return }
+                guard let self else { return }
+                // Login Items › Allow in the Background is off for Avo: launchd
+                // will not start the daemon until it is on.
+                if managesDaemonAgent, DaemonAgent.requiresApproval() {
+                    daemonState = .needsApproval
+                    await connectOnceApproved()
+                    return
+                }
                 daemonState = .unavailable(Self.isOutdated && error as? AvoError == .unauthorizedCaller
                     ? String(localized: "Avo was updated while it was open. Quit Avo and open it again.")
                     : error.localizedDescription)
+                if await repairAgent(after: error) {
+                    connect()
+                    return
+                }
                 // The daemon may still be starting (or restarting): keep trying.
                 try? await Task.sleep(for: .seconds(5))
                 if !Task.isCancelled, case .unavailable = daemonState { connect() }
