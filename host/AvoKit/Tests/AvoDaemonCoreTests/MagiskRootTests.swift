@@ -319,7 +319,8 @@ final class RecordingClipboard: ClipboardBridge, @unchecked Sendable {
     }
 
     /// Clipboard off: the Mac's clipboard is no longer watched, and nothing
-    /// copied on either side crosses over.
+    /// copied on either side crosses over. On, it is watched only while
+    /// Android runs.
     @Test func theClipboardIsLeftAloneWhenNotShared() async throws {
         let root = FileManager.default.temporaryDirectory.appending(path: "avo-clip-\(UUID().uuidString.prefix(8))")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -340,9 +341,11 @@ final class RecordingClipboard: ClipboardBridge, @unchecked Sendable {
                                     shortcuts: ShortcutManager(builder: builder, paths: paths), clipboard: clipboard,
                                     softwareVersion: "test", bootTimeout: .seconds(5), loadImage: { image }))
         await core.start()
-        #expect(clipboard.calls == ["start"])
+        #expect(clipboard.calls == [], "Android does not run yet")
         let panel = UUID()
         _ = await core.register(panel, role: .controlPanel, proxy: ClientProxy(RecordingClient()))
+        try await core.startVM(client: panel)
+        #expect(await eventually { clipboard.calls == ["start"] })
         var new = await core.configurationSnapshot().config
         new.shareClipboard = false
         _ = try await core.updateConfiguration(new, client: panel)
@@ -351,5 +354,7 @@ final class RecordingClipboard: ClipboardBridge, @unchecked Sendable {
         new.shareClipboard = true
         _ = try await core.updateConfiguration(new, client: panel)
         #expect(clipboard.calls == ["start", "stop", "start"])
+        try await core.stopVM(client: panel)
+        #expect(await eventually { clipboard.calls == ["start", "stop", "start", "stop"] })
     }
 }

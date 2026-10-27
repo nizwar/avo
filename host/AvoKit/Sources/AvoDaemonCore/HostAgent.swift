@@ -80,9 +80,11 @@ actor HostAgent: DisplayResizing {
     private var glesWrapperNextStart = false
     private var glesWrapperState: GuestGLESWrapper.State?
     private var glesWrapperNoted: (@Sendable (Bool) -> Void)?
-    /// Android is paused (VMMEngine's pause): the watches skip their turns,
-    /// which would only queue up commands for it ("Pause").
+    /// Android is paused (VMMEngine's pause): the watches wait, as their turns
+    /// would only queue up commands for it ("Pause"), and so does whatever
+    /// else would wake the Mac every few seconds for nothing (`whilePaused`).
     private(set) var paused = false
+    private var pauseWaiters: [CheckedContinuation<Void, Never>] = []
     private var displays: [UInt32: Display] = [:]
     /// Scanouts of closed windows that Android may not have let go of yet
     /// (`release`): a new window takes another one meanwhile.
@@ -228,7 +230,10 @@ actor HostAgent: DisplayResizing {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(2))
                 guard let self else { return }
-                if await paused { continue }
+                if await paused {
+                    await whilePaused()
+                    continue
+                }
                 // While windows are open, the task watch takes the look in its own ticks.
                 if await watching == nil { await lookAround() }
                 await watchScreenLock()
@@ -238,6 +243,7 @@ actor HostAgent: DisplayResizing {
             clipboardWatch = Task { [weak self] in
                 while !Task.isCancelled {
                     guard let self else { return }
+                    await whilePaused()
                     await watchClipboard()
                     try? await Task.sleep(for: .seconds(2)) // it ended (Android restarted it): again
                 }
@@ -246,6 +252,7 @@ actor HostAgent: DisplayResizing {
                 var wait = Duration.seconds(2)
                 while !Task.isCancelled {
                     guard let self else { return }
+                    await whilePaused()
                     if await !paused {
                         let started = ContinuousClock.now
                         await watchMedia()
@@ -262,6 +269,11 @@ actor HostAgent: DisplayResizing {
             while !Task.isCancelled {
                 try? await Task.sleep(for: GuestAnswers.interval)
                 guard let self else { return }
+                if await paused {
+                    await whilePaused()
+                    await answersStartOver()
+                    continue
+                }
                 await askAndroid()
             }
         }
@@ -269,7 +281,10 @@ actor HostAgent: DisplayResizing {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(3))
                 guard let self else { return }
-                if await paused { continue }
+                if await paused {
+                    await whilePaused()
+                    continue
+                }
                 await pollPackages()
             }
         }
@@ -294,7 +309,9 @@ actor HostAgent: DisplayResizing {
             var last: Bool?
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(3))
-                guard let self, await isReady, await !paused,
+                guard let self else { return }
+                await whilePaused()
+                guard await isReady, await !paused,
                       let output = try? await shell("settings get global bluetooth_on") else { continue }
                 let on = output.trimmed == "1"
                 guard on != last else { continue }
@@ -350,6 +367,7 @@ actor HostAgent: DisplayResizing {
         await adb?.close()
         adb = nil
         isReady = false
+        endPauseWaits()
         return asked
     }
 
@@ -3057,10 +3075,23 @@ actor HostAgent: DisplayResizing {
 extension HostAgent {
     func setPaused(_ paused: Bool) {
         self.paused = paused
+        if !paused { endPauseWaits() }
         // What the Mac changed meanwhile (appearance, time zone, battery).
         if !paused, isReady, macSync == nil, macWanted != macApplied {
             macSync = Task { [weak self] in await self?.runMacSync() }
         }
+    }
+
+    /// Returns once Android goes on, or the agent shuts down.
+    func whilePaused() async {
+        guard paused, isReady else { return }
+        await withCheckedContinuation { pauseWaiters.append($0) }
+    }
+
+    private func endPauseWaits() {
+        let waiters = pauseWaiters
+        pauseWaiters.removeAll()
+        for waiter in waiters { waiter.resume() }
     }
 
     /// After a pause Android's clock is behind by the pause: it stood still
@@ -3701,6 +3732,11 @@ extension HostAgent {
     /// else since when it has not. Set before `prepare`.
     func forwardResponsiveness(to sink: @escaping @Sendable (Date?) -> Void) {
         responsivenessSink = sink
+    }
+
+    /// After a pause the questions start over.
+    private func answersStartOver() {
+        answers.reset()
     }
 
     /// The Control channel's keepalive is answered here, on the Mac, so it

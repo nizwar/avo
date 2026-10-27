@@ -25,6 +25,9 @@ public actor ControlSession {
     private var receivedHello: Avo_V1_Hello?
     private var tasks: [Task<Void, Never>] = []
     private var closedError: (any Error)?
+    /// Android is paused: the keepalive waits (`holdKeepalive`).
+    private var keepaliveHeld = false
+    private var keepaliveWaiter: CheckedContinuation<Void, Never>?
 
     public private(set) var guestHello: Avo_V1_Hello?
     public private(set) var negotiatedVersion: UInt32?
@@ -111,10 +114,26 @@ public actor ControlSession {
         timers.removeAll()
         eventSink.finish()
         for task in tasks { task.cancel() }
+        keepaliveWaiter?.resume()
+        keepaliveWaiter = nil
         stream.close()
     }
 
     public var isOpen: Bool { closedError == nil }
+
+    /// While Android is paused the keepalive waits: a paused Android's agent
+    /// has nothing to say, and pinging it would only wake the Mac.
+    public func holdKeepalive(_ held: Bool) {
+        keepaliveHeld = held
+        guard !held, let waiter = keepaliveWaiter else { return }
+        keepaliveWaiter = nil
+        waiter.resume()
+    }
+
+    private func keepaliveTurn() async {
+        guard keepaliveHeld, closedError == nil else { return }
+        await withCheckedContinuation { keepaliveWaiter = $0 }
+    }
 
     // MARK: Typed helpers
 
@@ -180,6 +199,8 @@ public actor ControlSession {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(5))
                 guard let self, await self.isOpen else { return }
+                await self.keepaliveTurn()
+                guard await self.isOpen else { return }
                 var ping = Avo_V1_Ping()
                 ping.nonce = UInt64.random(in: 1...UInt64.max)
                 do {

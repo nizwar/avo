@@ -128,8 +128,11 @@ public actor DaemonCore {
     /// Where the engine keeps what Android plays, for App Shims' screen recordings.
     private var audioTap: AudioTapLocation?
     private var lastClipboardFromGuest: String?
-    /// The Mac's clipboard is watched (Settings › Devices › Clipboard).
+    /// The Mac's clipboard is shared (Settings › Devices › Clipboard), and
+    /// watched now: only while Android runs, not paused (`watchClipboard`).
     private var clipboardShared = false
+    private var clipboardWatched = false
+    private var androidAwake = false
     /// Android's notifications since the daemon started, newest first.
     private var recentNotifications: [AndroidNotification] = []
     /// The notifications Android shows now, key → package: the apps' Dock
@@ -298,11 +301,16 @@ public actor DaemonCore {
                 Task { await self?.volumeEvent(event) }
             }
         }
+        // Every 4 s while Android runs, not paused: which apps have a process,
+        // and the time the ones on screen are used. Nothing while it is not.
         Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(4))
-                await self?.pollRunningApps()
-                await self?.usageTick()
+            guard let statuses = await self?.statusChanges() else { return }
+            for await status in statuses where status.state == .running {
+                while await self?.vm.status.state == .running {
+                    try? await Task.sleep(for: .seconds(4))
+                    await self?.pollRunningApps()
+                    await self?.usageTick()
+                }
             }
         }
         startAutoPause()
@@ -743,6 +751,8 @@ public actor DaemonCore {
         // Back from a pause, Android is as it was: no new start to catch up on.
         let resumed = autoPause.wasPaused && status.state == .running
         autoPause.wasPaused = status.isPaused
+        androidAwake = status.state == .running
+        watchClipboard(fresh: !resumed)
         switch status.state {
         case .running:
             guard !resumed else {
@@ -2022,7 +2032,19 @@ public actor DaemonCore {
     private func shareClipboard(_ on: Bool) {
         guard on != clipboardShared else { return }
         clipboardShared = on
-        if on {
+        watchClipboard(fresh: false)
+    }
+
+    /// macOS tells nobody when the clipboard changes, so it is looked at
+    /// twice a second: only while it is shared and Android runs, not paused.
+    /// What was copied while Android was paused reaches it as it goes on; what
+    /// was copied while it was stopped (`fresh`: a new start) stays on the Mac.
+    private func watchClipboard(fresh: Bool) {
+        let watch = clipboardShared && androidAwake
+        guard watch != clipboardWatched else { return }
+        clipboardWatched = watch
+        if watch {
+            if fresh { _ = deps.clipboard.takeChange() }
             deps.clipboard.start { [weak self] text in
                 Task { await self?.hostClipboardChanged(text) }
             }
