@@ -30,6 +30,10 @@ public actor FakeADBD {
     private var remoteOf: [UInt32: UInt32] = [:]
 
     public var shellHandler: @Sendable (String) -> (stdout: String, stderr: String, exit: UInt8) = { _ in ("", "", 0) }
+    /// An Android that stopped answering: services adbd never takes (no
+    /// OKAY), and shell commands that start but never end.
+    public var neverOpens: @Sendable (String) -> Bool = { _ in false }
+    public var neverEnds: @Sendable (String) -> Bool = { _ in false }
     public private(set) var shellCommands: [String] = []
     public private(set) var execWrites: [(command: String, data: Data)] = []
     public private(set) var pushed: [String: Pushed] = [:]
@@ -45,6 +49,12 @@ public actor FakeADBD {
 
     public func setShellHandler(_ handler: @escaping @Sendable (String) -> (stdout: String, stderr: String, exit: UInt8)) {
         shellHandler = handler
+    }
+
+    public func setStalls(neverOpens: @escaping @Sendable (String) -> Bool = { _ in false },
+                          neverEnds: @escaping @Sendable (String) -> Bool = { _ in false }) {
+        self.neverOpens = neverOpens
+        self.neverEnds = neverEnds
     }
 
     public func run() async {
@@ -93,10 +103,12 @@ public actor FakeADBD {
             nextID += 1
             let remote = message.arg0
             remoteOf[local] = remote
+            if neverOpens(service) { return }
             if service.hasPrefix("shell,v2,raw:") {
                 await send(ADBMessage(.okay, local, remote))
                 let command = String(service.dropFirst("shell,v2,raw:".count))
                 shellCommands.append(command)
+                if neverEnds(command) { return }
                 let (out, err, code) = shellHandler(command)
                 var payload = Data()
                 func packet(_ id: UInt8, _ data: Data) {

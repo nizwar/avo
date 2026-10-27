@@ -28,8 +28,12 @@ public actor EngineControl {
         return (stream, reader)
     }
 
+    /// How long avo-vmm has to answer a command (its `pause` itself gives
+    /// the vCPUs 5 s to stop).
+    public static let commandTimeout: Duration = .seconds(15)
+
     /// Sends one command and waits for its answer; commands go in the order sent.
-    public func send(_ command: String) async throws {
+    public func send(_ command: String, timeout: Duration = EngineControl.commandTimeout) async throws {
         if busy {
             await withCheckedContinuation { waiting.append($0) }
         }
@@ -38,6 +42,15 @@ public actor EngineControl {
             if waiting.isEmpty { busy = false } else { waiting.removeFirst().resume() }
         }
         let (stream, reader) = try connection()
+        // A command avo-vmm never answers would hold every one after it: its
+        // connection closes (a late answer must not be taken for the next
+        // command's), which ends the wait below. The Mac sleeping is no time it had.
+        let started = SuspendingClock.now
+        let timer = Task {
+            try? await Task.sleep(for: timeout, clock: .suspending)
+            if !Task.isCancelled { stream.close() }
+        }
+        defer { timer.cancel() }
         do {
             try await stream.write(Data((command + "\n").utf8))
             guard let line = try await reader.next() else { throw IOError.closed }
@@ -48,9 +61,12 @@ public actor EngineControl {
             // A broken connection is reopened on the next command.
             if !(error is AvoError) {
                 stream.close()
-                self.stream = nil
-                self.reader = nil
+                if self.stream === stream {
+                    self.stream = nil
+                    self.reader = nil
+                }
             }
+            if SuspendingClock.now - started >= timeout { throw AvoError.timedOut("avo-vmm: \(command)") }
             throw error
         }
     }

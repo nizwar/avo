@@ -16,9 +16,24 @@ enum ShellPacket: UInt8 {
 }
 
 extension ADBConnection {
+    /// How long a shell command may take unless its caller says otherwise:
+    /// one that Android never finishes (it stopped answering) must not hold
+    /// its caller, and whatever waits behind it, for good.
+    public static let shellTimeout: Duration = .seconds(60)
+
     /// Runs a command with the shell v2 protocol (separate stdout/stderr and an exit code).
-    public func shell(_ command: String) async throws -> ShellResult {
+    /// `timeout` nil: as long as it takes (commands with their own limit).
+    public func shell(_ command: String, timeout: Duration? = ADBConnection.shellTimeout) async throws -> ShellResult {
         let stream = try await open("shell,v2,raw:" + command)
+        let started = SuspendingClock.now
+        // Closing the stream ends the read below; the Mac sleeping is no time the command had.
+        let timer = timeout.map { limit in
+            Task {
+                try await Task.sleep(for: limit, clock: .suspending)
+                await stream.close()
+            }
+        }
+        defer { timer?.cancel() }
         var buffer = Data()
         var stdout = Data()
         var stderr = Data()
@@ -43,7 +58,12 @@ extension ADBConnection {
             }
         }
         await stream.close()
-        guard let exitCode else { throw ADBError.shell("\(command): stream closed without an exit status") }
+        guard let exitCode else {
+            if let timeout, SuspendingClock.now - started >= timeout {
+                throw ADBError.timedOut("\(command): no answer from Android in \(timeout)")
+            }
+            throw ADBError.shell("\(command): stream closed without an exit status")
+        }
         return ShellResult(exitCode: exitCode, stdout: stdout, stderr: stderr)
     }
 
@@ -170,7 +190,8 @@ extension ADBConnection {
                 guard text.contains("Success") else { throw ADBError.install(Self.trimmed(text, fallback: "install-write failed")) }
                 written += part.size
             }
-            let commit = try await shell("pm install-commit \(session)")
+            // Android checks and optimizes the app first: minutes for a large game.
+            let commit = try await shell("pm install-commit \(session)", timeout: .seconds(15 * 60))
             guard commit.output.contains("Success") else {
                 throw ADBError.install(Self.failure(commit) ?? "install-commit failed")
             }

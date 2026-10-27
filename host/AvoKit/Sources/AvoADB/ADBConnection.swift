@@ -154,7 +154,12 @@ public actor ADBConnection {
                 send(ADBMessage(.auth, ADBMessage.AuthType.rsaPublicKey.rawValue, 0, Data(publicKey.utf8)))
             }
         case .okay:
-            guard let state = streams[message.arg1] else { return }
+            guard let state = streams[message.arg1] else {
+                // A stream `open` gave up on, which adbd took after all (or
+                // the ack of a write to one closed since: the close is ignored).
+                send(ADBMessage(.close, 0, message.arg0))
+                return
+            }
             if state.remoteID == nil {
                 state.remoteID = message.arg0
                 state.opening?.resume()
@@ -206,19 +211,45 @@ public actor ADBConnection {
 
     // MARK: Streams
 
+    /// How long adbd has to take a new stream before `open` gives up: one
+    /// that stopped answering (Android hung) never does.
+    public static let openTimeout: Duration = .seconds(15)
+
     /// Opens a service such as `shell,v2,raw:ls`, `exec:cmd package list packages` or `sync:`.
-    public func open(_ service: String) async throws -> ADBStream {
+    /// A cancelled caller stops waiting for adbd at once.
+    public func open(_ service: String, timeout: Duration = ADBConnection.openTimeout) async throws -> ADBStream {
         if let failure { throw failure }
         guard device != nil else { throw ADBError.unexpected("open before connect") }
         let localID = nextLocalID
         nextLocalID &+= 1
         let state = StreamState(service: service)
         streams[localID] = state
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
-            state.opening = continuation
-            send(ADBMessage(.open, localID, 0, Data((service + "\0").utf8)))
+        // The Mac sleeping is no time adbd had.
+        let timer = Task { [weak self] in
+            try? await Task.sleep(for: timeout, clock: .suspending)
+            guard !Task.isCancelled else { return }
+            await self?.abandonOpening(localID, ADBError.timedOut("adbd did not open \(service)"))
+        }
+        defer { timer.cancel() }
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+                state.opening = continuation
+                send(ADBMessage(.open, localID, 0, Data((service + "\0").utf8)))
+            }
+        } onCancel: {
+            Task { await self.abandonOpening(localID, CancellationError()) }
         }
         return ADBStream(connection: self, localID: localID, incoming: state.incoming)
+    }
+
+    /// Gives up on a stream adbd has not taken yet; its late OKAY is
+    /// answered with a close (`handle`).
+    private func abandonOpening(_ localID: UInt32, _ error: any Error) {
+        guard let state = streams[localID], let opening = state.opening else { return }
+        state.opening = nil
+        streams[localID] = nil
+        state.inbox.finish()
+        opening.resume(throwing: error)
     }
 
     func write(_ data: Data, localID: UInt32) async throws {
