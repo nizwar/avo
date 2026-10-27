@@ -127,6 +127,22 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
         for event in events { send?(.touch(event)) }
     }
 
+    /// Focus left the game (the window resigned key, went to the background
+    /// or into Picture in Picture, or closed), and the key-ups and mouse-ups
+    /// still to come go elsewhere: every key sent down as an Android key
+    /// event goes up, and the pointer's and the wheel's fingers lift, so
+    /// nothing stays pressed in Android. The key mapping lets go of its own
+    /// (KeymapController.focusLost).
+    func releaseAll() {
+        for code in keysDown.sorted() {
+            guard let key = KeyboardMapping.key(forMacKeyCode: code), let android = KeyboardMapping.androidKeyCode(for: key) else { continue }
+            sendKey(android, down: false, meta: 0, repeatCount: 0)
+        }
+        keysDown.removeAll()
+        sendTouches(pointer.cancel())
+        wheel.interrupt()
+    }
+
     // MARK: Mouse
 
     override func mouseDown(with event: NSEvent) {
