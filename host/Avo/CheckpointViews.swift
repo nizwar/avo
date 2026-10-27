@@ -111,6 +111,7 @@ private struct CheckpointRow: View {
             }
             .buttonStyle(.borderless)
             .help("Delete Checkpoint")
+            .accessibilityLabel(Text("Delete Checkpoint"))
             .disabled(busy)
         }
     }
