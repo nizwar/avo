@@ -679,6 +679,8 @@ enum GoogleAppsCommit {
         /// Android: `remount`, and the overlay's upper folders when the
         /// partitions stay read-only (rollback).
         var android = true
+        /// Where the overlays' upper folders are read from (a stand-in in tests).
+        var mounts = "/proc/mounts"
 
         var script: String { staging + "-commit.sh" }
     }
@@ -777,7 +779,12 @@ enum GoogleAppsCommit {
     /// Takes out what the last commit added: stops a commit still running,
     /// makes the partitions writable (or, when they stay read-only, works in
     /// the overlay's upper folders, which apply at the next boot), removes
-    /// every listed path and the manifest. Exits 1 when something stayed.
+    /// every listed path and the manifest. Exits 1 when something stayed,
+    /// saying on stderr where it looked and what `remount` answered.
+    ///
+    /// The upper folders are read before `remount` as well as after it: with
+    /// verified boot back on, `remount` turned it off and left the overlays
+    /// out of /proc/mounts, so a Remove found nowhere to remove from (b79).
     static func rollbackScript(layout: Layout = Layout()) -> String {
         var lines = [
             "S=\(quote(layout.staging))",
@@ -790,12 +797,20 @@ enum GoogleAppsCommit {
             #"rm -rf "$S" "$S-commit.sh""#,
             #"if [ ! -f "$M" ]; then exit 0; fi"#,
         ]
-        if layout.android { lines.append("remount >/dev/null 2>&1") }
-        for (partition, base) in zip(partitions, ["BP", "BS"]) {
+        func upperdir(_ partition: String) -> String {
+            "$(sed -n 's|^overlay /\(partition) overlay .*upperdir=\\([^,]*\\).*|\\1|p' \(quote(layout.mounts)) | tail -n 1)"
+        }
+        if layout.android {
+            for (partition, upper) in zip(partitions, ["UP", "US"]) { lines.append("\(upper)=\(upperdir(partition))") }
+            lines.append("RO=$(remount 2>&1); RS=$?")
+        }
+        for (index, partition) in partitions.enumerated() {
+            let base = ["BP", "BS"][index], upper = ["UP", "US"][index]
             lines.append("\(base)=")
             lines.append("if touch \"$R/\(partition)/.avo-probe\" 2>/dev/null; then rm -f \"$R/\(partition)/.avo-probe\"; \(base)=\"$R/\(partition)\"; fi")
             if layout.android {
-                lines.append("if [ -z \"$\(base)\" ]; then \(base)=$(sed -n 's|^overlay /\(partition) overlay .*upperdir=\\([^,]*\\).*|\\1|p' /proc/mounts | tail -n 1); fi")
+                lines.append("if [ -z \"$\(base)\" ]; then \(base)=\(upperdir(partition)); fi")
+                lines.append("if [ -z \"$\(base)\" ] && [ -d \"$\(upper)\" ]; then \(base)=$\(upper); fi")
             }
         }
         lines += [
@@ -818,6 +833,9 @@ enum GoogleAppsCommit {
             #"rm -f "$L""#,
             #"for base in "$BP" "$BS"; do if [ -n "$base" ]; then rm -rf "$base/.avo-new"; fi; done"#,
             #"if [ $status = 0 ] && [ -n "$BP" ]; then rm -f "$BP/etc/avo-gapps.files"; fi"#,
+            layout.android
+                ? #"if [ $status != 0 ]; then echo "files stayed in product (${BP:-not writable}) or system_ext (${BS:-not writable}); remount ($RS): $(printf '%s' "$RO" | tr '\n' ' ' | tail -c 300)" >&2; fi"#
+                : #"if [ $status != 0 ]; then echo "files stayed in product (${BP:-not writable}) or system_ext (${BS:-not writable})" >&2; fi"#,
             "sync",
             "exit $status",
         ]
