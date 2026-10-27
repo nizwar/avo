@@ -1112,7 +1112,12 @@ actor HostAgent: DisplayResizing {
                 // Remembered so the watcher does not hand it back to the Mac.
                 clipboardFromHost = request.text
                 let encoded = Data(request.text.utf8).base64EncodedString()
-                if encoded.count <= 96 * 1024 { _ = try await shell(Self.clipboardCommand("set " + encoded)) }
+                if encoded.count <= 96 * 1024 {
+                    _ = try await shell(Self.clipboardCommand("set " + encoded))
+                } else {
+                    // One shell command carries it, and has a length limit.
+                    logger.notice("the Mac's clipboard is too long for Android's (\(request.text.utf8.count) bytes): Android keeps what it had")
+                }
                 await reply(envelope)
             case .openNotification(let request)?:
                 // Opening one (its app's window comes to the front) dismisses it when its app says so.

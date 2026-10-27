@@ -255,7 +255,9 @@ private final class Flag: @unchecked Sendable {
 }
 
 /// Two-way clipboard sync. macOS has no pasteboard change notification, so
-/// the change count is polled (cheap, and the contents are only read on change).
+/// the change count is polled (cheap, and the contents are only read on
+/// change), while the daemon watches (Android runs, not paused). An item a
+/// password manager marks private never goes to Android (ClipboardPrivacy).
 final class PasteboardBridge: ClipboardBridge, @unchecked Sendable {
     private let lock = NSLock()
     private var lastChangeCount = NSPasteboard.general.changeCount
@@ -263,6 +265,7 @@ final class PasteboardBridge: ClipboardBridge, @unchecked Sendable {
 
     func start(onChange: @escaping @Sendable (String) -> Void) {
         DispatchQueue.main.async { [self] in
+            timer?.invalidate()
             timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
                 guard let self else { return }
                 let pasteboard = NSPasteboard.general
@@ -271,7 +274,7 @@ final class PasteboardBridge: ClipboardBridge, @unchecked Sendable {
                     defer { self.lastChangeCount = count }
                     return count != self.lastChangeCount
                 }
-                guard changed, let text = pasteboard.string(forType: .string), !text.isEmpty else { return }
+                guard changed, let text = Self.sharedText(pasteboard) else { return }
                 onChange(text)
             }
         }
@@ -301,9 +304,16 @@ final class PasteboardBridge: ClipboardBridge, @unchecked Sendable {
                 defer { lastChangeCount = count }
                 return count != lastChangeCount
             }
-            return changed ? pasteboard.string(forType: .string).flatMap { $0.isEmpty ? nil : $0 } : nil
+            return changed ? Self.sharedText(pasteboard) : nil
         }
         return Thread.isMainThread ? look() : DispatchQueue.main.sync(execute: look)
+    }
+
+    /// The text Android may have of what was copied: none for a private item.
+    private static func sharedText(_ pasteboard: NSPasteboard) -> String? {
+        guard !ClipboardPrivacy.isPrivate((pasteboard.types ?? []).map(\.rawValue)),
+              let text = pasteboard.string(forType: .string), !text.isEmpty else { return nil }
+        return text
     }
 }
 
