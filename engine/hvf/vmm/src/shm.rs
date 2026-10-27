@@ -22,7 +22,21 @@ const NAME_MAX: usize = 31;
 /// The name of this process's object `what` ("0.3" for scanout 0's third
 /// layout, "audio").
 pub fn name(what: &str) -> String {
-    format!("/avo.{}.{what}", std::process::id())
+    format!("/avo.{}{}.{what}", std::process::id(), test_tag())
+}
+
+/// Tests share one process and run at once: each object gets a name of its
+/// own (two scanout 0s of two tests took each other's memory).
+#[cfg(test)]
+fn test_tag() -> String {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static NEXT: AtomicU32 = AtomicU32::new(0);
+    format!(".t{}", NEXT.fetch_add(1, Ordering::Relaxed))
+}
+
+#[cfg(not(test))]
+fn test_tag() -> &'static str {
+    ""
 }
 
 /// How a reader is told where to find the object `name`.
