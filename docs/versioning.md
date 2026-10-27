@@ -27,9 +27,10 @@ version always has all three numbers.
 | Build number | `121` | which exact build, of every build ever made | `--build` → `CURRENT_PROJECT_VERSION` → `CFBundleVersion`; the DMG name |
 
 The version and the label are for people. The build number is for
-machines: Sparkle compares `CFBundleVersion`, the updater
-(`GitHubUpdateFeed`) reads it from the DMG name, and App Shims compare it
-with their template. None of them look at the version.
+machines: Sparkle compares `CFBundleVersion` with the feed's
+`sparkle:version` (generate_appcast reads it from the app in the DMG), and
+App Shims compare it with their template. None of them look at the
+version.
 
 ## The version: MAJOR.MINOR.PATCH
 
@@ -113,14 +114,15 @@ no "Preview". SemVer orders the tags correctly:
 
 ### Who gets a beta
 
-Avo's updater offers the highest build among **all** published releases,
-betas included. Until it can tell betas apart (a "Get beta versions" switch
-in Settings › About, off by default), every published beta reaches every
-installed copy. So, for now:
+Avo's updater reads the feed of GitHub's *latest* release, which is never
+a pre-release (docs/releasing.md): a published beta reaches nobody by
+itself. Testers download it from its release page. A copy on a beta then
+updates itself to the next final, a higher build, like any other copy.
+Until a "Get beta versions" switch in Settings › About lets players ask for
+betas:
 
-- publish a beta only when it is good enough for everyone who has Avo;
-- give a rough build to testers as a DMG file instead (a test build, below),
-  not as a published release.
+- publish a beta for the testers who will download it;
+- tell them where it is (the release page, the issue they reported).
 
 ## The build number
 

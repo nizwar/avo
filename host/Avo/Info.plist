@@ -48,12 +48,17 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<!-- Avo's own updates (Sparkle; Avo/AppUpdater.swift, docs/releasing.md).
-		     Avo reads its own GitHub releases and builds Sparkle's appcast from
-		     them, so there is no appcast to host and no feed in this file
-		     (AppUpdater provides it through feedURLString). The DMGs are
-		     notarized and Developer ID signed, which Sparkle checks a download
-		     against the running app with, in place of an EdDSA signature (none
-		     on GitHub's assets); updates run only in a Developer ID build. -->
+	     The feed is the appcast.xml of the latest GitHub release (never a
+	     pre-release): each release carries one, made by generate_appcast
+	     with the update key in the release Mac's Keychain, whose public half
+	     is SUPublicEDKey. Sparkle installs a DMG whose signature is valid for
+	     that key, or whose app has this app's Developer ID. Never remove
+	     SUPublicEDKey: Sparkle refuses an update that drops it, and without a
+	     key it does not start. Updates run only in a Developer ID build. -->
+	<key>SUFeedURL</key>
+	<string>https://github.com/nizwar/avo/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>W/SKL81r8nkZRC+f1CYNMK2uhNWWWbRmHhHFarxIG9M=</string>
 	<!-- On by default, without Sparkle's own question at the second launch;
 	     Settings › About turns it off. Once a day. -->
 	<key>SUEnableAutomaticChecks</key>
