@@ -47,6 +47,8 @@ public actor VMManager {
     private var control: ControlSession?
     private var input: InputChannel?
     private var adb: ADBConnection?
+    /// The connection to adbd being made, shared by those who ask meanwhile.
+    private var adbConnecting: Task<ADBConnection, any Error>?
     private var booting: Task<Void, any Error>?
     /// The engine of the start under way, or of the Android that runs (its
     /// `EngineLaunch.instance`): the exit of one stopped before is no news.
@@ -477,11 +479,30 @@ public actor VMManager {
     /// The ADB channel, connected on first use.
     public func adbConnection() async throws -> ADBConnection {
         if usedWhilePaused() { try await wake() }
-        if let adb { return adb }
+        if let adb {
+            if await adb.isOpen { return adb }
+            // adbd restarted (`adb root` or `adb usb` from the Mac, a crash):
+            // a connection that failed takes no more commands.
+            if self.adb === adb { self.adb = nil }
+            await adb.close()
+        }
+        if let adbConnecting { return try await adbConnecting.value }
         guard status.state == .running else { throw AvoError.vmNotRunning }
-        let stream = try await engine.connect(port: AvoProtocol.Port.adb)
-        let connection = ADBConnection(transport: stream, key: adbKey, keyComment: "avo-daemon")
-        _ = try await connection.connect(timeout: .seconds(20))
+        let engine = engine, adbKey = adbKey
+        let task = Task { () throws -> ADBConnection in
+            let stream = try await engine.connect(port: AvoProtocol.Port.adb)
+            let connection = ADBConnection(transport: stream, key: adbKey, keyComment: "avo-daemon")
+            _ = try await connection.connect(timeout: .seconds(20))
+            return connection
+        }
+        adbConnecting = task
+        defer { if adbConnecting == task { adbConnecting = nil } }
+        let connection = try await task.value
+        // Stopped meanwhile: this Android is gone.
+        guard status.state == .running || status.state == .suspended else {
+            await connection.close()
+            throw AvoError.vmNotRunning
+        }
         adb = connection
         return connection
     }

@@ -55,6 +55,9 @@ actor HostAgent: DisplayResizing {
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "HostAgent")
 
     private var adb: ADBConnection?
+    /// A connection to adbd being made again (`liveADB`), shared by the
+    /// requests that found the old one ended.
+    private var reconnecting: Task<ADBConnection, any Error>?
     private(set) var isReady = false
     /// Android has Avo's Vulkan driver wrapper (GuestVulkanWrapper): it runs
     /// this boot, or is installed for the next GPU start.
@@ -400,9 +403,37 @@ actor HostAgent: DisplayResizing {
         throw AvoError.timedOut("ADB (\(lastError.map { "\($0)" } ?? "no answer"))")
     }
 
+    /// adbd's connection for a request, made again when adbd restarted (`adb
+    /// root` or `adb usb` from the Mac, a crash of adbd): one that failed
+    /// takes no more commands, and every install, drop and app opened
+    /// would fail until Android restarts. Nil while Android isn't prepared.
+    private func liveADB() async -> ADBConnection? {
+        guard let adb else { return nil }
+        if await adb.isOpen { return adb }
+        if let reconnecting { return try? await reconnecting.value }
+        let task = Task { try await self.reconnectADB(replacing: adb) }
+        reconnecting = task
+        defer { if reconnecting == task { reconnecting = nil } }
+        return try? await task.value
+    }
+
+    private func reconnectADB(replacing ended: ADBConnection) async throws -> ADBConnection {
+        logger.notice("adbd's connection ended (adbd restarted?); connecting again")
+        await ended.close()
+        guard isReady else { throw AvoError.guestUnavailable }
+        let connection = try await connectADB(deadline: SuspendingClock.now + .seconds(15))
+        // Android stopped meanwhile: nothing to keep it for.
+        guard isReady else {
+            await connection.close()
+            if adb === connection { adb = nil }
+            throw AvoError.guestUnavailable
+        }
+        return connection
+    }
+
     /// `timeout`: how long Android has to finish (nil: the caller's own limit applies).
     private func shell(_ command: String, timeout: Duration? = ADBConnection.shellTimeout) async throws -> String {
-        guard let adb else { throw AvoError.guestUnavailable }
+        guard let adb = await liveADB() else { throw AvoError.guestUnavailable }
         let result = try await adb.shell(command, timeout: timeout)
         return result.output
     }
@@ -439,7 +470,7 @@ actor HostAgent: DisplayResizing {
     /// adbd starts again as root (`root:`), which drops every connection to
     /// it: Avo's own goes again.
     private func restartADBDAsRoot() async throws {
-        guard let adb else { throw AvoError.guestUnavailable }
+        guard let adb = await liveADB() else { throw AvoError.guestUnavailable }
         let stream = try await adb.open("root:")
         let said = String(decoding: (try? await stream.readAll(limit: 4096)) ?? Data(), as: UTF8.self)
         logger.notice("root: adbd says \(said.trimmed, privacy: .public)")
@@ -453,7 +484,7 @@ actor HostAgent: DisplayResizing {
     /// Runs `command` as root through su (userdebug images).
     @discardableResult
     private func root(_ command: String, timeout: Duration? = ADBConnection.shellTimeout) async throws -> ShellResult {
-        guard let adb else { throw AvoError.guestUnavailable }
+        guard let adb = await liveADB() else { throw AvoError.guestUnavailable }
         return try await adb.shell("su 0 sh -c " + Self.quote(command), timeout: timeout)
     }
 
@@ -943,7 +974,7 @@ actor HostAgent: DisplayResizing {
     /// install.
     private func installGPUProfileFiles(sumOutput sums: String, vulkan: Bool = true, gles: Bool = true) async -> Bool {
         guard !GuestGPUProfile.upToDate(sumOutput: sums, vulkan: vulkan, gles: gles) else { return true }
-        guard let adb else { return false }
+        guard let adb = await liveADB() else { return false }
         do {
             _ = try await shell("mkdir -p \(GuestGPUProfile.staging)")
             for layer in GuestGPUProfile.layersToInstall(vulkan: vulkan, gles: gles) {
@@ -1227,7 +1258,7 @@ actor HostAgent: DisplayResizing {
     }
 
     private func adbShell(_ command: String, timeout: Duration? = ADBConnection.shellTimeout) async throws -> ShellResult {
-        guard let adb else { throw AvoError.guestUnavailable }
+        guard let adb = await liveADB() else { throw AvoError.guestUnavailable }
         return try await adb.shell(command, timeout: timeout)
     }
 
@@ -1631,13 +1662,13 @@ actor HostAgent: DisplayResizing {
     }
 
     private func installClipboardHelper() async throws {
-        guard let adb, let jar = Data(base64Encoded: ClipboardHelper.jar) else { throw AvoError.guestUnavailable }
+        guard let adb = await liveADB(), let jar = Data(base64Encoded: ClipboardHelper.jar) else { throw AvoError.guestUnavailable }
         try await adb.push(AsyncStream { $0.yield(jar); $0.finish() }, to: Self.clipboardJar)
     }
 
     /// Android's clipboard as it changes ("clip BASE64" lines), to the Mac.
     private func watchClipboard() async {
-        guard let adb, let stream = try? await adb.open("shell:" + Self.clipboardCommand("watch")) else { return }
+        guard let adb = await liveADB(), let stream = try? await adb.open("shell:" + Self.clipboardCommand("watch")) else { return }
         var buffer = Data()
         do {
             for try await chunk in stream.incoming {
@@ -1863,7 +1894,7 @@ actor HostAgent: DisplayResizing {
     /// go to the same helper (`mediaCommand`). Ends with the helper, which
     /// leaves nothing playing on the Mac until it runs again.
     private func watchMedia() async {
-        guard let adb, let stream = try? await adb.open("exec:" + Self.clipboardCommand("media watch")) else { return }
+        guard let adb = await liveADB(), let stream = try? await adb.open("exec:" + Self.clipboardCommand("media watch")) else { return }
         mediaStream = stream
         var buffer = Data()
         var showing = false
@@ -2399,7 +2430,7 @@ actor HostAgent: DisplayResizing {
 
     /// Label, version and icon read from the base APK on the host (AvoPackages).
     private func fillFromAPK(_ info: inout Avo_V1_AppInfo, path: String) async {
-        guard let adb, let apk = try? await adb.exec("cat " + Self.quote(path)) else { return }
+        guard let adb = await liveADB(), let apk = try? await adb.exec("cat " + Self.quote(path)) else { return }
         info.sizeBytes = Int64(apk.count)
         let file = FileManager.default.temporaryDirectory.appending(path: "avo-apk-\(UUID().uuidString).apk")
         if (try? apk.write(to: file)) != nil, let summary = try? PackageArchive(url: file).summary {
@@ -3109,7 +3140,7 @@ actor HostAgent: DisplayResizing {
     /// avo-macstate.jar on Android, once per agent (it may be an older one).
     private func pushMacHelper() async -> Bool {
         if macHelperPushed { return true }
-        guard let adb, let jar = Data(base64Encoded: MacStateHelper.jar),
+        guard let adb = await liveADB(), let jar = Data(base64Encoded: MacStateHelper.jar),
               (try? await adb.push(AsyncStream { $0.yield(jar); $0.finish() }, to: MacState.helperJar)) != nil else {
             logger.error("could not put the Mac state helper on Android")
             return false
@@ -3208,7 +3239,7 @@ extension HostAgent {
     /// Android, as Magisk's app would, and returns the patched image.
     /// Magisk's app is installed too, so apps' root requests have someone to ask.
     func patchInitBoot(stock: URL, apk: URL) async throws -> Data {
-        guard let adb else { throw AvoError.guestUnavailable }
+        guard let adb = await liveADB() else { throw AvoError.guestUnavailable }
         let staging = MagiskRoot.staging
         _ = try await root("rm -rf \(staging) && mkdir -p \(staging) && chown shell:shell \(staging)")
         defer { Task { _ = try? await self.root("rm -rf \(staging)") } }
@@ -3300,7 +3331,7 @@ extension HostAgent {
     /// (GuestAudioHal), and audioserver starts again, which restarts the HAL
     /// (audioserver.rc's `onrestart`).
     func dropStubAudioPorts() async {
-        guard let adb, let listing = try? await shell(GuestAudioPolicy.findCommand) else { return }
+        guard let adb = await liveADB(), let listing = try? await shell(GuestAudioPolicy.findCommand) else { return }
         let files = listing.split(separator: "\n").map(\.trimmed).filter { $0.hasPrefix("/") }
         guard !files.isEmpty else { return }
         _ = try? await root("rm -rf " + GuestAudioPolicy.staging)
@@ -3420,7 +3451,7 @@ extension HostAgent {
 
     /// Avo Links' uid, once this build's copy is installed.
     private func installLinks() async -> Int? {
-        guard let adb, let apk = Self.linksAPK else { return nil }
+        guard let adb = await liveADB(), let apk = Self.linksAPK else { return nil }
         var installed: String?
         if let path = Self.baseAPKPath(in: (try? await shell("pm path " + Self.linksPackage)) ?? "") {
             installed = Self.sha256(sumOutput: (try? await shell("sha256sum " + Self.quote(path))) ?? "")
@@ -3464,7 +3495,7 @@ extension HostAgent {
     /// Installs Avo Widgets when Android's copy is not this build's, and
     /// lets it bind widgets (each start: a reinstall forgets it).
     private func installWidgets() async -> Bool {
-        guard let adb, let apk = Self.widgetsAPK else { return false }
+        guard let adb = await liveADB(), let apk = Self.widgetsAPK else { return false }
         var installed: String?
         if let path = Self.baseAPKPath(in: (try? await shell("pm path " + AndroidWidgets.package)) ?? "") {
             installed = Self.sha256(sumOutput: (try? await shell("sha256sum " + Self.quote(path))) ?? "")
@@ -3530,7 +3561,7 @@ extension HostAgent {
     private func watchLinks(uid: Int) async -> Bool {
         let command = Self.linksLogcatCommand(uid: uid, since: linkReader.assembler.since)
         let started = ContinuousClock.now
-        guard let adb, let stream = try? await adb.open("shell:" + command) else { return false }
+        guard let adb = await liveADB(), let stream = try? await adb.open("shell:" + command) else { return false }
         var buffer = Data()
         do {
             for try await chunk in stream.incoming {
@@ -3630,7 +3661,7 @@ extension HostAgent: SystemAppsGuest {
 
     func stage(_ files: [GoogleAppsPackage.File], of package: GoogleAppsPackage,
                progress: @escaping @Sendable (UInt64) -> Void) async throws {
-        guard let adb else { throw AvoError.guestUnavailable }
+        guard let adb = await liveADB() else { throw AvoError.guestUnavailable }
         // A previous attempt's files are root's by now.
         try await root("rm -rf \(Self.googleAppsStaging)")
         var done: UInt64 = 0
@@ -3647,7 +3678,7 @@ extension HostAgent: SystemAppsGuest {
     }
 
     func commitStaged(_ paths: [String]) async throws {
-        guard let adb else { throw AvoError.guestUnavailable }
+        guard let adb = await liveADB() else { throw AvoError.guestUnavailable }
         // Listed first, allowlists before apps, each piece renamed into
         // place (GoogleAppsCommit). Pushed: a few hundred files make a
         // script too long for one command line.
@@ -3690,7 +3721,7 @@ extension HostAgent: SystemAppsGuest {
     }
 
     private func listPackages(_ options: String) async throws -> Set<String> {
-        guard let adb else { throw AvoError.guestUnavailable }
+        guard let adb = await liveADB() else { throw AvoError.guestUnavailable }
         // A pm that failed lists nothing, which must not read as "Google
         // Play is missing" (that would take out a good install).
         let result = try await adb.shell("pm list packages" + options)
@@ -3703,7 +3734,7 @@ extension HostAgent: SystemAppsGuest {
     }
 
     func uninstallPackage(_ package: String) async throws {
-        guard let adb else { throw AvoError.guestUnavailable }
+        guard let adb = await liveADB() else { throw AvoError.guestUnavailable }
         let result = try await adb.shell("pm uninstall " + Self.quote(package))
         guard result.succeeded, result.output.contains("Success") else {
             throw AvoError.installFailed(Self.failure(result, String(localized: "Android did not uninstall \(package)", bundle: .avoKit)))
@@ -3784,7 +3815,7 @@ extension HostAgent: FingerprintGuest {
     }
 
     func fingerprintPush(_ data: Data, to path: String) async throws {
-        guard let adb else { throw AvoError.guestUnavailable }
+        guard let adb = await liveADB() else { throw AvoError.guestUnavailable }
         try await adb.push(AsyncStream { $0.yield(data); $0.finish() }, to: path)
     }
 }
