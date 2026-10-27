@@ -138,6 +138,8 @@ mod libc_linux {
     pub const ENOENT: i32 = 2;
     pub const EIO: i32 = 5;
     pub const EBADF: i32 = 9;
+    // The host's EEXIST maps itself (linux_errno); the tests name it.
+    #[cfg(test)]
     pub const EEXIST: i32 = 17;
     pub const ENOTDIR: i32 = 20;
     pub const EINVAL: i32 = 22;
