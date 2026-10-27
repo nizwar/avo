@@ -54,6 +54,10 @@ final class AndroidImageManager {
     @ObservationIgnored private var task: Task<Void, Never>?
     /// Run once the job's image is chosen (Google services follow a switch).
     @ObservationIgnored private var whenUsed: (@MainActor () -> Void)?
+    /// Runs when a downloaded or imported image is set to be used, with the
+    /// job that brought it (nil: it was on this Mac already). AppDelegate:
+    /// the Setup Assistant's start after the download.
+    @ObservationIgnored var imageUsed: (@MainActor (_ job: UUID?) -> Void)?
     @ObservationIgnored private let source = AndroidBuildSource.current()
     @ObservationIgnored private let paths = AvoPaths()
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "AndroidImages")
@@ -189,7 +193,7 @@ final class AndroidImageManager {
         guard job?.isRunning != true else { return }
         self.whenUsed = whenUsed
         if let image = installedImage(for: offer) {
-            Task { await self.finish(image, after: after) }
+            Task { await self.finish(image, after: after, job: nil) }
             return
         }
         self.after = after
@@ -296,10 +300,10 @@ final class AndroidImageManager {
         guard job?.id == id else { return }
         handle(.finished(path: image.path), job: id)
         refresh()
-        await finish(image, after: after)
+        await finish(image, after: after, job: id)
     }
 
-    private func finish(_ image: AndroidImageSummary, after: AfterInstall) async {
+    private func finish(_ image: AndroidImageSummary, after: AfterInstall, job: UUID?) async {
         let whenUsed = self.whenUsed
         self.whenUsed = nil
         self.after = .nothing
@@ -307,9 +311,13 @@ final class AndroidImageManager {
         case .nothing:
             return
         case .use:
-            if use(image) { whenUsed?() }
+            guard use(image) else { return }
+            whenUsed?()
+            imageUsed?(job)
         case .useWithData(let request):
-            if await use(image, data: request) { whenUsed?() }
+            guard await use(image, data: request) else { return }
+            whenUsed?()
+            imageUsed?(job)
         }
     }
 

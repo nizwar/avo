@@ -34,6 +34,10 @@ final class SetupAssistant {
     var openGoogleAppsSettings = false
     /// The assistant started Android once (the Ready step does it by itself).
     var startedAndroid = false
+    /// The download the Ready step said Android starts after, also with its
+    /// window closed: AppDelegate keeps the promise for that job only (one
+    /// cancelled and another started from Settings starts nothing).
+    var startsAndroidAfterDownload: UUID?
     /// Android has no data yet: its first start sets itself up (Ready says so).
     var firstStart = false
     /// Android's data from another Mac, used where it is (SetupCarriedData.swift).
@@ -54,6 +58,7 @@ final class SetupAssistant {
     func show(paths: AvoPaths = AvoPaths()) {
         step = .welcome
         startedAndroid = false
+        startsAndroidAfterDownload = nil
         carriedData = nil
         firstStart = !FileManager.default.fileExists(atPath: paths.dataDisk.path) && FileManager.default.fileExists(atPath: paths.data.path)
         isPresented = true
@@ -942,6 +947,7 @@ private struct ReadyStep: View {
         }
         .task(id: Readiness(path: images.current?.path, downloading: images.job?.isRunning == true || images.job?.canResume == true,
                             state: model.status.state, connected: model.daemonState == .connected)) {
+            if waitingForImage, let job = images.job { assistant.startsAndroidAfterDownload = job.id }
             startIfReady()
         }
     }
