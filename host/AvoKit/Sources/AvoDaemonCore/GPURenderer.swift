@@ -274,10 +274,10 @@ public struct GPUBootWatch: Sendable {
     }
 
     /// The GPU's part in an exit of avo-vmm (main.rs, cuttlefish.rs): 75 when
-    /// the renderer cannot start (a panic while it loads ends up there too),
-    /// and a signal when gfxstream crashes the process. Every other status is
-    /// avo-vmm's own: 0 a power off, 1 an error (the instance in use by
-    /// another VM, its disks), 76 a factory reset, 101 a panic of its main
+    /// the renderer cannot start, or panics on its own threads, and a signal
+    /// when gfxstream crashes the process. Every other status is avo-vmm's
+    /// own: 0 a power off, 1 an error (the instance in use by another VM, its
+    /// disks), 70 a vCPU fault, 76 a factory reset, 101 a panic on any other
     /// thread. Those are reported as they are and never turn the GPU off.
     static func failure(exitStatus: Int32, bySignal: Bool) -> GPUFailure? {
         if bySignal { return .crashed }
