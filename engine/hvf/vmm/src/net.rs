@@ -124,6 +124,10 @@ struct UdpFlow {
     key: UdpKey,
     socket: UdpSocket,
     last: Instant,
+    /// Where the guest's datagrams on this flow are sent. For a DNS flow
+    /// (to 10.0.2.3) only replies from this server are taken as the answer,
+    /// so a datagram from anywhere else cannot be relabelled as the resolver.
+    server: SocketAddr,
 }
 
 /// smoltcp's side of the stack: IP packets in and out (Ethernet, ARP and
@@ -699,7 +703,7 @@ impl Stack {
         let mut socket = UdpSocket::bind(bind).ok()?;
         let token = self.token();
         self.poll.registry().register(&mut socket, token, Interest::READABLE).ok()?;
-        self.udp.insert(token, UdpFlow { key, socket, last: Instant::now() });
+        self.udp.insert(token, UdpFlow { key, socket, last: Instant::now(), server: *target });
         self.udp_keys.insert(key, token);
         Some(token)
     }
@@ -720,6 +724,12 @@ impl Stack {
                 Err(e) if e.kind() == ErrorKind::Interrupted => continue,
                 Err(_) => return, // WouldBlock, or an ICMP error for an earlier datagram
             };
+            // A DNS reply must come from the resolver the flow queried; a
+            // datagram from any other source is dropped (it would otherwise be
+            // relabelled 10.0.2.3:53 and could poison the guest's resolver).
+            if flow.key.dns && from != flow.server {
+                continue;
+            }
             flow.last = Instant::now();
             let key = flow.key;
             let source = if key.dns {
