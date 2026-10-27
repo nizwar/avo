@@ -551,11 +551,20 @@ impl SharedDir {
         let _ctime = reader.u64()?;
         let atimensec = reader.u32()?;
         let mtimensec = reader.u32()?;
-        let path = self.node_path(node)?;
+        // ftruncate and futimens name the guest's open file: its descriptor,
+        // which still works once the file was unlinked or renamed (on the
+        // Mac or by Android), where its node's path no longer leads.
+        let file = match self.handles.get(&fh) {
+            Some(Handle::File(file)) if valid & FATTR_FH != 0 => Some(file),
+            _ => None,
+        };
         if valid & FATTR_SIZE != 0 {
-            match self.handles.get(&fh) {
-                Some(Handle::File(file)) if valid & FATTR_FH != 0 => host(file.set_len(size))?,
-                _ => host(open_nofollow(&path, OpenOptions::new().write(true)).and_then(|file| file.set_len(size)))?,
+            match file {
+                Some(file) => host(file.set_len(size))?,
+                None => {
+                    let path = self.node_path(node)?;
+                    host(open_nofollow(&path, OpenOptions::new().write(true)).and_then(|file| file.set_len(size)))?
+                }
             }
         }
         if valid & (FATTR_ATIME | FATTR_MTIME) != 0 {
@@ -569,14 +578,24 @@ impl SharedDir {
                 }
             };
             let times = [time(FATTR_ATIME, FATTR_ATIME_NOW, atime, atimensec), time(FATTR_MTIME, FATTR_MTIME_NOW, mtime, mtimensec)];
-            let c_path = c_path(&path)?;
-            let flags = libc::AT_SYMLINK_NOFOLLOW | AT_SYMLINK_NOFOLLOW_ANY;
-            if unsafe { libc::utimensat(libc::AT_FDCWD, c_path.as_ptr(), times.as_ptr(), flags) } != 0 {
+            let done = match file {
+                Some(file) => unsafe { libc::futimens(file.as_raw_fd(), times.as_ptr()) },
+                None => {
+                    let c_path = c_path(&self.node_path(node)?)?;
+                    let flags = libc::AT_SYMLINK_NOFOLLOW | AT_SYMLINK_NOFOLLOW_ANY;
+                    unsafe { libc::utimensat(libc::AT_FDCWD, c_path.as_ptr(), times.as_ptr(), flags) }
+                }
+            };
+            if done != 0 {
                 return Err(linux_errno(&io::Error::last_os_error()));
             }
         }
         // Mode, owner and group are Android's media storage's (see above).
-        Ok(attr_out(&lstat_nofollow(&path)?))
+        let stat = match file {
+            Some(file) => stat_of_fd(file.as_raw_fd())?,
+            None => lstat_nofollow(&self.node_path(node)?)?,
+        };
+        Ok(attr_out(&stat))
     }
 
     fn readlink(&mut self, node: u64) -> Result<Vec<u8>> {
@@ -1411,6 +1430,26 @@ mod tests {
         let fh = guest.open(x, 0).unwrap();
         assert_eq!(guest.read(x, fh, 0, 16), b"old", "node x is Z/x.txt, not the new Ä/x.txt");
         guest.release(x, fh);
+    }
+
+    #[test]
+    fn an_open_file_unlinked_meanwhile_can_still_be_truncated_and_stamped() {
+        let folder = Folder::new("ftrunc");
+        let mut guest = Guest::new(&folder);
+        let (file, fh) = guest.create(ROOT, "tmp.db-journal");
+        guest.write(file, fh, 0, b"0123456789");
+        guest.call(UNLINK, ROOT, &Guest::name("tmp.db-journal")).unwrap();
+        // ftruncate(fd, 4) and futimens(fd, …) on the open file, as Linux
+        // allows them: SETATTR with its handle.
+        let mut setattr = Writer::default();
+        setattr.u32(FATTR_SIZE | FATTR_MTIME | FATTR_FH).u32(0).u64(fh).u64(4).u64(0).u64(0).u64(1_700_000_000).u64(0).u32(0).u32(5).u32(0);
+        setattr.u32(0).u32(0).u32(0).u32(0).u32(0);
+        let out = guest.call(SETATTR, file, &setattr.0);
+        let Ok(out) = out else { panic!("SETATTR on an open, unlinked file: {out:?}") };
+        let field = |at: usize| u64::from_le_bytes(out[at..at + 8].try_into().unwrap());
+        assert_eq!((field(24), field(48)), (4, 1_700_000_000), "the open file's size and time");
+        assert_eq!(guest.read(file, fh, 0, 16), b"0123");
+        guest.release(file, fh);
     }
 
     #[test]
