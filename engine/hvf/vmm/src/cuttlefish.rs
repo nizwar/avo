@@ -638,13 +638,25 @@ fn boot(options: &Options, renderer: Option<&RenderHost>, bluetooth: Option<&Arc
         machine.present_cpu(clusters.clone())?;
     }
 
+    // Display 0 is Android's default display; Avo plugs in one more per app window.
+    // The composer (display_framebuffer_format=bgra, the only family the
+    // guest's virtio-gpu driver scans out) fills those buffers with RGBA bytes.
+    // On the GPU each resource's own format says what its bytes are.
+    let frames =
+        SharedFrames::new(&options.instance.join("frames"), renderer.is_none()).map_err(|e| format!("frames: {e}"))?;
+    let frame_handle = frames.handle();
+
     let disk = composite_disk(options)?;
     if options.verbose {
         for (name, start, size) in disk.layout() {
             eprintln!("[vmm] partition {name:20} at {:>8} MiB, {:>8} KiB", start >> 20, size >> 10);
         }
     }
-    machine.add_virtio(Box::new(Block::new(Box::new(disk), "avo-os")));
+    // Android's writes wait while the Mac's disk is full (virtio/block.rs): the daemon says so.
+    let disk_events = frame_handle.clone();
+    let block = Block::new(Box::new(disk), "avo-os")
+        .on_full(Box::new(move |full| disk_events.emit_sticky(format!("disk full {}", if full { "on" } else { "off" }))));
+    machine.add_virtio(Box::new(block));
 
     // hvc0..hvc19 in Cuttlefish order (crosvm_manager.cpp), eight per PCI device.
     let console_clients = Arc::new(Mutex::new(Vec::new()));
@@ -690,13 +702,6 @@ fn boot(options: &Options, renderer: Option<&RenderHost>, bluetooth: Option<&Arc
     modem::serve(&options.runtime.join(format!("vsock.sock_{}", modem::PORT)))?;
     machine.add_virtio(Box::new(vsock));
 
-    // Display 0 is Android's default display; Avo plugs in one more per app window.
-    // The composer (display_framebuffer_format=bgra, the only family the
-    // guest's virtio-gpu driver scans out) fills those buffers with RGBA bytes.
-    // On the GPU each resource's own format says what its bytes are.
-    let frames =
-        SharedFrames::new(&options.instance.join("frames"), renderer.is_none()).map_err(|e| format!("frames: {e}"))?;
-    let frame_handle = frames.handle();
     if let Some(bluetooth) = bluetooth {
         // The daemon adds its own chips (the Mac's Bluetooth devices) on the same port.
         frame_handle.emit_sticky(format!("bluetooth hci {}", bluetooth.port()));
