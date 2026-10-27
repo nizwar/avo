@@ -74,6 +74,8 @@ struct State {
     retrying: bool,
     /// The device's resets: a retrier of an earlier start ends.
     starts: u64,
+    /// The pause-gate observer is registered (once for the device's life).
+    observing: bool,
 }
 
 /// I/O errors the guest got, for the log.
@@ -163,6 +165,12 @@ impl Shared {
     /// checkpoint clones its disks then): each try looks at the gate under
     /// the state lock, which a pause takes first (`spawn_retrier`).
     fn retry(self: Arc<Self>, start: u64) {
+        /// One pass's handling of the front request.
+        enum Step {
+            Did,
+            Empty,
+            NoRoom,
+        }
         let began = Instant::now();
         let mut pause = FIRST_RETRY;
         let mut state = self.state.lock().unwrap();
@@ -178,13 +186,36 @@ impl Shared {
                 state.retrying = false;
                 return;
             };
-            while let Some(chain) = state.waiting.front() {
-                match self.handle(&active.memory, chain) {
-                    Outcome::Done(len) => {
-                        let chain = state.waiting.pop_front().unwrap();
-                        active.complete(0, chain.head, len);
+            // Try the waiting requests oldest first. Each disk write runs under
+            // the state lock (so a pause's observer, which takes the lock,
+            // cannot finish mid-write and leave a checkpoint an inconsistent
+            // disk), but the lock is released between requests so a vCPU kicked
+            // to the pause gate — its notify() is a no-op while `active` is
+            // taken out — and a pause itself can take it, instead of stalling
+            // behind a long pass.
+            loop {
+                let step = if let Some(chain) = state.waiting.front() {
+                    match self.handle(&active.memory, chain) {
+                        Outcome::Done(len) => {
+                            let chain = state.waiting.pop_front().unwrap();
+                            active.complete(0, chain.head, len);
+                            Step::Did
+                        }
+                        Outcome::NoRoom(_) => Step::NoRoom,
                     }
-                    Outcome::NoRoom(_) => break,
+                } else {
+                    Step::Empty
+                };
+                match step {
+                    Step::Did => {
+                        drop(state);
+                        std::thread::yield_now();
+                        state = self.state.lock().unwrap();
+                        if state.starts != start {
+                            return;
+                        }
+                    }
+                    Step::Empty | Step::NoRoom => break,
                 }
             }
             // And what the driver queued meanwhile without a kick.
@@ -201,19 +232,57 @@ impl Shared {
         }
     }
 
-    /// Starts the retrier for this start of the device, and has a pause
-    /// wait for a try under way before it holds.
-    fn spawn_retrier(self: &Arc<Self>, start: u64) {
-        let barrier = Arc::downgrade(self);
-        crate::pause::GATE.observe(Box::new(move |_| {
-            let Some(shared) = barrier.upgrade() else { return false };
-            let state = shared.state.lock().unwrap();
-            state.retrying && state.starts == start
-        }));
+    /// Starts the retrier for this start of the device. The first start also
+    /// registers one pause-gate observer for the device's life: while the
+    /// device exists a pause's notify takes the state lock here, so a pause
+    /// cannot finish while a retry holds it mid-write. The observer removes
+    /// itself when the device is dropped (its Weak stops upgrading); a fresh
+    /// observer per disk-full episode would leak. If the thread cannot be
+    /// spawned, the held requests are failed rather than left waiting forever.
+    fn spawn_retrier(self: &Arc<Self>, start: u64, register_observer: bool) {
+        if register_observer {
+            let barrier = Arc::downgrade(self);
+            crate::pause::GATE.observe(Box::new(move |_| {
+                let Some(shared) = barrier.upgrade() else { return false };
+                // Take and release the lock: it blocks here until a retry pass
+                // is between requests, so a pause does not finish mid-write.
+                drop(shared.state.lock().unwrap());
+                true
+            }));
+        }
         let shared = self.clone();
         if let Err(error) = std::thread::Builder::new().name("disk retry".into()).spawn(move || shared.retry(start)) {
-            eprintln!("[vmm] disk: no thread to try the waiting requests again: {error}");
+            eprintln!("[vmm] disk: no thread to try the waiting requests again: {error}; failing the held writes");
+            self.fail_all_waiting(start);
         }
+    }
+
+    /// Hands every waiting request back with an I/O error (a retrier could not
+    /// be started), so Android's I/O does not wait forever.
+    fn fail_all_waiting(&self, start: u64) {
+        let mut state = self.state.lock().unwrap();
+        if state.starts != start {
+            return;
+        }
+        state.retrying = false;
+        let Some(mut active) = state.active.take() else {
+            state.waiting.clear();
+            return;
+        };
+        while let Some(chain) = state.waiting.pop_front() {
+            let len = match chain.descriptors.last() {
+                Some(status) if status.write && status.len >= 1 => {
+                    let at = status.address.saturating_add(status.len as u64 - 1);
+                    active.memory.write(at, &[S_IOERR]);
+                    1
+                }
+                _ => 0,
+            };
+            active.complete(0, chain.head, len);
+        }
+        state.active = Some(active);
+        drop(state);
+        self.report(false);
     }
 
     fn handle(&self, memory: &GuestMemory, chain: &Chain) -> Outcome {
@@ -409,9 +478,11 @@ impl VirtioDevice for Block {
         if waiting && !state.retrying {
             state.retrying = true;
             let start = state.starts;
+            let first_observer = !state.observing;
+            state.observing = true;
             drop(state);
             shared.report(true);
-            shared.spawn_retrier(start);
+            shared.spawn_retrier(start, first_observer);
         }
     }
 
