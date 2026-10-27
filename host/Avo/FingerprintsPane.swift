@@ -300,9 +300,8 @@ extension ControlPanelModel {
     }
 
     func touchFingerprint(_ id: Int?) async -> FingerprintTouchResult? {
-        guard let client = daemonClient else { return nil }
         do {
-            let result = try await client.touchFingerprint(id)
+            let result = try await connectedClient().touchFingerprint(id)
             await refreshFingerprints()
             return result
         } catch {
@@ -312,9 +311,8 @@ extension ControlPanelModel {
     }
 
     func lockAndroidForFingerprints() async {
-        guard let client = daemonClient else { return }
         do {
-            try await client.lockAndroidForFingerprints()
+            try await connectedClient().lockAndroidForFingerprints()
         } catch {
             lastError = error.localizedDescription
         }
@@ -322,11 +320,11 @@ extension ControlPanelModel {
 
     @discardableResult
     private func changeFingerprints(_ change: @escaping @Sendable (DaemonClient) async throws -> Void) async -> Bool {
-        guard let client = daemonClient, !fingerprintsBusy else { return false }
+        guard !fingerprintsBusy else { return false }
         fingerprintsBusy = true
         defer { fingerprintsBusy = false }
         do {
-            try await change(client)
+            try await change(connectedClient())
             await refreshFingerprints()
             return true
         } catch {
