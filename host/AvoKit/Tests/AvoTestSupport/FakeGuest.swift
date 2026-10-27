@@ -17,6 +17,8 @@ public actor FakeBridgeAgent {
     public var minimumProtocolVersion: UInt32 = 1
     private var streams: [FileDescriptorStream] = []
     private var current: FileDescriptorStream?
+    /// Launches Android has not answered yet (`holdLaunches`).
+    private var heldLaunches: [(Avo_V1_Envelope, FileDescriptorStream)]?
 
     public init(apps: [Avo_V1_AppInfo]) {
         self.apps = apps
@@ -69,16 +71,12 @@ public actor FakeBridgeAgent {
             var list = Avo_V1_AppList()
             list.apps = apps
             await send(Avo_V1_Envelope(.appList(list), requestID: envelope.requestID), on: stream)
-        case .launch(let launch)?:
-            guard apps.contains(where: { $0.package == launch.package }) else {
-                await reply(envelope, on: stream, status: .notFound)
-                return
+        case .launch?:
+            if heldLaunches != nil {
+                heldLaunches?.append((envelope, stream))
+            } else {
+                await answerLaunch(envelope, on: stream)
             }
-            await reply(envelope, on: stream)
-            var ready = Avo_V1_DisplayReady()
-            ready.displayID = launch.displayID
-            ready.package = launch.package
-            await send(Avo_V1_Envelope(.displayReady(ready)), on: stream)
         case .uninstall(let uninstall)?:
             await reply(envelope, on: stream)
             apps.removeAll { $0.package == uninstall.package }
@@ -97,6 +95,33 @@ public actor FakeBridgeAgent {
         default:
             if envelope.requestID != 0 { await reply(envelope, on: stream) }
         }
+    }
+
+    private func answerLaunch(_ envelope: Avo_V1_Envelope, on stream: FileDescriptorStream) async {
+        guard case .launch(let launch)? = envelope.payload else { return }
+        guard apps.contains(where: { $0.package == launch.package }) else {
+            await reply(envelope, on: stream, status: .notFound)
+            return
+        }
+        await reply(envelope, on: stream)
+        var ready = Avo_V1_DisplayReady()
+        ready.displayID = launch.displayID
+        ready.package = launch.package
+        await send(Avo_V1_Envelope(.displayReady(ready)), on: stream)
+    }
+
+    /// Launches wait for `releaseLaunches` (an app still starting, its window
+    /// "Starting…"), while other requests are answered, as Android's host
+    /// side answers them meanwhile.
+    public func holdLaunches() {
+        if heldLaunches == nil { heldLaunches = [] }
+    }
+
+    /// Answers the launches held so far, and every later one at once.
+    public func releaseLaunches() async {
+        let held = heldLaunches ?? []
+        heldLaunches = nil
+        for (envelope, stream) in held { await answerLaunch(envelope, on: stream) }
     }
 
     /// What ListApps answers from now on, without an event (Android's own

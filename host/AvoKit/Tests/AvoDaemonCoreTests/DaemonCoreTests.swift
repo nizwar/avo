@@ -252,6 +252,61 @@ struct Harness {
         #expect(order == ["stop org.fdroid.fdroid", "close"])
     }
 
+    /// An app quit while its window said "Starting…" (Android booting): the
+    /// shim is gone by the time Android runs, and nothing opens for it.
+    @Test func aShimGoneWhileAndroidStartsGetsNoDisplay() async throws {
+        let harness = try Harness(apps: [FakeBridgeAgent.app("org.fdroid.fdroid", label: "F-Droid")])
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        let (shim, _) = await harness.connect(.shim(package: "org.fdroid.fdroid"))
+        harness.engine.refuseControlConnections = 2 // Android still booting
+        let opening = Task {
+            try await harness.core.openDisplay(OpenDisplayRequest(package: "org.fdroid.fdroid", width: 800, height: 1600, dpi: 320),
+                                               client: shim)
+        }
+        #expect(await eventually { await harness.core.status().state == .starting })
+        await harness.core.disconnect(shim)
+        await #expect(throws: AvoError.unauthorizedCaller) { try await opening.value }
+        #expect(await harness.core.status().state == .running)
+        #expect(await harness.agent.requests { if case .launch(let l) = $0 { l } else { nil } }.isEmpty)
+    }
+
+    /// Quit while Android launched the app: its display is closed, the app
+    /// stopped first, once the launch is done (stopped during it, the app
+    /// could start after), and not kept for nobody.
+    @Test func aShimGoneWhileItsAppLaunchesClosesItsDisplayAfter() async throws {
+        let harness = try Harness(apps: [FakeBridgeAgent.app("org.fdroid.fdroid", label: "F-Droid")])
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        let (shim, _) = await harness.connect(.shim(package: "org.fdroid.fdroid"))
+        try await harness.core.ensureRunning()
+        await harness.agent.holdLaunches()
+        let opening = Task {
+            try await harness.core.openDisplay(OpenDisplayRequest(package: "org.fdroid.fdroid", width: 800, height: 1600, dpi: 320),
+                                               client: shim)
+        }
+        let launches = { await harness.agent.requests { if case .launch(let l) = $0 { l.displayID } else { nil } } }
+        #expect(await eventually { await launches().count == 1 })
+        await harness.core.disconnect(shim)
+        let ends = {
+            await harness.agent.requests { request -> String? in
+                switch request {
+                case .forceStop(let stop): "stop \(stop.package)"
+                case .close(let close): "close \(close.displayID)"
+                default: nil
+                }
+            }
+        }
+        // Nothing yet: the launch is still under way.
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(await ends().isEmpty)
+        await harness.agent.releaseLaunches()
+        await #expect(throws: AvoError.unauthorizedCaller) { try await opening.value }
+        let display = try #require(await launches().first)
+        #expect(await ends() == ["stop org.fdroid.fdroid", "close \(display)"])
+        #expect(await harness.core.appActivity()["org.fdroid.fdroid"] == nil)
+    }
+
     /// Files dropped on a window never replace what Android's Downloads has
     /// (its names match whatever their case), nor each other.
     @Test func droppedFilesKeepWhatDownloadsHas() async throws {
