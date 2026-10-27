@@ -201,6 +201,8 @@ public actor DaemonCore {
     private var exiting = false
     /// Android's reboots of its own since it was last ready (RebootLimit).
     private var reboots = RebootLimit()
+    /// What the running Android's statuses still ask for (StartSync).
+    private var startSync = StartSync()
     /// How long the Mac slept since it last woke (`macWoke`).
     private var macSleep = MacSleep()
     /// Clients whose Location panel is open (`locationStatus(watch:)`).
@@ -805,18 +807,26 @@ public actor DaemonCore {
             }
             // Ready: its reboots from now on count anew.
             reboots.ready()
-            // Nothing to catch up on from an Android that stopped answering
-            // (asking would only hold the next statuses back); it is, once it answers.
-            guard !status.isNotResponding else { break }
-            await syncApps()
-            // Android keeps the cap in its settings: this start follows the
-            // configuration, also one changed while Android was stopped.
-            await applyFrameRateLimit(config.fpsLimit)
-            rootIfAsked()
-            storageCheckedAt = nil
-            _ = await dataDiskStatus()
-            Task { await refreshWidgetRules() }
+            switch startSync.work(for: status) {
+            case .start:
+                await syncApps()
+                // Android keeps the cap in its settings: this start follows the
+                // configuration, also one changed while Android was stopped.
+                await applyFrameRateLimit(config.fpsLimit)
+                rootIfAsked()
+                storageCheckedAt = nil
+                _ = await dataDiskStatus()
+                Task { await refreshWidgetRules() }
+            case .apps:
+                await syncApps()
+                Task { await refreshWidgetRules() }
+            case .none:
+                break
+            }
+        case .starting, .stopping:
+            startSync = StartSync()
         case .stopped, .failed, .notInstalled:
+            startSync = StartSync()
             bootedConfig = nil
             for display in displays.values { clients[display.owner]?.proxy.send(.displayClosed(displayID: display.id)) }
             usageWindowsClosed()
@@ -2356,5 +2366,45 @@ extension DaemonCore {
             .sorted { $0.1 > $1.1 }.map(\.0)
         return MenuBarSnapshot(activity: appActivity(), recent: recent,
                                engine: await (deps.engine as? any PausableEngine)?.activity())
+    }
+}
+
+// MARK: - What a start catches up on (`vmStatusChanged`)
+
+/// A running Android's statuses: the start's own work once a start (its
+/// apps with their icons, the frame rate cap, root, its storage), not at
+/// every change of its windows, renderer or lock; the apps listed again
+/// once Android is unlocked or answers again; nothing while it does not
+/// answer (asking would only hold the next statuses back).
+struct StartSync: Sendable {
+    enum Work: Sendable, Equatable {
+        case none
+        /// The apps again: Android lists the ones it could not open before.
+        case apps
+        case start
+    }
+
+    private var seen = false
+    private var bootedAt: Date?
+    private var done = false
+    private var locked = false
+    private var answering = true
+
+    mutating func work(for status: VMStatus) -> Work {
+        if !seen || status.bootedAt != bootedAt {
+            self = StartSync()
+            seen = true
+            bootedAt = status.bootedAt
+        }
+        let unlocked = locked && status.screenLock == nil
+        let answersAgain = !answering && !status.isNotResponding
+        locked = status.screenLock != nil
+        answering = !status.isNotResponding
+        guard answering else { return .none }
+        if !done {
+            done = true
+            return .start
+        }
+        return unlocked || answersAgain ? .apps : .none
     }
 }

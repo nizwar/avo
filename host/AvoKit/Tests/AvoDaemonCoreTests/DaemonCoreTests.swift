@@ -646,6 +646,71 @@ struct Harness {
         #expect(!events.events.contains(.appRemoved(package: "org.fdroid.fdroid")))
     }
 
+    /// A start catches up once: its windows, its renderer or a screen lock
+    /// coming ask Android nothing again; an unlock and Android answering
+    /// again list the apps again, and the next start catches up anew.
+    @Test func aStartCatchesUpOnce() async throws {
+        let harness = try Harness(apps: [FakeBridgeAgent.app("org.fdroid.fdroid", label: "F-Droid")])
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        let (panel, _) = await harness.connect(.controlPanel)
+        try await harness.core.startVM(client: panel)
+        let agent = harness.agent
+        func listings() async -> Int { await agent.requests { if case .listApps = $0 { true } else { nil } }.count }
+        func caps() async -> Int { await agent.requests { if case .setRefreshRate = $0 { true } else { nil } }.count }
+        #expect(await eventually { await (listings(), caps()) == (1, 1) })
+
+        let vm = harness.core.vm
+        await vm.setOpenDisplays(1)
+        await vm.setOpenDisplays(0)
+        await vm.setRenderer(RendererStatus(mode: .software, requested: .auto, reason: .chosen))
+        await vm.setScreenLock(AndroidScreenLock(credential: .pin))
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(await listings() == 1)
+        // Unlocked: Android lists the apps it could not open while locked.
+        await vm.setScreenLock(nil)
+        #expect(await eventually { await listings() == 2 })
+        // Answering again after it did not.
+        await vm.setNotResponding(since: Date())
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(await listings() == 2)
+        await vm.setNotResponding(since: nil)
+        #expect(await eventually { await listings() == 3 })
+        #expect(await caps() == 1, "the cap once a start")
+
+        try await harness.core.restartVM(client: panel)
+        #expect(await eventually { await (listings(), caps()) == (4, 2) })
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(await listings() == 4)
+    }
+
+    @Test func startSyncAsksForWhatIsNew() {
+        let booted = Date()
+        var sync = StartSync()
+        let running = VMStatus(state: .running, bootedAt: booted)
+        #expect(sync.work(for: running) == .start)
+        var windows = running
+        windows.openDisplays = 2
+        #expect(sync.work(for: windows) == .none)
+        var locked = running
+        locked.screenLock = AndroidScreenLock(credential: .pattern)
+        #expect(sync.work(for: locked) == .none)
+        #expect(sync.work(for: running) == .apps, "unlocked")
+        var silent = running
+        silent.notRespondingSince = Date()
+        #expect(sync.work(for: silent) == .none)
+        #expect(sync.work(for: running) == .apps, "answers again")
+        // A start that did not answer at first catches up once it does.
+        var next = StartSync()
+        var late = silent
+        late.bootedAt = booted.addingTimeInterval(60)
+        #expect(next.work(for: late) == .none)
+        late.notRespondingSince = nil
+        #expect(next.work(for: late) == .start)
+        // Another start: anew.
+        #expect(next.work(for: running) == .start)
+    }
+
     @Test func incompatibleGuestIsReported() async throws {
         let harness = try Harness(apps: [])
         defer { harness.cleanUp() }
