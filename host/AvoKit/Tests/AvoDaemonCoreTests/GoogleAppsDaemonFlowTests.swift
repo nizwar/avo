@@ -9,21 +9,43 @@ import Testing
 @testable import AvoDaemonCore
 
 /// FakeEngine plus root access to its "Android" (FakeSystemApps), which
-/// boots with whatever its partitions hold at every engine start.
+/// boots with whatever its partitions hold at every engine start. One that
+/// cannot get ready answers on no Control channel and, as RescueParty
+/// does, soon reboots itself, which ends an engine that exits on reboot.
+/// Its adbd takes the commit's rollback (the rescue).
 final class SystemAppsFakeEngine: SystemAppsEngine, @unchecked Sendable {
     let inner: FakeEngine
     let guest: FakeSystemApps
     var name: String { inner.name }
     var exits: AsyncStream<EngineExit> { inner.exits }
+    /// Rollbacks adbd ran: its shell handler cannot wait for the guest, which
+    /// takes them in before its next boot.
+    private let lock = NSLock()
+    private var rescues = 0
 
     init(inner: FakeEngine, guest: FakeSystemApps) {
         self.inner = inner
         self.guest = guest
+        let rollback = GoogleAppsCommit.rootCommand(GoogleAppsCommit.rollbackScript(layout: GoogleAppsCommit.Layout(staging: HostAgent.googleAppsStaging)))
+        inner.adbShellHandler = { [weak self] command in
+            guard command == rollback, let self else { return ("", "unexpected", 1) }
+            lock.withLock { rescues += 1 }
+            return ("", "", 0)
+        }
     }
 
     func start(_ launch: EngineLaunch) async throws {
+        if lock.withLock({ defer { rescues = 0 }; return rescues > 0 }) { await guest.rescue() }
         await guest.boot()
+        let loops = await !guest.ready
+        inner.refuseControlConnections = loops ? Int.max : 0
         try await inner.start(launch)
+        guard loops, launch.exitOnReboot else { return }
+        let inner = self.inner
+        Task {
+            try? await Task.sleep(for: .milliseconds(200))
+            if inner.launches.last?.instance == launch.instance { inner.exit(AndroidRebooted()) }
+        }
     }
 
     func stop() async {
@@ -42,6 +64,7 @@ private struct GoogleAppsHarness {
     let root: URL
     let paths: AvoPaths
     let guest: FakeSystemApps
+    let engine: SystemAppsFakeEngine
     let core: DaemonCore
 
     init(guest: FakeSystemApps) throws {
@@ -64,6 +87,7 @@ private struct GoogleAppsHarness {
         let adbKey = try ADBKey.generate()
         self.guest = guest
         let engine = SystemAppsFakeEngine(inner: FakeEngine(agent: FakeBridgeAgent(apps: []), adbPublicKey: adbKey.publicKey), guest: guest)
+        self.engine = engine
         let image = AndroidImage(schema: 1, version: "17.0.0-test", sdk: 37, kernel: "kernel", initrd: nil,
                                  partitions: ["system.img"], overlayStock: "overlay.img", overlayRooted: "overlay-rooted.img", files: [])
         let profiles = DeviceProfileCatalog(profiles: [DeviceProfile(id: DeviceProfile.defaultID, name: "Avo Virtual Device", properties: [:])])
@@ -191,6 +215,33 @@ private struct GoogleAppsHarness {
         #expect(steps[rollback...].contains("commit"))
         #expect(GoogleAppsJournal.load(harness.paths) == nil)
         #expect(await core.configurationSnapshot().config.gms == .bringYourOwn)
+    }
+
+    /// The boot with Google apps never gets ready, and Android reboots itself
+    /// (RescueParty), which ends its engine: they are taken out over adbd by
+    /// an engine started for that alone, one that runs on through Android's
+    /// reboots, and Android starts again as it was.
+    @Test func aBootThatRebootsItselfIsRescuedByAnEngineOfItsOwn() async throws {
+        let guest = FakeSystemApps(verity: false, overlayReady: true)
+        await guest.set(bootLoops: true)
+        let harness = try GoogleAppsHarness(guest: guest)
+        defer { harness.cleanUp() }
+        let (panel, client) = await harness.controlPanel()
+        let request = GoogleAppsInstallRequest(source: .local(path: try harness.cachedPackage().path))
+        await #expect(throws: (any Error).self) { try await harness.core.installGoogleApps(request, client: panel) }
+        let last = try #require(harness.progress(client, request.id).last)
+        #expect(last.phase == .failed)
+        #expect(last.message?.hasPrefix("Google apps were not installed; Android was restored.") == true, "\(last.message ?? "")")
+        #expect(await guest.steps.contains("rescue"))
+        #expect(await guest.system.isEmpty)
+        #expect(await harness.core.vm.status.state == .running)
+        #expect(GoogleAppsJournal.load(harness.paths) == nil)
+        let launches = harness.engine.inner.launches.map(\.exitOnReboot)
+        #expect(launches.filter { !$0 }.count == 1, "one engine for the repair alone: \(launches)")
+        #expect(launches.last == true)
+        // The next start is an ordinary one.
+        try await harness.core.restartVM(client: panel)
+        #expect(await harness.core.vm.status.state == .running)
     }
 
     /// Stop pressed while the Control Panel was still handing the request

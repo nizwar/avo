@@ -21,6 +21,10 @@ public struct EngineLaunch: Sendable {
     /// This start, as its engine's exit names it (`EngineExit`): the exit
     /// of an engine stopped before is never taken for this one's.
     public var instance: UUID
+    /// Android's own reboot ends the engine (`AndroidRebooted`), and the
+    /// daemon starts Android again its usual way. Off for an engine started
+    /// for a repair alone (VMManager.rescueShell), which runs on through them.
+    public var exitOnReboot = true
 
     public init(config: VMConfig, paths: AvoPaths, image: AndroidImage, bootConfigDisk: URL, restoreSnapshot: URL? = nil,
                 profile: DeviceProfile? = nil, displayRate: Int = FrameRates.standardRate,
