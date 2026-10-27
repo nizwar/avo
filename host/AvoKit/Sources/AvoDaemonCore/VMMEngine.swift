@@ -711,9 +711,13 @@ extension VMMEngine {
     /// Terminates `process` (SIGKILL after 5 s) and returns once it is gone,
     /// or a second after that: the next avo-vmm then finds the instance
     /// unlocked instead of exiting because it is in use.
+    /// SIGTERM, then SIGKILL. avo-vmm powers a running Android off on
+    /// SIGTERM, within 10 s (engine/hvf/vmm/src/cuttlefish.rs,
+    /// `handle_termination`), and ends at once before Android runs: it gets
+    /// those 10 s, and a little more.
     private static func end(_ process: Process) async {
         if process.isRunning { process.terminate() }
-        for _ in 0..<50 where process.isRunning { try? await Task.sleep(for: .milliseconds(100)) }
+        for _ in 0..<120 where process.isRunning { try? await Task.sleep(for: .milliseconds(100)) }
         if process.isRunning { kill(process.processIdentifier, SIGKILL) }
         for _ in 0..<10 where process.isRunning { try? await Task.sleep(for: .milliseconds(100)) }
     }
