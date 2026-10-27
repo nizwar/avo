@@ -131,7 +131,11 @@ impl Shared {
         (end <= self.disk.size()).then_some(offset)
     }
 
-    fn report(&self, full: bool) {
+    /// Says whether requests wait for room. Called with the state lock held,
+    /// as the state changes, so the reports keep the changes' order: an "off"
+    /// sent after the lock went could land after the next episode's "on" and
+    /// leave the sticky event saying no write waits while one does.
+    fn report(&self, _state: &State, full: bool) {
         if let Some(report) = &self.full {
             report(full);
         }
@@ -242,9 +246,9 @@ impl Shared {
             state.active = Some(active);
             if !waiting {
                 state.retrying = false;
+                self.report(&state, false);
                 drop(state);
                 eprintln!("[vmm] disk: there is room again; Android's I/O waited {:.1?}", began.elapsed());
-                self.report(false);
                 return;
             }
             pause = (pause * 2).min(LONGEST_RETRY);
@@ -300,8 +304,7 @@ impl Shared {
             active.complete(0, chain.head, len);
         }
         state.active = Some(active);
-        drop(state);
-        self.report(false);
+        self.report(&state, false);
     }
 
     fn handle(&self, memory: &GuestMemory, chain: &Chain) -> Outcome {
@@ -499,8 +502,11 @@ impl VirtioDevice for Block {
             let start = state.starts;
             let first_observer = !state.observing;
             state.observing = true;
+            shared.report(&state, true);
+            // The retrier starts after the lock goes: it may register the
+            // gate's observer (the gate's lock), and a pause runs observers,
+            // which take this lock, with the gate's lock held.
             drop(state);
-            shared.report(true);
             shared.spawn_retrier(start, first_observer);
         }
     }
@@ -513,11 +519,11 @@ impl VirtioDevice for Block {
         state.waiting.clear();
         state.retrying = false;
         state.starts += 1;
+        if waited {
+            self.shared.report(&state, false);
+        }
         drop(state);
         self.shared.wake.notify_all();
-        if waited {
-            self.shared.report(false);
-        }
     }
 
     fn pci_class(&self) -> u32 {
@@ -908,5 +914,39 @@ mod tests {
         assert!(eventually(|| Ring::used(&memory).len() == 4));
         let after_pause: Vec<u64> = writes.iter().filter(|w| w.1).map(|w| w.0).collect();
         assert!(after_pause.is_empty(), "held writes reached the disk while paused (byte offsets {after_pause:?}; all: {writes:?})");
+    }
+
+    #[test]
+    fn the_last_disk_full_report_is_on_while_a_write_waits() {
+        let (block, disk, memory) = device(64 << 10, vec![0; 64 << 10]);
+        let heard = Arc::new(Mutex::new(Vec::new()));
+        let reports = heard.clone();
+        // The retrier's thread is slow to say "off" (an eprintln! and the
+        // daemon's event queue stand there in the real code).
+        let mut block = block.on_full(Box::new(move |full| {
+            if !full {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            reports.lock().unwrap().push(full);
+        }));
+        let memory = Arc::new(memory);
+        block.activate(memory.clone(), vec![Ring::queue()], Interrupt::new(|_| {}), 0);
+        let mut ring = Ring { next_descriptor: 0, next_available: 0 };
+        disk.0.lock().unwrap().full = true;
+        ring.publish(&memory, RAM + 0x20000, T_OUT, 0, readable(RAM + 0x3000, 512));
+        block.notify(0);
+        disk.0.lock().unwrap().full = false;
+        assert!(eventually(|| !block.shared.state.lock().unwrap().retrying), "the first episode ends");
+        // The Mac's disk fills again at once (it was at the edge of full).
+        disk.0.lock().unwrap().full = true;
+        ring.publish(&memory, RAM + 0x21000, T_OUT, 8, readable(RAM + 0x3000, 512));
+        block.notify(0);
+        std::thread::sleep(Duration::from_millis(300));
+        let waiting = block.shared.state.lock().unwrap().waiting.len();
+        let heard = heard.lock().unwrap().clone();
+        assert_eq!(waiting, 1, "the second write waits for room");
+        assert_eq!(heard, [true, false, true], "the last word must be 'disk full on' while a write waits");
+        disk.0.lock().unwrap().full = false;
+        assert!(eventually(|| !block.shared.state.lock().unwrap().retrying), "the second episode ends");
     }
 }
