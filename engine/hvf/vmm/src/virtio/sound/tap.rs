@@ -3,10 +3,11 @@
 //! into a ring in shared memory with the host time it played at, so an App
 //! Shim recording a window puts the sound next to the frames shown then.
 //!
-//! One ring per process, `<instance>/audio/playback.ring`, announced with
-//! the sticky event `audio playback <epoch> <path>` (the path is the rest of
-//! the line). A new process makes a new file under the same name: readers
-//! keep their mapping of the old one and map again when the epoch changes.
+//! One ring per process, the shared memory `/avo.<pid>.audio` (shm.rs; a
+//! file would have the disk write the sound out all the time), announced
+//! with the sticky event `audio playback <epoch> shm:<name>`. A new ring
+//! is a new object: readers keep their mapping of the old one and map again
+//! when the epoch changes.
 //! Little endian:
 //!
 //! ```text
@@ -30,9 +31,7 @@
 //! the time of its own first frame. 512 slots of about 20 ms keep some ten
 //! seconds, far more than a reader polling a few times a second needs.
 
-use std::fs::OpenOptions;
-use std::os::fd::AsRawFd;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::atomic::{Ordering, fence};
 use std::sync::{Mutex, OnceLock};
 
@@ -45,17 +44,14 @@ const FORMAT_S16LE: u16 = 1;
 const FLAG_RUN_START: u32 = 1;
 
 unsafe extern "C" {
-    fn mmap(addr: *mut u8, len: usize, prot: i32, flags: i32, fd: i32, offset: i64) -> *mut u8;
     fn munmap(addr: *mut u8, len: usize) -> i32;
     fn mach_absolute_time() -> u64;
     fn mach_timebase_info(info: *mut [u32; 2]) -> i32;
 }
-const PROT_READ: i32 = 1;
-const PROT_WRITE: i32 = 2;
-const MAP_SHARED: i32 = 0x0001;
 
 pub struct Ring {
-    path: PathBuf,
+    /// Its shared memory's name (shm.rs).
+    name: String,
     map: *mut u8,
     len: usize,
     slots: usize,
@@ -73,18 +69,12 @@ pub struct Ring {
 unsafe impl Send for Ring {}
 
 impl Ring {
-    /// Makes the ring file at `path`, in place of an older one.
-    pub fn create(path: &Path, slots: usize, slot_size: usize) -> std::io::Result<Ring> {
+    /// Makes the ring named `name`, in place of an older one.
+    pub fn create(name: &str, slots: usize, slot_size: usize) -> std::io::Result<Ring> {
         let len = HEADER + slots * slot_size;
-        // A new file, never the old one rewritten: a reader that still maps
-        // it must not see it shrink under it.
-        let _ = std::fs::remove_file(path);
-        let file = OpenOptions::new().read(true).write(true).create_new(true).open(path)?;
-        file.set_len(len as u64)?;
-        let map = unsafe { mmap(std::ptr::null_mut(), len, PROT_READ | PROT_WRITE, MAP_SHARED, file.as_raw_fd(), 0) };
-        if map as isize == -1 {
-            return Err(std::io::Error::last_os_error());
-        }
+        // A new object, never the old one rewritten: a reader that still
+        // maps it must not see it shrink under it.
+        let map = crate::shm::create(name, len)?;
         let mut info = [0u32; 2];
         unsafe { mach_timebase_info(&mut info) };
         let timebase = if info[0] == 0 || info[1] == 0 { (1, 1) } else { (info[0], info[1]) };
@@ -101,12 +91,12 @@ impl Ring {
         // The magic last: a reader never takes a half-made header.
         fence(Ordering::Release);
         header[0..4].copy_from_slice(MAGIC);
-        Ok(Ring { path: path.to_path_buf(), map, len, slots, slot_size, epoch, sequence: 0, timebase, run: 0 })
+        Ok(Ring { name: name.to_string(), map, len, slots, slot_size, epoch, sequence: 0, timebase, run: 0 })
     }
 
-    /// `audio playback <epoch> <path>`.
+    /// `audio playback <epoch> shm:<name>`.
     pub fn event(&self) -> String {
-        format!("audio playback {} {}", self.epoch, self.path.display())
+        format!("audio playback {} {}", self.epoch, crate::shm::location(&self.name))
     }
 
     /// Adds audio whose last frame ended at host time `end` (mach ticks).
@@ -162,20 +152,20 @@ impl Ring {
 impl Drop for Ring {
     fn drop(&mut self) {
         unsafe { munmap(self.map, self.len) };
-        let _ = std::fs::remove_file(&self.path);
+        crate::shm::unlink(&self.name);
     }
 }
 
 static RING: OnceLock<Option<Mutex<Ring>>> = OnceLock::new();
 
-/// Makes the process's ring in `directory` (the first call; a guest reboot
-/// keeps it) and returns the event that announces it, nil when the shared
-/// memory could not be made.
+/// Makes the process's ring (the first call; a guest reboot keeps it) and
+/// returns the event that announces it, nil when the shared memory could
+/// not be made. `directory` held the ring as a file before: one left there
+/// by an earlier version goes.
 pub fn open(directory: &Path) -> Option<String> {
     let ring = RING.get_or_init(|| {
-        let made = std::fs::create_dir_all(directory)
-            .and_then(|_| Ring::create(&directory.join("playback.ring"), SLOTS, SLOT_SIZE));
-        match made {
+        let _ = std::fs::remove_file(directory.join("playback.ring"));
+        match Ring::create(&crate::shm::name("audio"), SLOTS, SLOT_SIZE) {
             Ok(ring) => Some(Mutex::new(ring)),
             Err(e) => {
                 eprintln!("[vmm] sound: no playback tap for recordings: {e}");
@@ -199,8 +189,8 @@ pub fn played(run: u64, rate: u32, channels: u8, pcm: &[u8]) {
 mod tests {
     use super::*;
 
-    fn read(path: &Path) -> Vec<u8> {
-        std::fs::read(path).unwrap()
+    fn read(name: &str) -> Vec<u8> {
+        crate::shm::read(name).unwrap()
     }
 
     fn u32_at(data: &[u8], at: usize) -> u32 {
@@ -213,23 +203,20 @@ mod tests {
 
     #[test]
     fn periods_are_published_with_the_time_they_played() {
-        let dir = std::env::temp_dir().join(format!("avo-tap-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("playback.ring");
-        let mut ring = Ring::create(&path, 4, 128).unwrap();
-        let data = read(&path);
+        let name = crate::shm::name("test.tap");
+        let mut ring = Ring::create(&name, 4, 128).unwrap();
+        let data = read(&name);
         assert_eq!(&data[0..4], b"AVOA");
         assert_eq!((u32_at(&data, 4), u32_at(&data, 8), u32_at(&data, 12), u32_at(&data, 16)), (1, 4, 128, 96));
         assert_eq!(u64_at(&data, 32), 0, "nothing yet");
-        assert!(ring.event().starts_with(&format!("audio playback {} /", u64_at(&data, 24))));
-        assert!(ring.event().ends_with("/playback.ring"));
+        assert_eq!(ring.event(), format!("audio playback {} shm:{name}", u64_at(&data, 24)));
 
         // 1000 frames of stereo at 48 kHz that ended at tick 10 s: 96 bytes
         // hold 24 frames, so 42 slots go round the ring of 4.
         let end = ring.ticks(48_000 * 10, 48_000);
         let pcm: Vec<u8> = (0..4000).map(|i| i as u8).collect();
         ring.write(7, 48_000, 2, &pcm, end);
-        let data = read(&path);
+        let data = read(&name);
         assert_eq!(u64_at(&data, 32), 42);
         // The newest slot: the last 16 frames (1000 = 41 × 24 + 16).
         let slot = &data[HEADER + (42 % 4) * 128..][..128];
@@ -246,26 +233,25 @@ mod tests {
 
         // A new run is flagged in its first slot only.
         ring.write(8, 44_100, 1, &[1, 0, 2, 0], end);
-        let data = read(&path);
+        let data = read(&name);
         let slot = &data[HEADER + (43 % 4) * 128..][..128];
         assert_eq!((u64_at(slot, 0), u32_at(slot, 16), u32_at(slot, 20) & 0xffff), (43, 44_100, 1));
         assert_eq!((u32_at(slot, 24), u32_at(slot, 28)), (2, FLAG_RUN_START));
         drop(ring);
-        assert!(!path.exists(), "the file goes with the ring");
-        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(crate::shm::read(&name).is_err(), "the name goes with the ring");
     }
 
     #[test]
-    fn a_new_ring_replaces_the_file_but_not_an_old_mapping() {
-        let dir = std::env::temp_dir().join(format!("avo-tap-new-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("playback.ring");
-        let old = Ring::create(&path, 2, 64).unwrap();
-        let old_epoch = u64_at(&read(&path), 24);
+    fn a_new_ring_replaces_the_old_one_but_not_its_mapping() {
+        let name = crate::shm::name("test.tapnew");
+        let old = Ring::create(&name, 2, 64).unwrap();
+        let old_epoch = u64_at(&read(&name), 24);
+        let old_map = old.map;
         std::mem::forget(old); // as a crashed process leaves it
-        let new = Ring::create(&path, 2, 64).unwrap();
-        assert_ne!(u64_at(&read(&path), 24), old_epoch);
+        let new = Ring::create(&name, 2, 64).unwrap();
+        assert_ne!(u64_at(&read(&name), 24), old_epoch);
+        // The old mapping still reads its own ring.
+        assert_eq!(unsafe { std::slice::from_raw_parts(old_map, 4) }, b"AVOA");
         drop(new);
-        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

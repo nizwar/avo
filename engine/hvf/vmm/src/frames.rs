@@ -1,8 +1,8 @@
 //! Frames of every scanout in shared memory, for the Runtime Daemon to hand
 //! to App Shim windows (as IOSurfaces) without copying through a socket.
 //!
-//! One file per scanout and layout ("generation"), named
-//! `scanout-<index>-<generation>.frames`, holding a 16 KiB header and three
+//! One shared memory object per scanout and layout ("generation"), named
+//! `/avo.<pid>.<index>.<generation>` (shm.rs), holding a 16 KiB header and three
 //! frame buffers (triple buffering: the reader copies the newest buffer while
 //! the guest fills another). Buffers start on host pages, so the GPU can
 //! write a readback straight into one (render.rs). Header, little endian:
@@ -17,15 +17,12 @@
 //! ```
 //!
 //! Subscribers on the control socket hear `frames <index> <generation>
-//! <width> <height> <stride> <format> <path>` when a layout appears (the
-//! path is the rest of the line: it may contain spaces),
+//! <width> <height> <stride> <format> shm:<name>` when a layout appears,
 //! `frame <index> <sequence>` for every frame (a subscriber that reads too
 //! slowly gets only the newest, control.rs) and `frames-off <index>` when
-//! the scanout is unplugged and its file deleted.
+//! the scanout is unplugged and its memory's name removed.
 
 use crate::virtio::gpu::{Format, Frame, FrameSink, FrameTarget, MAX_SCANOUTS};
-use std::fs::OpenOptions;
-use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{Ordering, fence};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -38,12 +35,8 @@ const HEADER: usize = PAGE;
 const BUFFERS: usize = 3;
 
 unsafe extern "C" {
-    fn mmap(addr: *mut u8, len: usize, prot: i32, flags: i32, fd: i32, offset: i64) -> *mut u8;
     fn munmap(addr: *mut u8, len: usize) -> i32;
 }
-const PROT_READ: i32 = 1;
-const PROT_WRITE: i32 = 2;
-const MAP_SHARED: i32 = 0x0001;
 
 /// Where events go (the control server's subscribers).
 pub type EventSink = Arc<dyn Fn(String) + Send + Sync>;
@@ -90,7 +83,8 @@ impl Drop for Mapping {
 }
 
 struct Surface {
-    path: PathBuf,
+    /// Its shared memory's name (shm.rs).
+    name: String,
     mapping: Arc<Mapping>,
     width: u32,
     height: u32,
@@ -106,19 +100,12 @@ struct Surface {
 }
 
 impl Surface {
-    fn create(path: PathBuf, generation: u32, width: u32, height: u32, format: Format) -> std::io::Result<Surface> {
+    fn create(name: String, generation: u32, width: u32, height: u32, format: Format) -> std::io::Result<Surface> {
         let stride = width as usize * 4;
         let buffer_size = (stride * height as usize).next_multiple_of(PAGE);
         let len = HEADER + BUFFERS * buffer_size;
-        let file = OpenOptions::new().read(true).write(true).create(true).truncate(true).open(&path)?;
-        let mapped = file.set_len(len as u64).and_then(|()| {
-            let map = unsafe { mmap(std::ptr::null_mut(), len, PROT_READ | PROT_WRITE, MAP_SHARED, file.as_raw_fd(), 0) };
-            if map as isize == -1 { Err(std::io::Error::last_os_error()) } else { Ok(map) }
-        });
-        // A layout that could not be made leaves no file behind.
-        let map = mapped.inspect_err(|_| {
-            let _ = std::fs::remove_file(&path);
-        })?;
+        // Shared memory, not a file: the disk would get every frame (shm.rs).
+        let map = crate::shm::create(&name, len)?;
         let header = unsafe { std::slice::from_raw_parts_mut(map, HEADER) };
         header[0..4].copy_from_slice(MAGIC);
         let mut put = |at: usize, value: u32| header[at..at + 4].copy_from_slice(&value.to_le_bytes());
@@ -132,7 +119,7 @@ impl Surface {
         put(32, HEADER as u32);
         put(36, buffer_size as u32);
         let mapping = Arc::new(Mapping { map, len, buffer_size });
-        Ok(Surface { path, mapping, width, height, format, buffer_size, sequence: 0, generation, announced: false, reserved: false })
+        Ok(Surface { name, mapping, width, height, format, buffer_size, sequence: 0, generation, announced: false, reserved: false })
     }
 
     /// Where the next frame goes: never the newest buffer, which readers may
@@ -190,7 +177,7 @@ impl Drop for Surface {
     fn drop(&mut self) {
         // The memory goes with the last holder of `mapping`; readers keep
         // their own mapping; the name goes away with the layout.
-        let _ = std::fs::remove_file(&self.path);
+        crate::shm::unlink(&self.name);
     }
 }
 
@@ -216,7 +203,6 @@ fn alpha_last(pixels: &mut [u8]) {
 }
 
 pub struct SharedFrames {
-    directory: PathBuf,
     /// The guest fills buffers declared as B8G8R8A8 with R8G8B8A8 bytes (and
     /// the other way round): report what the bytes really are.
     swap_red_blue: bool,
@@ -285,14 +271,13 @@ impl FrameHandle {
 impl SharedFrames {
     pub fn new(directory: &Path, swap_red_blue: bool) -> std::io::Result<SharedFrames> {
         std::fs::create_dir_all(directory)?;
-        // Layouts from an earlier run are stale.
+        // Layout files from an earlier version, before shared memory, are stale.
         for entry in std::fs::read_dir(directory)?.flatten() {
             if entry.path().extension().is_some_and(|e| e == "frames") {
                 let _ = std::fs::remove_file(entry.path());
             }
         }
         Ok(SharedFrames {
-            directory: directory.to_path_buf(),
             swap_red_blue,
             surfaces: (0..MAX_SCANOUTS).map(|_| None).collect(),
             failed: vec![None; MAX_SCANOUTS],
@@ -332,8 +317,8 @@ impl SharedFrames {
                 return false;
             }
             self.generation += 1;
-            let path = self.directory.join(format!("scanout-{index}-{}.frames", self.generation));
-            match Surface::create(path, self.generation, width, height, format) {
+            let name = crate::shm::name(&format!("{index}.{}", self.generation));
+            match Surface::create(name, self.generation, width, height, format) {
                 Ok(surface) => {
                     self.surfaces[index] = Some(surface);
                     self.failed[index] = None;
@@ -363,7 +348,7 @@ impl SharedFrames {
             surface.width,
             surface.height,
             surface.width * 4,
-            surface.path.display()
+            crate::shm::location(&surface.name)
         );
         self.layouts.lock().unwrap()[index] = Some(event.clone());
         self.emit(event);
@@ -532,7 +517,7 @@ mod tests {
         assert_eq!(&parts[3..6], &["2", "2", "8"]);
         assert_eq!(events[1], "frame 1 1");
 
-        let data = std::fs::read(parts[7]).unwrap();
+        let data = layout_bytes(parts[7]);
         assert_eq!(&data[0..4], b"AVOF");
         let u32_at = |at: usize| u32::from_le_bytes(data[at..at + 4].try_into().unwrap());
         assert_eq!((u32_at(12), u32_at(16), u32_at(20)), (2, 2, 8));
@@ -542,6 +527,11 @@ mod tests {
         assert_eq!(&buffer[0..8], &pixels[0..8]);
         assert_eq!(&buffer[8..16], &pixels[16..24], "rows are packed without the resource padding");
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// A layout's memory, read as the daemon does: by the name in its event.
+    fn layout_bytes(location: &str) -> Vec<u8> {
+        crate::shm::read(location.strip_prefix("shm:").expect("a shared memory layout")).unwrap()
     }
 
     fn collecting(name: &str) -> (SharedFrames, Arc<Mutex<Vec<String>>>, PathBuf) {
@@ -571,7 +561,7 @@ mod tests {
         assert!(events[0].starts_with("frames 0 "), "layout first: {}", events[0]);
         assert_eq!(events[0].split(' ').nth(6), Some("1"), "RGBA, the resource's own order");
         assert_eq!(events[1], "frame 0 1");
-        let data = std::fs::read(events[0].splitn(8, ' ').nth(7).unwrap()).unwrap();
+        let data = layout_bytes(events[0].splitn(8, ' ').nth(7).unwrap());
         let latest = u32::from_le_bytes(data[40..44].try_into().unwrap()) as usize;
         let size = u32::from_le_bytes(data[36..40].try_into().unwrap()) as usize;
         assert_eq!(&data[HEADER + latest * size..][..16], &[7; 16]);
@@ -590,7 +580,7 @@ mod tests {
             true
         }));
         let contents = |layout: &str| {
-            let data = std::fs::read(layout.splitn(8, ' ').nth(7).unwrap()).unwrap();
+            let data = layout_bytes(layout.splitn(8, ' ').nth(7).unwrap());
             let u32_at = |at: usize| u32::from_le_bytes(data[at..at + 4].try_into().unwrap());
             let newest = HEADER + u32_at(40) as usize * u32_at(36) as usize;
             (u32_at(24), data[newest..newest + 4].to_vec())
@@ -621,7 +611,7 @@ mod tests {
         let events = events.lock().unwrap().clone();
         assert_eq!(events.len(), 2);
         assert_eq!(events[1], "frame 0 1");
-        let data = std::fs::read(events[0].splitn(8, ' ').nth(7).unwrap()).unwrap();
+        let data = layout_bytes(events[0].splitn(8, ' ').nth(7).unwrap());
         let latest = u32::from_le_bytes(data[40..44].try_into().unwrap()) as usize;
         let size = u32::from_le_bytes(data[36..40].try_into().unwrap()) as usize;
         assert_eq!(u32::from_le_bytes(data[32..36].try_into().unwrap()) as usize, HEADER);

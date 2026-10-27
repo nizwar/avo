@@ -292,8 +292,11 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         process.standardOutput = logHandle
         process.standardError = logHandle
         let sink = exitSink
+        // The frames and sound it shares, whatever way it ends (SharedMemoryNames).
+        let sharedMemory = SharedMemoryNames()
         process.terminationHandler = { [weak self, logger] process in
             try? logHandle.close()
+            sharedMemory.removeAll()
             let clean = process.terminationReason == .exit && process.terminationStatus == 0
             logger.notice("avo-vmm exited with status \(process.terminationStatus)")
             if process.terminationReason == .exit, process.terminationStatus == Self.factoryResetStatus {
@@ -360,7 +363,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         monitor?.booted()
         let control = EngineControl(socketPath: controlPath)
         let frameQueue = self.frameQueue
-        let bridge = FrameBridge { frameQueue.push($0) }
+        let bridge = FrameBridge(sharedMemory: sharedMemory) { frameQueue.push($0) }
         let agent = HostAgent(engine: control, frames: bridge, adbKey: adbKey) { port in
             try VsockBridge.connect(socketPath: vsock, port: port)
         }
