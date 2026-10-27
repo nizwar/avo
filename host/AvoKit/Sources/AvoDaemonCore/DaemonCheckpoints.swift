@@ -31,6 +31,10 @@ extension DaemonCore {
 
     public func deleteCheckpoint(_ id: UUID, client: ClientID) throws {
         try requireControlPanel(client)
+        // A restore cut short needs both to be finished or undone.
+        if let journal = RestoreJournal.load(deps.paths), journal.checkpoint == id || journal.before == id {
+            throw AvoError.internalError(RestoreJournal.cutShortMessage)
+        }
         try CheckpointStore(paths: deps.paths).delete(id)
         publishCheckpoints()
     }
@@ -39,7 +43,10 @@ extension DaemonCore {
     /// restore can be undone); the checkpoint's data takes its place, with
     /// the settings that go with it (root, Google apps, device profile); and
     /// Android starts again when it ran. Its apps follow at that start
-    /// (`syncApps`: Android's list is the truth).
+    /// (`syncApps`: Android's list is the truth). A restore that fails
+    /// before it changed anything starts a running Android again; one cut
+    /// short while it replaced the data is finished or undone at once, or
+    /// else before the next start (RestoreJournal).
     public func restoreCheckpoint(_ id: UUID, client: ClientID) async throws {
         try requireControlPanel(client)
         restartWork += 1
@@ -57,9 +64,43 @@ extension DaemonCore {
         let state = await vm.status.state
         let wasRunning = state != .stopped && state != .notInstalled && state != .failed
         if state != .stopped && state != .notInstalled { await vm.stop() }
-        if store.hasData { try await makeCheckpoint(.restore, keeping: id) }
-        let restored = try store.restore(id)
-        // Avo's side follows the data, as when another folder of data is used (`adopt`).
+        let restored: Checkpoint
+        do {
+            // Data a restore cut short left half replaced is not worth a checkpoint.
+            let before = store.hasData && !RestoreJournal.exists(in: deps.paths.data) ? try await makeCheckpoint(.restore, keeping: id) : nil
+            restored = try store.restore(id, before: before?.id)
+        } catch {
+            guard RestoreJournal.exists(in: deps.paths.data) else {
+                // Nothing changed: Android goes on as it was.
+                checkpointLogger.error("no restore of \(id.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                if wasRunning { try? await ensureRunning() }
+                throw error
+            }
+            checkpointLogger.error("restoring \(id.uuidString, privacy: .public) was cut short: \(error.localizedDescription, privacy: .public)")
+            switch await finishInterruptedRestore() {
+            case .finished?:
+                if wasRunning { try await ensureRunning() }
+                return
+            case .undone?:
+                if wasRunning { try? await ensureRunning() }
+                throw error
+            case nil:
+                // Android stays stopped: the next start finishes it first, or refuses.
+                throw error
+            }
+        }
+        followRestoredData(restored)
+        RestoreJournal.remove(deps.paths)
+        await fingerprints.reload()
+        publishCheckpoints()
+        await publishStorage()
+        if wasRunning { try await ensureRunning() }
+    }
+
+    /// Avo's side follows the data a restore put back, as when another
+    /// folder of data is used (`adopt`): the settings that go with it, and
+    /// the size Android created its storage with.
+    private func followRestoredData(_ restored: Checkpoint) {
         storageCheckedAt = nil
         bootedConfig = nil
         var new = restored.settings.applied(to: config)
@@ -68,10 +109,55 @@ extension DaemonCore {
             new.dataDiskGiB = seen.settingsTotalGB
         }
         if new != config { apply(new) }
+    }
+
+    enum RestoreRecovery: Equatable {
+        /// The checkpoint is back, as asked.
+        case finished
+        /// The data is as it was before the restore.
+        case undone
+    }
+
+    /// A restore Avo did not see to its end (it quit, the Mac stopped, the
+    /// drive went): the data may hold some disks of the checkpoint and some
+    /// of its own, a key that does not open the data disk beside it. It is
+    /// finished from the checkpoint, which is whole, or else undone with the
+    /// checkpoint of the data before; with neither, the journal stays and
+    /// `prepareForStart` refuses every start. Only while Android is stopped;
+    /// nil when there was nothing to do or nothing worked.
+    @discardableResult
+    func finishInterruptedRestore() async -> RestoreRecovery? {
+        let state = await vm.status.state
+        guard state == .stopped || state == .notInstalled || state == .failed,
+              RestoreJournal.exists(in: deps.paths.data) else { return nil }
+        // From here to the journal's removal nothing waits: no other call sees the data half done.
+        guard let journal = RestoreJournal.load(deps.paths) else {
+            checkpointLogger.error("a checkpoint restore was cut short, and its journal can't be read")
+            return nil
+        }
+        let store = CheckpointStore(paths: deps.paths)
+        var outcome: (Checkpoint, RestoreRecovery)?
+        do {
+            outcome = (try store.restore(journal.checkpoint, before: journal.before), .finished)
+            checkpointLogger.notice("finished restoring checkpoint \(journal.checkpoint.uuidString, privacy: .public), cut short at \(journal.startedAt, privacy: .public)")
+        } catch {
+            checkpointLogger.error("could not finish restoring \(journal.checkpoint.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            if let before = journal.before {
+                do {
+                    outcome = (try store.restore(before), .undone)
+                    checkpointLogger.notice("undid the restore with checkpoint \(before.uuidString, privacy: .public)")
+                } catch {
+                    checkpointLogger.error("could not undo the restore either: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        }
+        guard let outcome else { return nil }
+        followRestoredData(outcome.0)
+        RestoreJournal.remove(deps.paths)
         await fingerprints.reload()
         publishCheckpoints()
         await publishStorage()
-        if wasRunning { try await ensureRunning() }
+        return outcome.1
     }
 
     /// Before a change Android cannot take back. Nothing when there is no
@@ -94,9 +180,13 @@ extension DaemonCore {
         return nil
     }
 
-    /// A start with a newer Android than the data was last used with
-    /// upgrades the data for good: a checkpoint of the older data first.
+    /// The checkpoints' part of every start (bootVM, before the settings it
+    /// boots with are read): a restore Avo did not see to its end is
+    /// finished or undone first, with the settings that go with its data.
+    /// Then a start with a newer Android than the data was last used with,
+    /// which upgrades the data for good, gets a checkpoint of the older data.
     func checkpointBeforeNewerAndroid() async {
+        await finishInterruptedRestore()
         guard await vm.status.state == .stopped else { return }
         let images = AndroidImageStore(paths: deps.paths)
         guard let data = images.dataRecord()?.release, let next = images.imageForBoot(override: deps.imageOverride)?.release,
@@ -116,6 +206,8 @@ extension DaemonCore {
                                     android: AndroidImageStore(paths: deps.paths).dataRecord()?.release.name,
                                     settings: CheckpointSettings(config))
         if let problem = store.problem() { throw AvoError.internalError(problem) }
+        // Half of one checkpoint's disks and half of the data's would be no restore point.
+        if RestoreJournal.exists(in: deps.paths.data) { throw AvoError.internalError(RestoreJournal.cutShortMessage) }
         let state = await vm.status.state
         if state == .running || state == .suspended { await flushAndroid() }
         try await vm.holdingStill { try store.create(checkpoint) }

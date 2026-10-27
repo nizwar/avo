@@ -1749,6 +1749,16 @@
         }
       }
     },
+    "Restoring a checkpoint was cut short, and Avo could not finish it. Restore a checkpoint again, or reset Android." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pemulihan checkpoint terhenti di tengah jalan, dan Avo tidak bisa menyelesaikannya. Pulihkan checkpoint lagi, atau reset Android."
+          }
+        }
+      }
+    },
     "Right index finger" : {
       "localizations" : {
         "id" : {

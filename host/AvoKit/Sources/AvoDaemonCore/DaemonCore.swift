@@ -299,6 +299,8 @@ public actor DaemonCore {
         // guarded against an eject while Android uses it.
         let storage = self.storage
         Task { _ = await storage.status() }
+        // What a restore Avo did not see to its end left (DaemonStorageSafety.swift).
+        startStorageSafety()
         if let volumes = deps.volumes {
             let volumeGuard = storage.volumeGuard
             volumes.start(refusal: { volumeGuard.refusal(for: $0) }) { [weak self] event in

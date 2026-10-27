@@ -1661,7 +1661,20 @@ Restore points of Android's apps and data, beside the data wherever it is
   after it) go. The checkpoint stays. The settings it kept come back, the
   data disk's size follows what Android said of it, fingers reload, and
   Android starts again when it ran; the apps list follows at that start
-  (`syncApps`).
+  (`syncApps`). A restore that fails before it changed anything starts a
+  running Android again.
+- **A restore cut short** (Avo quit, the Mac stopped, the drive went) could
+  pair one side's metadata disk, the key, with the other's data disk, which
+  Android then cannot decrypt. `checkpoint-restore.json` beside the data
+  (`RestoreJournal`: the checkpoint and the one made before) is written,
+  fully synced, once the clones are made and before the first rename, and
+  removed once the settings followed. The daemon finishes it as it starts,
+  and every start does first (`checkpointBeforeNewerAndroid`, before the
+  settings the boot reads): the checkpoint is restored again (it is whole),
+  else the one before undoes it. Until one works, `prepareForStart` refuses
+  every start, a move refuses to carry the data, no checkpoint is made of it
+  and neither checkpoint can be deleted; restoring a checkpoint again or
+  Reset Android puts it right.
 - **What erases them.** Reset Android and Android's own factory reset take
   the checkpoints with the data. Moving the data takes them along where they
   can be restored ("Checkpoints on a move" above); those that can't stay with
