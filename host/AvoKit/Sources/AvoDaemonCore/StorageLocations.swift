@@ -233,6 +233,12 @@ actor StorageLocations {
             logger.error("Android's data is not available: \(problem.message, privacy: .public)")
             throw AvoError.storage(problem)
         }
+        // A restore the daemon could not finish (bootVM tries first) left
+        // disks from two sides: Android would ask to erase its data.
+        if RestoreJournal.exists(in: resolution.folder) {
+            logger.error("a checkpoint restore was cut short and is not finished")
+            throw AvoError.internalError(RestoreJournal.cutShortMessage)
+        }
         guard resolution.record != nil else { return }
         if let problem = AndroidDataFolder(resolution.folder).problem(images: []) { throw AvoError.storage(problem) }
     }
@@ -479,6 +485,8 @@ actor StorageLocations {
                 throw AvoError.internalError(String(localized: "Android’s checkpoints can’t come along to “\(name)”. Keep the old copy to keep them.", bundle: .avoKit))
             }
             let source = resolve().folder
+            // Half of a checkpoint's disks would travel as Android's data.
+            if RestoreJournal.exists(in: source) { throw AvoError.internalError(RestoreJournal.cutShortMessage) }
             if replacing { try removeData(in: paths.vm) }
             let carried = checkpoints?.comeAlong == true ? CheckpointStore.movable(in: source).files : []
             try await copyData(from: source, to: destination, checkpoints: carried, id: request.id, publish: publish)

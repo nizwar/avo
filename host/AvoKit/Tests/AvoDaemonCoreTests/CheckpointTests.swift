@@ -268,6 +268,108 @@ private let settings = CheckpointSettings(VMConfig())
         #expect(harness.engine.base.launches.count == 2)
     }
 
+    /// What a restore cut short between its renames leaves: the checkpoint's
+    /// key beside the data disk it does not open, and Avo's settings from before.
+    private func cutShort(_ harness: Harness, restoring checkpoint: Checkpoint, before: UUID?) throws {
+        let store = CheckpointStore(paths: harness.paths)
+        try RestoreJournal(checkpoint: checkpoint.id, before: before).save(harness.paths)
+        let key = harness.paths.dataDisks.appending(path: "metadata.img")
+        try FileManager.default.removeItem(at: key)
+        try FileManager.default.copyItem(at: store.folder(of: checkpoint.id).appending(path: "cuttlefish/metadata.img"), to: key)
+        let staging = harness.paths.data.appending(path: CheckpointStore.stagingName)
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        try Data("half".utf8).write(to: staging.appending(path: "userdata.img"))
+    }
+
+    /// Avo quit (or the Mac stopped) in the middle of a restore: the next
+    /// start finishes it from the checkpoint before Android sees its data,
+    /// and boots with the settings that go with it.
+    @Test func aRestoreCutShortIsFinishedBeforeAndroidStarts() async throws {
+        let harness = try Harness()
+        defer { harness.cleanUp() }
+        let panel = await harness.controlPanel()
+        let clean = try await harness.core.createCheckpoint(named: nil, client: panel)
+        var config = await harness.core.configurationSnapshot().config
+        config.deviceProfileID = "pixel"
+        _ = try await harness.core.updateConfiguration(config, client: panel)
+        try writeData("v2", in: harness.paths)
+        try cutShort(harness, restoring: clean, before: nil)
+        #expect(try String(contentsOf: harness.paths.dataDisks.appending(path: "metadata.img"), encoding: .utf8) == "key v1")
+        // No checkpoint of data in that state.
+        await #expect(throws: AvoError.self) { _ = try await harness.core.createCheckpoint(named: nil, client: panel) }
+        await #expect(throws: AvoError.self) { try await harness.core.deleteCheckpoint(clean.id, client: panel) }
+
+        try await harness.core.startVM(client: panel)
+        #expect(try dataText(harness.paths) == "v1")
+        #expect(try String(contentsOf: harness.paths.dataDisks.appending(path: "metadata.img"), encoding: .utf8) == "key v1")
+        #expect(RestoreJournal.load(harness.paths) == nil)
+        #expect(!FileManager.default.fileExists(atPath: harness.paths.data.appending(path: CheckpointStore.stagingName).path))
+        #expect(await harness.core.configurationSnapshot().config.deviceProfileID == DeviceProfile.defaultID)
+        #expect(harness.engine.base.launches.last?.config.deviceProfileID == DeviceProfile.defaultID, "the start used the checkpoint's settings")
+    }
+
+    /// The daemon itself finishes it as it starts, without starting Android.
+    @Test func theDaemonFinishesARestoreCutShortWhenItStarts() async throws {
+        let harness = try Harness()
+        defer { harness.cleanUp() }
+        let panel = await harness.controlPanel()
+        let clean = try await harness.core.createCheckpoint(named: nil, client: panel)
+        try writeData("v2", in: harness.paths)
+        try cutShort(harness, restoring: clean, before: nil)
+        await harness.core.start()
+        #expect(await eventually { !RestoreJournal.exists(in: harness.paths.data) })
+        #expect(try dataText(harness.paths) == "v1")
+        #expect(harness.engine.base.launches.isEmpty)
+    }
+
+    /// A checkpoint that is gone can't finish its restore: the data before
+    /// it comes back. With neither, no start uses the data until a restore
+    /// or a reset puts it right.
+    @Test func aRestoreCutShortWithoutItsCheckpointIsUndoneOrRefused() async throws {
+        let harness = try Harness()
+        defer { harness.cleanUp() }
+        let panel = await harness.controlPanel()
+        let store = CheckpointStore(paths: harness.paths)
+        let clean = try await harness.core.createCheckpoint(named: nil, client: panel)
+        try writeData("v2", in: harness.paths)
+        let before = try await harness.core.makeCheckpoint(.restore)
+        try cutShort(harness, restoring: clean, before: before.id)
+        try FileManager.default.removeItem(at: store.folder(of: clean.id))
+        #expect(await harness.core.finishInterruptedRestore() == .undone)
+        #expect(try dataText(harness.paths) == "v2")
+        #expect(try String(contentsOf: harness.paths.dataDisks.appending(path: "metadata.img"), encoding: .utf8) == "key v2")
+        #expect(RestoreJournal.load(harness.paths) == nil)
+
+        // Neither checkpoint there: refused, and said why.
+        try cutShort(harness, restoring: before, before: nil)
+        try FileManager.default.removeItem(at: store.folder(of: before.id))
+        await #expect(throws: AvoError.internalError(RestoreJournal.cutShortMessage)) { try await harness.core.startVM(client: panel) }
+        #expect(harness.engine.base.launches.isEmpty)
+        // Reset Android takes the journal with the data.
+        try await harness.core.resetAndroid(client: panel)
+        #expect(!RestoreJournal.exists(in: harness.paths.data))
+        try await harness.core.startVM(client: panel)
+        #expect(await harness.core.vm.status.state == .running)
+    }
+
+    /// A restore that fails before it changed anything leaves the data as
+    /// it was, and a running Android starts again.
+    @Test func aRestoreThatChangedNothingStartsAndroidAgain() async throws {
+        let harness = try Harness()
+        defer { harness.cleanUp() }
+        let panel = await harness.controlPanel()
+        try await harness.core.startVM(client: panel)
+        let clean = try await harness.core.createCheckpoint(named: nil, client: panel)
+        try writeData("v2", in: harness.paths)
+        // Its data disk is gone: nothing to put back.
+        try FileManager.default.removeItem(at: CheckpointStore(paths: harness.paths).folder(of: clean.id).appending(path: "userdata.img"))
+        await #expect(throws: AvoError.self) { try await harness.core.restoreCheckpoint(clean.id, client: panel) }
+        #expect(try dataText(harness.paths) == "v2")
+        #expect(!RestoreJournal.exists(in: harness.paths.data))
+        #expect(await harness.core.vm.status.state == .running)
+        #expect(harness.engine.base.launches.count == 2)
+    }
+
     @Test func resetAndroidErasesItsCheckpoints() async throws {
         let harness = try Harness()
         defer { harness.cleanUp() }

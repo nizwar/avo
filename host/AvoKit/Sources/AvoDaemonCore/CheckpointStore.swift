@@ -152,9 +152,12 @@ struct CheckpointStore {
         }
     }
 
-    /// Reset Android: its checkpoints go with its data.
+    /// Reset Android: its checkpoints go with its data, and a restore cut
+    /// short has nothing left to finish.
     func removeAll() {
         try? FileManager.default.removeItem(at: folder)
+        RestoreJournal.remove(paths)
+        try? FileManager.default.removeItem(at: paths.data.appending(path: Self.stagingName, directoryHint: .isDirectory))
     }
 
     /// Puts the checkpoint's data in place of Android's (Android stopped).
@@ -162,7 +165,11 @@ struct CheckpointStore {
     /// beside the data first, so a checkpoint that cannot be read changes
     /// nothing; then they replace the data, the data disk last, and what
     /// the checkpoint did not have (Google apps installed after it) goes.
-    func restore(_ id: UUID) throws -> Checkpoint {
+    /// The journal written before the first of them (RestoreJournal) stays
+    /// until the daemon has the settings that go with the data: a restore
+    /// cut short anywhere is finished, or undone with `before` (the data as
+    /// it was), before Android uses the data again.
+    func restore(_ id: UUID, before: UUID? = nil) throws -> Checkpoint {
         guard let checkpoint = list().first(where: { $0.id == id }) else { throw Self.missing }
         let source = folder(of: id)
         let staging = paths.data.appending(path: Self.stagingName, directoryHint: .isDirectory)
@@ -172,6 +179,9 @@ struct CheckpointStore {
         let present = Self.items.filter { FileManager.default.fileExists(atPath: source.appending(path: $0).path) }
         guard present.contains("userdata.img") else { throw Self.missing }
         try Self.clone(present, from: source, to: staging)
+        // From here the data changes: a metadata disk from one side and a
+        // data disk from the other cannot be opened (its key is on the first).
+        try RestoreJournal(checkpoint: id, before: before).save(paths)
         let order = present.filter { $0 != "userdata.img" } + ["userdata.img"]
         for item in Self.items where !present.contains(item) {
             let url = paths.data.appending(path: item)
@@ -183,6 +193,8 @@ struct CheckpointStore {
             if FileManager.default.fileExists(atPath: target.path) { try FileManager.default.removeItem(at: target) }
             try FileManager.default.moveItem(at: staging.appending(path: item), to: target)
         }
+        // On the drive before the journal can go (a full fsync flushes all of the drive's cache).
+        RestoreJournal.flush(paths.dataDisk)
         logger.notice("restored checkpoint \(id.uuidString, privacy: .public) from \(checkpoint.createdAt, privacy: .public)")
         return checkpoint
     }
@@ -212,5 +224,59 @@ struct CheckpointStore {
 
     static var missing: AvoError {
         AvoError.internalError(String(localized: "That checkpoint is no longer there.", bundle: .avoKit))
+    }
+}
+
+/// `<data>/checkpoint-restore.json`: a restore on its way (CheckpointStore.restore).
+/// Written once the checkpoint's clones wait beside the data, before the
+/// first of them replaces anything; removed once the data and Avo's
+/// settings are the checkpoint's. Until then the data may hold disks from
+/// both sides, so the daemon finishes the restore first (`finishInterruptedRestore`)
+/// and no start, move or checkpoint takes the data as it is.
+struct RestoreJournal: Codable, Equatable {
+    /// The checkpoint put back: it stays whole, so restoring it again finishes the restore.
+    var checkpoint: UUID
+    /// The checkpoint of the data as it was before, which undoes it (nil: Android had no data).
+    var before: UUID?
+    var startedAt: Date
+
+    init(checkpoint: UUID, before: UUID?, startedAt: Date = Date()) {
+        self.checkpoint = checkpoint
+        self.before = before
+        self.startedAt = startedAt
+    }
+
+    static let name = "checkpoint-restore.json"
+
+    static func url(in folder: URL) -> URL { folder.appending(path: name) }
+
+    /// One is there, readable or not (a start is refused while it is).
+    static func exists(in folder: URL) -> Bool { FileManager.default.fileExists(atPath: url(in: folder).path) }
+
+    static func load(_ paths: AvoPaths) -> RestoreJournal? {
+        (try? Data(contentsOf: url(in: paths.data))).flatMap { try? JSONDecoder().decode(RestoreJournal.self, from: $0) }
+    }
+
+    /// On the drive before the first item of the data changes.
+    func save(_ paths: AvoPaths) throws {
+        let url = Self.url(in: paths.data)
+        try JSONEncoder().encode(self).write(to: url, options: .atomic)
+        Self.flush(url)
+    }
+
+    static func remove(_ paths: AvoPaths) {
+        try? FileManager.default.removeItem(at: url(in: paths.data))
+    }
+
+    /// F_FULLFSYNC on `url`: its drive writes out everything it holds.
+    static func flush(_ url: URL) {
+        let fd = open(url.path, O_RDONLY)
+        guard fd >= 0 else { return }
+        if fcntl(fd, F_FULLFSYNC) != 0 { _ = fsync(fd) }
+        close(fd)
+    }
+
+    static var cutShortMessage: String {
+        String(localized: "Restoring a checkpoint was cut short, and Avo could not finish it. Restore a checkpoint again, or reset Android.", bundle: .avoKit)
     }
 }
