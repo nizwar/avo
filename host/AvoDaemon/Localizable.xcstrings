@@ -39,6 +39,16 @@
         }
       }
     },
+    "Android is not responding" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android tidak merespons"
+          }
+        }
+      }
+    },
     "Android is paused" : {
       "localizations" : {
         "id" : {
@@ -544,6 +554,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tetap Hentikan"
+          }
+        }
+      }
+    },
+    "Stop it and start it again to go on. Your apps and data are kept." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hentikan lalu jalankan lagi untuk melanjutkan. Aplikasi dan data Anda tetap ada."
           }
         }
       }

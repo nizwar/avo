@@ -594,6 +594,16 @@
         }
       }
     },
+    "Android stopped answering. Restart it from Avo’s menu bar item or the Library; your apps and data are kept." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android berhenti menjawab. Mulai ulang dari item bar menu Avo atau dari Pustaka; aplikasi dan data Anda tetap ada."
+          }
+        }
+      }
+    },
     "Android stopped." : {
       "localizations" : {
         "id" : {

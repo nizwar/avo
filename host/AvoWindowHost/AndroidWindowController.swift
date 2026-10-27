@@ -22,6 +22,8 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     /// for the unlock to open (see "Screen lock" below).
     private let lockOverlay = ScreenLockOverlay()
     private var pendingAttach: (client: DaemonClient, notificationKey: String?)?
+    /// The notice that Android stopped answering showed (`androidStatusChanged`), until it answers again.
+    private var saidNotResponding = false
     /// Files dropped before the display opened (on the Dock icon, as the app
     /// started): they go to the app once it has.
     private var filesToShare: [URL] = []
@@ -2213,6 +2215,14 @@ extension AndroidWindowController {
     /// goes with it, and a window waiting for its display opens once Android
     /// runs unlocked, from wherever it was unlocked.
     func androidStatusChanged(_ status: VMStatus) {
+        // Once as Android stops answering: the game is not frozen by the window.
+        if status.isNotResponding, !saidNotResponding {
+            saidNotResponding = true
+            showNotice(String(localized: "Android stopped answering. Restart it from Avo’s menu bar item or the Library; your apps and data are kept.",
+                              bundle: .windowHost))
+        } else if !status.isNotResponding {
+            saidNotResponding = false
+        }
         if status.state == .running, let lock = status.screenLock {
             showLock(lock)
             return

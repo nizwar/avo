@@ -393,6 +393,14 @@ struct LibraryBanners: View {
                     Button("Unlock…") { model.unlockSheetShown = true }
                 }
             }
+            // Android runs but stopped answering (HostAgent's check): a restart is the way on.
+            if model.status.isNotResponding {
+                HazeBanner(symbol: "exclamationmark.triangle", tint: Haze.warning,
+                           text: "Android stopped answering. Restart it to go on: your apps and data are kept.") {
+                    Button("Restart Android") { model.restartVM() }
+                        .disabled(model.googleAppsChangingAndroid)
+                }
+            }
             if model.pendingRestart {
                 HazeBanner(symbol: "arrow.clockwise.circle", tint: Haze.accent,
                            text: "Some changes apply after Android restarts. Your apps and data are kept.") {
@@ -416,13 +424,14 @@ struct LibraryBanners: View {
 
     private var bannerState: [Bool] {
         [model.daemonState == .connected, model.daemonState == .connecting, model.daemonState == .needsApproval,
-         model.runsFromTemporaryCopy, model.screenLock != nil, model.pendingRestart, images.needsImage && !assistant.isPresented,
+         model.runsFromTemporaryCopy, model.screenLock != nil, model.status.isNotResponding, model.pendingRestart,
+         images.needsImage && !assistant.isPresented,
          model.status.renderer?.reason == .failed && model.config?.rendererMode != .software]
     }
 
     private var hasBanner: Bool {
         model.daemonState != .connected || model.runsFromTemporaryCopy
-            || (model.screenLock != nil && model.daemonState == .connected) || model.pendingRestart
+            || (model.screenLock != nil && model.daemonState == .connected) || model.status.isNotResponding || model.pendingRestart
             || (images.needsImage && !assistant.isPresented)
             || (model.status.renderer?.reason == .failed && model.config?.rendererMode != .software)
     }

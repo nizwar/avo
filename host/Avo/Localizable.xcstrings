@@ -51,6 +51,22 @@
         }
       }
     },
+    "%@ Avo %@ installs when you quit Avo, or now with Install Now: Android goes on running the version of Avo you have until it restarts." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ Avo %2$@ installs when you quit Avo, or now with Install Now: Android goes on running the version of Avo you have until it restarts."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ Avo %2$@ dipasang saat Anda keluar dari Avo, atau sekarang dengan Pasang Sekarang: Android tetap berjalan di versi Avo yang Anda punya sampai dimulai ulang."
+          }
+        }
+      }
+    },
     "%@ GB" : {
       "localizations" : {
         "id" : {
@@ -1552,6 +1568,16 @@
         }
       }
     },
+    "Android did not stop" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android tidak berhenti"
+          }
+        }
+      }
+    },
     "Android draws at most this many frames per second, in every app. A screen’s own rate between 60 and 120 appears too, so Android runs in step with it. A rate above the one Android started at applies after a restart. 30 saves power and heat." : {
       "localizations" : {
         "id" : {
@@ -2158,6 +2184,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Status Android"
+          }
+        }
+      }
+    },
+    "Android stopped answering. Restart it to go on: your apps and data are kept." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android berhenti menjawab. Mulai ulang Android untuk melanjutkan: aplikasi dan data Anda tetap ada."
           }
         }
       }
@@ -6243,6 +6279,16 @@
         }
       }
     },
+    "It was still running after a minute." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android masih berjalan setelah satu menit."
+          }
+        }
+      }
+    },
     "Its apps keep their place and use no CPU. System Status does not wake Android to look." : {
       "localizations" : {
         "id" : {
@@ -6443,6 +6489,16 @@
         }
       }
     },
+    "Lets adb, Android Studio or scrcpy on this Mac control Android. Avo lets in only adb’s own key on this Mac (~/.android/adbkey), which they share, but whatever uses it can install apps and read Android’s data, so turn it off when you don’t need it." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memungkinkan adb, Android Studio, atau scrcpy di Mac ini mengontrol Android. Avo hanya menerima kunci adb milik Mac ini (~/.android/adbkey), yang mereka pakai bersama, tetapi apa pun yang memakainya bisa menginstal app dan membaca data Android, jadi matikan saat tidak diperlukan."
+          }
+        }
+      }
+    },
     "Lets adb, Android Studio or scrcpy on this Mac control Android. Only this Mac can connect, but any app on it can then install apps and read Android’s data, so turn it off when you don’t need it." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6450,16 +6506,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Memungkinkan adb, Android Studio, atau scrcpy di Mac ini mengontrol Android. Hanya Mac ini yang bisa tersambung, tetapi app apa pun di Mac ini lalu bisa menginstal app dan membaca data Android, jadi matikan saat tidak diperlukan."
-          }
-        }
-      }
-    },
-    "Lets adb, Android Studio or scrcpy on this Mac control Android. Avo lets in only adb’s own key on this Mac (~/.android/adbkey), which they share, but whatever uses it can install apps and read Android’s data, so turn it off when you don’t need it." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Memungkinkan adb, Android Studio, atau scrcpy di Mac ini mengontrol Android. Avo hanya menerima kunci adb milik Mac ini (~/.android/adbkey), yang mereka pakai bersama, tetapi apa pun yang memakainya bisa menginstal app dan membaca data Android, jadi matikan saat tidak diperlukan."
           }
         }
       }
@@ -9734,42 +9780,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hentikan Android dan Pasang"
-          }
-        }
-      }
-    },
-    "%@ Avo %@ installs when you quit Avo, or now with Install Now: Android goes on running the version of Avo you have until it restarts." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ Avo %2$@ installs when you quit Avo, or now with Install Now: Android goes on running the version of Avo you have until it restarts."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ Avo %2$@ dipasang saat Anda keluar dari Avo, atau sekarang dengan Pasang Sekarang: Android tetap berjalan di versi Avo yang Anda punya sampai dimulai ulang."
-          }
-        }
-      }
-    },
-    "Android did not stop" : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Android tidak berhenti"
-          }
-        }
-      }
-    },
-    "It was still running after a minute." : {
-      "localizations" : {
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Android masih berjalan setelah satu menit."
           }
         }
       }

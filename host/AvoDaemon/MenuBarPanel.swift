@@ -151,7 +151,8 @@ struct MenuBarPanel: View {
     }
 
     static func title(for status: VMStatus) -> String {
-        switch status.state {
+        if status.isNotResponding { return String(localized: "Android is not responding") }
+        return switch status.state {
         case .running: String(localized: "Android is running")
         case .suspending: String(localized: "Android is pausing…")
         case .suspended: String(localized: "Android is paused")
@@ -170,6 +171,7 @@ struct MenuBarPanel: View {
         case nil: break
         }
         let status = model.status
+        if status.isNotResponding { return String(localized: "Stop it and start it again to go on. Your apps and data are kept.") }
         switch status.state {
         case .running:
             var parts: [String] = []
@@ -191,7 +193,8 @@ struct MenuBarPanel: View {
     }
 
     private var dotColor: Color {
-        switch model.status.state {
+        if model.status.isNotResponding { return Haze.warning }
+        return switch model.status.state {
         case .running: Haze.running
         case .starting, .stopping, .suspending: Haze.warning
         case .suspended: Haze.accent.opacity(0.55)
