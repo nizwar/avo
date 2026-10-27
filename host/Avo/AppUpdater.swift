@@ -52,7 +52,9 @@ final class AppUpdater: NSObject {
         self.controller = controller
         do {
             try controller.updater.start()
-            logger.notice("updates check \(url.absoluteString, privacy: .public)")
+            // The feed Sparkle reads: a `SUFeedURL` in Avo's defaults (a
+            // local test feed, docs/releasing.md) wins over Info.plist's.
+            logger.notice("updates check \(controller.updater.feedURL?.absoluteString ?? url.absoluteString, privacy: .public)")
         } catch {
             logger.error("the updater did not start: \(error.localizedDescription, privacy: .public)")
         }
