@@ -99,6 +99,8 @@ public actor DaemonCore {
         var visible = true
         /// Its app runs in the background (the blue light): hidden on purpose.
         var inBackground = false
+        /// Android is launching its app, and `openDisplay` waits for it.
+        var opening = false
     }
 
     let deps: Dependencies
@@ -387,8 +389,11 @@ public actor DaemonCore {
         locationWatchers.remove(id)
         if activityWatchers.remove(id) != nil { await updateSampling() }
         defer { publishActivity() }
-        // A shim that quits (or crashes) closes its windows' displays.
-        for display in displays.values where display.owner == id {
+        // A shim that quits (or crashes) closes its windows' displays. One
+        // whose app Android is launching closes once it has (`openDisplay`):
+        // stopped now, the app could still start after, and its display
+        // closing then would put it on Android's own screen.
+        for display in displays.values where display.owner == id && !display.opening {
             await closeDisplay(display.id, client: id)
         }
     }
@@ -1469,9 +1474,13 @@ public actor DaemonCore {
         // Android's lock screen covers every display until it is unlocked:
         // the window shows its own lock instead and asks again after.
         try await refuseWhileLocked()
+        // The shim went away while Android started (its app quit while the
+        // window said "Starting…"): nothing opens for it.
+        guard clients[client] != nil else { throw AvoError.unauthorizedCaller }
         let id = nextDisplayID
         nextDisplayID &+= 1
-        displays[id] = Display(id: id, package: package, owner: client, width: request.width, height: request.height, dpi: request.dpi)
+        displays[id] = Display(id: id, package: package, owner: client, width: request.width, height: request.height, dpi: request.dpi,
+                               opening: true)
 
         var launch = Avo_V1_Launch()
         launch.package = package
@@ -1502,7 +1511,16 @@ public actor DaemonCore {
             try await refuseWhileLocked()
             throw error
         }
+        displays[id]?.opening = false
+        // Gone while Android launched the app: its display goes now, with the
+        // app, rather than staying open for nobody.
+        guard clients[client] != nil else {
+            await closeDisplay(id, client: client)
+            throw AvoError.unauthorizedCaller
+        }
         await vm.setOpenDisplays(displays.count)
+        // Gone meanwhile: `disconnect` closed the display.
+        guard clients[client] != nil else { throw AvoError.unauthorizedCaller }
         // A widget is no app the Library counts time for.
         if package != AndroidWidgets.package { usageWindowOpened(id, package: package) }
         publishActivity()
