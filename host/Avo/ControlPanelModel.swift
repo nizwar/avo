@@ -414,7 +414,10 @@ final class ControlPanelModel {
             storageLocation = self.snapshot?.storageLocation
             self.apps = try await apps
             refreshKeyMappings()
-            for app in self.apps { await loadIcon(app.package) }
+            // Icons after, one at a time: the daemon's events (Android's
+            // state, installs) start without waiting for every app's.
+            let packages = self.apps.map(\.package)
+            Task { for package in packages { await loadIcon(package) } }
         } catch {
             lastError = error.localizedDescription
         }
