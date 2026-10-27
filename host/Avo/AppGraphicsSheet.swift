@@ -1,46 +1,12 @@
 import AvoKit
 import SwiftUI
 
-/// One app's Graphics Settings (Apps › context menu, App Info): which profile
-/// it is based on and what it changes on top. Only the changed fields are
-/// stored, so the app keeps following later edits of its profile; every
-/// write goes through `ControlPanelModel.setAppGraphics`, the same path an
-/// app window's View menu uses.
-struct AppGraphicsSheet: View {
-    @Environment(ControlPanelModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-    let app: AppRecord
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
-                if let icon = model.icons[app.package] {
-                    Image(nsImage: icon).resizable().frame(width: 40, height: 40)
-                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                }
-                Text("Graphics Settings for \(app.displayName)").font(.title3.weight(.semibold))
-            }
-            .padding([.horizontal, .top], 20)
-
-            AppGraphicsForm(app: app)
-                .formStyle(.grouped)
-                .toggleStyle(.switch)
-
-            HStack {
-                Spacer()
-                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
-            }
-            .padding(20)
-        }
-        .frame(width: 540, height: 640)
-        // A key mapping may have been added since the list was read.
-        .onAppear { model.refreshKeyMappings() }
-    }
-}
-
-/// The sheet's form: the profile the app is based on, the editor, and
-/// Reset. Also inline on the app's page in the Library (in the haze,
-/// HazeFormStyle); the form's style comes from where it shows.
+/// One app's Graphics Settings, on its page in the Library: which profile
+/// it is based on and what it changes on top, the editor, and Reset. Only
+/// the changed fields are stored, so the app keeps following later edits of
+/// its profile; every write goes through `ControlPanelModel.setAppGraphics`,
+/// the same path an app window's View menu uses. The form's style comes
+/// from where it shows (HazeFormStyle in the haze).
 struct AppGraphicsForm: View {
     @Environment(ControlPanelModel.self) private var model
     let app: AppRecord
