@@ -18,8 +18,10 @@ public struct ShortcutManager: Sendable {
         self.paths = paths
     }
 
-    /// Creates or refreshes shortcuts for a launchable app and returns the new state.
-    public func apply(_ app: AppRecord, info: Avo_V1_AppInfo?, config: VMConfig) -> AppRecord.Shortcuts {
+    /// Creates or refreshes shortcuts for a launchable app and returns the new
+    /// state. `restartDock` false: a change of its Dock tile waits for the
+    /// caller's `Shortcuts.restartDock()` (one for many apps).
+    public func apply(_ app: AppRecord, info: Avo_V1_AppInfo?, config: VMConfig, restartDock: Bool = true) -> AppRecord.Shortcuts {
         var shortcuts = app.shortcuts
         // The Bridge Agent decides which system apps are user-facing (launchable).
         guard app.launchable, let builder else { return shortcuts }
@@ -48,9 +50,9 @@ public struct ShortcutManager: Sendable {
             shortcuts.desktopAliasPath = nil
         }
         if config.addToDock && !shortcuts.inDock {
-            shortcuts.inDock = Shortcuts.addToDock(shim) || Shortcuts.isInDock(shim)
+            shortcuts.inDock = Shortcuts.addToDock(shim, restartDock: restartDock) || Shortcuts.isInDock(shim)
         } else if !config.addToDock && shortcuts.inDock {
-            _ = Shortcuts.removeFromDock(shim)
+            _ = Shortcuts.removeFromDock(shim, restartDock: restartDock)
             shortcuts.inDock = false
         }
         return shortcuts
