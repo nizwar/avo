@@ -277,9 +277,75 @@ fn bootconfig(options: &Options, vendor: &str) -> Result<String, String> {
     Ok(android::bootconfig_text(&entries))
 }
 
-/// Writes guest output to a log file and to whoever is attached to the socket.
-struct Tee {
+/// A log of guest output that takes at most twice its limit of the Mac's
+/// disk: past the limit the log so far becomes `<name>.1.log` (replacing
+/// the one before) and a new one begins. If it cannot be moved aside or a
+/// fresh file cannot be opened, the current file is capped in place
+/// (truncated) rather than written on without bound. A guest that floods a
+/// console (an app that logs without end, `yes > /dev/hvc1` as root) does
+/// not fill the Mac's disk.
+struct CappedLog {
     file: std::fs::File,
+    path: PathBuf,
+    written: u64,
+    limit: u64,
+}
+
+/// Where each guest log moves on to its next file (Report a Problem takes
+/// the last 2 MiB of logcat.log and 512 KiB of kernel.log).
+const LOG_LIMIT: u64 = 16 << 20;
+
+/// A log's older half, beside it: logcat.log's is logcat.1.log.
+fn older_half(path: &Path) -> PathBuf {
+    path.with_extension("1.log")
+}
+
+impl CappedLog {
+    /// A new, empty log at `path`. An older half from an earlier boot goes:
+    /// it would read as this one's.
+    fn create(path: PathBuf, limit: u64) -> std::io::Result<CappedLog> {
+        let _ = std::fs::remove_file(older_half(&path));
+        let file = std::fs::File::create(&path)?;
+        Ok(CappedLog { file, path, written: 0, limit })
+    }
+
+    fn rotate(&mut self) {
+        use std::io::{Seek, SeekFrom};
+        self.written = 0;
+        let _ = self.file.flush();
+        let rotated = std::fs::rename(&self.path, older_half(&self.path)).and_then(|_| std::fs::File::create(&self.path));
+        match rotated {
+            Ok(file) => self.file = file,
+            Err(e) => {
+                let name = self.path.file_name().unwrap_or_default().to_string_lossy();
+                eprintln!("[vmm] {name}: {e}; capping the current log file in place");
+                let _ = self.file.set_len(0);
+                let _ = self.file.seek(SeekFrom::Start(0));
+            }
+        }
+    }
+}
+
+impl Write for CappedLog {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        if self.written + data.len() as u64 > self.limit {
+            self.rotate();
+        }
+        self.file.write_all(data)?;
+        self.written += data.len() as u64;
+        Ok(data.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.file.flush()
+    }
+}
+
+/// Writes guest output to a log and to whoever is attached to the socket.
+/// The kernel's log has two writers (earlycon's PL011, then hvc0), which
+/// share one log, so both move on to its next file.
+struct Tee {
+    log: Arc<Mutex<CappedLog>>,
     clients: Arc<Mutex<Vec<UnixStream>>>,
     echo: bool,
 }
@@ -293,59 +359,26 @@ struct Tee {
 /// promised (`VMMEngine.es32Refuted`). A line may straddle two writes, so
 /// the tail of each is carried into the next look.
 ///
-/// Its output also says Android's userspace runs (`ANDROID_UP`). The log
-/// takes at most twice `LOGCAT_LIMIT` of the Mac's disk: an app that logs
-/// without end does not fill it.
+/// Its output also says Android's userspace runs (`ANDROID_UP`). Its log
+/// is capped (`CappedLog`) like the others: an app that logs without end
+/// does not fill the Mac's disk.
 struct LogcatWatch {
-    file: std::fs::File,
-    path: PathBuf,
-    written: u64,
+    log: CappedLog,
     marker: PathBuf,
     tail: Vec<u8>,
 }
 
-/// Where logcat.log moves on to the next file (Report a Problem takes the
-/// last 2 MiB of logcat.log).
-const LOGCAT_LIMIT: u64 = 16 << 20;
-
 impl LogcatWatch {
-    fn new(file: std::fs::File, image: &Path, instance: &Path) -> LogcatWatch {
+    fn new(log: CappedLog, image: &Path, instance: &Path) -> LogcatWatch {
         let name = image.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        let path = instance.join("logcat.log");
-        // An older half from an earlier boot would read as this one's.
-        let _ = std::fs::remove_file(path.with_file_name("logcat.1.log"));
-        LogcatWatch { file, path, written: 0, marker: instance.join(format!("es32-refuted-{name}")), tail: Vec::new() }
-    }
-
-    /// The log so far becomes logcat.1.log (replacing the one before), and a
-    /// new logcat.log begins. If it cannot be moved aside or a fresh file
-    /// cannot be opened, the current file is capped in place (truncated)
-    /// rather than written on without bound into logcat.1.log or logcat.log.
-    fn rotate(&mut self) {
-        use std::io::{Seek, SeekFrom};
-        self.written = 0;
-        let _ = self.file.flush();
-        let rotated = std::fs::rename(&self.path, self.path.with_file_name("logcat.1.log"))
-            .and_then(|_| std::fs::File::create(&self.path));
-        match rotated {
-            Ok(file) => self.file = file,
-            Err(e) => {
-                eprintln!("[vmm] logcat.log: {e}; capping the current log file in place");
-                let _ = self.file.set_len(0);
-                let _ = self.file.seek(SeekFrom::Start(0));
-            }
-        }
+        LogcatWatch { log, marker: instance.join(format!("es32-refuted-{name}")), tail: Vec::new() }
     }
 }
 
 impl Write for LogcatWatch {
     fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
         ANDROID_UP.store(true, std::sync::atomic::Ordering::Relaxed);
-        if self.written + data.len() as u64 > LOGCAT_LIMIT {
-            self.rotate();
-        }
-        self.file.write_all(data)?;
-        self.written += data.len() as u64;
+        self.log.write_all(data)?;
         const NEEDLE: &[u8] = b"contexts stay at their own cap";
         self.tail.extend_from_slice(data);
         if self.tail.windows(NEEDLE.len()).any(|w| w == NEEDLE) {
@@ -359,13 +392,13 @@ impl Write for LogcatWatch {
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.file.flush()
+        self.log.flush()
     }
 }
 
 impl Write for Tee {
     fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
-        self.file.write_all(data)?;
+        self.log.lock().unwrap().write_all(data)?;
         if self.echo {
             let _ = std::io::stdout().write_all(data);
         }
@@ -379,7 +412,7 @@ impl Write for Tee {
         if self.echo {
             let _ = std::io::stdout().flush();
         }
-        self.file.flush()
+        self.log.lock().unwrap().flush()
     }
 }
 
@@ -701,16 +734,12 @@ fn boot(options: &Options, renderer: Option<&RenderHost>, bluetooth: Option<&Arc
     // traps once per character, hvc0 once per buffer.
     let cmdline = format!("{} earlycon=pl011,mmio32,0x9000000 console=hvc0", images.vendor_cmdline.trim());
 
-    let log = |name: &str| std::fs::File::create(options.instance.join(name)).map_err(|e| e.to_string());
-    let kernel_file = log("kernel.log")?;
-    let kernel_log = |file: &std::fs::File| -> Result<Box<dyn Write + Send>, String> {
-        Ok(Box::new(Tee {
-            file: file.try_clone().map_err(|e| e.to_string())?,
-            clients: Arc::new(Mutex::new(Vec::new())),
-            echo: options.verbose,
-        }))
+    let log = |name: &str| CappedLog::create(options.instance.join(name), LOG_LIMIT).map_err(|e| format!("{name}: {e}"));
+    let kernel_file = Arc::new(Mutex::new(log("kernel.log")?));
+    let kernel_log = || -> Box<dyn Write + Send> {
+        Box::new(Tee { log: kernel_file.clone(), clients: Arc::new(Mutex::new(Vec::new())), echo: options.verbose })
     };
-    let mut machine = Machine::new(options.cpus, options.memory_mib, kernel_log(&kernel_file)?)?;
+    let mut machine = Machine::new(options.cpus, options.memory_mib, kernel_log())?;
     if let Some(clusters) = &options.cpu {
         machine.present_cpu(clusters.clone())?;
     }
@@ -744,8 +773,8 @@ fn boot(options: &Options, renderer: Option<&RenderHost>, bluetooth: Option<&Arc
     let mut consoles: Vec<Box<dyn VirtioDevice>> = Vec::new();
     for index in 0..20 {
         let sink: Option<Sink> = match index {
-            0 => Some(kernel_log(&kernel_file)?),
-            1 => Some(Box::new(Tee { file: log("console.log")?, clients: console_clients.clone(), echo: false })),
+            0 => Some(kernel_log()),
+            1 => Some(Box::new(Tee { log: Arc::new(Mutex::new(log("console.log")?)), clients: console_clients.clone(), echo: false })),
             2 => Some(Box::new(LogcatWatch::new(log("logcat.log")?, &options.images, &options.instance))),
             // /dev/hvc5: the Bluetooth HAL's H4 (bluetooth.rs).
             5 => bluetooth.map(|bluetooth| bluetooth.sink()),
@@ -951,7 +980,7 @@ mod console_tests {
 }
 
 #[cfg(test)]
-mod logcat_tests {
+mod log_tests {
     use super::*;
 
     #[test]
@@ -961,18 +990,40 @@ mod logcat_tests {
         // An earlier boot's older half is not this boot's.
         std::fs::write(instance.join("logcat.1.log"), b"earlier boot").unwrap();
         let path = instance.join("logcat.log");
-        let mut watch = LogcatWatch::new(std::fs::File::create(&path).unwrap(), Path::new("/images/avo"), &instance);
+        let mut watch = LogcatWatch::new(CappedLog::create(path.clone(), LOG_LIMIT).unwrap(), Path::new("/images/avo"), &instance);
         assert!(!instance.join("logcat.1.log").exists());
         let chunk = [b'x'; 1 << 16];
-        for _ in 0..LOGCAT_LIMIT / chunk.len() as u64 {
+        for _ in 0..LOG_LIMIT / chunk.len() as u64 {
             watch.write_all(&chunk).unwrap();
         }
         assert!(!instance.join("logcat.1.log").exists(), "up to its limit the log is one file");
         watch.write_all(b"next\n").unwrap();
         watch.flush().unwrap();
-        assert_eq!(std::fs::metadata(instance.join("logcat.1.log")).unwrap().len(), LOGCAT_LIMIT);
+        assert_eq!(std::fs::metadata(instance.join("logcat.1.log")).unwrap().len(), LOG_LIMIT);
         assert_eq!(std::fs::read(&path).unwrap(), b"next\n");
         assert!(ANDROID_UP.load(std::sync::atomic::Ordering::Relaxed), "logcat output says Android's userspace runs");
+        std::fs::remove_dir_all(&instance).unwrap();
+    }
+
+    #[test]
+    fn a_flooded_console_log_stays_within_its_cap() {
+        let instance = std::env::temp_dir().join(format!("avo-kernel-log-{}", std::process::id()));
+        std::fs::create_dir_all(&instance).unwrap();
+        std::fs::write(instance.join("kernel.1.log"), b"earlier boot").unwrap();
+        let log = Arc::new(Mutex::new(CappedLog::create(instance.join("kernel.log"), 4096).unwrap()));
+        assert!(!instance.join("kernel.1.log").exists(), "an earlier boot's older half goes");
+        // The kernel log's two writers (earlycon's PL011, then hvc0) take
+        // turns: 100 KB through a cap of 4 KiB.
+        let tee = || Tee { log: log.clone(), clients: Arc::new(Mutex::new(Vec::new())), echo: false };
+        let mut writers = [tee(), tee()];
+        for i in 0..1000 {
+            writers[i % 2].write_all(&[b'y'; 100]).unwrap();
+        }
+        writers[1].write_all(b"last line\n").unwrap();
+        writers[0].flush().unwrap();
+        let size = |name: &str| std::fs::metadata(instance.join(name)).unwrap().len();
+        assert!(size("kernel.log") <= 4096 && size("kernel.1.log") <= 4096, "{} and {}", size("kernel.log"), size("kernel.1.log"));
+        assert!(std::fs::read(instance.join("kernel.log")).unwrap().ends_with(b"last line\n"), "both writers go on in the new file");
         std::fs::remove_dir_all(&instance).unwrap();
     }
 }
