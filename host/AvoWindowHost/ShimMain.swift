@@ -61,12 +61,10 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     /// chosen one's screen is what "Phone's screen" gives Android.
     private(set) var profiles: [DeviceProfile] = []
     private var windows: [AndroidWindowController] = []
-    /// Android ended the app (its last window closed from the guest).
-    private var appEnded = false
-    /// Quitting waits for Android and for screen recordings to finish
+    /// The app is quitting, which may wait for screen recordings to finish
     /// (`applicationShouldTerminate`). Meanwhile the app's windows close and
     /// Android stops it, and asking to quit again then would make AppKit
-    /// quit at once, cutting a recording short.
+    /// quit at once, cutting a recording short; nor does a window open again.
     private var quitting = false
     /// Events for displays whose window is still waiting for `openDisplay`
     /// to return: the guest reports a display ready before the call ends.
@@ -159,23 +157,23 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
         return controller
     }
 
-    /// Closing a window sends the app to the background, as Home does on a
-    /// phone: the shim stays in the Dock and reopens it where it was. Only
-    /// when Android ended the app (Back on its first screen) does it leave.
-    func windowClosed(_ controller: AndroidWindowController, byGuest: Bool) {
+    /// A window closed (its `windowWillClose`).
+    func windowClosed(_ controller: AndroidWindowController) {
         windows.removeAll { $0 === controller }
         // The last window closing ends the app, by Android or by the user
         // (Close, ⌘W): it quits, and the daemon force-stops it in Android
-        // (DaemonCore.closeDisplay; quitting asks for the stop as well).
-        if windows.isEmpty {
-            appEnded = byGuest
-            // Left to itself, macOS activates whichever app it last saw
-            // active, which is often not the one whose window was right
-            // behind (a window Android opened in the background never was):
-            // every other window would drop behind it.
-            if NSApp.isActive { Self.activateWindowBehind() }
-            if !quitting { NSApp.terminate(nil) }
-        }
+        // (DaemonCore.closeDisplay).
+        guard windows.isEmpty else { return }
+        // Left to itself, macOS activates whichever app it last saw active,
+        // which is often not the one whose window was right behind (a window
+        // Android opened in the background never was): every other window
+        // would drop behind it.
+        if NSApp.isActive { Self.activateWindowBehind() }
+        guard !quitting else { return }
+        // Once the window has gone: asked from its `windowWillClose`, a quit
+        // that waits for a recording held the window on screen, frozen.
+        quitting = true
+        Task { NSApp.terminate(nil) }
     }
 
     /// Hands activation to the app owning the frontmost window of another
@@ -218,7 +216,6 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
             updateDockBadge()
         case .appStopped(let stopped) where stopped == package:
             // Force stopped in the Control Panel: Android already ended it.
-            appEnded = true
             if !quitting { NSApp.terminate(nil) }
         case .fingerprints(let status):
             // The windows' fingerprint menus (FingerprintMenu.swift).
@@ -346,7 +343,8 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     }
 
     private func bringBack() {
-        guard inBackground else { return }
+        // Quitting, its windows stay out of sight.
+        guard inBackground, !quitting else { return }
         inBackground = false
         NSApp.setActivationPolicy(.regular)
         for window in windows { window.returnFromBackground() }
@@ -356,6 +354,7 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     /// The app page's Create Key Mapping… while the app runs: the editor
     /// over the game in its front window (one opens if none is).
     @objc private func editKeyMappingRequested() {
+        guard !quitting else { return }
         guard connected else {
             pendingEditKeyMapping = true
             return
@@ -393,6 +392,8 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     // MARK: App behaviour
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // Quitting: its windows are going, and a new one would start the app again.
+        guard !quitting else { return false }
         // Opened again while it ran in the background: its windows come back.
         if inBackground {
             bringBack()
@@ -420,7 +421,11 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     }
 
     /// Quit (⌘Q, Dock › Quit) closes the app completely, like swiping it
-    /// away on a phone: its windows and its Android process.
+    /// away on a phone: its windows and its Android process, which the
+    /// daemon force-stops as the app's last display closes, or as this
+    /// shim's connection goes when it quits first (DaemonCore.closeDisplay,
+    /// .disconnect). Nothing waits for Android: only an unfinished screen
+    /// recording holds the quit up, for a few seconds at most.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         // A key mapping editor open with changes asks first; quitting goes on once it agrees.
         for window in windows where !window.keymapMayClose(answer: { quit in if quit { NSApp.terminate(nil) } }) {
@@ -429,24 +434,12 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
         quitting = true
         // Detaching also stops screen recordings; their movie files are finished before the app quits.
         for window in windows { window.detach() }
-        let client = appEnded ? nil : self.client
-        guard client != nil || ScreenRecorder.anyUnfinished else { return .terminateNow }
+        guard ScreenRecorder.anyUnfinished else { return .terminateNow }
         Task {
-            // Never hold up quitting for long.
-            if let client { try? await withTimeout(.seconds(2)) { try await client.forceStop(self.package) } }
             await ScreenRecorder.waitForUnfinished(timeout: 10)
             NSApp.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
-    }
-
-    private func withTimeout(_ limit: Duration, _ work: @escaping @Sendable () async throws -> Void) async throws {
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask { try await work() }
-            group.addTask { try await Task.sleep(for: limit) }
-            try await group.next()
-            group.cancelAll()
-        }
     }
 
     /// Files dropped on the app's Dock icon are shared with it (spec: drag and
@@ -575,7 +568,7 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     }
 
     @objc private func newWindow() {
-        guard connected else { return }
+        guard connected, !quitting else { return }
         openWindow(notificationKey: nil)
     }
 

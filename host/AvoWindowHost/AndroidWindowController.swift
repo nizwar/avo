@@ -1079,7 +1079,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         keymap?.stop()
         frameRateHint.stop()
         detach()
-        app?.windowClosed(self, byGuest: closingFromGuest)
+        app?.windowClosed(self)
     }
 
     // MARK: Orientation
