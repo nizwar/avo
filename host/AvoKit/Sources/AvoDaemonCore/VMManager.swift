@@ -165,7 +165,7 @@ public actor VMManager {
     }
 
     private func boot(_ settings: Settings) async throws {
-        update(VMStatus(state: .starting, detail: "Starting Android"))
+        update(VMStatus(state: .starting, detail: String(localized: "Starting Android", bundle: .avoKit)))
         let (launch, firstBoot) = try await prepareLaunch(settings)
         // Stopped meanwhile (Stop shows while Android starts): no engine starts.
         // After each wait below likewise, the status stays the stop's, and what
