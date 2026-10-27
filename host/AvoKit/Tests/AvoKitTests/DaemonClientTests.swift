@@ -54,4 +54,14 @@ import Testing
         let answered: Int = try await DaemonClient.answer(timeout: .milliseconds(200)) { once in once.resume(with: .success(3)) }
         #expect(answered == 3)
     }
+
+    /// A question the daemon asks Android (an app's permissions, the widgets
+    /// it offers) that runs out of time says Android did not respond: the
+    /// daemon is there, Android is what kept it.
+    @Test func aQuestionForAndroidThatRunsOutBlamesAndroid() async {
+        await #expect(throws: AvoError.guestUnavailable) {
+            let _: Int = try await DaemonClient.answer(timeout: .milliseconds(200), asksAndroid: true) { _ in }
+        }
+        #expect(AvoError.guestUnavailable.errorDescription == "Android did not respond.")
+    }
 }

@@ -374,7 +374,7 @@ struct LibraryBanners: View {
                     Button("Open System Settings") { model.openLoginItemsSettings() }
                 }
             case .unavailable(let reason):
-                HazeBanner(symbol: "bolt.horizontal.circle", tint: Haze.danger, text: "Avo’s background service is not running. \(reason)") {
+                HazeBanner(symbol: "bolt.horizontal.circle", tint: Haze.danger, text: "\(reason)") {
                     Button("Retry") { model.retryDaemon() }
                 }
             }
