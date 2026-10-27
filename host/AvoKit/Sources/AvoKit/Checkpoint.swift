@@ -105,12 +105,16 @@ public struct CheckpointStatus: Codable, Equatable, Sendable {
     /// Why none can be made where Android's data is now (a drive that is
     /// not APFS), or nil.
     public var problem: String?
+    /// What only each checkpoint takes on the drive, the blocks no clone
+    /// shares with it: what deleting it frees (nil: a daemon from before).
+    public var ownBytes: [UUID: Int64]?
 
     /// Automatic checkpoints kept; the oldest goes when a new one is made.
     public static let automaticLimit = 5
 
-    public init(checkpoints: [Checkpoint] = [], problem: String? = nil) {
+    public init(checkpoints: [Checkpoint] = [], problem: String? = nil, ownBytes: [UUID: Int64]? = nil) {
         self.checkpoints = checkpoints
         self.problem = problem
+        self.ownBytes = ownBytes
     }
 }

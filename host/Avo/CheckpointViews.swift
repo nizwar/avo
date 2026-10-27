@@ -30,7 +30,8 @@ struct CheckpointsSection: View {
                 Text("No checkpoints yet.").foregroundStyle(Haze.textTertiary)
             }
             ForEach(status.checkpoints) { checkpoint in
-                CheckpointRow(checkpoint: checkpoint, busy: model.checkpointWork != nil || model.googleAppsChangingAndroid,
+                CheckpointRow(checkpoint: checkpoint, ownBytes: status.ownBytes?[checkpoint.id],
+                              busy: model.checkpointWork != nil || model.googleAppsChangingAndroid,
                               restore: { restoring = checkpoint }, delete: { deleting = checkpoint })
             }
             HStack(spacing: 8) {
@@ -85,6 +86,8 @@ struct CheckpointsSection: View {
 
 private struct CheckpointRow: View {
     let checkpoint: Checkpoint
+    /// What only it takes on the drive: what deleting it frees.
+    let ownBytes: Int64?
     let busy: Bool
     let restore: () -> Void
     let delete: () -> Void
@@ -112,11 +115,14 @@ private struct CheckpointRow: View {
         }
     }
 
-    /// `21 Oct 2026 at 14:05 · Android 17 · Automatic`.
+    /// `21 Oct 2026 at 14:05 · Android 17 · Automatic · 1.2 GB of its own`.
     private var details: String {
         var parts = [checkpoint.createdAt.formatted(date: .abbreviated, time: .shortened)]
         if let android = checkpoint.android { parts.append(android) }
         if checkpoint.isAutomatic { parts.append(String(localized: "Automatic")) }
+        if let ownBytes {
+            parts.append(String(localized: "\(ByteCountFormatter.string(fromByteCount: ownBytes, countStyle: .decimal)) of its own"))
+        }
         return parts.joined(separator: " · ")
     }
 }
