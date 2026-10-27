@@ -178,6 +178,16 @@
         }
       }
     },
+    "A checkpoint is being restored. Try again once that is done." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checkpoint sedang dipulihkan. Coba lagi setelah selesai."
+          }
+        }
+      }
+    },
     "A command in Android did not finish." : {
       "localizations" : {
         "id" : {
@@ -790,6 +800,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Data Android tidak bisa berada di volume jaringan. Pilih drive yang tersambung ke Mac ini."
+          }
+        }
+      }
+    },
+    "Android’s data is being erased. Try again once that is done." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data Android sedang dihapus. Coba lagi setelah selesai."
           }
         }
       }
