@@ -396,7 +396,7 @@ struct LibraryBanners: View {
                 }
             }
             // Android runs but stopped answering (HostAgent's check): a restart is the way on.
-            if model.status.isNotResponding {
+            if notResponding {
                 HazeBanner(symbol: "exclamationmark.triangle", tint: Haze.warning,
                            text: "Android stopped answering. Restart it to go on: your apps and data are kept.") {
                     Button("Restart Android") { model.restartVM() }
@@ -427,17 +427,24 @@ struct LibraryBanners: View {
 
     private var bannerState: [Bool] {
         [model.daemonState == .connected, model.daemonState == .connecting, model.daemonState == .needsApproval,
-         model.runsFromTemporaryCopy, model.screenLock != nil, model.status.isNotResponding, model.pendingRestart,
+         model.runsFromTemporaryCopy, model.screenLock != nil, notResponding, model.pendingRestart,
          images.needsImage && !assistant.isPresented,
          model.status.renderer?.reason == .failed && model.config?.rendererMode != .software]
     }
 
     private var hasBanner: Bool {
         model.daemonState != .connected || model.runsFromTemporaryCopy
-            || (model.screenLock != nil && model.daemonState == .connected) || model.status.isNotResponding || model.pendingRestart
+            || (model.screenLock != nil && model.daemonState == .connected) || notResponding || model.pendingRestart
             || (images.needsImage && !assistant.isPresented)
             || (model.status.renderer?.reason == .failed && model.config?.rendererMode != .software)
             || hasStorageBanner
+    }
+
+    /// Android stopped answering, as the daemon last said: only while it is
+    /// connected, as the lock's banner (the status of a daemon that went
+    /// away is no news, and its Restart would wait for the next one).
+    private var notResponding: Bool {
+        model.status.isNotResponding && model.daemonState == .connected
     }
 
     /// StorageProblemBanner or StorageSpaceBanner shows.

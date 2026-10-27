@@ -591,7 +591,7 @@ private struct SettingsBanners: View {
                 }
             }
             // Android runs but stopped answering (HostAgent's check): a restart is the way on.
-            if model.status.isNotResponding {
+            if notResponding {
                 HazeBanner(symbol: "exclamationmark.triangle", tint: Haze.warning,
                            text: "Android stopped answering. Restart it to go on: your apps and data are kept.") {
                     Button("Restart Android") { model.restartVM() }
@@ -616,11 +616,14 @@ private struct SettingsBanners: View {
         .padding(.horizontal, 34)
         .padding(.bottom, hasBanner ? 8 : 0)
         // Banners come and go smoothly, the pane below making room.
-        .animation(Haze.Motion.animation(Haze.Motion.content, reduceMotion: reduceMotion), value: [hasBanner, model.pendingRestart, gpuFailed])
+        .animation(Haze.Motion.animation(Haze.Motion.content, reduceMotion: reduceMotion),
+                   value: [hasBanner, notResponding, model.pendingRestart, gpuFailed])
     }
 
     private var gpuFailed: Bool { model.status.renderer?.reason == .failed && model.config?.rendererMode != .software }
-    private var hasBanner: Bool { model.daemonState != .connected || model.pendingRestart || gpuFailed }
+    /// Only while connected, as in the Library (LibraryBanners.notResponding).
+    private var notResponding: Bool { model.status.isNotResponding && model.daemonState == .connected }
+    private var hasBanner: Bool { model.daemonState != .connected || notResponding || model.pendingRestart || gpuFailed }
 }
 
 /// Sets up the window Settings live in, as the Library's: dark, its
