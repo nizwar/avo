@@ -951,7 +951,14 @@ back and installs Magisk's app; then Android starts again with it
 (DaemonCore's `rootIfAsked`, also at a start of an image not patched yet).
 The generic ramdisk is last in the initrd, so Magisk's init is `/init`;
 Avo's property overrides before it still apply. If the patch fails, root
-turns off again and a Mac notification says why. Off, the image's own
+turns off again and a Mac notification says why. Avo's root steps run as
+Android's shell user through su; once Magisk is fully set up (its app's
+additional setup), Magisk's su is the one in /system/xbin and asks before
+it lets the shell in, on Android's own screen. So at every start with
+Magisk the host agent writes Magisk's policy for the shell (uid 2000,
+allowed for good; `MagiskRoot.allowShellCommand`), which Magisk reads at
+its next start: through su while su answers, else with adbd started again
+as root for the rest of that boot (`HostAgent.letShellUseMagisk`). Off, the image's own
 init_boot boots at the next start; nothing in the image or the data disk
 changes either way.
 

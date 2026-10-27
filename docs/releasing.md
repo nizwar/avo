@@ -217,8 +217,8 @@ never stopped for an update without the player's say.
   (`AppUpdater.updater(_:shouldPostponeRelaunchForUpdate:untilInvokingBlock:)`)
 - **The daemon** (`AvoDaemon/AppUpdateWatcher.swift`) notices the swap. A
   watch on `Avo.app` fires at once, and a check every five minutes catches
-  anything it misses. Once Android holds nothing, the daemon exits with
-  status 75. launchd starts the new build's daemon at the same path, because
+  anything it misses. Once Android holds nothing and nothing is under way
+  (a restart, a reboot, Google apps work), the daemon exits with status 75. launchd starts the new build's daemon at the same path, because
   `KeepAlive` restarts it after a non-zero exit (Quit Avo exits with 0).
   While Android runs it waits. Its menu bar item then offers Restart Android
   to Finish Updating Avo: Android stops, and the new daemon starts it again.

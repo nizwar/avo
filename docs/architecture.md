@@ -1101,10 +1101,13 @@ that without the player's say:
 - **Install and Relaunch:** while Android runs, it first asks whether to stop
   Android, install anyway, or wait for Avo to quit.
 - **The old daemon** (`AppUpdateWatcher`) watches `Avo.app`. Once its build
-  on disk changes and Android holds nothing, the daemon exits with
-  `AppUpdate.daemonRestartExitStatus` (75). launchd's `KeepAlive` then starts
-  the new build's daemon. Until Android stops, the old daemon keeps it
-  running.
+  on disk changes, Android has held nothing for 3 seconds, and the core says
+  nothing is under way (`DaemonCore.claimRestartForUpdate`: no start,
+  restart, reboot, checkpoint restore, Google apps work, storage move,
+  install or root step), the daemon takes its menu bar item away and exits
+  with `AppUpdate.daemonRestartExitStatus` (75); from that claim on it starts
+  no Android. launchd's `KeepAlive` then starts the new build's daemon.
+  Until Android stops, the old daemon keeps it running.
 - **The new Control Panel** compares the daemon's hello (`daemonVersion`:
   version, build, start of the code hash) with the daemon in its own bundle.
   An older daemon restarts at once if Android is stopped. If Android runs,
