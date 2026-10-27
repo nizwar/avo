@@ -560,6 +560,11 @@ final class ControlPanelModel {
         performUnlessInstalling { try await $0.restartVM() }
     }
 
+    /// Restart can go ahead: Android runs, or it is paused (Pause When Idle
+    /// makes that common), which the daemon powers off as any stop does
+    /// before it starts Android again.
+    var canRestartAndroid: Bool { status.state == .running || status.state == .suspended }
+
     /// Start, Stop and Restart within a second of one of them (a
     /// double-click) ask nothing more: Stop takes Play's place as soon as
     /// Android starts, and a double-click on Play would stop it again.

@@ -602,7 +602,7 @@ private struct SettingsBanners: View {
                 HazeBanner(symbol: "arrow.clockwise.circle", tint: Haze.accent,
                            text: "Some changes apply after Android restarts. Your apps and data are kept.") {
                     Button("Restart Android") { model.restartVM() }
-                        .disabled(model.status.state != .running || model.googleAppsChangingAndroid)
+                        .disabled(!model.canRestartAndroid || model.googleAppsChangingAndroid)
                 }
             }
             if gpuFailed {
