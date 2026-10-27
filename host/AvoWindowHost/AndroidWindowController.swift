@@ -731,8 +731,17 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
                 // Detached meanwhile, the window says why already (`daemonGone`), or goes.
                 guard !detached else { return }
                 showProblem((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+                dropFilesToShare()
             }
         }
+    }
+
+    /// The display did not open (or the service went): the files dropped
+    /// while it opened, which the notice said would go once it had, do not.
+    private func dropFilesToShare() {
+        guard !filesToShare.isEmpty, let app else { return }
+        filesToShare = []
+        showNotice(String(localized: "The files were not shared: \(app.label) did not open.", bundle: .windowHost))
     }
 
     private func sendInput(_ record: InputRecord) {
@@ -774,6 +783,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         backgroundLight.isEnabled = false
         showProblem(String(localized: "Avo’s background service restarted, and Android with it. Close the window and open the app again.",
                            bundle: .windowHost))
+        dropFilesToShare()
     }
 
     func detach() {
