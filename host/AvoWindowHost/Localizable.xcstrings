@@ -464,6 +464,16 @@
         }
       }
     },
+    "Android couldn’t change the app’s screen: %@" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android tidak bisa mengubah layar aplikasi: %@"
+          }
+        }
+      }
+    },
     "Android did not recognize that finger." : {
       "localizations" : {
         "id" : {
