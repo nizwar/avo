@@ -2088,6 +2088,11 @@ public actor DaemonCore {
 
     private func appInstalled(_ info: Avo_V1_AppInfo, replacing: Bool, announce: Bool) async {
         guard info.launchable else { return }
+        // Its name becomes the icon's, the key mapping's and the shim's file names.
+        guard AndroidPackageName.isValid(info.package) else {
+            logger.error("ignoring an app whose package name is not one: \(info.package.prefix(80), privacy: .public)")
+            return
+        }
         let (_, iconChanged, labelChanged) = await registry.apply(info)
         await serializedShimBuild(info.package) { [weak self] in
             await self?.makeShim(for: info, changed: iconChanged || labelChanged)

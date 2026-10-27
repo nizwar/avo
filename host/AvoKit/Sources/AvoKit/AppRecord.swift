@@ -72,6 +72,23 @@ public struct AppRecord: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
+/// Android's package names (`com.example.app`, also the framework's
+/// `android`): parts of letters, digits and underscores, each starting with
+/// a letter, between dots. A name from Android becomes file names on the
+/// Mac (its icon, its key mapping, its App Shim), so one that is not such a
+/// name (`../../Pictures/x`, from a guest with root) is never taken.
+public enum AndroidPackageName {
+    public static func isValid(_ name: String) -> Bool {
+        let bytes = Array(name.utf8)
+        guard !bytes.isEmpty, bytes.count <= 255 else { return false }
+        let letter = { (c: UInt8) in (0x41...0x5A).contains(c) || (0x61...0x7A).contains(c) }
+        return bytes.split(separator: 0x2E, omittingEmptySubsequences: false).allSatisfy { part in
+            guard let first = part.first, letter(first) else { return false }
+            return part.allSatisfy { letter($0) || (0x30...0x39).contains($0) || $0 == 0x5F }
+        }
+    }
+}
+
 /// VM lifecycle as shown in the menu bar and Control Panel.
 public enum VMState: String, Codable, Sendable {
     case notInstalled

@@ -71,6 +71,7 @@ public actor AppRegistry {
 
     @discardableResult
     public func remove(_ package: String) -> AppRecord? {
+        guard AndroidPackageName.isValid(package) else { return nil }
         let removed = apps.removeValue(forKey: package)
         try? FileManager.default.removeItem(at: paths.icon(for: package))
         save()
@@ -85,7 +86,8 @@ public actor AppRegistry {
     }
 
     public func icon(for package: String) -> Data? {
-        try? Data(contentsOf: paths.icon(for: package))
+        guard AndroidPackageName.isValid(package) else { return nil }
+        return try? Data(contentsOf: paths.icon(for: package))
     }
 
     private func save() {

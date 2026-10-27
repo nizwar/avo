@@ -2304,8 +2304,10 @@ actor HostAgent: DisplayResizing {
                 rest = rest[..<range.lowerBound]
             }
             guard let equals = rest.lastIndex(of: "=") else { return nil }
-            return InstalledPackage(package: String(rest[rest.index(after: equals)...]), path: String(rest[..<equals]),
-                                    versionCode: versionCode, system: system)
+            let package = String(rest[rest.index(after: equals)...])
+            // It becomes file names on the Mac: nothing but a package name is taken.
+            guard AndroidPackageName.isValid(package) else { return nil }
+            return InstalledPackage(package: package, path: String(rest[..<equals]), versionCode: versionCode, system: system)
         }
     }
 
