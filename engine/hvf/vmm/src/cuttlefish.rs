@@ -276,24 +276,53 @@ struct Tee {
 /// promised (`VMMEngine.es32Refuted`). A line may straddle two writes, so
 /// the tail of each is carried into the next look.
 ///
-/// Its output also says Android's userspace runs (`ANDROID_UP`).
+/// Its output also says Android's userspace runs (`ANDROID_UP`). The log
+/// takes at most twice `LOGCAT_LIMIT` of the Mac's disk: an app that logs
+/// without end does not fill it.
 struct LogcatWatch {
     file: std::fs::File,
+    path: PathBuf,
+    written: u64,
     marker: PathBuf,
     tail: Vec<u8>,
 }
 
+/// Where logcat.log moves on to the next file (Report a Problem takes the
+/// last 2 MiB of logcat.log).
+const LOGCAT_LIMIT: u64 = 16 << 20;
+
 impl LogcatWatch {
     fn new(file: std::fs::File, image: &Path, instance: &Path) -> LogcatWatch {
         let name = image.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        LogcatWatch { file, marker: instance.join(format!("es32-refuted-{name}")), tail: Vec::new() }
+        let path = instance.join("logcat.log");
+        // An older half from an earlier boot would read as this one's.
+        let _ = std::fs::remove_file(path.with_file_name("logcat.1.log"));
+        LogcatWatch { file, path, written: 0, marker: instance.join(format!("es32-refuted-{name}")), tail: Vec::new() }
+    }
+
+    /// The log so far becomes logcat.1.log (replacing the one before), and
+    /// a new logcat.log begins. One that cannot move is written on.
+    fn rotate(&mut self) {
+        self.written = 0;
+        let _ = self.file.flush();
+        if std::fs::rename(&self.path, self.path.with_file_name("logcat.1.log")).is_err() {
+            return;
+        }
+        match std::fs::File::create(&self.path) {
+            Ok(file) => self.file = file,
+            Err(e) => eprintln!("[vmm] logcat.log: {e}; the log goes on in logcat.1.log"),
+        }
     }
 }
 
 impl Write for LogcatWatch {
     fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
         ANDROID_UP.store(true, std::sync::atomic::Ordering::Relaxed);
+        if self.written + data.len() as u64 > LOGCAT_LIMIT {
+            self.rotate();
+        }
         self.file.write_all(data)?;
+        self.written += data.len() as u64;
         const NEEDLE: &[u8] = b"contexts stay at their own cap";
         self.tail.extend_from_slice(data);
         if self.tail.windows(NEEDLE.len()).any(|w| w == NEEDLE) {
@@ -839,3 +868,29 @@ mod console_tests {
     }
 }
 
+#[cfg(test)]
+mod logcat_tests {
+    use super::*;
+
+    #[test]
+    fn the_log_moves_on_at_its_limit() {
+        let instance = std::env::temp_dir().join(format!("avo-logcat-{}", std::process::id()));
+        std::fs::create_dir_all(&instance).unwrap();
+        // An earlier boot's older half is not this boot's.
+        std::fs::write(instance.join("logcat.1.log"), b"earlier boot").unwrap();
+        let path = instance.join("logcat.log");
+        let mut watch = LogcatWatch::new(std::fs::File::create(&path).unwrap(), Path::new("/images/avo"), &instance);
+        assert!(!instance.join("logcat.1.log").exists());
+        let chunk = [b'x'; 1 << 16];
+        for _ in 0..LOGCAT_LIMIT / chunk.len() as u64 {
+            watch.write_all(&chunk).unwrap();
+        }
+        assert!(!instance.join("logcat.1.log").exists(), "up to its limit the log is one file");
+        watch.write_all(b"next\n").unwrap();
+        watch.flush().unwrap();
+        assert_eq!(std::fs::metadata(instance.join("logcat.1.log")).unwrap().len(), LOGCAT_LIMIT);
+        assert_eq!(std::fs::read(&path).unwrap(), b"next\n");
+        assert!(ANDROID_UP.load(std::sync::atomic::Ordering::Relaxed), "logcat output says Android's userspace runs");
+        std::fs::remove_dir_all(&instance).unwrap();
+    }
+}
