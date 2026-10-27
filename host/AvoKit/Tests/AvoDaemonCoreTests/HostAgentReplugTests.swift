@@ -306,6 +306,21 @@ private final class ModelEngineSocket: @unchecked Sendable {
         await session.agent.shutdown()
     }
 
+    /// Android scales a display's density with its new mode: a rotated
+    /// window (720 × 1280 after 1280 × 720) gets the density Avo asks for set
+    /// again, or the app lays out at twice it.
+    @Test func aResizeInPlaceSetsTheDensityAgain() async throws {
+        let android = AndroidDisplays(composerPatched: true)
+        let session = try await start(android)
+        #expect(try await session.request(Self.launch(1, 1280, 720), id: 1)?.status == .ok)
+        let before = android.commands.withLock { $0.filter { $0.hasPrefix("wm density 320 -d ") }.count }
+        #expect(try await session.request(Self.resize(1, 720, 1280), id: 2)?.status == .ok)
+        let after = android.commands.withLock { $0.filter { $0.hasPrefix("wm density 320 -d ") }.count }
+        #expect(after == before + 1)
+        #expect(!android.engineLog.withLock { $0 }.contains { $0.hasSuffix(" off") }, "still in place")
+        await session.agent.shutdown()
+    }
+
     /// Files dropped on a window (in Downloads already) go to its app: the
     /// media index names the first, and ACTION_SEND starts on the window's
     /// display with a read of it.

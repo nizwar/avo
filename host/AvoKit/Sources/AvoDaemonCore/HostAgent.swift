@@ -1402,7 +1402,11 @@ actor HostAgent: DisplayResizing {
             guard let size, size.width == mode.width, size.height == mode.height else { continue }
             current.appliedWidth = mode.width
             current.appliedHeight = mode.height
-            // A density that changed meanwhile is the loop's next step.
+            // Android scales a display's density with a new mode of it (as
+            // when a phone's resolution is switched): a rotated window, its
+            // width doubled, got twice the density and a layout half as wide.
+            // The loop's next step sets Avo's again.
+            current.appliedDPI = 0
             displays[id] = current
             return true
         }
