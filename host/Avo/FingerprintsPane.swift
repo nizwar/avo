@@ -254,6 +254,7 @@ private struct AddFingerRow: View {
                 .fixedSize()
                 .disabled(suggestions.isEmpty)
                 .help("Choose a finger")
+                .accessibilityLabel(Text("Choose a finger"))
                 Button("Add Finger", action: add)
                     .disabled(model.fingerprintsBusy || fingers.count >= FingerprintStatus.maximumFingers)
             }
