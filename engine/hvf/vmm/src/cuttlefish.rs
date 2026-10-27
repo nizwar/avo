@@ -640,11 +640,15 @@ static GPU_LOADED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool
 /// The Bluetooth controller, when it runs: it ends with the process.
 static BLUETOOTH: Mutex<Option<Arc<Bluetooth>>> = Mutex::new(None);
 
-/// Ends the process (with `_exit` once gfxstream is loaded).
+/// Ends the process (with `_exit` once gfxstream is loaded). The shared
+/// memory names it still has go (the audio ring is never dropped, `exit`
+/// skips the frames' destructors): with the daemon gone, nobody else would
+/// remove them before the Mac restarts.
 pub fn exit(code: i32) -> ! {
     if let Some(bluetooth) = BLUETOOTH.lock().unwrap().take() {
         bluetooth.stop();
     }
+    crate::shm::unlink_all();
     if GPU_LOADED.load(std::sync::atomic::Ordering::SeqCst) {
         let _ = std::io::stdout().flush();
         unsafe { libc::_exit(code) }
@@ -976,6 +980,53 @@ mod console_tests {
         assert_eq!(&heard, b"login: ", "the attached client hears the new machine");
         assert!(UnixStream::connect(&path).is_ok(), "the same socket takes new clients");
         let _ = std::fs::remove_file(&path);
+    }
+}
+
+/// How the process ends, run in a child process (this test binary again):
+/// the test process itself must go on.
+#[cfg(test)]
+mod exit_tests {
+    use super::*;
+
+    /// Set in a child run of this test binary: how that child ends.
+    const ENDING: &str = "AVO_VMM_TEST_ENDING";
+    /// The shared memory name the child makes before it ends.
+    const SHARED: &str = "AVO_VMM_TEST_SHM";
+
+    /// Runs this test binary again as a child that makes the shared memory
+    /// `name` and then ends as `ending` says; its exit status, and whether
+    /// `name` outlived it.
+    fn child(ending: &str, name: &str) -> (std::process::ExitStatus, bool) {
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "cuttlefish::exit_tests::a_child_that_ends", "--nocapture", "--test-threads=1"])
+            .env(ENDING, ending)
+            .env(SHARED, name)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .unwrap();
+        let left = crate::shm::read(name).is_ok();
+        crate::shm::unlink(name);
+        (status, left)
+    }
+
+    /// What the tests below run as their child (nothing in a normal run).
+    #[test]
+    fn a_child_that_ends() {
+        let Ok(ending) = std::env::var(ENDING) else { return };
+        let map = crate::shm::create(&std::env::var(SHARED).unwrap(), 16384).unwrap();
+        assert!(!map.is_null());
+        if ending == "exit" {
+            exit(0);
+        }
+    }
+
+    #[test]
+    fn exit_removes_the_shared_memory_left() {
+        let (status, left) = child("exit", &format!("/avo.{}.exit", std::process::id()));
+        assert_eq!(status.code(), Some(0));
+        assert!(!left, "the name outlived the process");
     }
 }
 
