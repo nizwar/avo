@@ -133,13 +133,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try await model.changeStorage(request)
         }
         // The Setup Assistant's Ready step said Android starts once its image
-        // is downloaded, also with its window closed.
+        // is downloaded, also with its window closed, and also when the
+        // background service does not answer at that moment: then once it does.
         images.imageUsed = { [model, setup] job in
             guard let job, setup.startsAndroidAfterDownload == job else { return }
             setup.startsAndroidAfterDownload = nil
-            guard !setup.startedAndroid, model.daemonState == .connected else { return }
+            guard !setup.startedAndroid else { return }
             setup.startedAndroid = true
-            model.startVM()
+            model.startVMOnceConnected()
         }
         setup.presentIfNeeded(images: images)
     }
