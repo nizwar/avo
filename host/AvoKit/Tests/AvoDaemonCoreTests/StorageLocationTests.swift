@@ -693,6 +693,8 @@ import Testing
         #expect(StorageLocations.space(on: ssd, name: "SSD", androidRuns: true, writesWait: false)?.message.hasPrefix("“SSD” has only") == true)
         #expect(StorageLocations.space(on: nil, name: "SSD", androidRuns: true, writesWait: true) == .full(volume: "SSD", onMac: false))
         #expect(StorageSpace.full(volume: "SSD", onMac: false).message.contains("because “SSD” is full"))
+        // Room is freed in System Settings on the Mac's disk, in Finder on a drive.
+        #expect(low?.isOnMac == true && !StorageSpace.full(volume: "SSD", onMac: false).isOnMac)
     }
 
     /// avo-vmm's events, as the daemon hears them.

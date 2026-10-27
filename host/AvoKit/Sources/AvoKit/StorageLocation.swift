@@ -508,6 +508,13 @@ public enum StorageSpace: Codable, Equatable, Sendable {
 
     public var isFull: Bool { if case .full = self { true } else { false } }
 
+    /// On the Mac's own disk (System Settings › General › Storage frees room there).
+    public var isOnMac: Bool {
+        switch self {
+        case let .full(_, onMac), let .low(_, onMac, _): onMac
+        }
+    }
+
     public var message: String {
         switch self {
         case .full(_, true):
