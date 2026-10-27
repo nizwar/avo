@@ -152,6 +152,22 @@ struct CheckpointStore {
         }
     }
 
+    /// What a restore cut short left beside the data (the checkpoint's
+    /// clones), once no journal needs it. A restore's own staging folder
+    /// never outlives the call that makes it (`restore` waits for nothing).
+    func removeLeftoverStaging() {
+        for folder in Set([paths.data.standardizedFileURL, paths.vm.standardizedFileURL]) where !RestoreJournal.exists(in: folder) {
+            let staging = folder.appending(path: Self.stagingName, directoryHint: .isDirectory)
+            guard FileManager.default.fileExists(atPath: staging.path) else { continue }
+            do {
+                try FileManager.default.removeItem(at: staging)
+                logger.notice("removed what a restore cut short left in \(folder.path, privacy: .public)")
+            } catch {
+                logger.error("could not remove \(staging.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
     /// Reset Android: its checkpoints go with its data, and a restore cut
     /// short has nothing left to finish.
     func removeAll() throws {

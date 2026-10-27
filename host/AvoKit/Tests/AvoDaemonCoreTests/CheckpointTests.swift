@@ -322,6 +322,19 @@ private let settings = CheckpointSettings(VMConfig())
         #expect(harness.engine.base.launches.isEmpty)
     }
 
+    /// What a restore cut short left beside the data (its clones) goes when
+    /// the daemon starts, once no journal needs it.
+    @Test func theDaemonRemovesARestoresLeftoversWhenItStarts() async throws {
+        let harness = try Harness()
+        defer { harness.cleanUp() }
+        let staging = harness.paths.data.appending(path: CheckpointStore.stagingName, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        try Data("a clone".utf8).write(to: staging.appending(path: "userdata.img"))
+        await harness.core.start()
+        #expect(await eventually { !FileManager.default.fileExists(atPath: staging.path) })
+        #expect(try dataText(harness.paths) == "v1")
+    }
+
     /// A checkpoint that is gone can't finish its restore: the data before
     /// it comes back. With neither, no start uses the data until a restore
     /// or a reset puts it right.

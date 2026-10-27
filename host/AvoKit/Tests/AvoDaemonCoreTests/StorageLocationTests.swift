@@ -532,6 +532,53 @@ import Testing
         #expect(AndroidDataFolder(moved).problem(images: []) == nil)
     }
 
+    /// A move cut short (Avo quit while it copied) left its staging folder,
+    /// which on a drive without sparse files is as big as the data disk:
+    /// the daemon's start removes it once no move runs, with the folder
+    /// the move made; a drive that isn't connected is looked at next time.
+    @Test func whatAMoveCutShortLeftGoesAtTheNextStart() async throws {
+        let scratch = try Scratch()
+        defer { scratch.cleanUp() }
+        let paths = scratch.paths
+        try Self.makeData(in: paths.vm)
+        let locations = StorageLocations(paths: paths, cloning: false) { [] }
+        let movesFile = paths.applicationSupport.appending(path: "data-moves.json")
+
+        // A move that ends notes nothing.
+        let drive = try scratch.folder("Drive")
+        #expect(try await locations.perform(StorageChangeRequest(destination: drive.path, action: .move(keepOldCopy: true))) { _ in } == .moved)
+        #expect(!FileManager.default.fileExists(atPath: movesFile.path))
+
+        // One cut short in a folder it made, one in a folder that was there, one on a drive that isn't connected.
+        let made = try scratch.folder("Other/Avo Android Data")
+        let there = try scratch.folder("Kept")
+        try Data("mine".utf8).write(to: there.appending(path: "notes.txt"))
+        let unplugged = "/Volumes/AvoNoSuchDrive-\(UUID().uuidString.prefix(6))/Avo Android Data"
+        for folder in [made, there] {
+            let staging = folder.appending(path: StorageLocations.stagingName, directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+            try Data("half a copy".utf8).write(to: staging.appending(path: "userdata.img"))
+        }
+        // And one in Avo's own storage, from before moves were noted.
+        try FileManager.default.createDirectory(at: paths.vm.appending(path: StorageLocations.stagingName), withIntermediateDirectories: true)
+        let moves = [
+            StorageLocations.MoveInProgress(destination: made.path, createdFolder: true, startedAt: Date()),
+            StorageLocations.MoveInProgress(destination: there.path, createdFolder: false, startedAt: Date()),
+            StorageLocations.MoveInProgress(destination: unplugged, createdFolder: true, startedAt: Date()),
+            StorageLocations.MoveInProgress(destination: unplugged + " 2", createdFolder: true, startedAt: Date(timeIntervalSinceNow: -40 * 24 * 3600)),
+        ]
+        try JSONEncoder().encode(moves).write(to: movesFile)
+
+        await locations.cleanInterruptedMoves()
+        #expect(!FileManager.default.fileExists(atPath: made.path), "the folder the move made goes with its staging folder")
+        #expect(!FileManager.default.fileExists(atPath: there.appending(path: StorageLocations.stagingName).path))
+        #expect(FileManager.default.fileExists(atPath: there.appending(path: "notes.txt").path))
+        #expect(!FileManager.default.fileExists(atPath: paths.vm.appending(path: StorageLocations.stagingName).path))
+        #expect(AndroidDataFolder(paths.data).presentItems().contains("userdata.img"), "the data in use is untouched")
+        let left = try JSONDecoder().decode([StorageLocations.MoveInProgress].self, from: Data(contentsOf: movesFile))
+        #expect(left.map(\.destination) == [unplugged], "an unplugged drive is looked at again, for a month")
+    }
+
     @Test func startingFreshElsewhereKeepsTheDataHere() async throws {
         let scratch = try Scratch()
         defer { scratch.cleanUp() }

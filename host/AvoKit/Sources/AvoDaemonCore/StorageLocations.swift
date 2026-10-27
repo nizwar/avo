@@ -558,6 +558,9 @@ actor StorageLocations {
                           publish: (StorageChangeProgress) -> Void) async throws {
         let createdFolder = !FileManager.default.fileExists(atPath: destination.path)
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        // Noted until the copy is in place or gone (`cleanInterruptedMoves`).
+        noteMove(to: destination, createdFolder: createdFolder)
+        defer { forgetMove(to: destination) }
         let staging = destination.appending(path: Self.stagingName, directoryHint: .isDirectory)
         // What a move the daemon did not see to its end left.
         try? FileManager.default.removeItem(at: staging)
@@ -621,6 +624,90 @@ actor StorageLocations {
             try? FileManager.default.removeItem(at: staging)
             if createdFolder { Self.removeIfEmpty(destination) }
             throw error
+        }
+    }
+
+    // MARK: Moves the daemon did not see to their end
+
+    /// A folder a move copies into (`data-moves.json` in Application
+    /// Support), so a move cut short (Avo quit, the Mac stopped) leaves no
+    /// hidden copy as big as the data behind: on a drive without sparse
+    /// files its staging folder takes the data disk's whole size.
+    struct MoveInProgress: Codable, Equatable {
+        var destination: String
+        /// The move made the folder: it goes again once nothing is in it.
+        var createdFolder: Bool
+        var startedAt: Date
+    }
+
+    private var movesFile: URL { paths.applicationSupport.appending(path: "data-moves.json") }
+
+    private func moves() -> [MoveInProgress] {
+        (try? Data(contentsOf: movesFile)).flatMap { try? JSONDecoder().decode([MoveInProgress].self, from: $0) } ?? []
+    }
+
+    private func saveMoves(_ moves: [MoveInProgress]) {
+        do {
+            if moves.isEmpty {
+                if FileManager.default.fileExists(atPath: movesFile.path) { try FileManager.default.removeItem(at: movesFile) }
+            } else {
+                try JSONEncoder().encode(moves).write(to: movesFile, options: .atomic)
+            }
+        } catch {
+            logger.error("could not note the moves under way: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func noteMove(to destination: URL, createdFolder: Bool) {
+        let path = destination.standardizedFileURL.path
+        saveMoves(moves().filter { $0.destination != path } + [MoveInProgress(destination: path, createdFolder: createdFolder, startedAt: Date())])
+    }
+
+    private func forgetMove(to destination: URL) {
+        let path = destination.standardizedFileURL.path
+        saveMoves(moves().filter { $0.destination != path })
+    }
+
+    /// At the daemon's start, while nothing moves: the staging folder of
+    /// every move that did not end goes (its copy never became Android's
+    /// data: that happens only after it was moved out of it), with the
+    /// folder the move made when nothing else is in it, and those of moves
+    /// into Avo's own storage or the data's folder from before moves were
+    /// noted. A drive that isn't connected is looked at again at the next
+    /// start, for a month.
+    func cleanInterruptedMoves() {
+        guard !isChanging else { return }
+        var kept: [MoveInProgress] = []
+        for move in moves() {
+            let folder = URL(filePath: move.destination, directoryHint: .isDirectory)
+            guard FileManager.default.fileExists(atPath: folder.path) else {
+                if !FileManager.default.fileExists(atPath: folder.deletingLastPathComponent().path),
+                   Date().timeIntervalSince(move.startedAt) < 30 * 24 * 3600 { kept.append(move) }
+                continue
+            }
+            guard Self.removeStaging(in: folder, logger: logger) else {
+                kept.append(move)
+                continue
+            }
+            if move.createdFolder { Self.removeIfEmpty(folder) }
+        }
+        saveMoves(kept)
+        for folder in Set([paths.vm.standardizedFileURL, paths.data.standardizedFileURL]) {
+            _ = Self.removeStaging(in: folder, logger: logger)
+        }
+    }
+
+    /// Removes `folder`'s `.avo-moving`; false when it is still there.
+    private static func removeStaging(in folder: URL, logger: Logger) -> Bool {
+        let staging = folder.appending(path: stagingName, directoryHint: .isDirectory)
+        guard FileManager.default.fileExists(atPath: staging.path) else { return true }
+        do {
+            try FileManager.default.removeItem(at: staging)
+            logger.notice("removed what a move cut short left in \(folder.path, privacy: .public)")
+            return true
+        } catch {
+            logger.error("could not remove \(staging.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
 
