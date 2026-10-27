@@ -3,15 +3,18 @@ import Foundation
 /// Avo checks its own GitHub releases for a newer build and hands Sparkle an
 /// appcast built from them, so the download and install (and the daemon's
 /// move to the new build) stay Sparkle's, without an appcast hosted anywhere
-/// (AppUpdater). Releases are GitHub pre-releases whose DMG asset is named
+/// (AppUpdater). Releases are GitHub releases whose DMG asset is named
 /// `Avo-<version>-b<build>.dmg`; the build number is the version Sparkle
 /// compares, so it rises with every release whatever the marketing version.
+/// Each DMG is EdDSA signed with Avo's update key (`SUPublicEDKey`), its
+/// signature in the release notes (`signature(in:for:)`); Sparkle installs
+/// nothing without it.
 public enum GitHubUpdateFeed {
     /// `nizwar/avo`: the repository whose releases Avo updates from.
     public static let repository = "nizwar/avo"
 
     /// The releases API for `repository` (every release, newest first;
-    /// `/latest` leaves out pre-releases, which all of Avo's are).
+    /// `/latest` leaves out pre-releases, which betas are).
     public static func releasesURL(repository: String = repository, perPage: Int = 20) -> URL {
         URL(string: "https://api.github.com/repos/\(repository)/releases?per_page=\(perPage)")!
     }
@@ -51,12 +54,14 @@ public enum GitHubUpdateFeed {
     }
 
     /// A release Avo could install: its DMG, the build it carries and the
-    /// short version, worked out from the DMG's name.
+    /// short version, worked out from the DMG's name, and the DMG's EdDSA
+    /// signature from the release notes (nil: Sparkle would refuse it).
     public struct Candidate: Equatable, Sendable {
         public var release: Release
         public var asset: Release.Asset
         public var build: Int
         public var shortVersion: String
+        public var edSignature: String?
     }
 
     /// `Avo-<short>-b<build>.dmg` → (short, build). A name of any other shape
@@ -77,25 +82,47 @@ public enum GitHubUpdateFeed {
         guard !release.draft else { return nil }
         for asset in release.assets {
             if let (short, build) = parseDMG(asset.name) {
-                return Candidate(release: release, asset: asset, build: build, shortVersion: short)
+                return Candidate(release: release, asset: asset, build: build, shortVersion: short,
+                                 edSignature: signature(in: release.body, for: asset))
             }
         }
         return nil
     }
 
-    /// The newest build among `releases` that is higher than `currentBuild`,
-    /// or nil when none is newer. Drafts and releases without an Avo DMG are
-    /// skipped; a pre-release counts (every Avo release is one).
-    public static func update(in releases: [Release], currentBuild: Int) -> Candidate? {
+    /// The EdDSA signature of `asset`, from the release notes. The release
+    /// puts `sign_update`'s output there in an HTML comment, which GitHub
+    /// does not show (docs/releasing.md):
+    /// `<!-- Avo-0.4.0-b119.dmg sparkle:edSignature="…" length="…" -->`.
+    /// A length other than the asset's means a signature of another file.
+    static func signature(in body: String?, for asset: Release.Asset) -> String? {
+        guard let body else { return nil }
+        for match in body.matches(of: #/sparkle:edSignature="([A-Za-z0-9+/=]+)"(?:\s+length="(\d+)")?/#) {
+            if let length = match.2, Int(length) != asset.size { continue }
+            return String(match.1)
+        }
+        return nil
+    }
+
+    /// The newest release Avo could install: the highest build among the
+    /// signed DMGs. Drafts, releases without an Avo DMG and DMGs without a
+    /// signature (which Sparkle would refuse) are skipped; a pre-release
+    /// counts.
+    public static func latest(in releases: [Release]) -> Candidate? {
         releases.compactMap(candidate(for:))
-            .filter { $0.build > currentBuild }
+            .filter { $0.edSignature != nil }
             .max { $0.build < $1.build }
     }
 
+    /// `latest(in:)` when its build is higher than `currentBuild`, or nil
+    /// when nothing newer can be installed.
+    public static func update(in releases: [Release], currentBuild: Int) -> Candidate? {
+        latest(in: releases).flatMap { $0.build > currentBuild ? $0 : nil }
+    }
+
     /// A one-item Sparkle appcast for `candidate`, so Sparkle downloads the
-    /// GitHub DMG and installs it. No `sparkle:edSignature`: the DMG is
-    /// notarized and Developer ID signed, which Sparkle checks against the
-    /// running app (the same team) when there is no EdDSA signature.
+    /// GitHub DMG and installs it. Sparkle checks the DMG against the
+    /// `sparkle:edSignature` and the app in it against the running app's
+    /// Developer ID (the same team).
     public static func appcast(for candidate: Candidate, channelTitle: String = "Avo") -> String {
         let release = candidate.release
         let title = release.name ?? release.tagName
@@ -115,11 +142,12 @@ public enum GitHubUpdateFeed {
         if !notes.isEmpty {
             item += "\n        <description><![CDATA[\(notes)]]></description>"
         }
+        let signature = candidate.edSignature.map { " sparkle:edSignature=\"\(xml($0))\"" } ?? ""
         item += """
 
                     <enclosure url="\(xml(candidate.asset.browserDownloadURL.absoluteString))" \
             sparkle:version="\(candidate.build)" sparkle:shortVersionString="\(xml(candidate.shortVersion))" \
-            length="\(candidate.asset.size)" type="application/octet-stream"/>
+            length="\(candidate.asset.size)" type="application/octet-stream"\(signature)/>
                 </item>
             """
         return """

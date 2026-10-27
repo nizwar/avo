@@ -51,15 +51,18 @@
 		     Avo reads its own GitHub releases and builds Sparkle's appcast from
 		     them, so there is no appcast to host and no feed in this file
 		     (AppUpdater provides it through feedURLString). The DMGs are
-		     notarized and Developer ID signed, which Sparkle checks a download
-		     against the running app with, in place of an EdDSA signature (none
-		     on GitHub's assets); updates run only in a Developer ID build. -->
+		     EdDSA signed with the update key whose public half is
+		     SUPublicEDKey (the signature rides in the release notes), and
+		     notarized and Developer ID signed; Sparkle checks both. Updates
+		     run only in a Developer ID build. -->
 	<!-- On by default, without Sparkle's own question at the second launch;
 	     Settings › About turns it off. Once a day. -->
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
+	<key>SUPublicEDKey</key>
+	<string>W/SKL81r8nkZRC+f1CYNMK2uhNWWWbRmHhHFarxIG9M=</string>
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>en</string>

@@ -15,7 +15,10 @@
 #     --notarize   with a Developer ID: notarizes the app and staples it, then
 #                  the signed disk image too. Apple ID and app-specific
 #                  password from APPLE_ID and APPLE_APP_SPECIFIC_PASSWORD
-#                  (never printed); the team from the identity
+#                  (never printed); the team from the identity. Last, it
+#                  signs the disk image with Avo's update key (Sparkle's
+#                  sign_update, the key in the login Keychain) and prints
+#                  the line the release notes end with
 #
 # Steps:
 #   1. the GPU renderer, scripts/build-gfxstream.sh, and Android's Bluetooth
@@ -50,7 +53,7 @@ while [[ $# -gt 0 ]]; do
     --out) OUT="$2"; shift 2 ;;
     --identity) IDENTITY="$2"; shift 2 ;;
     --notarize) NOTARIZE=1; shift ;;
-    -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -201,6 +204,15 @@ if [[ "$NOTARIZE" == 1 ]]; then
   xcrun stapler staple -q "$DMG"
   xcrun stapler validate -q "$DMG"
   spctl --assess --type open --context context:primary-signature "$DMG"
+  # Sparkle installs an update only with the DMG's EdDSA signature, made
+  # with Avo's update key in the login Keychain (SUPublicEDKey). The
+  # release notes carry it (docs/releasing.md), so it is made last, on the
+  # disk image as published.
+  echo "== update signature"
+  SIGN_UPDATE="$DERIVED/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update"
+  [[ -x "$SIGN_UPDATE" ]] || { echo "no sign_update in $DERIVED (Sparkle's package)" >&2; exit 1; }
+  SIGNATURE="$("$SIGN_UPDATE" "$DMG")"
+  [[ "$SIGNATURE" == sparkle:edSignature=* ]] || { echo "sign_update gave no signature: $SIGNATURE" >&2; exit 1; }
 fi
 MOUNT="$(hdiutil attach -nobrowse -readonly "$DMG" | awk -F'\t' '/\/Volumes\//{print $NF}' | tail -1)"
 codesign --verify --deep --strict "$MOUNT/Avo.app"
@@ -218,3 +230,7 @@ done
 
 shasum -a 256 "$DMG"
 ls -lh "$DMG"
+if [[ -n "${SIGNATURE:-}" ]]; then
+  echo "release notes, last line (hidden on GitHub, read by Avo's updater):"
+  echo "<!-- $(basename "$DMG") $SIGNATURE -->"
+fi

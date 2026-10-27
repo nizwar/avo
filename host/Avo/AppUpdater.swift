@@ -7,11 +7,14 @@ import Sparkle
 /// Avo's own updates: it reads its GitHub releases directly (GitHubUpdateFeed)
 /// and hands Sparkle 2 an appcast built from them, so the download, the code
 /// check and the swap stay Sparkle's — no appcast is hosted anywhere. The
-/// GitHub DMG is notarized and Developer ID signed, which Sparkle checks
-/// against the running app (the same team) in place of an EdDSA signature, so
-/// updates run only in a Developer ID build (`signedForUpdates`), not a local
-/// one. Releases name their DMG `Avo-<version>-b<build>.dmg`; the build number
-/// is the version Sparkle compares.
+/// GitHub DMG is EdDSA signed with Avo's update key (`SUPublicEDKey`, the
+/// signature in the release notes), and notarized and Developer ID signed.
+/// Sparkle checks both: the DMG against the key, the app in it against the
+/// running app (the same team). Without the key Sparkle would not even start
+/// on a feed that is a local file. Updates run only in a Developer ID build
+/// (`signedForUpdates`), not a local one. Releases name their DMG
+/// `Avo-<version>-b<build>.dmg`; the build number is the version Sparkle
+/// compares.
 ///
 /// Sparkle swaps Avo.app when the Control Panel quits or relaunches. Android
 /// is never stopped for that without the player's say: before Install and
@@ -95,13 +98,17 @@ final class AppUpdater: NSObject {
         if let last = updater.lastUpdateCheckDate { lastCheck = last }
     }
 
-    /// Writes the appcast from GitHub's latest Avo release (any build), so
-    /// Sparkle, reading it next, compares that build with this one. An empty
-    /// feed stays when GitHub has no Avo DMG or could not be reached, so a
-    /// check then says "up to date" rather than failing.
+    /// Writes the appcast from GitHub's latest signed Avo release (any build),
+    /// so Sparkle, reading it next, compares that build with this one. An
+    /// empty feed stays when GitHub has no signed Avo DMG or could not be
+    /// reached, so a check then says "up to date" rather than failing.
     private func refreshFeed() async {
         guard let releases = await fetchReleases() else { return }
-        let latest = releases.compactMap(GitHubUpdateFeed.candidate(for:)).max { $0.build < $1.build }
+        let latest = GitHubUpdateFeed.latest(in: releases)
+        if let newest = releases.compactMap(GitHubUpdateFeed.candidate(for:)).max(by: { $0.build < $1.build }),
+           newest.edSignature == nil {
+            logger.error("\(newest.asset.name, privacy: .public) has no EdDSA signature in its release notes, so Avo does not offer it")
+        }
         let xml = latest.map { GitHubUpdateFeed.appcast(for: $0) } ?? GitHubUpdateFeed.emptyAppcast()
         try? xml.write(to: appcastFile, atomically: true, encoding: .utf8)
         lastCheck = Date()

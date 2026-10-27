@@ -36,10 +36,10 @@ settings:
 packages:
   AvoKit:
     path: AvoKit
-  # Avo's own updates (Avo/AppUpdater.swift, docs/releasing.md): EdDSA-signed
-  # archives from the appcast at SUFeedURL. Its tools (generate_keys,
-  # sign_update, generate_appcast) land in the derived data's
-  # SourcePackages/artifacts/sparkle/Sparkle/bin.
+  # Avo's own updates (Avo/AppUpdater.swift, docs/releasing.md): the DMGs of
+  # Avo's GitHub releases, EdDSA signed with the update key. Its tools
+  # (generate_keys, sign_update; scripts/build-dmg.sh runs sign_update) land
+  # in the derived data's SourcePackages/artifacts/sparkle/Sparkle/bin.
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     exactVersion: 2.10.0

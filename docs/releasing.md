@@ -9,10 +9,13 @@ them, and lets Sparkle download and install the release's DMG. Nothing is
 hosted and no appcast is published: making a release *is* publishing it on
 GitHub.
 
-Each DMG is notarized and Developer ID signed. Before installing, Sparkle
-checks a download's code signature against the running app's (the same team,
-`2Y5JPG373S`); that stands in for the EdDSA signature a hosted appcast would
-carry, so updates run only in a Developer ID build, never a local ad hoc one.
+Each DMG is notarized and Developer ID signed, and EdDSA signed with Avo's
+update key. Before installing, Sparkle checks the DMG against the key
+(`SUPublicEDKey`) and the app in it against the running app's code signature
+(the same team, `2Y5JPG373S`). Updates run only in a Developer ID build,
+never a local ad hoc one. Builds before 0.4.0 had no key, and Sparkle does
+not start without one on a feed that is a local file, so they never updated
+themselves: they move to 0.4.0 by hand.
 
 ## Where things are
 
@@ -20,9 +23,11 @@ carry, so updates run only in a Developer ID build, never a local ad hoc one.
 |---|---|
 | The releases read | `github.com/nizwar/avo` (`GitHubUpdateFeed.repository`) |
 | How a release is matched | its DMG asset's name, `Avo-<version>-b<build>.dmg`; the build number is the version Sparkle compares, so it rises every release |
-| What counts | a published release (pre-release or not) that has an Avo DMG; drafts are skipped |
+| What counts | a published release (pre-release or not) that has an Avo DMG and its signature; drafts are skipped |
 | Automatic checks | on by default (`SUEnableAutomaticChecks`); the Control Panel checks about 10 s after launch and once a day. Settings › About turns them off. |
-| Validation | Sparkle, against the running app's Developer ID (there is no `SUPublicEDKey` / EdDSA) |
+| Validation | Sparkle: the DMG's EdDSA signature against `SUPublicEDKey`, then the app against the running app's Developer ID |
+| The update key | the release Mac's login Keychain (Sparkle's `generate_keys`, account `ed25519`, made 2026-10-18); its public half is `SUPublicEDKey` in `host/Avo/Info.plist` |
+| A release's signature | the last line of its notes, an HTML comment GitHub does not show: `<!-- Avo-0.4.0-b119.dmg sparkle:edSignature="…" length="…" -->` (`build-dmg.sh --notarize` prints it) |
 
 Avo does not update itself in a local (ad hoc) build: Settings › About says
 so and Avo › Check for Updates… is dimmed. Build a Developer ID release
@@ -32,9 +37,11 @@ newer release.
 ## Publishing a release
 
 A release is a GitHub release whose assets include the **notarized** DMG named
-`Avo-<version>-b<build>.dmg` (the `--notarize` build below). Avo offers the
-release with the highest build number above the running one, so build
-numbers only go up. A draft release is ignored until it is published.
+`Avo-<version>-b<build>.dmg` (the `--notarize` build below), and whose notes
+end with that DMG's EdDSA signature. Avo offers the release with the highest
+build number above the running one, so build numbers only go up. A draft
+release is ignored until it is published, and a release without the
+signature is never offered (Sparkle would refuse it).
 
 What a release is called, and which numbers go up when, is set out in
 [versioning.md](versioning.md): the version (`0.4.0`), the beta label
@@ -103,9 +110,19 @@ scripts/build-dmg.sh --version 0.4.0 --build 125 \
    ```
 
    It names the DMG `Avo-<version>-b<N>.dmg` and holds `Avo.app` at the top
-   level, which is how Avo finds the build and Sparkle finds the app.
+   level, which is how Avo finds the build and Sparkle finds the app. Last,
+   it signs the disk image with the update key (macOS may ask once to let
+   `sign_update` use the Keychain: Always Allow) and prints the notes' last
+   line:
+
+   ```
+   <!-- Avo-0.4.0-b<N>.dmg sparkle:edSignature="…" length="…" -->
+   ```
+
+   The signature is of that exact file: build again, and the line changes.
 4. **Publish a GitHub release** with the DMG as an asset, tagged on the
-   release-prep commit. A final is a regular release:
+   release-prep commit, its notes ending with that line. A final is a
+   regular release:
 
    ```sh
    gh release create v0.4.0 ~/Desktop/Avo-0.4.0-b<N>.dmg \
@@ -128,12 +145,23 @@ scripts/build-dmg.sh --version 0.4.0 --build 125 \
 
 ## How Sparkle trusts an update
 
-Sparkle installs an update only when the new DMG's `Avo.app` carries a valid
-Developer ID signature from the **same team** (`2Y5JPG373S`) as the running
-app (`SUUpdateValidator` in Sparkle 2.10.0, the code-signing path). So every
-release that should update installed copies must be notarized with that
-identity; a build signed ad hoc, or by another team, is refused. There is no
-EdDSA key to keep or rotate.
+Sparkle installs an update only when both hold (`SUUpdateValidator` in
+Sparkle 2.10.0):
+
+- the DMG's EdDSA signature, from the appcast Avo builds out of the release
+  notes, is valid for `SUPublicEDKey`;
+- the new DMG's `Avo.app` carries a valid Developer ID signature from the
+  **same team** (`2Y5JPG373S`) as the running app.
+
+So every release that should update installed copies is notarized with that
+identity and signed with the update key; a build signed ad hoc, or by
+another team, or a DMG changed after signing, is refused.
+
+**Keep the update key.** Its private half is only in the release Mac's login
+Keychain. Back it up (`generate_keys -x <file>`, kept somewhere safe and
+offline). Without it, installed copies can never update again. A new key
+takes a release signed with the old one that carries the new
+`SUPublicEDKey`.
 
 - **Quarantine.** Sparkle removes the quarantine attribute from what it
   installs, so an update needs no Gatekeeper approval; only the first manual
@@ -214,7 +242,8 @@ never stopped for an update without the player's say.
 1. Build release N (notarized, Developer ID; a lower build number) and
    install it in `/Applications`.
 2. Build release N+1 with a higher build number (`--build`), notarize it, and
-   publish it as a GitHub pre-release with its DMG.
+   publish it as a GitHub pre-release with its DMG, its notes ending with the
+   signature line.
 3. In N: Avo › Check for Updates…. Install with Android stopped, then again
    with an app open, and check that:
    - Avo asks before it stops Android;
