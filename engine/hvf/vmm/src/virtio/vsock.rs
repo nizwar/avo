@@ -18,6 +18,7 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
+use std::time::Duration;
 
 pub const TYPE_VSOCK: u16 = 19;
 pub const HOST_CID: u64 = 2;
@@ -196,7 +197,15 @@ impl Vsock {
             std::thread::Builder::new()
                 .name("vsock-accept".into())
                 .spawn(move || {
-                    for stream in listener.incoming().flatten() {
+                    for stream in listener.incoming() {
+                        let stream = match stream {
+                            Ok(stream) => stream,
+                            // Back off instead of spinning when the fd table is full.
+                            Err(_) => {
+                                std::thread::sleep(Duration::from_millis(100));
+                                continue;
+                            }
+                        };
                         let Some(shared) = CURRENT.lock().unwrap().clone() else { continue };
                         std::thread::spawn(move || host_connect(shared, stream));
                     }
