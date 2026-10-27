@@ -71,6 +71,9 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     /// Events for displays whose window is still waiting for `openDisplay`
     /// to return: the guest reports a display ready before the call ends.
     private var earlyEvents: [UInt32: [DaemonEvent]] = [:]
+    /// Files dropped on the Dock icon before the app had a window (it was
+    /// just starting): the first window takes them.
+    private var filesToShare: [URL] = []
     /// Android's status as the daemon last said (see "Screen lock").
     private(set) var androidStatus = VMStatus.stopped
     /// Where the engine keeps what Android plays: recordings take their sound from it.
@@ -130,7 +133,13 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
             } catch {
                 logger.error("cannot reach the daemon: \(error.localizedDescription, privacy: .public)")
                 let window = openWindow(notificationKey: nil, connect: false)
-                window.showProblem((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+                let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                window.showProblem(message)
+                // Files dropped on the Dock icon as the app started go nowhere either.
+                if !filesToShare.isEmpty {
+                    filesToShare = []
+                    window.showNotice(String(localized: "Could not share the files: \(message)", bundle: .windowHost))
+                }
             }
         }
     }
@@ -140,7 +149,13 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
         let controller = AndroidWindowController(app: self, frames: frames)
         windows.append(controller)
         controller.showWindow(nil)
-        if connect, let client { controller.attach(client: client, notificationKey: notificationKey) }
+        if connect, let client {
+            controller.attach(client: client, notificationKey: notificationKey)
+            if !filesToShare.isEmpty {
+                controller.share(filesToShare)
+                filesToShare = []
+            }
+        }
         return controller
     }
 
@@ -434,9 +449,18 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
         }
     }
 
-    /// Files dropped on the app's Dock icon are shared with it (spec: drag and drop).
+    /// Files dropped on the app's Dock icon are shared with it (spec: drag and
+    /// drop), through its front window. Dropped as it starts, before it has a
+    /// window, they go to the first one, which shares them once its display
+    /// has opened.
     func application(_ application: NSApplication, open urls: [URL]) {
-        guard let target = windows.first(where: { $0.window?.isKeyWindow == true }) ?? windows.first else { return }
+        guard !quitting else { return }
+        let target = windows.first { $0.window?.isKeyWindow == true }
+            ?? windows.first { $0.window?.isVisible == true || $0.isInPictureInPicture } ?? windows.first
+        guard let target else {
+            filesToShare += urls
+            return
+        }
         target.share(urls)
     }
 

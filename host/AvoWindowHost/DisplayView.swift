@@ -46,15 +46,25 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     // MARK: Drag and drop from Finder
 
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
-        sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) ? .copy : []
+        Self.sharesFiles(Self.draggedFiles(sender)) ? .copy : []
     }
 
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
-        guard let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self],
-                                                               options: [.urlReadingFileURLsOnly: true]) as? [URL],
-              !urls.isEmpty else { return false }
+        let urls = Self.draggedFiles(sender)
+        guard Self.sharesFiles(urls) else { return false }
         onDropFiles?(urls)
         return true
+    }
+
+    private static func draggedFiles(_ sender: any NSDraggingInfo) -> [URL] {
+        sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+    }
+
+    /// Only files go to Android, each copied to its Downloads folder
+    /// (DaemonCore.shareFiles): a drop with a folder in it is refused, on
+    /// the window as on the app's Dock icon.
+    static func sharesFiles(_ urls: [URL]) -> Bool {
+        !urls.isEmpty && !urls.contains { (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true }
     }
 
     @available(*, unavailable)

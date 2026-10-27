@@ -985,6 +985,16 @@
         }
       }
     },
+    "Copied to Android’s Downloads folder." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disalin ke folder Download di Android."
+          }
+        }
+      }
+    },
     "Copy" : {
       "localizations" : {
         "id" : {
@@ -1021,6 +1031,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tidak bisa menyimpan cuplikan layar: %@"
+          }
+        }
+      }
+    },
+    "Could not share the files: %@" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidak bisa membagikan file: %@"
           }
         }
       }
@@ -1902,6 +1922,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nonaktif"
+          }
+        }
+      }
+    },
+    "Only files can be shared with %@, not folders." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hanya file yang bisa dibagikan ke %@, bukan folder."
           }
         }
       }
@@ -3016,6 +3046,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "File tidak bisa ditulis."
+          }
+        }
+      }
+    },
+    "The files go to %@ once it has opened." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File akan dikirim ke %@ setelah aplikasinya terbuka."
           }
         }
       }
