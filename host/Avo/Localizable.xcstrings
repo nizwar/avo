@@ -6252,11 +6252,22 @@
       }
     },
     "Lets adb, Android Studio or scrcpy on this Mac control Android. Only this Mac can connect, but any app on it can then install apps and read Android’s data, so turn it off when you don’t need it." : {
+      "extractionState" : "stale",
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Memungkinkan adb, Android Studio, atau scrcpy di Mac ini mengontrol Android. Hanya Mac ini yang bisa tersambung, tetapi app apa pun di Mac ini lalu bisa menginstal app dan membaca data Android, jadi matikan saat tidak diperlukan."
+          }
+        }
+      }
+    },
+    "Lets adb, Android Studio or scrcpy on this Mac control Android. Avo lets in only adb’s own key on this Mac (~/.android/adbkey), which they share, but whatever uses it can install apps and read Android’s data, so turn it off when you don’t need it." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memungkinkan adb, Android Studio, atau scrcpy di Mac ini mengontrol Android. Avo hanya menerima kunci adb milik Mac ini (~/.android/adbkey), yang mereka pakai bersama, tetapi apa pun yang memakainya bisa menginstal app dan membaca data Android, jadi matikan saat tidak diperlukan."
           }
         }
       }
