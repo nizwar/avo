@@ -3302,6 +3302,16 @@
         }
       }
     },
+    "Avo’s background service isn’t answering." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Layanan latar belakang Avo tidak menjawab."
+          }
+        }
+      }
+    },
     "Avo’s background service isn’t running yet." : {
       "localizations" : {
         "id" : {

@@ -16,6 +16,7 @@ final class ControlPanelModel {
         case connecting
         case connected
         case needsApproval
+        /// Why, as the banners say it (`unavailableReason`).
         case unavailable(String)
     }
 
@@ -309,9 +310,7 @@ final class ControlPanelModel {
                     await connectOnceApproved()
                     return
                 }
-                daemonState = .unavailable(Self.isOutdated && error as? AvoError == .unauthorizedCaller
-                    ? String(localized: "Avo was updated while it was open. Quit Avo and open it again.")
-                    : error.localizedDescription)
+                daemonState = .unavailable(Self.unavailableReason(error))
                 if await repairAgent(after: error) {
                     connect()
                     return
@@ -333,6 +332,17 @@ final class ControlPanelModel {
             try? await Task.sleep(for: .seconds(2))
             self?.connect()
         }
+    }
+
+    /// What the banners say of a hello that failed, as a whole sentence.
+    /// One that ran out of time came from a service that runs but did not
+    /// answer (busy, or stuck): "not running" would be untrue.
+    private static func unavailableReason(_ error: any Error) -> String {
+        if isOutdated, error as? AvoError == .unauthorizedCaller {
+            return String(localized: "Avo was updated while it was open. Quit Avo and open it again.")
+        }
+        if case .timedOut? = error as? AvoError { return String(localized: "Avo’s background service isn’t answering.") }
+        return String(localized: "Avo’s background service is not running. \(error.localizedDescription)")
     }
 
     // MARK: After an update
