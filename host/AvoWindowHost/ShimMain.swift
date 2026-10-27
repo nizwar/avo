@@ -349,6 +349,7 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
         guard !inBackground, !windows.isEmpty, !windows.contains(where: \.isEditingKeymap) else { return }
         inBackground = true
         for window in windows { window.sendToBackground() }
+        LocationPanel.shared.hideWithApp()
         NSApp.setActivationPolicy(.accessory)
         if NSApp.isActive { Self.activateWindowBehind() }
     }
@@ -359,6 +360,7 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
         inBackground = false
         NSApp.setActivationPolicy(.regular)
         for window in windows { window.returnFromBackground() }
+        LocationPanel.shared.returnWithApp()
         NSApp.activate()
     }
 
