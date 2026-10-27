@@ -656,17 +656,18 @@ impl SharedDir {
         let new_name = reader.name()?.to_vec();
         let (old_host, old_relative) = self.child(parent, &old_name)?;
         let (new_host, new_relative) = self.child(new_parent, &new_name)?;
-        let host_flags = match flags {
-            0 => 0,
-            RENAME_NOREPLACE => libc::RENAME_EXCL,
-            RENAME_EXCHANGE => libc::RENAME_SWAP,
-            _ => return Err(libc_linux::EINVAL), // RENAME_WHITEOUT
-        };
         // No symlink is followed in either path's intermediate components; a
-        // leaf symlink is moved as itself.
+        // leaf symlink is moved as itself. `flags` stays the guest's: the
+        // node table below follows what it asked for.
+        let host_flags = RENAME_NOFOLLOW_ANY
+            | match flags {
+                0 => 0,
+                RENAME_NOREPLACE => libc::RENAME_EXCL,
+                RENAME_EXCHANGE => libc::RENAME_SWAP,
+                _ => return Err(libc_linux::EINVAL), // RENAME_WHITEOUT
+            };
         let (from, to) = (c_path(&old_host)?, c_path(&new_host)?);
-        let flags = host_flags | RENAME_NOFOLLOW_ANY;
-        if unsafe { libc::renameatx_np(libc::AT_FDCWD, from.as_ptr(), libc::AT_FDCWD, to.as_ptr(), flags) } != 0 {
+        if unsafe { libc::renameatx_np(libc::AT_FDCWD, from.as_ptr(), libc::AT_FDCWD, to.as_ptr(), host_flags) } != 0 {
             return Err(linux_errno(&io::Error::last_os_error()));
         }
         if flags == RENAME_EXCHANGE {
@@ -1336,5 +1337,42 @@ mod tests {
         assert_eq!(linux_errno(&io::Error::from_raw_os_error(libc::EDEADLK)), 35);
         assert_eq!(linux_errno(&io::Error::from_raw_os_error(libc::ENOATTR)), 61);
         assert_eq!(linux_errno(&io::Error::from_raw_os_error(9999)), libc_linux::EIO);
+    }
+
+    /// RENAME (no flags) or RENAME2 arguments: `old` in the request's node
+    /// becomes `new` in `new_parent`.
+    fn rename_args(new_parent: u64, flags: Option<u32>, old: &str, new: &str) -> Vec<u8> {
+        let mut rename = Writer::default();
+        rename.u64(new_parent);
+        if let Some(flags) = flags {
+            rename.u32(flags).u32(0);
+        }
+        rename.0.extend_from_slice(&Guest::name(old));
+        rename.0.extend_from_slice(&Guest::name(new));
+        rename.0
+    }
+
+    #[test]
+    fn an_exchange_keeps_each_node_on_its_own_file() {
+        let folder = Folder::new("exchange");
+        std::fs::write(folder.0.join("a.txt"), b"AAA").unwrap();
+        std::fs::write(folder.0.join("b.txt"), b"BBBB").unwrap();
+        let mut guest = Guest::new(&folder);
+        let (a, _, _) = guest.lookup(ROOT, "a.txt").unwrap();
+        let (b, _, _) = guest.lookup(ROOT, "b.txt").unwrap();
+        guest.call(RENAME2, ROOT, &rename_args(ROOT, Some(RENAME_EXCHANGE), "a.txt", "b.txt")).unwrap();
+        // On the Mac the two names swapped their files.
+        assert_eq!(std::fs::read(folder.0.join("a.txt")).unwrap(), b"BBBB");
+        assert_eq!(std::fs::read(folder.0.join("b.txt")).unwrap(), b"AAA");
+        // Node a is the file that held AAA (now named b.txt), node b the
+        // one that held BBBB (now named a.txt).
+        for (node, bytes) in [(a, &b"AAA"[..]), (b, &b"BBBB"[..])] {
+            let fh = guest.open(node, 0).unwrap();
+            assert_eq!(guest.read(node, fh, 0, 16), bytes, "each node reads its own file");
+            guest.release(node, fh);
+        }
+        // And a new lookup of either name finds the same nodes.
+        assert_eq!(guest.lookup(ROOT, "b.txt").unwrap().0, a);
+        assert_eq!(guest.lookup(ROOT, "a.txt").unwrap().0, b);
     }
 }
