@@ -63,6 +63,11 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     private var windows: [AndroidWindowController] = []
     /// Android ended the app (its last window closed from the guest).
     private var appEnded = false
+    /// Quitting waits for Android and for screen recordings to finish
+    /// (`applicationShouldTerminate`). Meanwhile the app's windows close and
+    /// Android stops it, and asking to quit again then would make AppKit
+    /// quit at once, cutting a recording short.
+    private var quitting = false
     /// Events for displays whose window is still waiting for `openDisplay`
     /// to return: the guest reports a display ready before the call ends.
     private var earlyEvents: [UInt32: [DaemonEvent]] = [:]
@@ -154,7 +159,7 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
             // behind (a window Android opened in the background never was):
             // every other window would drop behind it.
             if NSApp.isActive { Self.activateWindowBehind() }
-            NSApp.terminate(nil)
+            if !quitting { NSApp.terminate(nil) }
         }
     }
 
@@ -199,7 +204,7 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
         case .appStopped(let stopped) where stopped == package:
             // Force stopped in the Control Panel: Android already ended it.
             appEnded = true
-            NSApp.terminate(nil)
+            if !quitting { NSApp.terminate(nil) }
         case .fingerprints(let status):
             // The windows' fingerprint menus (FingerprintMenu.swift).
             ShimFingerprints.shared.update(status)
@@ -406,6 +411,7 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
         for window in windows where !window.keymapMayClose(answer: { quit in if quit { NSApp.terminate(nil) } }) {
             return .terminateCancel
         }
+        quitting = true
         // Detaching also stops screen recordings; their movie files are finished before the app quits.
         for window in windows { window.detach() }
         let client = appEnded ? nil : self.client
