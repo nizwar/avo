@@ -124,7 +124,7 @@ struct UdpFlow {
     key: UdpKey,
     socket: UdpSocket,
     last: Instant,
-    /// Where the guest's datagrams on this flow are sent. For a DNS flow
+    /// Where the guest's last datagram on this flow went. For a DNS flow
     /// (to 10.0.2.3) only replies from this server are taken as the answer,
     /// so a datagram from anywhere else cannot be relabelled as the resolver.
     server: SocketAddr,
@@ -691,6 +691,10 @@ impl Stack {
         };
         let flow = self.udp.get_mut(&token).unwrap();
         flow.last = Instant::now();
+        // A DNS flow's next answer comes from where this query goes: the
+        // Mac's resolver can change (another network, a VPN) while Android
+        // keeps one socket for its queries.
+        flow.server = target;
         let _ = flow.socket.send_to(payload, target); // a full buffer drops it, as a network would
     }
 
@@ -1020,9 +1024,13 @@ fn dhcp_reply(request: &DhcpRequest, kind: u8, lease: Ipv4Addr) -> Vec<u8> {
     message
 }
 
-/// The Mac's DNS server, from /etc/resolv.conf (read for every new query flow,
-/// so it follows network changes).
+/// The Mac's DNS server, from /etc/resolv.conf (read for every query, so it
+/// follows network changes).
 fn nameserver() -> Option<SocketAddr> {
+    #[cfg(test)]
+    if let Some(server) = tests::NAMESERVER.get() {
+        return Some(server);
+    }
     let text = std::fs::read_to_string("/etc/resolv.conf").ok()?;
     let servers: Vec<IpAddr> = text
         .lines()
@@ -1052,6 +1060,12 @@ fn random_seed() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    thread_local! {
+        /// The Mac's resolver as this test thread's stack sees it, in place
+        /// of /etc/resolv.conf's.
+        pub static NAMESERVER: std::cell::Cell<Option<SocketAddr>> = const { std::cell::Cell::new(None) };
+    }
 
     #[test]
     fn checksums_verify() {
@@ -1128,5 +1142,36 @@ mod tests {
             std::thread::sleep(Duration::from_millis(50));
         }
         assert!(thread.is_finished());
+    }
+
+    #[test]
+    fn a_dns_flow_takes_the_answer_of_the_resolver_it_last_asked() {
+        // Two resolvers on the Mac: its network changes from one to the other
+        // while Android goes on asking from the same socket.
+        let resolvers = [(); 2].map(|_| std::net::UdpSocket::bind("127.0.0.1:0").unwrap());
+        for resolver in &resolvers {
+            resolver.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        }
+        let downlink = crate::virtio::net::Net::new([2, 0, 0, 0, 0, 1]).downlink();
+        let stack = &mut Stack::new(Poll::new().unwrap(), downlink, Arc::new(Mutex::new(Vec::new())));
+        let guest = SocketAddrV4::new(FIRST_GUEST, 40000);
+        for (round, resolver) in resolvers.iter().enumerate() {
+            NAMESERVER.set(Some(resolver.local_addr().unwrap()));
+            let datagram = udp_datagram(guest, SocketAddrV4::new(DNS, 53), b"query");
+            let header = ipv4_header(FIRST_GUEST, DNS, PROTOCOL_UDP, datagram.len(), round as u16, 0x4000);
+            stack.guest_udp(&Ipv4::parse(&[header, datagram].concat()).unwrap());
+            let mut query = [0u8; 64];
+            let (_, flow) = resolver.recv_from(&mut query).expect("the query reaches the Mac's resolver");
+            resolver.send_to(b"answer", flow).unwrap();
+            let token = stack.udp_keys[&UdpKey { guest, dns: true }];
+            let deadline = Instant::now() + Duration::from_secs(2);
+            while stack.out.is_empty() && Instant::now() < deadline {
+                stack.receive_udp(token);
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            assert_eq!(stack.out.len(), 1, "round {round}: the resolver's answer reaches Android");
+            stack.out.clear();
+        }
+        NAMESERVER.set(None);
     }
 }
