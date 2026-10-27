@@ -367,7 +367,7 @@ actor SimulatedFingerprintAndroid: FingerprintGuest {
 /// An engine without a fingerprint sensor (like crosvm).
 final class PlainTestEngine: VMEngine, @unchecked Sendable {
     let name = "plain-test"
-    let exits: AsyncStream<(any Error)?> = AsyncStream { _ in }
+    let exits: AsyncStream<EngineExit> = AsyncStream { _ in }
 
     func start(_ launch: EngineLaunch) async throws {}
     func stop() async {}
@@ -378,7 +378,7 @@ final class PlainTestEngine: VMEngine, @unchecked Sendable {
 final class FingerprintTestEngine: VMEngine, FingerprintEngine, @unchecked Sendable {
     let name = "fingerprint-test"
     let guest: SimulatedFingerprintAndroid
-    let exits: AsyncStream<(any Error)?> = AsyncStream { _ in }
+    let exits: AsyncStream<EngineExit> = AsyncStream { _ in }
 
     init(_ guest: SimulatedFingerprintAndroid) { self.guest = guest }
 

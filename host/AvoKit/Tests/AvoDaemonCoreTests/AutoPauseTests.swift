@@ -26,7 +26,7 @@ final class PausingEngine: PausableEngine, @unchecked Sendable {
     var isPaused: Bool { lock.withLock { _paused } }
 
     var name: String { base.name }
-    var exits: AsyncStream<(any Error)?> { base.exits }
+    var exits: AsyncStream<EngineExit> { base.exits }
     func start(_ launch: EngineLaunch) async throws { try await base.start(launch) }
     func snapshot(to url: URL) async throws { try await base.snapshot(to: url) }
     func connect(port: UInt32) async throws -> any ByteStream { try await base.connect(port: port) }

@@ -48,6 +48,15 @@ public actor VMManager {
     private var input: InputChannel?
     private var adb: ADBConnection?
     private var booting: Task<Void, any Error>?
+    /// The engine of the start under way, or of the Android that runs (its
+    /// `EngineLaunch.instance`): the exit of one stopped before is no news.
+    private var engineInstance: UUID?
+    /// The start's engine ended while Android booted: the start fails with
+    /// this at once, not at its time limit.
+    private var bootEnded: (any Error)?
+    /// The start is in its engine's own start, which sees its process end
+    /// itself and says why (a drive macOS refuses, the GPU).
+    private var engineStarting = false
     /// Android rebooted itself or asked for its reset, and the daemon has
     /// not taken that up yet (it starts Android again: `restartTaken`).
     private var restartPending = false
@@ -91,7 +100,7 @@ public actor VMManager {
         (reboots, rebootSink) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
         let exits = engine.exits
         Task { [weak self] in
-            for await error in exits { await self?.engineExited(error) }
+            for await exit in exits { await self?.engineExited(exit) }
         }
         // What the engine hands out itself (fingerprints, Google apps) wakes Android too.
         (engine as? any PausableEngine)?.onUse { [weak self] in try? await self?.wake() }
@@ -106,23 +115,33 @@ public actor VMManager {
         if status.state == .running, let control, await control.isOpen { return }
         if let booting { return try await booting.value }
         let settings = settings()
+        // From here on, only the engine this start launches counts.
+        engineInstance = nil
+        bootEnded = nil
         let task = Task { try await self.boot(settings) }
         booting = task
         defer { if booting == task { booting = nil } }
         do {
             try await task.value
         } catch {
-            // Called off by a stop or by Android's own reboot, which tidy up
-            // and say what happened themselves (the next boot may be under way).
-            if error is CancellationError || task.isCancelled || booting != task { throw error }
+            var failure = error
+            if booting == task, let ended = bootEnded {
+                // Its engine ended while Android booted: that is how the start
+                // failed, unless the start saw it first and said why.
+                if error is CancellationError { failure = ended }
+            } else if error is CancellationError || task.isCancelled || booting != task {
+                // Called off by a stop or by Android's own reboot, which tidy up
+                // and say what happened themselves (the next boot may be under way).
+                throw error
+            }
             await teardown()
-            update(VMStatus(state: error as? AvoError == .imageMissing ? .notInstalled : .failed,
-                            detail: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription))
+            update(VMStatus(state: failure as? AvoError == .imageMissing ? .notInstalled : .failed,
+                            detail: (failure as? LocalizedError)?.errorDescription ?? failure.localizedDescription))
             // Nothing of a failed start runs on: avo-vmm would keep its memory,
             // its CPU and the disks, and its host agent wait for Android, until
             // the next start. (Its exit, as it ends, is no news: `engineExited`.)
             await engine.stop()
-            throw error
+            throw failure
         }
     }
 
@@ -149,10 +168,21 @@ public actor VMManager {
         // After each wait below likewise, the status stays the stop's, and what
         // this start opened itself closes; the stop ends the engine.
         try Task.checkCancellation()
-        try await engine.start(EngineLaunch(config: settings.config, paths: paths, image: image, bootConfigDisk: configDisk,
-                                            profile: settings.profile, displayRate: settings.displayRate,
-                                            androidScreen: settings.androidScreen))
+        let launch = EngineLaunch(config: settings.config, paths: paths, image: image, bootConfigDisk: configDisk,
+                                  profile: settings.profile, displayRate: settings.displayRate,
+                                  androidScreen: settings.androidScreen)
+        engineInstance = launch.instance
+        engineStarting = true
+        do {
+            try await engine.start(launch)
+        } catch {
+            engineStarting = false
+            throw error
+        }
+        engineStarting = false
         try Task.checkCancellation()
+        // Its process ended as the engine's start returned: no Android to wait for.
+        if let bootEnded { throw bootEnded }
 
         update(VMStatus(state: .starting, detail: String(localized: "Waiting for Android to boot", bundle: .avoKit)))
         let session = try await connectControl(timeout: firstBoot ? max(bootTimeout, firstBootTimeout) : bootTimeout)
@@ -230,6 +260,8 @@ public actor VMManager {
         // A paused engine runs Android again for its power off (VMMEngine.stop).
         pausedAt = nil
         update(VMStatus(state: .stopping))
+        // The stop's status wins over a start its engine's end failed meanwhile.
+        bootEnded = nil
         let boot = booting
         boot?.cancel()
         await teardown()
@@ -270,7 +302,11 @@ public actor VMManager {
         await adb?.close()
     }
 
-    private func engineExited(_ error: (any Error)?) async {
+    private func engineExited(_ exit: EngineExit) async {
+        // An engine stopped before this start (or this Android) began: its
+        // end says nothing about this one, however late it comes.
+        guard exit.instance == engineInstance else { return }
+        let error = exit.error
         // The engine of a stop, or of a start that failed (both stop it
         // themselves), says nothing new as it ends.
         switch status.state {
@@ -281,13 +317,19 @@ public actor VMManager {
         // by itself. A start under way stops its engine when it fails.
         let unexpected = status.state != .starting
         pausedAt = nil
-        // Android itself rebooted or asked for a reset: a boot still waiting
-        // for its Control channel ends now instead of at its timeout
-        // (minutes), and makes way for the next start. Only these: the exit
-        // of an engine stopped on purpose can come after the next boot began.
         if error is AndroidRebooted || error is AndroidFactoryReset {
+            // Android itself rebooted or asked for a reset: a boot still
+            // waiting for its Control channel ends now instead of at its
+            // timeout (minutes), and makes way for the next start.
             booting?.cancel()
             booting = nil
+        } else if status.state == .starting, let booting {
+            // The engine crashed (or ended) while Android booted: the start
+            // fails now with how it ended, and tidies up as a failed start
+            // does. An engine still in its own start sees its process end.
+            bootEnded = error ?? AvoError.vmStartFailed(String(localized: "The VM engine exited with status \(0).", bundle: .avoKit))
+            if !engineStarting { booting.cancel() }
+            return
         }
         await teardown()
         if error is AndroidFactoryReset {

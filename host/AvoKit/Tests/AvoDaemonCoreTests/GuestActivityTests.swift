@@ -151,7 +151,7 @@ import Testing
 /// An engine that only samples (it never runs Android): what System Status asks of it.
 private final class SamplingEngine: VMEngine, ActivityEngine, @unchecked Sendable {
     let name = "sampling"
-    let exits = AsyncStream<(any Error)?> { _ in }
+    let exits = AsyncStream<EngineExit> { _ in }
     let sink = Mutex<(@Sendable (GuestActivity.Sample) -> Void)?>(nil)
     let sinkChanges = Mutex(0)
 

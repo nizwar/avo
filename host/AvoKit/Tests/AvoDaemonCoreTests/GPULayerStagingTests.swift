@@ -21,7 +21,7 @@ final class GPULayerFakeEngine: GPULayerEngine, @unchecked Sendable {
     private var _staged: [Staged] = []
     var staged: [Staged] { lock.withLock { _staged } }
     var name: String { inner.name }
-    var exits: AsyncStream<(any Error)?> { inner.exits }
+    var exits: AsyncStream<EngineExit> { inner.exits }
 
     func start(_ launch: EngineLaunch) async throws { try await inner.start(launch) }
     func stop() async { await inner.stop() }
