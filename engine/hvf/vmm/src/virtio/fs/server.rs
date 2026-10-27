@@ -1459,6 +1459,71 @@ mod tests {
     }
 
     #[test]
+    fn a_file_can_be_hard_linked() {
+        let folder = Folder::new("link");
+        std::fs::write(folder.0.join("a.txt"), b"AAA").unwrap();
+        let mut guest = Guest::new(&folder);
+        let (a, _, _) = guest.lookup(ROOT, "a.txt").unwrap();
+        let mut args = Writer::default();
+        args.u64(a);
+        args.0.extend_from_slice(&Guest::name("b.txt"));
+        let out = guest.call(LINK, ROOT, &args.0);
+        assert!(out.is_ok(), "LINK of a plain file: {out:?}");
+        assert_eq!(std::fs::read(folder.0.join("b.txt")).unwrap(), b"AAA");
+    }
+
+    #[test]
+    fn a_symlink_is_hard_linked_as_itself() {
+        let folder = Folder::new("linksym");
+        let mut guest = Guest::new(&folder);
+        let mut args = Writer::default();
+        args.0.extend_from_slice(&Guest::name("l"));
+        args.0.extend_from_slice(&Guest::name("target"));
+        let (l, _, _) = Guest::entry(&guest.call(SYMLINK, ROOT, &args.0).unwrap());
+        let mut args = Writer::default();
+        args.u64(l);
+        args.0.extend_from_slice(&Guest::name("l2"));
+        let out = guest.call(LINK, ROOT, &args.0);
+        assert!(out.is_ok(), "LINK of a symlink (Linux links the link itself): {out:?}");
+        assert!(std::fs::symlink_metadata(folder.0.join("l2")).unwrap().file_type().is_symlink());
+    }
+
+    #[test]
+    fn symlinks_can_be_removed_and_renamed() {
+        let folder = Folder::new("symops");
+        let mut guest = Guest::new(&folder);
+        for name in ["l", "m"] {
+            let mut args = Writer::default();
+            args.0.extend_from_slice(&Guest::name(name));
+            args.0.extend_from_slice(&Guest::name("/nowhere"));
+            guest.call(SYMLINK, ROOT, &args.0).unwrap();
+        }
+        assert_eq!(guest.call(RENAME, ROOT, &rename_args(ROOT, None, "l", "l2")).map(|_| ()), Ok(()), "RENAME of a symlink");
+        assert_eq!(guest.call(UNLINK, ROOT, &Guest::name("m")).map(|_| ()), Ok(()), "UNLINK of a symlink");
+        assert!(std::fs::symlink_metadata(folder.0.join("m")).is_err());
+        assert!(std::fs::symlink_metadata(folder.0.join("l2")).unwrap().file_type().is_symlink());
+    }
+
+    /// The *_NOFOLLOW_ANY flags also guard the second path of linkat and
+    /// renameatx_np (defence in depth behind dir_path's check).
+    #[test]
+    fn link_and_rename_refuse_a_middle_symlink_in_the_new_path() {
+        let folder = Folder::new("second");
+        let outside = Folder::new("second-out");
+        std::fs::write(folder.0.join("a"), b"a").unwrap();
+        std::fs::write(folder.0.join("r"), b"r").unwrap();
+        std::os::unix::fs::symlink(&outside.0, folder.0.join("d")).unwrap();
+        let root = folder.0.canonicalize().unwrap();
+        let c = |p: &Path| CString::new(p.as_os_str().as_bytes()).unwrap();
+        let (a, linked) = (c(&root.join("a")), c(&root.join("d/linked")));
+        let made = unsafe { libc::linkat(libc::AT_FDCWD, a.as_ptr(), libc::AT_FDCWD, linked.as_ptr(), AT_SYMLINK_NOFOLLOW_ANY) };
+        assert!(made != 0 && !outside.0.join("linked").exists(), "linkat followed the new path's middle symlink");
+        let (r, moved) = (c(&root.join("r")), c(&root.join("d/moved")));
+        let renamed = unsafe { libc::renameatx_np(libc::AT_FDCWD, r.as_ptr(), libc::AT_FDCWD, moved.as_ptr(), RENAME_NOFOLLOW_ANY) };
+        assert!(renamed != 0 && !outside.0.join("moved").exists(), "renameatx_np followed the new path's middle symlink");
+    }
+
+    #[test]
     fn names_fold_case_letter_by_letter() {
         assert!(same_name_ignoring_case("Photos".as_bytes(), "PHOTOS".as_bytes()));
         assert!(same_name_ignoring_case("Äpfel".as_bytes(), "äPFEL".as_bytes()));
