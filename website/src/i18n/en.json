@@ -230,7 +230,7 @@
     "q1": "Is Avo free?",
     "a1": "Yes. No price, no ads and no account needed.",
     "q2": "When can I download it?",
-    "a2": "Now: use the download button, or get it from <a href=\"{github}/releases\">GitHub Releases</a>. It’s notarized, so it opens like any app, and from 0.4.0 on it updates itself.",
+    "a2": "Now: use the download button, or get it from <a href=\"{github}/releases\">GitHub Releases</a>. It’s notarized, so it opens like any app, and from 1.0 on it updates itself.",
     "q3": "Will all my games work?",
     "a3": "We're still testing. Some online games block programs like Avo, and Avo won't try to get around that.",
     "q4": "Can I use Google Play?",

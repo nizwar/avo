@@ -70,19 +70,22 @@ In 0.x a breaking change makes the release a minor one and puts a
 **Before you update** section first in its changelog entry. From 1.0 on it
 takes a major release.
 
-### The way to 1.0
+### 1.0
 
 1.0 says "Avo is ready for everyone, and an update will not break your
-setup". It comes when all of these hold:
+setup". The maintainer called it on 2026-10-27, for build 123, after a
+round of hardening. Where its conditions stood then:
 
-- updates have installed themselves, end to end, across several releases,
-  with Android's data carried over each time;
-- settings, key mappings and checkpoints have kept a stable format for
-  several releases;
+- an update installs itself end to end (a test pair of builds, 119 to
+  120, with Android's data carried over); 1.0 is the first release that
+  updates itself, so the first public update is the one after it;
+- settings, key mappings and checkpoints from 0.3.1 Preview 4 load as
+  they were;
 - no known issue loses data or leaves Android unable to start;
-- the supported Macs and macOS versions are written down and tested;
-- the updater can keep betas away from players who did not ask for them
-  (*Who gets a beta* below).
+- Macs with Apple silicon and macOS 15 or newer are supported (built and
+  tested on macOS 27);
+- the updater cannot keep betas away from players yet, so no beta is
+  published until it can (*Who gets a beta* below).
 
 From 1.0, MINOR means new features that break nothing, PATCH means fixes,
 and MAJOR means anything in *What counts as breaking*.
@@ -256,15 +259,16 @@ What these rules change, against what happened:
 
 ## Moving over from "Preview" (proposal)
 
-Nothing below has been done; each step waits for the maintainer's yes.
-Published tags, releases and their version numbers stay as they are.
+Steps 1 to 3 are done: Avo 1.0.0 (build 123) is the first release under
+these rules. The others wait for the maintainer's yes. Published tags,
+releases and their version numbers stay as they are.
 
 1. **0.3.1 Preview 4 (build 113) is the last "Preview".** It reads as
    0.4.0 Beta 3.
-2. **The next release is Avo 0.4.0**, a final, with the next free build
-   number: the 0.4.0 line's features shipped in the Previews, and 0.4.0 is
-   higher than 0.3.1 for SemVer. After it, fixes make 0.4.1 and features
-   0.5.0 (or 0.5.0 Beta 1 first).
+2. **The next release is a final, with the next free build number.** It
+   was planned as 0.4.0; the maintainer made it 1.0.0. After it, fixes
+   make 1.0.1 and features 1.1.0 (or 1.1.0 Beta 1 first, once the beta
+   switch of step 6 is in).
 3. **Finals become regular GitHub releases** (not pre-releases), so the
    newest final is GitHub's "Latest". The updater reads both kinds, so this
    changes nothing for installed copies.

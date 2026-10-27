@@ -12,9 +12,9 @@ Sparkle installs a DMG whose EdDSA signature is valid for the running app's
 key (`SUPublicEDKey`), or whose `Avo.app` carries the running app's
 Developer ID (the same team, `2Y5JPG373S`): see *How Sparkle trusts an
 update*. Updates run only in a Developer ID build, never a local ad hoc one
-(`AppUpdater.signedForUpdates`). No build before 0.4.0 updated itself: until
+(`SigningIdentity.isDeveloperID`). No build before 1.0.0 updated itself: until
 0.3.0 the feed was a placeholder, then the Control Panel handed Sparkle a
-local file, which Sparkle does not load. Those builds move to 0.4.0 by hand.
+local file, which Sparkle does not load. Those builds move to 1.0.0 by hand.
 
 ## Where things are
 

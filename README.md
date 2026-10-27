@@ -36,10 +36,11 @@ Under the hood Avo boots an unmodified AOSP image (Android 17, Cuttlefish)
 in its own virtual machine on Apple's Hypervisor.framework, and draws it on
 your Mac's GPU through gfxstream and Metal.
 
-> **Status: before 1.0.** Avo is under active development. Its releases on
+> **Avo 1.0 is out.** Its releases on
 > [GitHub Releases](https://github.com/nizwar/avo/releases) are signed with a
-> Developer ID and notarized, and from 0.4.0 on they update themselves.
-> Expect rough edges, and please [report problems](#reporting-problems).
+> Developer ID and notarized, and from 1.0 on they update themselves. Avo is
+> still under active development: please [report problems](#reporting-problems)
+> you run into.
 
 ## Features
 
@@ -105,8 +106,8 @@ all built from source. You need no Android Studio or Android Emulator.
    public AOSP build server and starts Android. Allow the background item
    when macOS asks (System Settings › General › Login Items).
 
-From 0.4.0 on, Avo updates itself (Settings › About). Earlier versions
-can't, so install 0.4.0 over the one you have by hand. Your Android data
+From 1.0 on, Avo updates itself (Settings › About). Earlier versions
+can't, so install 1.0 over the one you have by hand. Your Android data
 stays in `~/Library/Application Support/Avo`.
 
 ## Building from source
