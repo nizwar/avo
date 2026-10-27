@@ -615,7 +615,8 @@ pub fn exit_on_panic() {
     let report = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         report(info);
-        let status = panic_status(std::thread::current().name());
+        let mut name = [0u8; 64];
+        let status = panic_status(thread_name(&mut name));
         let bluetooth = match BLUETOOTH.try_lock() {
             Ok(bluetooth) => bluetooth.clone(),
             Err(std::sync::TryLockError::Poisoned(poisoned)) => poisoned.into_inner().clone(),
@@ -632,6 +633,18 @@ pub fn exit_on_panic() {
 /// The exit status of a panic on the thread named `thread`.
 fn panic_status(thread: Option<&str>) -> i32 {
     if thread.is_some_and(render::is_renderer_thread) { EXIT_GPU_UNAVAILABLE } else { EXIT_PANIC }
+}
+
+/// The name of the thread that runs this, as pthread has it (std gives its
+/// named threads theirs there too). Read from pthread rather than through
+/// std's thread handle, so that the hook neither allocates nor can panic
+/// late in a thread's life (a panic in the panic hook aborts).
+fn thread_name(buffer: &mut [u8; 64]) -> Option<&str> {
+    if unsafe { libc::pthread_getname_np(libc::pthread_self(), buffer.as_mut_ptr().cast(), buffer.len()) } != 0 {
+        return None;
+    }
+    let end = buffer.iter().position(|&b| b == 0)?;
+    std::str::from_utf8(&buffer[..end]).ok().filter(|name| !name.is_empty())
 }
 
 /// misc's bootloader_message (bootable/recovery/bootloader_message.h):
@@ -1091,6 +1104,9 @@ mod exit_tests {
         }
         assert_eq!(panic_status(Some("vcpu0")), EXIT_PANIC);
         assert_eq!(panic_status(None), EXIT_PANIC, "a thread of gfxstream's or the main thread");
+        let named = std::thread::Builder::new().name("gpu-render".into());
+        let seen = named.spawn(|| thread_name(&mut [0; 64]).map(str::to_string)).unwrap().join().unwrap();
+        assert_eq!(seen.as_deref(), Some("gpu-render"), "std names its threads for pthread too");
     }
 }
 
