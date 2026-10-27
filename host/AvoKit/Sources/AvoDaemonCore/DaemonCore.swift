@@ -1598,21 +1598,49 @@ public actor DaemonCore {
         }
     }
 
-    /// Drag and drop from Finder: copy into /sdcard/Download and share with the app.
+    /// Drag and drop from Finder: copy into /sdcard/Download and share with
+    /// the app. A file Downloads has already stays: the new one takes the
+    /// next free name, as Avo's screenshots do on the Mac. Once copied, the
+    /// files are in Downloads whatever the app makes of them, so a share
+    /// Android cannot pass on (the host side of an image without the Bridge
+    /// Agent shares nothing) fails nothing.
     public func shareFiles(_ files: [(OwnedDescriptor, String)], displayID: UInt32, client: ClientID) async throws {
         guard ownedDisplay(displayID, by: client) != nil else { throw AvoError.unauthorizedCaller }
         let adb = try await vm.adbConnection()
+        let folder = "/sdcard/Download"
+        // Nothing listed when the folder is not there yet.
+        let listing = (try? await adb.shell("ls -1a " + folder))?.output ?? ""
+        var taken = Set(listing.split(separator: "\n").map { $0.lowercased() })
         var request = Avo_V1_ShareFiles()
         request.displayID = displayID
         for (file, name) in files {
-            let safeName = name.replacingOccurrences(of: "/", with: "-")
-            let remote = "/sdcard/Download/" + safeName
+            let safeName = Self.unusedName(name.replacingOccurrences(of: "/", with: "-"), taken: taken)
+            taken.insert(safeName.lowercased())
+            let remote = folder + "/" + safeName
             try await adb.push(Self.stream(file), to: remote, mode: 0o660)
             request.paths.append(remote)
             let ext = (safeName as NSString).pathExtension
             request.mimeTypes.append(UTType(filenameExtension: ext)?.preferredMIMEType ?? "application/octet-stream")
         }
-        try await vm.controlSession().request(.shareFiles(request))
+        do {
+            try await vm.controlSession().request(.shareFiles(request))
+        } catch {
+            logger.notice("shared files stay in Downloads: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// `name`, or `<name> (2).<ext>` and so on when `taken` (lowercased: the
+    /// names in Android's shared storage match whatever their case) has it.
+    static func unusedName(_ name: String, taken: Set<String>) -> String {
+        let base = (name as NSString).deletingPathExtension
+        let ext = (name as NSString).pathExtension
+        var candidate = name
+        var number = 2
+        while taken.contains(candidate.lowercased()) {
+            candidate = ext.isEmpty ? "\(base) (\(number))" : "\(base) (\(number)).\(ext)"
+            number += 1
+        }
+        return candidate
     }
 
     /// Streams an open file with backpressure.

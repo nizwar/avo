@@ -252,6 +252,36 @@ struct Harness {
         #expect(order == ["stop org.fdroid.fdroid", "close"])
     }
 
+    /// Files dropped on a window never replace what Android's Downloads has
+    /// (its names match whatever their case), nor each other.
+    @Test func droppedFilesKeepWhatDownloadsHas() async throws {
+        let harness = try Harness(apps: [FakeBridgeAgent.app("org.fdroid.fdroid", label: "F-Droid")])
+        defer { harness.cleanUp() }
+        harness.engine.adbShellHandler = { command in
+            command == "ls -1a /sdcard/Download" ? (".\n..\nphoto.jpg\nNotes.txt\n", "", 0) : ("", "unexpected", 1)
+        }
+        await harness.core.start()
+        let (shim, _) = await harness.connect(.shim(package: "org.fdroid.fdroid"))
+        let display = try await harness.core.openDisplay(OpenDisplayRequest(package: "org.fdroid.fdroid", width: 800, height: 1600, dpi: 320),
+                                                         client: shim)
+        var dropped: [(OwnedDescriptor, String)] = []
+        for (index, name) in ["photo.jpg", "photo.jpg", "notes.txt"].enumerated() {
+            let file = harness.root.appending(path: "drop-\(index)")
+            try Data("file \(index)".utf8).write(to: file)
+            dropped.append((try open(file), name))
+        }
+        try await harness.core.shareFiles(dropped, displayID: display, client: shim)
+
+        let adbd = try #require(harness.engine.adbd)
+        let pushed = await adbd.pushed
+        #expect(pushed.keys.sorted() == ["/sdcard/Download/notes (2).txt", "/sdcard/Download/photo (2).jpg", "/sdcard/Download/photo (3).jpg"])
+        #expect(pushed["/sdcard/Download/photo (3).jpg"]?.data == Data("file 1".utf8))
+        let shares = await harness.agent.requests { if case .shareFiles(let share) = $0 { share } else { nil } }
+        #expect(shares.map(\.paths) == [["/sdcard/Download/photo (2).jpg", "/sdcard/Download/photo (3).jpg", "/sdcard/Download/notes (2).txt"]])
+        #expect(shares.first?.mimeTypes == ["image/jpeg", "image/jpeg", "text/plain"])
+        #expect(DaemonCore.unusedName("README", taken: ["readme", "readme (2)"]) == "README (3)")
+    }
+
     @Test func guestEventsReachTheMac() async throws {
         let harness = try Harness(apps: [FakeBridgeAgent.app("org.fdroid.fdroid", label: "F-Droid"),
                                          FakeBridgeAgent.app("com.example.notes", label: "Notes")], desktopAliases: true)
