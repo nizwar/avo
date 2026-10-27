@@ -48,6 +48,9 @@ public actor VMManager {
     private var input: InputChannel?
     private var adb: ADBConnection?
     private var booting: Task<Void, any Error>?
+    /// Android rebooted itself or asked for its reset, and the daemon has
+    /// not taken that up yet (it starts Android again: `restartTaken`).
+    private var restartPending = false
     private var pumps: [Task<Void, Never>] = []
     /// Pauses and wakes, one after the other ("Pause" below).
     private var pauseTransition: Task<Void, Never>?
@@ -203,6 +206,15 @@ public actor VMManager {
         throw AvoError.timedOut("Android boot (\(lastError.map { "\($0)" } ?? "no answer"))")
     }
 
+    /// Android holds nothing, and nothing here is about to start it again:
+    /// no start under way, no reboot of Android's own still to take up.
+    public var holdsNothing: Bool { !status.state.holdsAndroid && booting == nil && !restartPending }
+
+    /// The daemon took up Android's reboot or reset (`reboots`, `factoryResets`).
+    public func restartTaken() {
+        restartPending = false
+    }
+
     /// `reason`: why Android stopped, shown with the status (an eject).
     /// A start under way ends too, with nothing of it left running.
     public func stop(reason: String? = nil) async {
@@ -272,6 +284,7 @@ public actor VMManager {
         await teardown()
         if error is AndroidFactoryReset {
             logger.notice("Android asked for a factory reset")
+            restartPending = true
             await engine.stop()
             update(VMStatus(state: .stopped, detail: String(localized: "Erasing Android’s data", bundle: .avoKit)))
             factoryResetSink.yield()
@@ -279,6 +292,7 @@ public actor VMManager {
         }
         if error is AndroidRebooted {
             logger.notice("Android rebooted itself; starting it again")
+            restartPending = true
             await engine.stop()
             update(VMStatus(state: .stopped, detail: String(localized: "Android is restarting", bundle: .avoKit)))
             rebootSink.yield()

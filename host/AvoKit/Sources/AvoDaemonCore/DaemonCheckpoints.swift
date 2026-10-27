@@ -42,6 +42,8 @@ extension DaemonCore {
     /// (`syncApps`: Android's list is the truth).
     public func restoreCheckpoint(_ id: UUID, client: ClientID) async throws {
         try requireControlPanel(client)
+        restartWork += 1
+        defer { restartWork -= 1 }
         if storageChanging { throw AvoError.storage(.changing) }
         let store = CheckpointStore(paths: deps.paths)
         guard store.list().contains(where: { $0.id == id }) else { throw CheckpointStore.missing }

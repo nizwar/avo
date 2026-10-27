@@ -184,6 +184,14 @@ public actor DaemonCore {
     private var storagePublishPending = false
     /// Pause When Idle and what it waits for (AutoPause.swift).
     var autoPause = AutoPauseState()
+    /// Work that stops Android to start it again (Restart, Try GPU Again,
+    /// Android's own reboot or reset, a checkpoint's restore, Reset Android)
+    /// and starts on their way: Android passes through "stopped" in them,
+    /// which is no moment to restart on an update (`claimRestartForUpdate`).
+    var restartWork = 0
+    private var starting = 0
+    /// This daemon ends to restart on an updated Avo: nothing starts Android any more.
+    private(set) var exitingForUpdate = false
     /// Clients whose Location panel is open (`locationStatus(watch:)`).
     var locationWatchers: Set<ClientID> = []
     /// Control Panels whose System Status shows (`systemActivity(watch:)`), and its sampling (SystemMonitor.swift).
@@ -445,6 +453,8 @@ public actor DaemonCore {
 
     public func restartVM(client: ClientID) async throws {
         try requireControlPanel(client)
+        restartWork += 1
+        defer { restartWork -= 1 }
         try await clearForVMChange(.restart)
         await vm.stop()
         try await ensureRunning()
@@ -454,6 +464,8 @@ public actor DaemonCore {
     /// Android, which then tries the GPU once more.
     public func retryGPU(client: ClientID) async throws {
         try requireControlPanel(client)
+        restartWork += 1
+        defer { restartWork -= 1 }
         try await clearForVMChange(.restart)
         GPUFallbackRecord.remove(paths: deps.paths)
         (deps.engine as? any GPUFallbackEngine)?.forgetGPUCrashes()
@@ -487,6 +499,8 @@ public actor DaemonCore {
     /// so Settings › Google services goes back to None.
     public func resetAndroid(client: ClientID) async throws {
         try requireControlPanel(client)
+        restartWork += 1
+        defer { restartWork -= 1 }
         try await eraseAndroid()
     }
 
@@ -495,6 +509,9 @@ public actor DaemonCore {
     /// Avo does not have. Avo erases the data as Reset Android does and
     /// starts the fresh Android, as a phone comes back after its reset.
     func androidAskedForFactoryReset() async {
+        restartWork += 1
+        defer { restartWork -= 1 }
+        await vm.restartTaken()
         do {
             // Android itself wants its data gone: an install of Google apps goes with it.
             try await eraseAndroid(force: true)
@@ -508,6 +525,9 @@ public actor DaemonCore {
     /// the usual start brings the new boot up, prepared as every boot is
     /// (displays, location, the shared folder, audio, layers).
     func androidRebooted() async {
+        restartWork += 1
+        defer { restartWork -= 1 }
+        await vm.restartTaken()
         if rootTrial { rootFailedToBoot() }
         do {
             try await ensureRunning()
@@ -515,6 +535,7 @@ public actor DaemonCore {
             logger.error("starting Android after its reboot: \(error.localizedDescription, privacy: .public)")
         }
     }
+
 
     private func eraseAndroid(force: Bool = false) async throws {
         try await clearForVMChange(.reset, force: force)
@@ -612,6 +633,9 @@ public actor DaemonCore {
     }
 
     func ensureRunning() async throws {
+        starting += 1
+        defer { starting -= 1 }
+        if exitingForUpdate { throw AvoError.internalError(Self.restartingForUpdateMessage) }
         if storageChanging { throw AvoError.storage(.changing) }
         // A commit Avo did not see to its end (it quit, or Android was
         // stopped by force): finished or taken out before anything else.
@@ -632,6 +656,9 @@ public actor DaemonCore {
     }
 
     private func bootVM() async throws {
+        starting += 1
+        defer { starting -= 1 }
+        if exitingForUpdate { throw AvoError.internalError(Self.restartingForUpdateMessage) }
         await checkpointBeforeNewerAndroid()
         let settings = self.settings
         try await vm.ensureRunning(settings)
@@ -639,6 +666,30 @@ public actor DaemonCore {
             bootedConfig = settings.config
             bootedDisplayRate = settings.displayRate
         }
+    }
+
+    // MARK: Updates (AppUpdateWatcher)
+
+    /// Whether this daemon may end now to restart on an updated Avo: Android
+    /// holds nothing, and nothing is about to start it, change it or need it
+    /// (a start, a restart, a reboot of Android's own, Google apps, a move of
+    /// its data, an install, root). Once it may, nothing starts Android any
+    /// more: the new daemon does.
+    public func claimRestartForUpdate() async -> Bool {
+        guard !exitingForUpdate else { return true }
+        guard await vm.holdsNothing, restartWork == 0, starting == 0, googleAppsRun == nil, !storageChanging,
+              autoPause.installs == 0, rootRun == nil else { return false }
+        exitingForUpdate = true
+        // A start that went all the way while the engine was asked.
+        guard await vm.holdsNothing else {
+            exitingForUpdate = false
+            return false
+        }
+        return true
+    }
+
+    static var restartingForUpdateMessage: String {
+        String(localized: "Avo is restarting to finish its update. Try again in a moment.", bundle: .avoKit)
     }
 
     /// The VM status now, then every change.

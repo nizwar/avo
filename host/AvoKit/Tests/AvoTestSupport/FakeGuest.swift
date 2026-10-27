@@ -230,11 +230,15 @@ public final class FakeEngine: VMEngine, @unchecked Sendable {
     }
 
     public func stop() async {
-        lock.withLock {
-            running = false
-            stopped += 1
+        let wasRunning = lock.withLock {
+            defer {
+                running = false
+                stopped += 1
+            }
+            return running
         }
-        exitSink.yield(nil)
+        // As an engine process does: one exit when it ends, none when it had ended already.
+        if wasRunning { exitSink.yield(nil) }
     }
 
     public func snapshot(to url: URL) async throws {

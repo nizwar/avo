@@ -12,6 +12,12 @@ import os
 /// build's daemon at the same path (KeepAlive). While Android runs it waits:
 /// an update never takes Android away from the player. The menu bar item
 /// offers to restart Android, and the new daemon starts it again.
+///
+/// Android passes through "stopped" on its way to starting again (Restart,
+/// Try GPU Again, its own reboot, a checkpoint's restore, Google apps): the
+/// daemon restarts only once Android stayed so for a moment and the core
+/// agrees nothing is under way (`DaemonCore.claimRestartForUpdate`), which
+/// also keeps anything from starting Android after that.
 @MainActor
 final class AppUpdateWatcher {
     private let avoApp: URL
@@ -26,6 +32,10 @@ final class AppUpdateWatcher {
     private(set) var updatePending = false
     /// Runs just before the daemon exits to restart on the new build (the menu bar item leaves first).
     var beforeExit: @MainActor () -> Void = {}
+    /// Waits for the moment to restart while Android holds nothing.
+    private var restartCheck: Task<Void, Never>?
+    /// How long Android holds nothing before the core is asked, and asked again.
+    private static let quiet: Duration = .seconds(3)
     /// The new daemon starts Android: the old one stopped it for the update.
     private static let startAfterRestartKey = "AvoStartAndroidAfterUpdate"
 
@@ -104,11 +114,29 @@ final class AppUpdateWatcher {
             logger.notice("Avo.app on disk is build \(disk ?? "?", privacy: .public); this daemon is \(self.launchBuild ?? "?", privacy: .public)")
         }
         updatePending = pending
-        guard AppUpdate.daemonShouldRestart(launchBuild: launchBuild, diskBuild: disk, state: state) else { return }
-        logger.notice("restarting on the updated Avo (build \(disk ?? "?", privacy: .public))")
-        beforeExit()
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(MenuBarController.removalGraceMilliseconds)) {
-            exit(AppUpdate.daemonRestartExitStatus)
+        guard AppUpdate.daemonShouldRestart(launchBuild: launchBuild, diskBuild: disk, state: state) else {
+            restartCheck?.cancel()
+            restartCheck = nil
+            return
+        }
+        guard restartCheck == nil else { return }
+        restartCheck = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.quiet)
+                guard let self, !Task.isCancelled else { return }
+                let disk = Self.build(of: avoApp)
+                guard AppUpdate.daemonShouldRestart(launchBuild: launchBuild, diskBuild: disk, state: state) else {
+                    restartCheck = nil
+                    return
+                }
+                // Something is under way (a start, a reboot, Google apps): again shortly.
+                guard await core.claimRestartForUpdate() else { continue }
+                logger.notice("restarting on the updated Avo (build \(disk ?? "?", privacy: .public))")
+                // The menu bar item leaves first; starts are refused from here on.
+                beforeExit()
+                try? await Task.sleep(for: .milliseconds(MenuBarController.removalGraceMilliseconds))
+                exit(AppUpdate.daemonRestartExitStatus)
+            }
         }
     }
 
