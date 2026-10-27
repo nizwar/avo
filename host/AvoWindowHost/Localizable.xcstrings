@@ -3080,6 +3080,16 @@
         }
       }
     },
+    "The files were not shared: %@ did not open." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File tidak dibagikan: %@ tidak terbuka."
+          }
+        }
+      }
+    },
     "The languages for this translation aren’t downloaded. Download them in System Settings › General › Language & Region › Translation Languages." : {
       "localizations" : {
         "id" : {
