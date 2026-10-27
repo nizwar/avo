@@ -369,7 +369,9 @@ impl Write for Tee {
         if self.echo {
             let _ = std::io::stdout().write_all(data);
         }
-        self.clients.lock().unwrap().retain_mut(|c| c.write_all(data).is_ok());
+        // Client sockets are non-blocking (serve_console); this never blocks
+        // the vCPU writing guest output under the PCI slot lock.
+        self.clients.lock().unwrap().retain_mut(|c| feed_console_client(c, data));
         Ok(data.len())
     }
 
@@ -463,6 +465,28 @@ fn watch_parent(shell: ConsoleInput) {
 /// of a listener per boot left waiting on a socket nobody reaches.
 static CONSOLE: Mutex<Option<(ConsoleInput, Arc<Mutex<Vec<UnixStream>>>)>> = Mutex::new(None);
 
+/// Waits (up to a second) for a non-blocking console stream to be readable
+/// again, so the input reader polls instead of spinning on WouldBlock.
+fn wait_readable(stream: &UnixStream) {
+    use std::os::fd::AsRawFd;
+    let mut fd = libc::pollfd { fd: stream.as_raw_fd(), events: libc::POLLIN, revents: 0 };
+    unsafe { libc::poll(&mut fd, 1, 1000) };
+}
+
+/// Writes guest output to one console client without blocking the vCPU:
+/// the socket is non-blocking, so what it cannot take now is dropped (the
+/// console is lossy under backpressure) and only a broken connection (false)
+/// drops the client.
+fn feed_console_client(client: &mut UnixStream, data: &[u8]) -> bool {
+    match client.write(data) {
+        Ok(_) => true,
+        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => true,
+        Err(e) if e.kind() == std::io::ErrorKind::Interrupted => true,
+        Err(e) if e.raw_os_error() == Some(libc::ENOBUFS) => true,
+        Err(_) => false,
+    }
+}
+
 fn serve_console(path: &Path, input: ConsoleInput, clients: Arc<Mutex<Vec<UnixStream>>>) -> Result<(), String> {
     let previous = CONSOLE.lock().unwrap().replace((input, clients.clone()));
     if let Some((_, attached)) = previous {
@@ -483,18 +507,29 @@ fn serve_console(path: &Path, input: ConsoleInput, clients: Arc<Mutex<Vec<UnixSt
                 }
             };
             let Ok(writer) = stream.try_clone() else { continue };
+            // Non-blocking so guest output written on the vCPU (which holds
+            // the device's PCI slot lock) can never block on a client that
+            // stopped reading; such a client loses output instead of freezing
+            // the vCPU and a pause (Tee::write). Both fds share the flag, so
+            // the input reader below polls rather than blocking.
+            let _ = writer.set_nonblocking(true);
             let Some((_, clients)) = CONSOLE.lock().unwrap().clone() else { continue };
             clients.lock().unwrap().push(writer);
             std::thread::spawn(move || {
                 let mut stream = stream;
                 let mut buffer = [0u8; 4096];
-                while let Ok(n) = stream.read(&mut buffer) {
-                    if n == 0 {
-                        break;
-                    }
-                    let input = CONSOLE.lock().unwrap().as_ref().map(|(input, _)| input.clone());
-                    if let Some(input) = input {
-                        input.send(&buffer[..n]);
+                loop {
+                    match stream.read(&mut buffer) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            let input = CONSOLE.lock().unwrap().as_ref().map(|(input, _)| input.clone());
+                            if let Some(input) = input {
+                                input.send(&buffer[..n]);
+                            }
+                        }
+                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => wait_readable(&stream),
+                        Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                        Err(_) => break,
                     }
                 }
             });
