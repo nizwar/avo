@@ -494,6 +494,36 @@ public struct StorageChangeProgress: Codable, Equatable, Sendable {
     public var isDone: Bool { phase == .finished || phase == .failed || phase == .cancelled }
 }
 
+/// The room Android's writes have on the volume its data is on, while it
+/// runs (Settings › Storage and the Library's banner).
+public enum StorageSpace: Codable, Equatable, Sendable {
+    /// The volume is full: avo-vmm holds Android's writes until there is
+    /// room again (engine/hvf/vmm/src/virtio/block.rs). `onMac`: the Mac's own disk.
+    case full(volume: String, onMac: Bool)
+    /// Less than `StorageSpace.lowBytes` is left.
+    case low(volume: String, onMac: Bool, freeBytes: Int64)
+
+    /// Below this much free space while Android runs, Avo says so.
+    public static let lowBytes: Int64 = 2_000_000_000
+
+    public var isFull: Bool { if case .full = self { true } else { false } }
+
+    public var message: String {
+        switch self {
+        case .full(_, true):
+            String(localized: "Android is waiting because the Mac’s disk is full. Free some space, and Android goes on.", bundle: .avoKit)
+        case let .full(volume, false):
+            String(localized: "Android is waiting because “\(volume)” is full. Free some space on it, and Android goes on.", bundle: .avoKit)
+        case let .low(_, true, free):
+            String(localized: "The Mac’s disk has only \(Self.bytes(free)) free. When it is full, Android waits until you free some space.", bundle: .avoKit)
+        case let .low(volume, false, free):
+            String(localized: "“\(volume)” has only \(Self.bytes(free)) free. When it is full, Android waits until you free some space on it.", bundle: .avoKit)
+        }
+    }
+
+    private static func bytes(_ count: Int64) -> String { ByteCountFormatter.string(fromByteCount: count, countStyle: .decimal) }
+}
+
 /// Where Android's data is now (Settings › Storage › Location).
 public struct StorageLocationStatus: Codable, Equatable, Sendable {
     /// The data folder.
@@ -511,10 +541,12 @@ public struct StorageLocationStatus: Codable, Equatable, Sendable {
     public var internalCopy: AndroidDataSummary?
     /// A change on its way.
     public var change: StorageChangeProgress?
+    /// Android's writes wait for room, or little is left (nil: enough, or Android is stopped).
+    public var space: StorageSpace?
 
     public init(path: String, isInternal: Bool, volume: VolumeSummary? = nil, volumeName: String? = nil,
                 problem: StorageProblem? = nil, data: AndroidDataSummary? = nil, internalCopy: AndroidDataSummary? = nil,
-                change: StorageChangeProgress? = nil) {
+                change: StorageChangeProgress? = nil, space: StorageSpace? = nil) {
         self.path = path
         self.isInternal = isInternal
         self.volume = volume
@@ -523,5 +555,6 @@ public struct StorageLocationStatus: Codable, Equatable, Sendable {
         self.data = data
         self.internalCopy = internalCopy
         self.change = change
+        self.space = space
     }
 }

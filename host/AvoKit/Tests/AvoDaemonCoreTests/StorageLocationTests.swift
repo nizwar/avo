@@ -1,3 +1,4 @@
+import AvoIO
 import AvoKit
 import AvoPackages
 import AvoTestSupport
@@ -672,6 +673,40 @@ import Testing
         #expect(!DiskArbitrationWatcher.isMounted("/Volumes/Avo No Such Drive"))
     }
 
+    /// While Android runs, Settings and the Library say when its writes
+    /// wait for room, or when little is left; stopped, nothing.
+    @Test func theRoomAndroidsWritesHaveIsSaid() {
+        var mac = VolumeSummary(name: "Macintosh HD", mountPoint: "/System/Volumes/Data", format: "apfs", freeBytes: 50_000_000_000,
+                                capacityBytes: 1_000_000_000_000, isInternal: true, isRemovable: false, isReadOnly: false, isNetwork: false)
+        #expect(StorageLocations.space(on: mac, name: nil, androidRuns: true, writesWait: false) == nil)
+        #expect(StorageLocations.space(on: mac, name: nil, androidRuns: true, writesWait: true) == .full(volume: "Macintosh HD", onMac: true))
+        mac.freeBytes = 1_500_000_000
+        let low = StorageLocations.space(on: mac, name: nil, androidRuns: true, writesWait: false)
+        #expect(low == .low(volume: "Macintosh HD", onMac: true, freeBytes: 1_500_000_000))
+        #expect(StorageLocations.space(on: mac, name: nil, androidRuns: false, writesWait: false) == nil, "a stopped Android writes nothing")
+        let free = ByteCountFormatter.string(fromByteCount: 1_500_000_000, countStyle: .decimal)
+        #expect(low?.message == "The Mac’s disk has only \(free) free. When it is full, Android waits until you free some space.")
+        #expect(StorageSpace.full(volume: "Macintosh HD", onMac: true).message.contains("the Mac’s disk is full"))
+        // A drive is named; one that went away still is, by the record's name.
+        let ssd = VolumeSummary(name: "SSD", mountPoint: "/Volumes/SSD", format: "apfs", freeBytes: 900_000_000,
+                                capacityBytes: 500_000_000_000, isInternal: false, isRemovable: true, isReadOnly: false, isNetwork: false)
+        #expect(StorageLocations.space(on: ssd, name: "SSD", androidRuns: true, writesWait: false)?.message.hasPrefix("“SSD” has only") == true)
+        #expect(StorageLocations.space(on: nil, name: "SSD", androidRuns: true, writesWait: true) == .full(volume: "SSD", onMac: false))
+        #expect(StorageSpace.full(volume: "SSD", onMac: false).message.contains("because “SSD” is full"))
+    }
+
+    /// avo-vmm's events, as the daemon hears them.
+    @Test func theEnginesDiskEventsSayWhetherWritesWait() async {
+        let reports = DiskFullReports()
+        for line in ["disk full on", "disk fullness", "camera 0 off", "disk full off"] { reports.handle(line) }
+        var heard: [Bool] = []
+        for await full in reports.updates {
+            heard.append(full)
+            if heard.count == 2 { break }
+        }
+        #expect(heard == [true, false])
+    }
+
     @Test func candidatesAllowOnlyWhatIsSafe() {
         let volume = VolumeSummary(name: "SSD", mountPoint: "/Volumes/SSD", format: "exfat", freeBytes: 20_000_000_000,
                                    capacityBytes: 500_000_000_000, isInternal: false, isRemovable: true, isReadOnly: false, isNetwork: false)
@@ -784,6 +819,52 @@ import Testing
         #expect(await harness.core.apps().isEmpty)
     }
 
+    /// The first storage location sent after the `from`-th event that matches.
+    private func location(after from: Int, in client: RecordingClient,
+                          _ matches: (StorageLocationStatus) -> Bool) async -> StorageLocationStatus? {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline {
+            for case .storageLocation(let location) in client.events.dropFirst(from) where matches(location) { return location }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return nil
+    }
+
+    /// avo-vmm holds Android's writes on a full Mac disk: the Library says
+    /// Android waits, until the writes go through or Android stops.
+    @Test func androidWaitingForRoomIsSaidUntilItsWritesGoThrough() async throws {
+        var wrapped: DiskFullEngine?
+        let harness = try Harness(apps: [], wrap: { base in
+            let engine = DiskFullEngine(base)
+            wrapped = engine
+            return engine
+        })
+        defer { harness.cleanUp() }
+        let engine = try #require(wrapped)
+        await harness.core.start()
+        let (panel, events) = await harness.connect(.controlPanel)
+        try await harness.core.startVM(client: panel)
+
+        var seen = events.events.count
+        engine.sink.yield(true)
+        let full = await location(after: seen, in: events) { $0.space?.isFull == true }
+        #expect(full?.space == StorageSpace.full(volume: full?.volume?.name ?? "", onMac: true))
+        #expect(full?.space?.message.contains("the Mac’s disk is full") == true)
+        #expect(try await harness.core.storageLocation(client: panel).space?.isFull == true)
+
+        seen = events.events.count
+        engine.sink.yield(false)
+        #expect(await location(after: seen, in: events) { $0.space?.isFull != true } != nil)
+
+        // Waiting again when Android stops: nothing of it waits any more.
+        seen = events.events.count
+        engine.sink.yield(true)
+        #expect(await location(after: seen, in: events) { $0.space?.isFull == true } != nil)
+        seen = events.events.count
+        try await harness.core.stopVM(client: panel)
+        #expect(await location(after: seen, in: events) { $0.space == nil } != nil)
+    }
+
     /// A data disk that can't be removed fails the reset before Avo forgets anything.
     @Test func aDataDiskThatStaysFailsTheReset() async throws {
         let harness = try Harness(apps: [FakeBridgeAgent.app("org.fdroid.fdroid", label: "F-Droid")])
@@ -800,6 +881,25 @@ import Testing
         #expect(FileManager.default.fileExists(atPath: harness.paths.dataDisk.path))
         #expect(await harness.core.apps().count == 1)
     }
+}
+
+/// The fake engine, saying when Android's writes wait for room (avo-vmm's `disk full on|off`).
+final class DiskFullEngine: DiskSpaceEngine, @unchecked Sendable {
+    let base: FakeEngine
+    let diskFullUpdates: AsyncStream<Bool>
+    let sink: AsyncStream<Bool>.Continuation
+
+    init(_ base: FakeEngine) {
+        self.base = base
+        (diskFullUpdates, sink) = AsyncStream.makeStream(of: Bool.self)
+    }
+
+    var name: String { base.name }
+    var exits: AsyncStream<(any Error)?> { base.exits }
+    func start(_ launch: EngineLaunch) async throws { try await base.start(launch) }
+    func stop() async { await base.stop() }
+    func snapshot(to url: URL) async throws { try await base.snapshot(to: url) }
+    func connect(port: UInt32) async throws -> any ByteStream { try await base.connect(port: port) }
 }
 
 final class StorageProgressLog: @unchecked Sendable {

@@ -159,6 +159,16 @@ struct StorageLocationRows: View {
                 StorageProblemRow(problem: problem, flow: flow)
                     .hazeRowNote()
             }
+            if let space = location.space {
+                Label {
+                    Text(verbatim: space.message).fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: space.isFull ? "externaldrive.badge.xmark" : "externaldrive.badge.exclamationmark")
+                        .foregroundStyle(space.isFull ? Haze.danger : Haze.warning)
+                }
+                .font(.mona(13))
+                .hazeRowNote()
+            }
             if let copy = location.internalCopy {
                 LabeledContent {
                     Button("Remove Copy…") { confirmRemoveCopy = true }
@@ -288,6 +298,31 @@ struct StorageProblemBanner: View {
                 Task { await model.refreshStorageLocation() }
             }
         }
+    }
+}
+
+/// Android's writes wait for room on its data's volume, or little room is
+/// left there while Android runs (StorageSpace): the Library says so, with
+/// the place to free some.
+struct StorageSpaceBanner: View {
+    @Environment(ControlPanelModel.self) private var model
+
+    var body: some View {
+        if model.daemonState == .connected, let space = model.storageLocation?.space {
+            HazeBanner(symbol: space.isFull ? "externaldrive.badge.xmark" : "externaldrive.badge.exclamationmark",
+                       tint: space.isFull ? Haze.danger : Haze.warning, text: "\(space.message)") {
+                if let mountPoint = model.storageLocation?.volume?.mountPoint, model.storageLocation?.volume?.isInternal == false {
+                    Button("Show in Finder") { NSWorkspace.shared.open(URL(filePath: mountPoint, directoryHint: .isDirectory)) }
+                } else {
+                    Button("Open Storage Settings") { StorageSpaceBanner.openStorageSettings() }
+                }
+            }
+        }
+    }
+
+    /// System Settings › General › Storage.
+    static func openStorageSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.settings.Storage") { NSWorkspace.shared.open(url) }
     }
 }
 
