@@ -244,11 +244,40 @@ private func fixture(_ name: String) throws -> URL {
                 continuation.finish()
             }
         }
+        let sessions = SessionLog()
         await #expect(throws: ADBError.install("Failure [INSTALL_FAILED_NO_MATCHING_ABIS]")) {
-            try await client.install([part])
+            try await client.install([part], session: { sessions.record($0, $1) })
         }
         #expect(await device.shellCommands.last == "pm install-abandon 9")
+        #expect(sessions.entries == ["9 open", "9 closed"], "Android answered the abandon")
         await client.close()
+    }
+
+    /// The connection goes before the abandon: the session is one Android
+    /// may still keep, and its caller hears it opened only.
+    @Test func aSessionTheAbandonCannotReachStaysOpen() async throws {
+        let (client, device, task) = try pair()
+        defer { task.cancel() }
+        await device.setShellHandler { command in
+            command.hasPrefix("pm install-create") ? ("Success: created install session [5]\n", "", 0) : ("Success\n", "", 0)
+        }
+        await device.setStalls(neverEnds: { $0.hasPrefix("pm install-commit") })
+        _ = try await client.connect(timeout: .seconds(5))
+        let part = ADBConnection.InstallPart(name: "base.apk", size: 3) {
+            AsyncThrowingStream { continuation in
+                continuation.yield(Data([1, 2, 3]))
+                continuation.finish()
+            }
+        }
+        let sessions = SessionLog()
+        let install = Task { try await client.install([part], session: { sessions.record($0, $1) }) }
+        let deadline = ContinuousClock.now + .seconds(5)
+        while await !device.shellCommands.contains("pm install-commit 5"), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        await client.close()
+        await #expect(throws: (any Error).self) { try await install.value }
+        #expect(sessions.entries == ["5 open"])
     }
 
     @Test func pushesFilesWithSync() async throws {
@@ -270,6 +299,13 @@ private func fixture(_ name: String) throws -> URL {
         #expect(pushed?.mode == String(0o100644))
         await client.close()
     }
+}
+
+final class SessionLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _entries: [String] = []
+    var entries: [String] { lock.withLock { _entries } }
+    func record(_ session: Int, _ open: Bool) { lock.withLock { _entries.append("\(session) \(open ? "open" : "closed")") } }
 }
 
 final class ProgressLog: @unchecked Sendable {

@@ -34,6 +34,8 @@ public actor FakeADBD {
     /// OKAY), and shell commands that start but never end.
     public var neverOpens: @Sendable (String) -> Bool = { _ in false }
     public var neverEnds: @Sendable (String) -> Bool = { _ in false }
+    /// Why a push to a path fails (a full storage), or nil when it does not.
+    public var pushFailure: @Sendable (String) -> String? = { _ in nil }
     public private(set) var shellCommands: [String] = []
     public private(set) var execWrites: [(command: String, data: Data)] = []
     public private(set) var pushed: [String: Pushed] = [:]
@@ -49,6 +51,10 @@ public actor FakeADBD {
 
     public func setShellHandler(_ handler: @escaping @Sendable (String) -> (stdout: String, stderr: String, exit: UInt8)) {
         shellHandler = handler
+    }
+
+    public func setPushFailure(_ failure: @escaping @Sendable (String) -> String?) {
+        pushFailure = failure
     }
 
     public func setStalls(neverOpens: @escaping @Sendable (String) -> Bool = { _ in false },
@@ -184,6 +190,13 @@ public actor FakeADBD {
             case "DATA":
                 currentData.append(body)
             case "DONE":
+                if let currentPath, let failure = pushFailure(currentPath.path) {
+                    var fail = Data("FAIL".utf8)
+                    withUnsafeBytes(of: UInt32(failure.utf8.count).littleEndian) { fail.append(contentsOf: $0) }
+                    fail.append(Data(failure.utf8))
+                    await send(ADBMessage(.write, local, remote, fail))
+                    continue
+                }
                 if let currentPath { pushed[currentPath.path] = Pushed(mode: currentPath.mode, data: currentData) }
                 var okay = Data("OKAY".utf8)
                 okay.append(contentsOf: [0, 0, 0, 0])
