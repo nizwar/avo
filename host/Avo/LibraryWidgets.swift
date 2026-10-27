@@ -52,7 +52,13 @@ struct LibraryWidgets: View {
     }
 
     @ViewBuilder private var available: some View {
-        if model.status.state != .running {
+        if model.status.state == .suspended || model.status.state == .suspending {
+            LibraryEmpty(symbol: "rectangle.3.group", title: "Android is paused",
+                         detail: "Resume Android to see the widgets its apps offer. Widgets you added come back when it runs.")
+        } else if model.status.state == .starting {
+            LibraryEmpty(symbol: "rectangle.3.group", title: "Android is starting",
+                         detail: "The widgets its apps offer show here once it runs.")
+        } else if model.status.state != .running {
             LibraryEmpty(symbol: "rectangle.3.group", title: "Android is not running",
                          detail: "Start Android to see the widgets its apps offer. Widgets you added come back when it runs.")
         } else if let providers = model.widgetProviders, !providers.isEmpty {
