@@ -89,7 +89,7 @@ struct StatusPill: View {
         // Lit when a restart is the way on: changes wait for it, or Android stopped answering.
         Button { model.restartVM() } label: { Image(systemName: "arrow.clockwise").font(.system(size: 15, weight: .semibold)) }
             .buttonStyle(HazeIconButtonStyle(fill: model.pendingRestart || model.status.isNotResponding ? Haze.accent.opacity(0.22) : Haze.button))
-            .disabled(state != .running || !connected || model.googleAppsChangingAndroid)
+            .disabled(!model.canRestartAndroid || !connected || model.googleAppsChangingAndroid)
             .help(model.pendingRestart ? Text("Restart Android to apply your changes. Your apps and data are kept.") : Text("Restart Android"))
             .accessibilityLabel(Text("Restart Android"))
     }

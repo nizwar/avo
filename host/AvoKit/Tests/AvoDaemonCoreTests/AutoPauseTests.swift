@@ -321,4 +321,25 @@ final class PausingEngine: PausableEngine, @unchecked Sendable {
         #expect(await harness.core.status().state == .running)
         #expect(harness.engine.launches.count == 2)
     }
+
+    /// Restart while Android is paused (the Library's Restart for a pending
+    /// change, after Pause When Idle): the stop powers the paused Android
+    /// off, and it starts again, running, no longer paused.
+    @Test func aPausedAndroidRestarts() async throws {
+        let (harness, engine) = try harness(minutes: 0)
+        defer { harness.cleanUp() }
+        await harness.core.start()
+        let (panel, _) = await harness.connect(.controlPanel)
+        try await harness.core.startVM(client: panel)
+        #expect(await harness.waitForShims(1))
+        try await harness.core.pauseFromMenuBar()
+        #expect(await harness.core.status().state == .suspended)
+
+        try await harness.core.restartVM(client: panel)
+        let status = await harness.core.status()
+        #expect(status.state == .running)
+        #expect(status.pause == nil)
+        #expect(!engine.isPaused)
+        #expect(harness.engine.launches.count == 2)
+    }
 }
