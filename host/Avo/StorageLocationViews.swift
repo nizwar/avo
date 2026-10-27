@@ -172,7 +172,7 @@ struct StorageLocationRows: View {
                                     titleVisibility: .visible) {
                     Button("Remove Copy", role: .destructive) { model.removeInternalStorageCopy() }
                 } message: {
-                    Text("Android keeps using its data in \(StoragePane.abbreviated(location.path)). Without the copy, Use Avo’s Own Storage can only start fresh.")
+                    Self.removeCopyMessage(copy, path: location.path)
                 }
             }
             if let progress = model.storageProgress, !progress.isDone {
@@ -193,6 +193,15 @@ struct StorageLocationRows: View {
             return String(localized: "\(size), last used \(date.formatted(date: .abbreviated, time: .shortened))")
         }
         return size
+    }
+
+    /// Remove Copy…: the copy's checkpoints go with it.
+    static func removeCopyMessage(_ copy: AndroidDataSummary, path: String) -> Text {
+        var text = Text("Android keeps using its data in \(StoragePane.abbreviated(path)). Without the copy, Use Avo’s Own Storage can only start fresh.")
+        if let count = copy.checkpoints, count > 0 {
+            text = text + Text(verbatim: " ") + Text("Its \(count) checkpoints are removed with it.")
+        }
+        return text
     }
 }
 
@@ -336,7 +345,12 @@ struct StorageLocationSheet: View {
         .confirmationDialog("Replace the copy in Avo’s own storage?", isPresented: $confirmReplace, titleVisibility: .visible) {
             Button("Replace Copy", role: .destructive) { start(replacing: true) }
         } message: {
-            Text("Avo’s own storage still holds a copy of Android’s data from before. It is erased first.")
+            // Its checkpoints are of that copy: they go with it.
+            if let count = candidate.existing?.checkpoints, count > 0 {
+                Text("Avo’s own storage still holds a copy of Android’s data from before. It is erased first, with its \(count) checkpoints.")
+            } else {
+                Text("Avo’s own storage still holds a copy of Android’s data from before. It is erased first.")
+            }
         }
     }
 
@@ -377,14 +391,20 @@ struct StorageLocationSheet: View {
         let usable = candidate.allows(.existing)
         let fresh = candidate.allows(.fresh) || candidate.isInternal
         VStack(alignment: .leading, spacing: 10) {
-            option(.move, enabled: movable, title: "Move my Android data there",
-                   detail: candidate.isInternal
-                       ? "Avo copies Android’s data back to this Mac (\(StoragePane.bytes(candidate.moveBytes))), checks the copy, then uses it."
-                       : "Avo copies Android’s data there (\(StoragePane.bytes(candidate.moveBytes))), checks every byte of the copy, then uses it.")
+            option(.move, enabled: movable, title: "Move my Android data there", detail: moveDetail)
             if choice == .move, movable {
                 Toggle(isOn: $keepOldCopy) { Text(keepLabel) }
                     .padding(.leading, 24)
                     .help("Android goes on with the new place either way; the old copy stays as it is now.")
+                if let checkpoints = candidate.checkpoints, let obstacle = checkpoints.obstacle {
+                    Label {
+                        Text(checkpointsLeft(checkpoints, obstacle)).fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Haze.warning)
+                    }
+                    .font(.mona(12))
+                    .padding(.leading, 24)
+                }
             }
             option(.existing, enabled: usable, title: "Use the Android data already there", detail: existingDetail)
             option(.fresh, enabled: fresh, title: "Start fresh there",
@@ -435,6 +455,38 @@ struct StorageLocationSheet: View {
 
     private var keepLabel: LocalizedStringKey {
         model.storageLocation?.isInternal == true ? "Keep a copy in Avo’s own storage" : "Keep the old copy"
+    }
+
+    /// What the move copies: the data, and the checkpoints that come along.
+    private var moveDetail: LocalizedStringKey {
+        let checkpoints = candidate.checkpoints.flatMap { $0.comeAlong ? $0 : nil }
+        let size = StoragePane.bytes(candidate.moveBytes + (checkpoints?.bytes ?? 0))
+        switch (candidate.isInternal, checkpoints?.count) {
+        case (true, let count?):
+            return "Avo copies Android’s data and its \(count) checkpoints back to this Mac (\(size)), checks the copy, then uses it."
+        case (false, let count?):
+            return "Avo copies Android’s data and its \(count) checkpoints there (\(size)), checks every byte of the copy, then uses it."
+        case (true, nil):
+            return "Avo copies Android’s data back to this Mac (\(size)), checks the copy, then uses it."
+        case (false, nil):
+            return "Avo copies Android’s data there (\(size)), checks every byte of the copy, then uses it."
+        }
+    }
+
+    /// The checkpoints the move can't take along: why, and where they end up.
+    private func checkpointsLeft(_ checkpoints: CheckpointsMove, _ obstacle: CheckpointsMove.Obstacle) -> LocalizedStringKey {
+        let count = checkpoints.count
+        let name = candidate.volume?.name ?? StoragePane.abbreviated(candidate.folder)
+        switch (obstacle, keepOldCopy) {
+        case (.format(let format), true):
+            return "Android’s \(count) checkpoints can’t come along: checkpoints need an APFS drive, and “\(name)” is \(format). They stay with the old copy."
+        case (.format(let format), false):
+            return "Android’s \(count) checkpoints can’t come along: checkpoints need an APFS drive, and “\(name)” is \(format). They are deleted with the old copy unless you keep it."
+        case (.room, true):
+            return "“\(name)” has no room for Android’s \(count) checkpoints (\(StoragePane.bytes(checkpoints.bytes))) beside its data. They stay with the old copy."
+        case (.room, false):
+            return "“\(name)” has no room for Android’s \(count) checkpoints (\(StoragePane.bytes(checkpoints.bytes))) beside its data. They are deleted with the old copy unless you keep it."
+        }
     }
 
     private var existingDetail: LocalizedStringKey {
@@ -543,6 +595,8 @@ struct StorageLocationSheet: View {
         } else {
             choice = .fresh
         }
+        // Checkpoints that can't come along stay with the old copy unless the user lets it go.
+        keepOldCopy = candidate.checkpoints.map { !$0.comeAlong } ?? false
         let current = model.config?.dataDiskGiB ?? 64
         size = VMConfig.dataDiskChoices.contains(current) ? current : 64
     }
@@ -554,8 +608,10 @@ struct StorageLocationSheet: View {
         case .fresh: .startFresh(gb: size)
         }
         let running = model.status.state != .stopped && model.status.state != .notInstalled && model.status.state != .failed
+        // The sheet said which checkpoints can't come along and that they go with the old copy.
+        let leaves = choice == .move && !keepOldCopy && candidate.checkpoints?.comeAlong == false
         let request = StorageChangeRequest(destination: candidate.isInternal ? nil : candidate.chosen, action: action,
-                                           stopAndroid: running, replaceExisting: replacing)
+                                           stopAndroid: running, replaceExisting: replacing, leavesCheckpoints: leaves)
         self.request = request
         failure = nil
         Task {

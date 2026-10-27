@@ -54,7 +54,7 @@ struct CheckpointsSection: View {
         } header: {
             HelpTitle("Checkpoints") {
                 Text("A checkpoint keeps Android’s apps and data as they are, to go back to later. Avo makes one by itself before it turns on root, installs or removes Google apps, changes the device profile or starts a newer Android version, and keeps the newest \(CheckpointStatus.automaticLimit) of those. Yours stay until you delete them.")
-                Text("Checkpoints share their space with Android’s data and take more only as Android changes it. They need Android’s data on an APFS drive. Reset Android and moving Android’s data erase them.")
+                Text("Checkpoints share their space with Android’s data and take more only as Android changes it. They need Android’s data on an APFS drive. Reset Android erases them. Moving Android’s data takes them along to an APFS drive with room for them, and says so when it can’t.")
                 Text("Restoring one stops Android, keeps what it has now as another checkpoint, and starts it again with the checkpoint’s apps and data, and its root, Google apps and device profile settings.")
             }
         }

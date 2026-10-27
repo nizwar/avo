@@ -163,10 +163,12 @@ public struct AndroidDataSummary: Codable, Equatable, Sendable {
     /// The Mac that used it last.
     public var lastMac: String?
     public var googleApps: Bool?
+    /// The checkpoints beside it (nil: a daemon from before they were counted).
+    public var checkpoints: Int?
 
     public init(id: UUID? = nil, android: String? = nil, sdk: Int? = nil, build: String? = nil, diskBytes: Int64 = 0,
                 allocatedBytes: Int64 = 0, created: Bool = false, createdAt: Date? = nil, lastUsedAt: Date? = nil,
-                lastMac: String? = nil, googleApps: Bool? = nil) {
+                lastMac: String? = nil, googleApps: Bool? = nil, checkpoints: Int? = nil) {
         self.id = id
         self.android = android
         self.sdk = sdk
@@ -178,6 +180,7 @@ public struct AndroidDataSummary: Codable, Equatable, Sendable {
         self.lastUsedAt = lastUsedAt
         self.lastMac = lastMac
         self.googleApps = googleApps
+        self.checkpoints = checkpoints
     }
 }
 
@@ -329,10 +332,12 @@ public struct StorageCandidate: Codable, Equatable, Sendable {
     public var moveBytes: Int64
     /// The current data can be read (to move it).
     public var currentAvailable: Bool
+    /// What a move there does with the current data's checkpoints (nil: it has none).
+    public var checkpoints: CheckpointsMove?
 
     public init(chosen: String, folder: String, isInternal: Bool, isCurrent: Bool, volume: VolumeSummary?,
                 existing: AndroidDataSummary?, problem: StorageProblem?, issues: [StorageIssue], moveBytes: Int64,
-                currentAvailable: Bool) {
+                currentAvailable: Bool, checkpoints: CheckpointsMove? = nil) {
         self.chosen = chosen
         self.folder = folder
         self.isInternal = isInternal
@@ -343,6 +348,7 @@ public struct StorageCandidate: Codable, Equatable, Sendable {
         self.issues = issues
         self.moveBytes = moveBytes
         self.currentAvailable = currentAvailable
+        self.checkpoints = checkpoints
     }
 
     public func issues(for scope: StorageIssue.Scope) -> [StorageIssue] { issues.filter { $0.applies(to: scope) } }
@@ -382,10 +388,39 @@ public struct StorageCandidate: Codable, Equatable, Sendable {
     }
 }
 
+/// What moving Android's data somewhere does with its checkpoints: they
+/// come along (APFS clones on the same volume, copies on another APFS
+/// volume with room for them beside the data), or they stay with the old
+/// copy, which a move that keeps no old copy deletes only when asked to
+/// (`StorageChangeRequest.leavesCheckpoints`).
+public struct CheckpointsMove: Codable, Equatable, Sendable {
+    public enum Obstacle: Codable, Equatable, Sendable {
+        /// Checkpoints need APFS; the destination has another format (its name).
+        case format(String)
+        /// They don't fit on the destination beside the data.
+        case room
+    }
+
+    public var count: Int
+    /// What they take on the destination (nothing as clones on the same volume).
+    public var bytes: Int64
+    /// Why they can't come along (nil: they do).
+    public var obstacle: Obstacle?
+
+    public init(count: Int, bytes: Int64, obstacle: Obstacle? = nil) {
+        self.count = count
+        self.bytes = bytes
+        self.obstacle = obstacle
+    }
+
+    public var comeAlong: Bool { obstacle == nil }
+}
+
 /// What to do at the new place.
 public enum StorageChangeAction: Codable, Equatable, Sendable {
-    /// Copy Android's data there (keeping it sparse), check the copy, use
-    /// it, and remove the old copy unless `keepOldCopy`.
+    /// Copy Android's data there (keeping it sparse) with the checkpoints
+    /// that can come along (CheckpointsMove), check the copy, use it, and
+    /// remove the old copy unless `keepOldCopy`.
     case move(keepOldCopy: Bool)
     /// Use the Android data already there (a folder Avo made, carried from another Mac).
     case useExisting
@@ -407,15 +442,20 @@ public struct StorageChangeRequest: Codable, Equatable, Sendable {
     /// Assistant downloads that Android next): every start is still refused
     /// until an image that can use the data is chosen.
     public var allowNewerAndroid: Bool
+    /// A move that keeps no old copy may delete the checkpoints it can't
+    /// take along (CheckpointsMove: the sheet said how many). Without it
+    /// such a move is refused before anything changes.
+    public var leavesCheckpoints: Bool
 
     public init(id: UUID = UUID(), destination: String?, action: StorageChangeAction, stopAndroid: Bool = false,
-                replaceExisting: Bool = false, allowNewerAndroid: Bool = false) {
+                replaceExisting: Bool = false, allowNewerAndroid: Bool = false, leavesCheckpoints: Bool = false) {
         self.id = id
         self.destination = destination
         self.action = action
         self.stopAndroid = stopAndroid
         self.replaceExisting = replaceExisting
         self.allowNewerAndroid = allowNewerAndroid
+        self.leavesCheckpoints = leavesCheckpoints
     }
 
     public init(from decoder: any Decoder) throws {
@@ -426,6 +466,7 @@ public struct StorageChangeRequest: Codable, Equatable, Sendable {
         stopAndroid = try container.decodeIfPresent(Bool.self, forKey: .stopAndroid) ?? false
         replaceExisting = try container.decodeIfPresent(Bool.self, forKey: .replaceExisting) ?? false
         allowNewerAndroid = try container.decodeIfPresent(Bool.self, forKey: .allowNewerAndroid) ?? false
+        leavesCheckpoints = try container.decodeIfPresent(Bool.self, forKey: .leavesCheckpoints) ?? false
     }
 }
 

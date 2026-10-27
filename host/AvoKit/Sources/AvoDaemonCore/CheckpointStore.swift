@@ -55,6 +55,39 @@ struct CheckpointStore {
         CheckpointStatus(checkpoints: list(), problem: problem())
     }
 
+    /// The checkpoints beside the data in `data`, as a move takes them
+    /// along: their files relative to that folder (`checkpoints/<id>/userdata.img`
+    /// …), and what copies of them take on another volume (a copy shares
+    /// no blocks, so each clone takes all of its own again). A folder
+    /// without its record (a checkpoint cut short) stays out; one this Avo
+    /// cannot read (another version's) comes along too.
+    static func movable(in data: URL) -> (count: Int, files: [String], bytes: Int64) {
+        let root = data.appending(path: folderName, directoryHint: .isDirectory)
+        var count = 0
+        var files: [String] = []
+        var bytes: Int64 = 0
+        for name in ((try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []).sorted() {
+            let folder = root.appending(path: name, directoryHint: .isDirectory)
+            guard UUID(uuidString: name) != nil, FileManager.default.fileExists(atPath: folder.appending(path: recordName).path),
+                  let enumerator = FileManager.default.enumerator(atPath: folder.path) else { continue }
+            count += 1
+            for case let relative as String in enumerator where enumerator.fileAttributes?[.type] as? FileAttributeType == .typeRegular {
+                files.append("\(folderName)/\(name)/\(relative)")
+                var info = stat()
+                if stat(folder.appending(path: relative).path, &info) == 0 { bytes += Int64(info.st_blocks) * 512 }
+            }
+        }
+        return (count, files, bytes)
+    }
+
+    /// How many checkpoints the data in `data` has (Settings › Storage).
+    static func count(in data: URL) -> Int {
+        let root = data.appending(path: folderName, directoryHint: .isDirectory)
+        return ((try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []).filter {
+            UUID(uuidString: $0) != nil && FileManager.default.fileExists(atPath: root.appending(path: "\($0)/\(recordName)").path)
+        }.count
+    }
+
     /// Why no checkpoint can be made where Android's data is, or nil.
     func problem() -> String? {
         let data = paths.data
