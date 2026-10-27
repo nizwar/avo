@@ -73,8 +73,13 @@ struct LibraryWidgets: View {
         } else if let problem = model.widgetProvidersProblem {
             VStack(alignment: .leading, spacing: 10) {
                 Text(verbatim: problem).foregroundStyle(Haze.textSecondary)
-                Button("Try Again") { Task { await model.refreshWidgetProviders() } }
-                    .buttonStyle(HazeButtonStyle(kind: .secondary, height: 32, fontSize: 13, horizontalPadding: 14))
+                HStack(spacing: 10) {
+                    Button("Try Again") { Task { await model.refreshWidgetProviders() } }
+                        .buttonStyle(HazeButtonStyle(kind: .secondary, height: 32, fontSize: 13, horizontalPadding: 14))
+                        .disabled(model.askingWidgetProviders)
+                    // Asking Android again: a second failure is no dead button.
+                    if model.askingWidgetProviders { ProgressView().controlSize(.small) }
+                }
             }
         } else {
             ProgressView().controlSize(.small).frame(maxWidth: .infinity, alignment: .center).padding(.top, 30)

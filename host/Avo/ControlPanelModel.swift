@@ -94,6 +94,10 @@ final class ControlPanelModel {
     private(set) var widgetProviders: [WidgetProvider]?
     /// Why the last ask failed (Android not running, Avo Widgets not ready yet).
     private(set) var widgetProvidersProblem: String?
+    /// Asks for them under way (the section's own, Try Again's).
+    private var widgetProviderAsks = 0
+    /// Android is being asked for its widgets: Try Again shows it is.
+    var askingWidgetProviders: Bool { widgetProviderAsks > 0 }
     /// Whether macOS shows Avo's notifications (System Settings › Notifications);
     /// nil until the daemon says (MacNotificationsViews.swift).
     private(set) var macNotifications: MacNotificationPermission?
@@ -1007,6 +1011,8 @@ final class ControlPanelModel {
 
     func refreshWidgetProviders() async {
         guard let client else { return }
+        widgetProviderAsks += 1
+        defer { widgetProviderAsks -= 1 }
         do {
             widgetProviders = try await client.widgetProviders()
             widgetProvidersProblem = nil

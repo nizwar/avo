@@ -638,6 +638,8 @@ private struct PermissionsCard: View {
     @State private var permissions: [AppPermission]?
     /// Android did not say (busy, or the daemon went away): why, with Try Again.
     @State private var failure: String?
+    /// Asks under way (the card's own, Try Again's): Try Again shows it asks.
+    @State private var asks = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -659,8 +661,11 @@ private struct PermissionsCard: View {
                         .foregroundStyle(Haze.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer()
+                    // Asking Android again: a second failure is no dead button.
+                    if asks > 0 { ProgressView().controlSize(.small) }
                     Button("Try Again") { Task { await load() } }
                         .buttonStyle(HazeButtonStyle(kind: .secondary, height: 30, fontSize: 12, horizontalPadding: 14))
+                        .disabled(asks > 0)
                 }
             } else if let permissions {
                 let runtime = permissions.filter(\.runtime)
@@ -703,6 +708,8 @@ private struct PermissionsCard: View {
     }
 
     private func load() async {
+        asks += 1
+        defer { asks -= 1 }
         do {
             let found = try await model.permissions(for: app)
             // Another app's page, or Android stopping, asks for its own.
