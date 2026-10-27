@@ -61,7 +61,8 @@ public actor ADBConnection {
         if let device { return device }
         startIO()
         let timer = Task { [weak self] in
-            try? await Task.sleep(for: timeout)
+            try? await Task.sleep(for: timeout, clock: .suspending)
+            guard !Task.isCancelled else { return }
             await self?.failHandshake(ADBError.handshakeTimedOut)
         }
         defer { timer.cancel() }

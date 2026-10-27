@@ -414,7 +414,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         let preparing = Task { [logger] in
             do {
                 // VMManager gives up first (up to 15 minutes for a first boot).
-                try await agent.prepare(deadline: ContinuousClock.now + .seconds(960))
+                try await agent.prepare(deadline: SuspendingClock.now + .seconds(960))
             } catch {
                 logger.error("Android did not get ready: \(String(describing: error), privacy: .public)")
             }
@@ -860,6 +860,14 @@ extension VMMEngine: GuestStorageEngine {
 }
 
 extension VMMEngine: ResponsivenessEngine {}
+
+/// The Mac slept while Android ran: CNTVCT, which follows mach_absolute_time,
+/// stood still with it (pause.rs), as in a pause.
+extension VMMEngine: SleepingClockEngine {
+    public func macSlept(for duration: Duration) async {
+        await lock.withLock({ self.agent })?.clockResumed(after: duration)
+    }
+}
 
 extension VMMEngine: ScreenLockEngine {
     public func screenLock() async -> AndroidScreenLock? {

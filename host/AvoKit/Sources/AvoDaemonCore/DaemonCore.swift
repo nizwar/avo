@@ -199,6 +199,8 @@ public actor DaemonCore {
     private(set) var exitingForUpdate = false
     /// Android's reboots of its own since it was last ready (RebootLimit).
     private var reboots = RebootLimit()
+    /// How long the Mac slept since it last woke (`macWoke`).
+    private var macSleep = MacSleep()
     /// Clients whose Location panel is open (`locationStatus(watch:)`).
     var locationWatchers: Set<ClientID> = []
     /// Control Panels whose System Status shows (`systemActivity(watch:)`), and its sampling (SystemMonitor.swift).
@@ -689,6 +691,22 @@ public actor DaemonCore {
             bootedConfig = settings.config
             bootedDisplayRate = settings.displayRate
         }
+    }
+
+    // MARK: The Mac's sleep
+
+    /// The Mac woke (NSWorkspace.didWakeNotification): Android's clock stood
+    /// still while it slept, and is put right as after a pause. A paused
+    /// Android's pause counts the sleep too: it is put right as it goes on.
+    public func macWoke() async {
+        await macWoke(slept: macSleep.slept())
+    }
+
+    func macWoke(slept: Duration) async {
+        guard slept >= .seconds(1), await vm.status.state == .running,
+              let engine = deps.engine as? any SleepingClockEngine else { return }
+        logger.notice("the Mac slept \(slept, privacy: .public) with Android running: its clock is put right")
+        await engine.macSlept(for: slept)
     }
 
     // MARK: Updates (AppUpdateWatcher)

@@ -868,15 +868,16 @@ enum GoogleAppsCommit {
 /// When a step last made progress (the push of the package's files).
 final class Heartbeat: @unchecked Sendable {
     private let lock = NSLock()
-    private var last = ContinuousClock.now
+    private var last = SuspendingClock.now
 
     func beat() { lock.withLock { last = .now } }
-    var lastBeat: ContinuousClock.Instant { lock.withLock { last } }
+    var lastBeat: SuspendingClock.Instant { lock.withLock { last } }
 }
 
 /// Gives up on a step after a time limit (counted from the last heartbeat
 /// when there is one). A step that ignores cancellation, such as a guest
-/// command that never answers, is left behind instead of waited for.
+/// command that never answers, is left behind instead of waited for. The
+/// Mac asleep is no time the step had: Android stood still with it.
 enum Deadline {
     static func run<T: Sendable>(_ limit: Duration, what: String, heartbeat: Heartbeat? = nil,
                                  _ operation: @escaping @Sendable () async throws -> T) async throws -> T {
@@ -892,14 +893,14 @@ enum Deadline {
                     }
                 })
                 race.add(Task {
-                    let start = ContinuousClock.now
+                    let start = SuspendingClock.now
                     while !Task.isCancelled {
                         let from = heartbeat?.lastBeat ?? start
-                        if ContinuousClock.now - from >= limit {
+                        if SuspendingClock.now - from >= limit {
                             race.finish(.failure(AvoError.timedOut(what)))
                             return
                         }
-                        try? await Task.sleep(for: min(limit, .seconds(1)))
+                        try? await Task.sleep(for: min(limit, .seconds(1)), clock: .suspending)
                     }
                 })
             }

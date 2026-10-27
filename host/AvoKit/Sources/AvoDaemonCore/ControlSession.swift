@@ -53,8 +53,9 @@ public actor ControlSession {
                 return
             }
             helloWaiter = continuation
+            // The Mac asleep is no time the agent had to answer.
             timers[0] = Task { [weak self] in
-                try? await Task.sleep(for: timeout)
+                try? await Task.sleep(for: timeout, clock: .suspending)
                 await self?.expireHello()
             }
         }
@@ -86,7 +87,7 @@ public actor ControlSession {
         let reply: Avo_V1_Envelope = try await withCheckedThrowingContinuation { continuation in
             pending[id] = continuation
             timers[id] = Task { [weak self] in
-                try? await Task.sleep(for: timeout)
+                try? await Task.sleep(for: timeout, clock: .suspending)
                 await self?.expire(id, AvoError.timedOut(envelope.payloadName))
             }
             Task { await self.writeOrFail(envelope, id: id) }
@@ -197,7 +198,7 @@ public actor ControlSession {
         tasks.append(Task { [weak self] in
             var misses = 0
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(5))
+                try? await Task.sleep(for: .seconds(5), clock: .suspending)
                 guard let self, await self.isOpen else { return }
                 await self.keepaliveTurn()
                 guard await self.isOpen else { return }
