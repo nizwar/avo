@@ -665,6 +665,42 @@ struct Harness {
         #expect(await eventually { !harness.core.installJournal.hasLeftovers })
     }
 
+    /// A copy of game data the daemon could not see to its end (it went, or
+    /// Android stopped): the next start takes out a new app whose data is
+    /// not all there, and leaves one whose copy got to its end.
+    @Test func theNextStartUndoesOnlyACopyThatDidNotFinish() async throws {
+        let harness = try Harness(apps: [])
+        defer { harness.cleanUp() }
+        try AndroidStartStopTests.bootedBefore(harness)
+        let journal = harness.core.installJournal
+        let done = InstallJournal.Copy(package: "com.example.done", fresh: true,
+                                       files: [.init(path: "/sdcard/Android/obb/com.example.done/main.1.obb", size: 1234)])
+        let cut = InstallJournal.Copy(package: "com.example.cut", fresh: true,
+                                      files: [.init(path: "/sdcard/Android/obb/com.example.cut/main.1.obb", size: 1234)])
+        for copy in [done, cut] {
+            let install = UUID()
+            journal.begin(install)
+            journal.copying(copy, by: install)
+            journal.end(install)
+        }
+        #expect(journal.leftovers().count == 2)
+        harness.engine.adbShellHandler = { command in
+            switch command {
+            case "stat -c %s '/sdcard/Android/obb/com.example.done/main.1.obb'": ("1234\n", "", 0)
+            case "stat -c %s '/sdcard/Android/obb/com.example.cut/main.1.obb'": ("512\n", "", 0)
+            default: ("Success\n", "", 0)
+            }
+        }
+        await harness.core.start()
+        let (panel, _) = await harness.connect(.controlPanel)
+        try await harness.core.startVM(client: panel)
+        #expect(await eventually { !journal.hasLeftovers })
+        let commands = await (try #require(harness.engine.adbd)).shellCommands
+        #expect(commands.contains("pm uninstall 'com.example.cut'"))
+        #expect(commands.contains("rm -f '/sdcard/Android/obb/com.example.cut/main.1.obb'"))
+        #expect(!commands.contains { $0.contains("com.example.done") && !$0.hasPrefix("stat ") })
+    }
+
     /// Android's storage keeps its size: the message says what frees room,
     /// in Indonesian too.
     @Test func outOfStorageSaysWhatFreesRoom() throws {
