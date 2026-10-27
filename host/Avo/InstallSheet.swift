@@ -104,9 +104,13 @@ struct InstallSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 switch progress.phase {
                 case .failed:
-                    Label(progress.message ?? "Installation failed.", systemImage: "xmark.octagon.fill")
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Label {
+                        if let message = progress.message { Text(verbatim: message) } else { Text("Installation failed.") }
+                    } icon: {
+                        Image(systemName: "xmark.octagon.fill")
+                    }
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
                 case .finished:
                     Label("Installed. The app is in Launchpad and Android Apps.", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)
@@ -158,9 +162,27 @@ struct InstallSheet: View {
                 case .failed?:
                     Button("Close") { model.dismissInstall() }.keyboardShortcut(.defaultAction)
                 default:
-                    Button("Hide") { model.dismissInstall() }
+                    HideButton(startedAt: pending.startedAt) { model.dismissInstall() }
                 }
             }
+        }
+    }
+
+    /// Hide takes the place Install had, where the second click of a
+    /// double-click lands: it waits a moment before it takes clicks.
+    private struct HideButton: View {
+        let startedAt: Date?
+        let action: () -> Void
+        @State private var ready = false
+
+        var body: some View {
+            Button("Hide", action: action)
+                .disabled(!ready)
+                .task {
+                    let wait = 0.8 - Date().timeIntervalSince(startedAt ?? .distantPast)
+                    if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+                    ready = true
+                }
         }
     }
 }

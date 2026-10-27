@@ -25,8 +25,15 @@ final class ControlPanelModel {
         let url: URL
         var summary: PackageSummary?
         var inspectionError: String?
+        /// The daemon's install of it, once Install was clicked: progress of
+        /// any other install is not this sheet's.
+        var requestID: UUID?
+        var startedAt: Date?
         var progress: InstallProgress?
         var finishedPackage: String?
+
+        /// What messages call it: the app's name once inspected.
+        var displayName: String { summary?.label ?? url.lastPathComponent }
     }
 
     private(set) var daemonState: DaemonState = .connecting
@@ -108,6 +115,10 @@ final class ControlPanelModel {
     /// What shows the location now: the Settings pane, the Location window
     /// (`watchLocation`).
     @ObservationIgnored var locationWatchers = 0
+    /// Packages opened while another had the install sheet, in turn.
+    @ObservationIgnored private var queuedInstalls: [URL] = []
+    /// Installs hidden while they ran (Hide), by request, with their names.
+    @ObservationIgnored private var hiddenInstalls: [UUID: String] = [:]
     /// How much each app was used, by package (the Library's statistics).
     private(set) var usage: [String: AppUsage] = [:]
     /// Library › System Status (SystemStatusView.swift), fed while it shows.
@@ -297,6 +308,7 @@ final class ControlPanelModel {
             // An install it was running ended with it (the one this panel
             // started also fails its call, which says so).
             if let progress = self?.googleAppsProgress, !progress.isDone { self?.googleAppsProgress = nil }
+            self?.lostDaemonMidway()
             try? await Task.sleep(for: .seconds(2))
             self?.connect()
         }
@@ -427,10 +439,7 @@ final class ControlPanelModel {
             apps.removeAll { $0.package == package }
             icons[package] = nil
         case .installProgress(let progress):
-            guard var pending = pendingInstall else { return }
-            pending.progress = progress
-            if progress.phase == .finished { pending.finishedPackage = progress.package }
-            pendingInstall = pending
+            installProgressed(progress)
         case .configurationChanged(let config):
             snapshot?.config = config
         case .notifications(let list):
@@ -551,7 +560,30 @@ final class ControlPanelModel {
     func changeStorage(_ request: StorageChangeRequest) async throws {
         storageProgress = StorageChangeProgress(id: request.id, phase: .checking)
         defer { Task { await refreshConfiguration() } }
-        try await requireClient().changeStorageLocation(request)
+        do {
+            try await requireClient().changeStorageLocation(request)
+        } catch {
+            // Refused before it began, or the daemon went away: no progress
+            // will come, and Change Location… must work again.
+            if let progress = storageProgress, progress.id == request.id, !progress.isDone {
+                storageProgress = StorageChangeProgress(id: request.id, phase: .failed, message: error.localizedDescription)
+            }
+            throw error
+        }
+    }
+
+    /// The daemon went away: what it was doing for this panel ended with it.
+    /// Its call for a storage change fails too, and says so; hidden installs
+    /// would never say how they ended.
+    private func lostDaemonMidway() {
+        if let progress = storageProgress, !progress.isDone {
+            storageProgress = StorageChangeProgress(id: progress.id, phase: .failed)
+        }
+        if !hiddenInstalls.isEmpty {
+            let names = hiddenInstalls.values.sorted().formatted(.list(type: .and))
+            hiddenInstalls = [:]
+            lastError = String(localized: "Avo’s background service stopped while installing \(names). If it is not in the Library, install it again.")
+        }
     }
 
     func cancelStorageChange() { perform { try await $0.cancelStorageChange() } }
@@ -941,6 +973,11 @@ final class ControlPanelModel {
             lastError = String(localized: "\(url.lastPathComponent) is not an Android package.")
             return
         }
+        // One sheet at a time: a package opened meanwhile waits its turn.
+        if let current = pendingInstall {
+            if current.url != url, !queuedInstalls.contains(url) { queuedInstalls.append(url) }
+            return
+        }
         var pending = PendingInstall(url: url)
         pendingInstall = pending
         Task.detached(priority: .userInitiated) {
@@ -959,20 +996,54 @@ final class ControlPanelModel {
     }
 
     func confirmInstall() {
-        guard let pending = pendingInstall, let client else { return }
+        // Once: a second click is not a second install.
+        guard var pending = pendingInstall, pending.requestID == nil, let client else { return }
         let request = InstallRequest(path: pending.url.path)
-        pendingInstall?.progress = InstallProgress(id: request.id, phase: .inspecting)
+        pending.requestID = request.id
+        pending.startedAt = Date()
+        pending.progress = InstallProgress(id: request.id, phase: .inspecting)
+        pendingInstall = pending
         Task {
             do {
                 try await client.install(request)
             } catch {
-                pendingInstall?.progress = InstallProgress(id: request.id, phase: .failed, message: error.localizedDescription)
+                installProgressed(InstallProgress(id: request.id, phase: .failed, message: error.localizedDescription))
             }
         }
     }
 
+    /// Progress of an install: its sheet's, or one hidden while it ran,
+    /// which says how it ended only if it failed (a finished one shows up
+    /// in the Library).
+    private func installProgressed(_ progress: InstallProgress) {
+        if var pending = pendingInstall, pending.requestID == progress.id {
+            pending.progress = progress
+            if progress.phase == .finished { pending.finishedPackage = progress.package }
+            pendingInstall = pending
+            return
+        }
+        guard progress.phase == .finished || progress.phase == .failed,
+              let name = hiddenInstalls.removeValue(forKey: progress.id) else { return }
+        if progress.phase == .failed {
+            lastError = String(localized: "\(name) was not installed. \(progress.message ?? String(localized: "Installation failed."))")
+        }
+    }
+
+    /// Closes the sheet (Cancel, Done, Hide). An install still running goes
+    /// on, hidden; the next package opened meanwhile gets the sheet.
     func dismissInstall() {
+        if let pending = pendingInstall, let id = pending.requestID, let phase = pending.progress?.phase,
+           phase != .finished, phase != .failed {
+            hiddenInstalls[id] = pending.displayName
+        }
         pendingInstall = nil
+        guard !queuedInstalls.isEmpty else { return }
+        let next = queuedInstalls.removeFirst()
+        // After this sheet has gone, or the next one would not show.
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(400))
+            self?.prepareInstall(next)
+        }
     }
 
     // MARK: Google apps (Settings › System, spec: Strategi GMS)

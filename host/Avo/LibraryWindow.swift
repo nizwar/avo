@@ -187,14 +187,15 @@ struct LibraryView: View {
         .background { LibraryWindowAccessor(pointer: pointer, pillRoom: pillRoom) }
     }
 
-    /// Spec §3: dragging a package onto the window installs it.
+    /// Spec §3: dragging packages onto the window installs them, in turn.
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }) else {
-            return false
-        }
-        _ = provider.loadObject(ofClass: URL.self) { url, _ in
-            guard let url else { return }
-            Task { @MainActor in model.prepareInstall(url) }
+        let files = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+        guard !files.isEmpty else { return false }
+        for provider in files {
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                guard let url else { return }
+                Task { @MainActor in model.prepareInstall(url) }
+            }
         }
         return true
     }
