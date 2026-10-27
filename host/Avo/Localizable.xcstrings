@@ -6393,6 +6393,34 @@
         }
       }
     },
+    "Its %lld checkpoints are removed with it." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Its %lld checkpoint is removed with it."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Its %lld checkpoints are removed with it."
+                }
+              }
+            }
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld checkpoint-nya ikut dihapus."
+          }
+        }
+      }
+    },
     "Its checkpoints are erased too." : {
       "localizations" : {
         "id" : {
@@ -9920,34 +9948,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Android masih berjalan setelah satu menit."
-          }
-        }
-      }
-    },
-    "Its %lld checkpoints are removed with it." : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Its %lld checkpoint is removed with it."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Its %lld checkpoints are removed with it."
-                }
-              }
-            }
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld checkpoint-nya ikut dihapus."
           }
         }
       }
