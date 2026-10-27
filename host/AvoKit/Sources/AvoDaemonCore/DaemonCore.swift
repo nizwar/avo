@@ -1066,7 +1066,8 @@ public actor DaemonCore {
             proxy?.send(.installProgress(InstallProgress(id: request.id, phase: .creatingShortcuts, package: package)))
             proxy?.send(.installProgress(InstallProgress(id: request.id, phase: .finished, fraction: 1, package: package)))
         } catch {
-            let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            // In the words its call fails with too (a stop during "Starting Android…" included).
+            let message = AvoError.reported(error).localizedDescription
             proxy?.send(.installProgress(InstallProgress(id: request.id, phase: .failed, message: message)))
             throw error
         }

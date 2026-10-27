@@ -614,6 +614,16 @@
         }
       }
     },
+    "Android was stopped before it was ready." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android dihentikan sebelum siap."
+          }
+        }
+      }
+    },
     "Android was stopped while Google apps were being installed. Avo finishes or undoes the install the next time Android starts." : {
       "localizations" : {
         "id" : {

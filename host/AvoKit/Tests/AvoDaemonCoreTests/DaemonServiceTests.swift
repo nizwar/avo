@@ -37,6 +37,10 @@ import Testing
         func stopVM() async -> NSError? {
             await withCheckedContinuation { continuation in daemon.stopVM { continuation.resume(returning: $0) } }
         }
+
+        func startVM() async -> NSError? {
+            await withCheckedContinuation { continuation in daemon.startVM { continuation.resume(returning: $0) } }
+        }
     }
 
     static func service(_ harness: Harness) -> (DaemonService, NSXPCListener) {
@@ -85,5 +89,31 @@ import Testing
             peer.connection.invalidate()
         }
         #expect(await eventually { await harness.core.autoPauseBlockers().windows == 0 })
+    }
+
+    /// Stop pressed while Android starts: the start's call fails as a start
+    /// called off, which the clients tell apart and say nothing of, not
+    /// with a CancellationError's "The operation couldn't be completed".
+    @Test func aStartAStopCalledOffSaysSo() async throws {
+        let harness = try Harness(apps: [])
+        defer { harness.cleanUp() }
+        // Android wrote its data before: its start has the usual time.
+        try harness.paths.createDirectories()
+        try Data([1]).write(to: harness.paths.dataDisk)
+        await harness.core.start()
+        let (service, listener) = Self.service(harness)
+        _ = service
+        let peer = try Peer(listener)
+        defer { peer.connection.invalidate() }
+        _ = try await peer.hello()
+
+        harness.engine.refuseControlConnections = Int.max
+        let start = Task { await peer.startVM() }
+        #expect(await eventually { await harness.core.status().detail == "Waiting for Android to boot" })
+        #expect(await peer.stopVM() == nil)
+        let error = try #require(await start.value)
+        #expect(AvoXPC.avoError(error) == .startCalledOff)
+        #expect(error.localizedDescription == "Android was stopped before it was ready.")
+        #expect(AvoError.reported(CancellationError()) == .startCalledOff)
     }
 }
