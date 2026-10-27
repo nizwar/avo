@@ -276,6 +276,9 @@ public actor ADBConnection {
     }
 
     public var maxPayload: Int { Int(device?.maxPayload ?? ADBMessage.maxPayload) }
+
+    /// Connected, and not failed or closed since.
+    public var isOpen: Bool { device != nil && failure == nil }
 }
 
 /// One open ADB stream.
