@@ -757,6 +757,10 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         pendingAttach = nil
         // The window closes or the app quits: finish the movie with what it has.
         stopRecording()
+        // A mouse locked for aiming comes free and the menu bar comes back,
+        // also while the quit waits for that movie.
+        keymap?.stop()
+        bars.stop()
         GamepadForwarder.shared.remove(self)
         guard let displayID else { return }
         // Closed by Android: the daemon has let go of it already. Either way the
@@ -1074,10 +1078,9 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
     }
 
     func windowWillClose(_ notification: Notification) {
-        bars.stop()
         if picture != nil { leavePictureInPicture(show: false) }
-        keymap?.stop()
         frameRateHint.stop()
+        // Also the key mapping and the full-screen bars.
         detach()
         app?.windowClosed(self)
     }
