@@ -727,7 +727,13 @@ daemon plays it over ADB (vsock 6520, root through `su` on userdebug):
   http, https, mailto and tel links, and geo links as Apple Maps links, with
   the Mac's default apps (`GuestLinkPolicy`; nothing else leaves Android);
 - ADB support (Settings › System) splices 127.0.0.1:5555 to adbd, so adb and
-  Android Studio see it as `emulator-5554` / `AVO_Droid`;
+  Android Studio see it as `emulator-5554` / `AVO_Droid`. adbd in the stock
+  userdebug image asks no key (ro.adb.secure unset), so the daemon asks it:
+  a client goes on only once it has signed a fresh AUTH token with adb's
+  own key on this Mac, `~/.android/adbkey`, which adb, Android Studio and
+  scrcpy share, and its CNXN then goes to adbd (`ADBAuthGate`). A key that
+  only offers itself (adb's "allow USB debugging?" prompt) is refused, as
+  nobody inside Android would see the question;
 - once per data disk: Wi-Fi on and joined to VirtWifi, media volume at full
   (the Mac's volume sets how loud), Thread off (no radio to simulate it),
   Bluetooth off only without a controller (below); every boot: UWB off (otherwise Android files a full bug

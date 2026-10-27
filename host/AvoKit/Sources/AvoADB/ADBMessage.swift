@@ -97,6 +97,9 @@ public struct ADBMessageDecoder: Sendable {
         buffer.append(data)
     }
 
+    /// What arrived after the messages taken so far.
+    public var buffered: Data { buffer }
+
     public mutating func next() throws(ADBError) -> ADBMessage? {
         guard buffer.count >= ADBMessage.headerLength else { return nil }
         let base = buffer.startIndex

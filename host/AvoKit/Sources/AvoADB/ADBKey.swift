@@ -10,9 +10,11 @@ public enum ADBKeyError: Error, Equatable, Sendable {
 
 /// The RSA key the daemon authenticates to adbd with.
 ///
-/// Stored as PKCS#8 PEM (the same format as `~/.android/adbkey`). The Android
-/// image trusts the matching public key, which the daemon hands to the guest
-/// at boot (see docs/architecture.md, "ADB authorization").
+/// Stored as PKCS#8 PEM (the same format as `~/.android/adbkey`). Under
+/// crosvm the image trusts the matching public key, which the daemon hands
+/// to the guest at boot (avo_config). Under avo-vmm, adbd in the stock
+/// userdebug image asks no key, and its vsock port is this user's only:
+/// ADB support's TCP port asks clients for one instead (ADBAuthGate).
 public struct ADBKey: @unchecked Sendable {
     let privateKey: SecKey
 
@@ -145,6 +147,30 @@ enum AndroidRSAPublicKey {
         return out
     }
 
+    /// (modulus, exponent), big-endian, from the struct `encode` writes
+    /// (an `adbkey.pub` line, base64-decoded).
+    static func decode(_ data: Data) throws -> (modulus: [UInt8], exponent: [UInt8]) {
+        let bytes = [UInt8](data)
+        func word(_ index: Int) -> UInt32 {
+            let at = index * 4
+            return UInt32(bytes[at]) | UInt32(bytes[at + 1]) << 8 | UInt32(bytes[at + 2]) << 16 | UInt32(bytes[at + 3]) << 24
+        }
+        guard bytes.count >= 4 else { throw ADBKeyError.invalidDER("not an Android public key") }
+        let words = Int(word(0))
+        guard words == 64 else { throw ADBKeyError.unsupportedKeySize(words * 32) }
+        guard bytes.count == 8 + 2 * 4 * words + 4 else { throw ADBKeyError.invalidDER("not an Android public key") }
+        // n[0] is the least significant word.
+        var modulus: [UInt8] = []
+        for i in (0..<words).reversed() {
+            let value = word(2 + i)
+            modulus += [UInt8(value >> 24), UInt8(value >> 16 & 0xFF), UInt8(value >> 8 & 0xFF), UInt8(value & 0xFF)]
+        }
+        let e = word(2 + 2 * words)
+        var exponent = [UInt8(e >> 24), UInt8(e >> 16 & 0xFF), UInt8(e >> 8 & 0xFF), UInt8(e & 0xFF)]
+        while exponent.count > 1, exponent.first == 0 { exponent.removeFirst() }
+        return (modulus, exponent)
+    }
+
     /// r (words + 1) < n (words), comparing as unsigned big integers.
     private static func lessThan(_ r: [UInt32], _ n: [UInt32]) -> Bool {
         if r[n.count] != 0 { return false }
@@ -213,6 +239,18 @@ enum DER {
 
     static func wrapPKCS8(_ pkcs1: Data) -> Data {
         let body = [0x02, 0x01, 0x00] + rsaAlgorithm + [0x04] + length(pkcs1.count) + [UInt8](pkcs1)
+        return Data([0x30] + length(body.count) + body)
+    }
+
+    /// A PKCS#1 RSAPublicKey, as SecKeyCreateWithData takes it.
+    static func pkcs1PublicKey(modulus: [UInt8], exponent: [UInt8]) -> Data {
+        func integer(_ value: [UInt8]) -> [UInt8] {
+            var content = value
+            while content.count > 1, content.first == 0 { content.removeFirst() }
+            if let first = content.first, first & 0x80 != 0 { content.insert(0, at: 0) }
+            return [0x02] + length(content.count) + content
+        }
+        let body = integer(modulus) + integer(exponent)
         return Data([0x30] + length(body.count) + body)
     }
 
