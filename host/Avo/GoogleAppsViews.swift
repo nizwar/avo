@@ -319,7 +319,8 @@ struct GoogleAppsSection: View {
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .seconds(30))
                     if Task.isCancelled { break }
-                    await model.refreshGoogleApps()
+                    // Each ask runs commands in Android: only while Avo shows.
+                    if NSApp.occlusionState.contains(.visible) { await model.refreshGoogleApps() }
                 }
             }
             // The row says to register before signing in; how, and why, is its help.

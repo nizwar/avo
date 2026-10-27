@@ -165,7 +165,8 @@ private struct RefreshesMacNotifications: ViewModifier {
         content
             .task {
                 while !Task.isCancelled {
-                    await model.refreshNotificationPermission()
+                    // Only while a window of Avo shows (not minimized or covered).
+                    if NSApp.occlusionState.contains(.visible) { await model.refreshNotificationPermission() }
                     try? await Task.sleep(for: .seconds(2))
                 }
             }
