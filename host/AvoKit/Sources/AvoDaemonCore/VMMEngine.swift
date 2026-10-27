@@ -673,7 +673,7 @@ extension VMMEngine {
     }
 
     /// A GPU boot failed after the sockets came up: power that Android off
-    /// (10 s), then terminate it (SIGKILL after 5 s), and start it again in
+    /// (10 s), then terminate it (SIGKILL after 12 s), and start it again in
     /// software (on the GPU without Avo's Vulkan driver wrapper, when the
     /// failed one ran it). VMManager keeps waiting for Android meanwhile.
     private func fallBack(_ failure: GPUFailure, monitor: GPUBootMonitor, launch: EngineLaunch, plan: GPUPlan) {
@@ -708,13 +708,12 @@ extension VMMEngine {
         _ = recordFailure(.crashedTwice, launch: launch, plan: plan)
     }
 
-    /// Terminates `process` (SIGKILL after 5 s) and returns once it is gone,
-    /// or a second after that: the next avo-vmm then finds the instance
-    /// unlocked instead of exiting because it is in use.
-    /// SIGTERM, then SIGKILL. avo-vmm powers a running Android off on
-    /// SIGTERM, within 10 s (engine/hvf/vmm/src/cuttlefish.rs,
-    /// `handle_termination`), and ends at once before Android runs: it gets
-    /// those 10 s, and a little more.
+    /// Terminates `process` and returns once it is gone, or a second after
+    /// that: the next avo-vmm then finds the instance unlocked instead of
+    /// exiting because it is in use. SIGTERM first: avo-vmm powers a running
+    /// Android off within 10 s of it (engine/hvf/vmm/src/cuttlefish.rs,
+    /// `handle_termination`), and ends at once before Android runs, so
+    /// SIGKILL comes only after 12 s.
     private static func end(_ process: Process) async {
         if process.isRunning { process.terminate() }
         for _ in 0..<120 where process.isRunning { try? await Task.sleep(for: .milliseconds(100)) }

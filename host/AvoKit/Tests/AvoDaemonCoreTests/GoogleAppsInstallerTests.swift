@@ -653,12 +653,12 @@ final class Flag: @unchecked Sendable {
 
     @Test func countsFromTheLastHeartbeat() async throws {
         let heartbeat = Heartbeat()
-        // 2.4 s of work against a 2 s deadline: only the beats keep it going.
-        // A beat every 200 ms leaves wide margins: the suite runs this beside
-        // heavy tests, which can stretch a short sleep past a second.
-        try await Deadline.run(.seconds(2), what: "push", heartbeat: heartbeat) {
-            for _ in 0..<12 {
-                try await Task.sleep(for: .milliseconds(200))
+        // 6 s of work against a 5 s deadline: only the beats keep it going.
+        // A beat every 300 ms leaves wide margins: the full suite runs this
+        // beside heavy tests, which have stretched a short sleep past 3 s.
+        try await Deadline.run(.seconds(5), what: "push", heartbeat: heartbeat) {
+            for _ in 0..<20 {
+                try await Task.sleep(for: .milliseconds(300))
                 heartbeat.beat()
             }
         }
