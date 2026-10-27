@@ -466,7 +466,7 @@ public actor DaemonCore {
     public func stopVM(client: ClientID) async throws {
         try requireControlPanel(client)
         try await clearForVMChange(.stop)
-        await vm.stop()
+        await vm.stop(callingOffRestart: true)
     }
 
     public func restartVM(client: ClientID) async throws {
@@ -533,7 +533,9 @@ public actor DaemonCore {
         do {
             // Android itself wants its data gone: an install of Google apps goes with it.
             try await eraseAndroid(force: true)
-            try await ensureRunning()
+            try await ensureRunning(restarting: true)
+        } catch is CancellationError {
+            logger.notice("Android stays stopped after its factory reset: it was stopped meanwhile")
         } catch {
             logger.error("factory reset from Android: \(error.localizedDescription, privacy: .public)")
         }
@@ -556,7 +558,9 @@ public actor DaemonCore {
             return
         }
         do {
-            try await ensureRunning()
+            try await ensureRunning(restarting: true)
+        } catch is CancellationError {
+            logger.notice("Android stays stopped after its reboot: it was stopped meanwhile")
         } catch {
             logger.error("starting Android after its reboot: \(error.localizedDescription, privacy: .public)")
         }
@@ -601,7 +605,7 @@ public actor DaemonCore {
     /// finishes or takes out that install.
     public func stopVMFromMenuBar(force: Bool = false) async throws {
         try await clearForVMChange(.stop, force: force)
-        await vm.stop()
+        await vm.stop(callingOffRestart: true)
     }
 
     /// Quit Avo from the menu bar: stops an install that has not changed
@@ -612,7 +616,7 @@ public actor DaemonCore {
             googleAppsCancelRequested = true
             run.cancel()
         }
-        await vm.stop()
+        await vm.stop(callingOffRestart: true)
     }
 
     /// Whether Google apps change Android now, and how (stop, restart and
@@ -660,7 +664,9 @@ public actor DaemonCore {
         }
     }
 
-    func ensureRunning() async throws {
+    /// `restarting`: Android's start again after its own reboot or reset,
+    /// which a stop since then calls off (VMManager.ensureRunning).
+    func ensureRunning(restarting: Bool = false) async throws {
         starting += 1
         defer { starting -= 1 }
         try refuseWhileExiting()
@@ -680,16 +686,16 @@ public actor DaemonCore {
                 GoogleAppsJournal.remove(deps.paths)
             }
         }
-        try await bootVM()
+        try await bootVM(restarting: restarting)
     }
 
-    private func bootVM() async throws {
+    private func bootVM(restarting: Bool = false) async throws {
         starting += 1
         defer { starting -= 1 }
         try refuseWhileExiting()
         await checkpointBeforeNewerAndroid()
         let settings = self.settings
-        try await vm.ensureRunning(settings)
+        try await vm.ensureRunning(settings, restarting: restarting)
         if bootedConfig == nil {
             bootedConfig = settings.config
             bootedDisplayRate = settings.displayRate
@@ -2319,7 +2325,7 @@ extension DaemonCore {
                 ? String(localized: "“\(volume.name)” was disconnected while Android used it. Connect it again, then start Android.", bundle: .avoKit)
                 : String(localized: "Android stopped so “\(volume.name)” can be ejected. Eject it again.", bundle: .avoKit)
             try? await clearForVMChange(.stop, force: true)
-            await vm.stop(reason: reason)
+            await vm.stop(reason: reason, callingOffRestart: true)
             await publishStorage()
         }
     }

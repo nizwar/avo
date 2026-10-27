@@ -60,6 +60,10 @@ public actor VMManager {
     /// Android rebooted itself or asked for its reset, and the daemon has
     /// not taken that up yet (it starts Android again: `restartTaken`).
     private var restartPending = false
+    /// That start again has not begun yet, or a stop the user asked for
+    /// meanwhile called it off (`stop(reason:callingOffRestart:)`).
+    private var restartAwaited = false
+    private var restartCalledOff = false
     private var pumps: [Task<Void, Never>] = []
     /// Pauses and wakes, one after the other ("Pause" below).
     private var pauseTransition: Task<Void, Never>?
@@ -109,11 +113,20 @@ public actor VMManager {
     // MARK: Lifecycle
 
     /// Starts the VM if needed and waits until the Bridge Agent answers.
-    public func ensureRunning(_ settings: @autoclosure @Sendable () -> Settings) async throws {
+    /// `restarting`: the start again after Android's own reboot or reset,
+    /// which a stop since then calls off (CancellationError).
+    public func ensureRunning(_ settings: @autoclosure @Sendable () -> Settings, restarting: Bool = false) async throws {
         // Paused: it goes on (a failed wake starts it again below).
         if usedWhilePaused() { try? await wake() }
         if status.state == .running, let control, await control.isOpen { return }
         if let booting { return try await booting.value }
+        if restarting, restartCalledOff {
+            restartCalledOff = false
+            throw CancellationError()
+        }
+        // Whichever start this is, it is the one Android gets: none waits any more.
+        restartAwaited = false
+        restartCalledOff = false
         let settings = settings()
         // From here on, only the engine this start launches counts.
         engineInstance = nil
@@ -255,7 +268,16 @@ public actor VMManager {
 
     /// `reason`: why Android stopped, shown with the status (an eject).
     /// A start under way ends too, with nothing of it left running.
-    public func stop(reason: String? = nil) async {
+    /// `callingOffRestart`: a stop the user asked for (Stop Android, Quit,
+    /// an eject), which wins over Android's own reboot or reset waiting to
+    /// be started again: Android stays stopped, and says so.
+    public func stop(reason: String? = nil, callingOffRestart: Bool = false) async {
+        if callingOffRestart, restartAwaited {
+            restartAwaited = false
+            restartCalledOff = true
+            logger.notice("Android's restart was called off by a stop")
+            if status.state == .stopped { update(VMStatus(state: .stopped, detail: reason)) }
+        }
         guard status.state != .stopped else { return }
         // A paused engine runs Android again for its power off (VMMEngine.stop).
         pausedAt = nil
@@ -323,6 +345,8 @@ public actor VMManager {
             // timeout (minutes), and makes way for the next start.
             booting?.cancel()
             booting = nil
+            restartAwaited = true
+            restartCalledOff = false
         } else if status.state == .starting, let booting {
             // The engine crashed (or ended) while Android booted: the start
             // fails now with how it ended, and tidies up as a failed start

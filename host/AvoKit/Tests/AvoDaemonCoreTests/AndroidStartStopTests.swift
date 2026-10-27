@@ -72,6 +72,51 @@ import Testing
         #expect(await harness.core.status().state == .running)
     }
 
+    /// Stop while Android waits to be started again after its own reboot
+    /// ("Android is restarting"): the stop wins, the start again does not
+    /// happen, and the status says stopped. (The core's pumps are not
+    /// started: nothing but this test takes the reboot up.)
+    @Test func aStopWinsOverAndroidsOwnRestart() async throws {
+        let harness = try Harness(apps: [])
+        defer { harness.cleanUp() }
+        try Self.bootedBefore(harness)
+        let vm = harness.core.vm
+        let settings = VMManager.Settings(config: VMConfig(), profile: nil)
+        try await vm.ensureRunning(settings)
+        harness.engine.exit(AndroidRebooted())
+        #expect(await eventually { await vm.status.detail == "Android is restarting" })
+        await vm.stop(callingOffRestart: true)
+        #expect(await vm.status.state == .stopped)
+        #expect(await vm.status.detail == nil)
+        let launches = harness.engine.launches.count
+        await #expect(throws: CancellationError.self) { try await vm.ensureRunning(settings, restarting: true) }
+        #expect(harness.engine.launches.count == launches)
+        #expect(await vm.status.state == .stopped)
+        // A start of the user's own goes ahead, and so does the next reboot's start again.
+        try await vm.ensureRunning(settings)
+        #expect(await vm.status.state == .running)
+        harness.engine.exit(AndroidRebooted())
+        #expect(await eventually { await vm.status.detail == "Android is restarting" })
+        try await vm.ensureRunning(settings, restarting: true)
+        #expect(await vm.status.state == .running)
+    }
+
+    /// Stop pressed as Android reboots itself: whichever comes first, Android
+    /// ends stopped and is not started again behind the stop.
+    @Test func aStopAsAndroidRebootsLeavesItStopped() async throws {
+        let harness = try Harness(apps: [])
+        defer { harness.cleanUp() }
+        try Self.bootedBefore(harness)
+        await harness.core.start()
+        let (panel, _) = await harness.connect(.controlPanel)
+        try await harness.core.startVM(client: panel)
+        harness.engine.exit(AndroidRebooted())
+        try await harness.core.stopVM(client: panel)
+        try await Task.sleep(for: .milliseconds(500))
+        #expect(await harness.core.status().state == .stopped)
+        #expect(!harness.engine.isRunning)
+    }
+
     /// The Control channel closed while Android ran: Android failed, and its
     /// engine powers it off instead of running on unseen.
     @Test func aLostControlChannelStopsTheEngine() async throws {
