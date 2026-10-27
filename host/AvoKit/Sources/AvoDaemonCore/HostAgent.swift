@@ -992,9 +992,15 @@ actor HostAgent: DisplayResizing {
     /// configuration asks for "4G", as most carriers' do; the modem's test
     /// SIM (PLMN 001/01, engine/hvf/vmm/src/modem.rs) does not. Once its
     /// subscription is up, Avo asks for 4G, persistently (`-p`): Android keeps
-    /// it for that SIM across starts.
+    /// it for that SIM across starts. Telephony takes that from the shell
+    /// only on a build that is not `user`: a device profile that names a
+    /// phone's own build (`ro.build.type=user`) keeps "LTE".
     private func showFourGForLTE() async {
         guard cellularWanted else { return }
+        if (try? await shell("getprop ro.build.type"))?.trimmed == "user" {
+            logger.notice("mobile network: the device profile's user build keeps the status bar's \"LTE\"")
+            return
+        }
         for _ in 0..<60 {
             if (try? await shell("getprop gsm.sim.state"))?.contains("LOADED") == true {
                 let result = try? await root("cmd phone cc set-value -p show_4g_for_lte_data_icon_bool true")
