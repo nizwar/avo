@@ -1052,7 +1052,10 @@ struct CopyButton: View {
 struct CameraPicker: View {
     let title: LocalizedStringKey
     @Binding var selection: CameraSource
-    @State private var cameras = Self.macCameras()
+    /// Looked for once it shows, off the main thread, and again when one is
+    /// plugged in or out (a discovery for every re-render held the window up).
+    @State private var cameras: [(uniqueID: String, name: String)] = []
+    @State private var looked = false
 
     var body: some View {
         LabeledContent(title) {
@@ -1061,18 +1064,28 @@ struct CameraPicker: View {
                 HazeOption("None", CameraSource.none)
                 HazeSection("This Mac") {
                     for camera in cameras { HazeOption(verbatim: camera.name, CameraSource.mac(camera.uniqueID)) }
-                    if let id = selection.macCameraID, !cameras.contains(where: { $0.uniqueID == id }) {
+                    if looked, let id = selection.macCameraID, !cameras.contains(where: { $0.uniqueID == id }) {
                         HazeOption("Not connected", selection)
                     }
                 }
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)) { _ in cameras = Self.macCameras() }
-        .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasDisconnectedNotification)) { _ in cameras = Self.macCameras() }
+        .task { await lookForCameras() }
+        .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)) { _ in
+            Task { await lookForCameras() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasDisconnectedNotification)) { _ in
+            Task { await lookForCameras() }
+        }
+    }
+
+    private func lookForCameras() async {
+        cameras = await Task.detached(priority: .userInitiated) { Self.macCameras() }.value
+        looked = true
     }
 
     /// The Mac's cameras, built in, plugged in and Continuity (an iPhone).
-    static func macCameras() -> [(uniqueID: String, name: String)] {
+    nonisolated static func macCameras() -> [(uniqueID: String, name: String)] {
         AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .external, .continuityCamera],
                                          mediaType: .video, position: .unspecified)
             .devices.map { ($0.uniqueID, $0.localizedName) }
