@@ -794,6 +794,16 @@
         }
       }
     },
+    "Android’s factory reset didn’t finish: %@" : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset pabrik Android tidak selesai: %@"
+          }
+        }
+      }
+    },
     "Android’s storage can grow to %@; “%@” has %@ free. Android runs out of space when the drive is full." : {
       "localizations" : {
         "id" : {
