@@ -85,6 +85,8 @@ actor HostAgent: DisplayResizing {
     /// else would wake the Mac every few seconds for nothing (`whilePaused`).
     private(set) var paused = false
     private var pauseWaiters: [CheckedContinuation<Void, Never>] = []
+    /// Android's clock being put right after a pause or the Mac's sleep (`clockResumed`).
+    private var clockCorrection: Task<Void, Never>?
     private var displays: [UInt32: Display] = [:]
     /// Scanouts of closed windows that Android may not have let go of yet
     /// (`release`): a new window takes another one meanwhile.
@@ -195,11 +197,12 @@ actor HostAgent: DisplayResizing {
     // MARK: Readiness
 
     /// Waits for Android, then prepares it for windows. The Control port
-    /// "listens" only after this, like the real agent late in boot.
-    func prepare(deadline: ContinuousClock.Instant) async throws {
+    /// "listens" only after this, like the real agent late in boot. The Mac
+    /// asleep is no time Android had to boot.
+    func prepare(deadline: SuspendingClock.Instant) async throws {
         let adb = try await connectADB(deadline: deadline)
         while try await shell("getprop sys.boot_completed").trimmed != "1" {
-            guard ContinuousClock.now < deadline else { throw AvoError.timedOut("Android boot") }
+            guard SuspendingClock.now < deadline else { throw AvoError.timedOut("Android boot") }
             try await Task.sleep(for: .seconds(1))
         }
         _ = adb
@@ -371,9 +374,9 @@ actor HostAgent: DisplayResizing {
         return asked
     }
 
-    private func connectADB(deadline: ContinuousClock.Instant) async throws -> ADBConnection {
+    private func connectADB(deadline: SuspendingClock.Instant) async throws -> ADBConnection {
         var lastError: (any Error)?
-        while ContinuousClock.now < deadline {
+        while SuspendingClock.now < deadline {
             do {
                 let stream = try await connectGuest(Self.adbPort)
                 let connection = ADBConnection(transport: stream, key: adbKey, keyComment: "avo-daemon")
@@ -3100,11 +3103,23 @@ extension HostAgent {
     }
 
     /// After a pause Android's clock is behind by the pause: it stood still
-    /// with Android (engine/hvf/vmm/src/pause.rs). With network time on (the
-    /// default) it takes the Mac's time; a time set by hand moves on by the
-    /// pause. Network time is then asked again: its last fix, timed by the
-    /// elapsed-time clock that stood still too, would set it back later.
+    /// with Android (engine/hvf/vmm/src/pause.rs), as it does while the Mac
+    /// sleeps. With network time on (the default) it takes the Mac's time; a
+    /// time set by hand moves on by the pause. Network time is then asked
+    /// again: its last fix, timed by the elapsed-time clock that stood still
+    /// too, would set it back later. One correction at a time: a pause's and
+    /// a sleep's, at the same moment, each move a time set by hand on.
     func clockResumed(after pause: Duration) async {
+        let previous = clockCorrection
+        let correction = Task { [weak self] in
+            await previous?.value
+            await self?.moveClock(by: pause)
+        }
+        clockCorrection = correction
+        await correction.value
+    }
+
+    private func moveClock(by pause: Duration) async {
         guard isReady, !paused, pause >= .seconds(1) else { return }
         let networkTime = (try? await shell("settings get global auto_time"))?.trimmed != "0"
         let target: Int64

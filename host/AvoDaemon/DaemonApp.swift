@@ -25,6 +25,8 @@ final class DaemonAppDelegate: NSObject, NSApplicationDelegate {
     private var macState: MacSystemState?
     /// Restarts the daemon on a new Avo once an update replaced Avo.app (AppUpdateWatcher.swift).
     private var updateWatcher: AppUpdateWatcher?
+    /// The Mac waking from sleep (DaemonCore.macWoke).
+    private var wakeObserver: (any NSObjectProtocol)?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         signal(SIGPIPE, SIG_IGN)
@@ -99,6 +101,11 @@ final class DaemonAppDelegate: NSObject, NSApplicationDelegate {
             loadImage: loadImage)
         let core = DaemonCore(deps)
         Task { await core.start() }
+        // Android's clock stood still while the Mac slept: it is put right.
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil,
+                                                                         queue: .main) { _ in
+            Task { await core.macWoke() }
+        }
         if let vmm = engine as? VMMEngine {
             // The Mac's location for Android's GPS while Android runs and the
             // setting allows, unless a window's Location panel chose a place

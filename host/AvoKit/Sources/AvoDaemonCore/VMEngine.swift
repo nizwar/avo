@@ -67,6 +67,13 @@ public protocol PausableEngine: VMEngine {
     func onUse(_ wake: @escaping @Sendable () async -> Void)
 }
 
+/// An engine whose Android's clock stands still while the Mac sleeps (its
+/// counter follows the Mac's, which stops in sleep): told how long the Mac
+/// slept, it puts Android's clock right, as after a pause.
+public protocol SleepingClockEngine: VMEngine {
+    func macSlept(for duration: Duration) async
+}
+
 /// An engine that tells when Android itself stops answering while the
 /// engine runs on (VMStatus.notRespondingSince).
 public protocol ResponsivenessEngine: VMEngine {
