@@ -112,9 +112,7 @@ public final class DaemonService: NSObject, NSXPCListenerDelegate, @unchecked Se
         connection.exportedInterface = AvoXPC.daemonInterface()
         connection.exportedObject = client
         connection.remoteObjectInterface = AvoXPC.clientInterface()
-        let core = self.core
-        let id = client.id
-        connection.invalidationHandler = { Task { await core.disconnect(id) } }
+        connection.invalidationHandler = { client.invalidated() }
         connection.resume()
         return true
     }
@@ -154,6 +152,9 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
     /// A connection says hello once: its code requirement is set then (`authorize`).
     private let helloLock = NSLock()
     private var saidHello = false
+    /// The connection went (`invalidated`): a hello still being checked
+    /// registers nothing for good.
+    private var gone = false
 
     init(connection: NSXPCConnection, service: DaemonService) {
         self.connection = connection
@@ -199,8 +200,22 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
             }
             guard first, let connection, await service.authorize(connection, role: hello.role) else { throw AvoError.unauthorizedCaller }
             guard let proxy = connection.remoteObjectProxy as? AvoClientXPC else { throw AvoError.internalError("no client proxy") }
-            return AvoXPC.encode(await core.register(id, role: hello.role, proxy: ClientProxy(proxy)))
+            let answer = await core.register(id, role: hello.role, proxy: ClientProxy(proxy))
+            // The client went while it was checked: its disconnect may have
+            // come before it was registered, so it goes again now.
+            guard !helloLock.withLock({ gone }) else {
+                await core.disconnect(id)
+                throw AvoError.daemonUnreachable("the client went")
+            }
+            return AvoXPC.encode(answer)
         }
+    }
+
+    /// The connection was invalidated: the client quit or crashed.
+    func invalidated() {
+        helloLock.withLock { gone = true }
+        let (core, id) = (core, id)
+        Task { await core.disconnect(id) }
     }
 
     // MARK: VM
