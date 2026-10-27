@@ -41,7 +41,17 @@ final class ControlPanelModel {
         var displayName: String { summary?.label ?? url.lastPathComponent }
     }
 
-    private(set) var daemonState: DaemonState = .connecting
+    private(set) var daemonState: DaemonState = .connecting {
+        // Actions that wait for the connection look again (`connectedClient`).
+        didSet {
+            guard daemonState != oldValue else { return }
+            let waiting = connectionWaiters
+            connectionWaiters = []
+            for waiter in waiting { waiter.resume() }
+        }
+    }
+    /// Actions taken while Avo connects, until its state changes.
+    @ObservationIgnored private var connectionWaiters: [CheckedContinuation<Void, Never>] = []
     /// The Runtime Daemon's version, from its hello (Report a Problem).
     private(set) var daemonVersion: String?
     private(set) var status = VMStatus.stopped {
@@ -640,9 +650,9 @@ final class ControlPanelModel {
         }
         if let progress = googleAppsProgress, progress.isDone { googleAppsProgress = nil }
         stopCopyingGoogleApps()
-        guard let client else { return }
         Task {
             do {
+                let client = try await connectedClient()
                 try await client.resetAndroid()
                 var config = try await client.configuration().config
                 config.dataDiskGiB = gb
@@ -664,10 +674,9 @@ final class ControlPanelModel {
     }
 
     func clearGPUCache() {
-        guard let client else { return }
         Task {
             do {
-                gpuCache = try await client.clearGPUCache()
+                gpuCache = try await connectedClient().clearGPUCache()
             } catch {
                 lastError = error.localizedDescription
             }
@@ -679,7 +688,7 @@ final class ControlPanelModel {
     /// What the daemon finds in a folder the user chose (nil: Avo's own
     /// storage). On a removable volume macOS may ask first whether Avo may.
     func inspectStorage(_ path: String?) async throws -> StorageCandidate {
-        try await requireClient().inspectStorageLocation(path)
+        try await connectedClient().inspectStorageLocation(path)
     }
 
     /// Returns once Android's data is in its new place; progress arrives meanwhile.
@@ -687,7 +696,7 @@ final class ControlPanelModel {
         storageProgress = StorageChangeProgress(id: request.id, phase: .checking)
         defer { Task { await refreshConfiguration() } }
         do {
-            try await requireClient().changeStorageLocation(request)
+            try await connectedClient().changeStorageLocation(request)
         } catch {
             // Refused before it began, or the daemon went away: no progress
             // will come, and Change Location… must work again.
@@ -721,10 +730,9 @@ final class ControlPanelModel {
     }
 
     func removeInternalStorageCopy() {
-        guard let client else { return }
         Task {
             do {
-                try await client.removeInternalStorageCopy()
+                try await connectedClient().removeInternalStorageCopy()
             } catch {
                 lastError = error.localizedDescription
             }
@@ -750,10 +758,9 @@ final class ControlPanelModel {
     }
 
     func deleteCheckpoint(_ checkpoint: Checkpoint) {
-        guard let client else { return }
         Task {
             do {
-                try await client.deleteCheckpoint(checkpoint.id)
+                try await connectedClient().deleteCheckpoint(checkpoint.id)
             } catch {
                 lastError = error.localizedDescription
             }
@@ -762,11 +769,11 @@ final class ControlPanelModel {
     }
 
     private func performCheckpointWork(_ work: CheckpointWork, _ action: @escaping @Sendable (DaemonClient) async throws -> Void) {
-        guard let client, checkpointWork == nil else { return }
+        guard checkpointWork == nil else { return }
         checkpointWork = work
         Task {
             do {
-                try await action(client)
+                try await action(connectedClient())
             } catch {
                 // A restore restarts an Android that ran: a Stop meanwhile is no failure.
                 report(error)
@@ -783,7 +790,7 @@ final class ControlPanelModel {
 
     /// What the daemon finds in a folder the user chose to share.
     func inspectSharedFolder(_ path: String) async throws -> SharedFolderStatus {
-        try await requireClient().inspectSharedFolder(path)
+        try await connectedClient().inspectSharedFolder(path)
     }
 
     /// Asks again (after System Settings changed Avo's access, or a drive was connected).
@@ -805,10 +812,9 @@ final class ControlPanelModel {
     }
 
     private func perform(_ action: @escaping @Sendable (DaemonClient) async throws -> Void) {
-        guard let client else { return }
         Task {
             do {
-                try await action(client)
+                try await action(connectedClient())
             } catch {
                 report(error)
             }
@@ -827,14 +833,14 @@ final class ControlPanelModel {
 
     /// Applies a change right away; the daemon reports whether it needs a restart.
     func update(_ change: (inout VMConfig) -> Void) {
-        guard var config = snapshot?.config, let client else { return }
+        guard var config = snapshot?.config else { return }
         change(&config)
         guard config != snapshot?.config else { return }
         let previous = snapshot?.config
         snapshot?.config = config
         Task {
             do {
-                let result = try await client.updateConfiguration(config)
+                let result = try await connectedClient().updateConfiguration(config)
                 configIssues = result.issues
                 if result.issues.contains(where: { $0.severity == .error }), let previous {
                     snapshot?.config = previous
@@ -857,7 +863,7 @@ final class ControlPanelModel {
     /// with `update`: the daemon keeps its own, so a window's View menu and
     /// this panel cannot undo each other's changes.
     func setAppGraphics(_ override: AppGraphicsOverride?, for package: String) {
-        guard var config = snapshot?.config, let client else { return }
+        guard var config = snapshot?.config else { return }
         let stored = (override?.isEmpty ?? true) ? nil : override
         guard config.graphicsOverrides[package] != stored else { return }
         let previous = config.graphicsOverrides[package]
@@ -865,7 +871,7 @@ final class ControlPanelModel {
         snapshot?.config = config
         Task {
             do {
-                let result = try await client.setAppGraphics(stored, for: package)
+                let result = try await connectedClient().setAppGraphics(stored, for: package)
                 configIssues = result.issues
                 if result.issues.contains(where: { $0.severity == .error }) {
                     snapshot?.config.graphicsOverrides[package] = previous
@@ -1030,13 +1036,13 @@ final class ControlPanelModel {
     /// macOS; its alert appears while macOS has no answer yet, and the
     /// user's answer arrives as an event.
     func requestNotificationPermission() {
-        guard let client, !requestingNotificationPermission else { return }
+        guard !requestingNotificationPermission else { return }
         requestingNotificationPermission = true
         notificationPermissionGeneration += 1
         Task {
             defer { requestingNotificationPermission = false }
             do {
-                let permission = try await client.requestNotificationPermission()
+                let permission = try await connectedClient().requestNotificationPermission()
                 notificationPermissionGeneration += 1
                 macNotifications = permission
             } catch {
@@ -1061,7 +1067,7 @@ final class ControlPanelModel {
     func recreateShortcuts() { perform { try await $0.recreateShortcuts() } }
 
     func permissions(for app: AppRecord) async throws -> [AppPermission] {
-        try await requireClient().permissions(for: app.package)
+        try await connectedClient().permissions(for: app.package)
     }
 
     // MARK: Android's volume (Settings › Devices › Sound)
@@ -1105,7 +1111,7 @@ final class ControlPanelModel {
 
     func setPermission(_ permission: AppPermission, granted: Bool, for app: AppRecord) async {
         do {
-            try await client?.setPermission(permission.name, granted: granted, for: app.package)
+            try await connectedClient().setPermission(permission.name, granted: granted, for: app.package)
         } catch {
             lastError = error.localizedDescription
         }
@@ -1154,7 +1160,7 @@ final class ControlPanelModel {
 
     func confirmInstall() {
         // Once: a second click is not a second install.
-        guard var pending = pendingInstall, pending.requestID == nil, let client else { return }
+        guard var pending = pendingInstall, pending.requestID == nil else { return }
         let request = InstallRequest(path: pending.url.path)
         pending.requestID = request.id
         pending.startedAt = Date()
@@ -1162,7 +1168,7 @@ final class ControlPanelModel {
         pendingInstall = pending
         Task {
             do {
-                try await client.install(request)
+                try await connectedClient().install(request)
             } catch {
                 installProgressed(InstallProgress(id: request.id, phase: .failed, message: error.localizedDescription), byCall: true)
             }
@@ -1273,7 +1279,7 @@ final class ControlPanelModel {
                     return
                 }
                 googleAppsCopy = nil
-                try await requireClient().installGoogleApps(GoogleAppsInstallRequest(id: id, source: .local(path: copy.path)))
+                try await connectedClient().installGoogleApps(GoogleAppsInstallRequest(id: id, source: .local(path: copy.path)))
             } catch {
                 googleAppsFailed(id, error)
             }
@@ -1286,7 +1292,7 @@ final class ControlPanelModel {
         googleAppsProgress = GoogleAppsProgress(id: id, phase: .preparing)
         Task {
             do {
-                try await requireClient().installGoogleApps(GoogleAppsInstallRequest(id: id, source: .github(url: link)))
+                try await connectedClient().installGoogleApps(GoogleAppsInstallRequest(id: id, source: .github(url: link)))
             } catch {
                 googleAppsFailed(id, error)
             }
@@ -1299,7 +1305,7 @@ final class ControlPanelModel {
         googleAppsProgress = GoogleAppsProgress(id: id, phase: .startingVM, removal: true)
         Task {
             do {
-                try await requireClient().removeGoogleApps(id: id)
+                try await connectedClient().removeGoogleApps(id: id)
             } catch {
                 googleAppsFailed(id, error, removal: true)
             }
@@ -1327,9 +1333,28 @@ final class ControlPanelModel {
                                                 message: String(localized: "Install stopped. Android was not changed."))
     }
 
-    private func requireClient() throws -> DaemonClient {
-        guard let client else { throw AvoError.daemonUnreachable(String(localized: "not connected")) }
-        return client
+    /// The connection once its hello passed, which an action waits for
+    /// while Avo connects: the daemon answers nothing on a connection before
+    /// its hello (ClientConnection.admitted), so Install, a setting or
+    /// Uninstall failed then with "The caller is not allowed to talk to the
+    /// Avo daemon", and before the first connection did nothing. Waiting
+    /// beats dimming every control meanwhile: connecting takes a moment, and
+    /// what was asked then happens. When the service is not there, or needs
+    /// approval, it fails at once with what the banner says.
+    func connectedClient() async throws -> DaemonClient {
+        while true {
+            switch daemonState {
+            case .connected:
+                if let client { return client }
+            case .connecting:
+                break
+            case .needsApproval:
+                throw AvoError.internalError(String(localized: "Allow Avo in System Settings › General › Login Items & Extensions so Android can run in the background."))
+            case .unavailable(let reason):
+                throw AvoError.internalError(reason)
+            }
+            await withCheckedContinuation { connectionWaiters.append($0) }
+        }
     }
 
     /// The daemon reports its own failures as progress; this covers the
@@ -1375,6 +1400,6 @@ extension ControlPanelModel {
     /// Passes the credential to Android (`DaemonClient.unlockAndroid`); returns
     /// once Android is unlocked. The credential is not kept.
     func unlockAndroid(credential: String) async throws {
-        try await requireClient().unlockAndroid(credential: credential)
+        try await connectedClient().unlockAndroid(credential: credential)
     }
 }

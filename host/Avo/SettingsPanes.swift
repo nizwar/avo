@@ -1125,9 +1125,8 @@ extension ControlPanelModel {
 
     /// The app uses every app's location again.
     func removeAppLocation(_ package: String) {
-        guard let client = daemonClient else { return }
         Task { @MainActor in
-            if let status = try? await client.changeLocation(.removeApp(package)) { location = status }
+            if let status = try? await connectedClient().changeLocation(.removeApp(package)) { location = status }
         }
     }
 }
