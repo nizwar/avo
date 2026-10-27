@@ -342,8 +342,12 @@ import Testing
         let paths = scratch.paths
         try Self.makeData(in: paths.vm)
         let sums = try Dictionary(uniqueKeysWithValues: AndroidDataFolder(paths.vm).presentItems().map { ($0, try Self.sha(paths.vm.appending(path: $0))) })
+        // A checkpoint of the data, and one cut short (no record), which is none.
+        let checkpoint = Checkpoint(reason: .manual, detail: "Before moving", settings: CheckpointSettings(VMConfig()))
+        try CheckpointStore(paths: paths).create(checkpoint)
         let checkpoints = paths.vm.appending(path: CheckpointStore.folderName)
-        try FileManager.default.createDirectory(at: checkpoints.appending(path: UUID().uuidString), withIntermediateDirectories: true)
+        let partial = UUID().uuidString
+        try FileManager.default.createDirectory(at: checkpoints.appending(path: partial), withIntermediateDirectories: true)
         let locations = StorageLocations(paths: paths, cloning: false) { [] }
         let drive = try scratch.folder("Drive")
 
@@ -355,6 +359,9 @@ import Testing
         #expect(candidate.allows(.fresh))
         #expect(!candidate.allows(.existing))
         #expect(candidate.moveBytes < 200 << 20)
+        // The checkpoint comes along, as a copy of its own on another drive.
+        #expect(candidate.checkpoints?.count == 1 && candidate.checkpoints?.comeAlong == true)
+        #expect((candidate.checkpoints?.bytes ?? 0) > 0)
 
         let progress = StorageProgressLog()
         let request = StorageChangeRequest(destination: drive.path, action: .move(keepOldCopy: false))
@@ -362,9 +369,16 @@ import Testing
         let moved = drive.appending(path: "Avo Android Data")
         #expect(Self.real(paths.data) == Self.real(moved))
         for (item, sum) in sums { #expect(try Self.sha(moved.appending(path: item)) == sum, "\(item)") }
+        // Its checkpoint is there with it, whole, and can be restored there.
+        #expect(CheckpointStore(paths: paths).list() == [checkpoint])
+        let kept = moved.appending(path: "\(CheckpointStore.folderName)/\(checkpoint.id.uuidString)")
+        for item in ["userdata.img", "cuttlefish/metadata.img"] {
+            #expect(try Self.sha(kept.appending(path: item)) == sums[item], "\(item)")
+        }
+        #expect(!FileManager.default.fileExists(atPath: moved.appending(path: "\(CheckpointStore.folderName)/\(partial)").path))
         // The old copy is gone; this Mac's side of the VM stays.
         #expect(AndroidDataFolder(paths.vm).presentItems().isEmpty)
-        #expect(!FileManager.default.fileExists(atPath: checkpoints.path), "the old copy's checkpoints go with it")
+        #expect(!FileManager.default.fileExists(atPath: checkpoints.path), "the old copy's checkpoints went with it")
         #expect(FileManager.default.fileExists(atPath: paths.instance.path))
         let phases = progress.phases
         #expect(phases.first == .checking && phases.last == .finished)
@@ -383,13 +397,15 @@ import Testing
         #expect(stamped.storageCreated && stamped.diskBytes == 1 << 30 && stamped.googleApps == true)
         #expect(stamped.lastUsedAt != nil)
 
-        // Back to Avo's own storage, keeping the drive's copy.
+        // Back to Avo's own storage, keeping the drive's copy: both have the checkpoint.
         let back = StorageChangeRequest(destination: nil, action: .move(keepOldCopy: true))
         #expect(try await locations.perform(back) { _ in } == .moved)
         #expect(paths.isDataInternal)
         #expect(StorageLocationRecord.load(paths) == nil)
         for (item, sum) in sums { #expect(try Self.sha(paths.vm.appending(path: item)) == sum, "\(item)") }
         #expect(AndroidDataFolder(moved).holdsData)
+        #expect(CheckpointStore(paths: paths).list() == [checkpoint])
+        #expect(CheckpointStore.count(in: moved) == 1)
 
         // The drive's copy is Android data Avo can use again ("carried to another Mac").
         let again = await locations.inspect(drive.path)
@@ -399,10 +415,85 @@ import Testing
         #expect(!again.allows(.move), "never over other data")
         #expect(try await locations.perform(StorageChangeRequest(destination: drive.path, action: .useExisting)) { _ in } == .adopted(stamped))
         #expect(Self.real(paths.data) == Self.real(moved))
-        // Avo's own storage keeps its copy, which Settings › Storage shows.
+        // Avo's own storage keeps its copy, which Settings › Storage shows
+        // with the checkpoint that Remove Copy… would take with it.
         let status = await locations.status()
         #expect(status.internalCopy?.android == "Android 17")
+        #expect(status.internalCopy?.checkpoints == 1)
         #expect(status.data?.created == true)
+        #expect(status.data?.checkpoints == 1)
+    }
+
+    /// Off APFS, or without room for them beside the data, checkpoints
+    /// can't come along: they stay with the old copy, and a move that keeps
+    /// none deletes them only when the user was told (the sheet says how many).
+    @Test func checkpointsThatCannotComeAlongGoOnlyWhenTheUserLetsThem() async throws {
+        let scratch = try Scratch()
+        defer { scratch.cleanUp() }
+        let paths = scratch.paths
+        try Self.makeData(in: paths.vm)
+        let checkpoint = Checkpoint(reason: .manual, settings: CheckpointSettings(VMConfig()))
+        try CheckpointStore(paths: paths).create(checkpoint)
+        let exFAT = VolumeSummary(name: "Travel", mountPoint: "/Volumes/Travel", format: "exfat", freeBytes: 500_000_000_000,
+                                  capacityBytes: 1_000_000_000_000, isInternal: false, isRemovable: true, isReadOnly: false, isNetwork: false)
+        let locations = StorageLocations(paths: paths, cloning: false, destinationVolume: { _ in exFAT }) { [] }
+        let drive = try scratch.folder("Travel")
+        let moved = drive.appending(path: "Avo Android Data")
+
+        let candidate = await locations.inspect(drive.path)
+        #expect(candidate.allows(.move))
+        #expect(candidate.checkpoints?.count == 1 && candidate.checkpoints?.obstacle == .format("ExFAT"))
+        // Not told: refused, and nothing changed.
+        await #expect(throws: (any Error).self) {
+            _ = try await locations.perform(StorageChangeRequest(destination: drive.path, action: .move(keepOldCopy: false))) { _ in }
+        }
+        #expect(paths.isDataInternal)
+        #expect(CheckpointStore(paths: paths).list() == [checkpoint])
+        #expect(!FileManager.default.fileExists(atPath: moved.path))
+
+        // The old copy kept: the checkpoint stays with it, and none is on the drive.
+        #expect(try await locations.perform(StorageChangeRequest(destination: drive.path, action: .move(keepOldCopy: true))) { _ in } == .moved)
+        #expect(Self.real(paths.data) == Self.real(moved))
+        #expect(CheckpointStore.count(in: moved) == 0)
+        #expect(CheckpointStore.count(in: paths.vm) == 1)
+
+        // Back over the copy kept in Avo's own storage: replacing it erases
+        // its checkpoint with it (the sheet's question says so).
+        let replace = await locations.inspect(nil)
+        #expect(replace.existing?.checkpoints == 1)
+        #expect(try await locations.perform(StorageChangeRequest(destination: nil, action: .move(keepOldCopy: false),
+                                                                  replaceExisting: true)) { _ in } == .moved)
+        #expect(paths.isDataInternal)
+        #expect(CheckpointStore.count(in: paths.vm) == 0)
+
+        // Out again keeping no copy, told: the checkpoint goes with the old copy.
+        try CheckpointStore(paths: paths).create(checkpoint)
+        let told = StorageChangeRequest(destination: drive.path, action: .move(keepOldCopy: false), leavesCheckpoints: true)
+        #expect(try await locations.perform(told) { _ in } == .moved)
+        #expect(Self.real(paths.data) == Self.real(moved))
+        #expect(CheckpointStore.count(in: moved) == 0)
+        #expect(!FileManager.default.fileExists(atPath: paths.vm.appending(path: CheckpointStore.folderName).path))
+    }
+
+    @Test func checkpointsComeAlongWhereTheyCanBeRestored() {
+        let ssd = VolumeSummary(name: "SSD", mountPoint: "/Volumes/SSD", format: "apfs", freeBytes: 30_000_000_000,
+                                capacityBytes: 1_000_000_000_000, isInternal: false, isRemovable: true, isReadOnly: false, isNetwork: false)
+        let move = { (volume: VolumeSummary?, sameVolume: Bool) in
+            StorageLocations.checkpointsMove(count: 3, bytes: 12_000_000_000, to: volume, sameVolume: sameVolume, dataBytes: 10_000_000_000)
+        }
+        #expect(StorageLocations.checkpointsMove(count: 0, bytes: 0, to: ssd, sameVolume: false, dataBytes: 1) == nil)
+        // Copies on another APFS drive with room beside the data; clones, taking nothing, on the same one.
+        #expect(move(ssd, false) == CheckpointsMove(count: 3, bytes: 12_000_000_000))
+        #expect(move(ssd, true) == CheckpointsMove(count: 3, bytes: 0))
+        var full = ssd
+        full.freeBytes = 20_000_000_000
+        #expect(move(full, false)?.obstacle == .room)
+        #expect(move(full, true)?.comeAlong == true, "clones need no room")
+        var exFAT = ssd
+        exFAT.format = "exfat"
+        #expect(move(exFAT, false)?.obstacle == .format("ExFAT"))
+        // A volume that can't be described: the copy itself finds out.
+        #expect(move(nil, false)?.comeAlong == true)
     }
 
     @Test func aFailedMoveLeavesTheDataWhereItWas() async throws {

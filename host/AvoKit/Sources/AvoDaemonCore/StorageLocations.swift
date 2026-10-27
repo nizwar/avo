@@ -10,8 +10,9 @@ import SystemConfiguration
 ///
 /// Only Android's data moves (AvoPaths.portableDataItems: the data disk with
 /// the metadata disk that holds its key, misc, frp, super and vbmeta, and the
-/// records that describe it). Images, settings, the apps list, key mappings
-/// and avo-vmm's frames and logs stay with this Mac.
+/// records that describe it), with its checkpoints where they can come along
+/// (CheckpointsMove). Images, settings, the apps list, key mappings and
+/// avo-vmm's frames and logs stay with this Mac.
 actor StorageLocations {
     let paths: AvoPaths
     /// The Android images on this Mac, newest first (data from a newer Android is refused).
@@ -24,10 +25,14 @@ actor StorageLocations {
 
     /// APFS clones on the same volume (tests turn them off to copy bytes).
     private let cloning: Bool
+    /// The volume of a folder the user chose (tests stand in other drives).
+    private let destinationVolume: @Sendable (URL) -> VolumeSummary?
 
-    init(paths: AvoPaths, cloning: Bool = true, images: @escaping @Sendable () -> [AndroidImageSummary]) {
+    init(paths: AvoPaths, cloning: Bool = true, destinationVolume: @escaping @Sendable (URL) -> VolumeSummary? = { volumeSummary(for: $0) },
+         images: @escaping @Sendable () -> [AndroidImageSummary]) {
         self.paths = paths
         self.cloning = cloning
+        self.destinationVolume = destinationVolume
         self.images = images
     }
 
@@ -197,11 +202,14 @@ actor StorageLocations {
             status.volumeName = status.volume?.name ?? status.volumeName
             let folder = AndroidDataFolder(resolution.folder)
             status.data = folder.summary(manifest: try? AndroidDataManifest.load(from: resolution.folder))
+            status.data?.checkpoints = CheckpointStore.count(in: resolution.folder)
         }
         if !isInternal {
             let own = AndroidDataFolder(paths.vm)
             if FileManager.default.fileExists(atPath: own.dataDisk.path) {
                 status.internalCopy = own.summary(manifest: try? AndroidDataManifest.load(from: paths.vm))
+                // Removing the copy removes them too (Settings › Storage says so).
+                status.internalCopy?.checkpoints = CheckpointStore.count(in: paths.vm)
             }
         }
         guardVolume(resolution, volume: status.volume)
@@ -306,7 +314,7 @@ actor StorageLocations {
         if ["/Library/Mobile Documents", "/Library/CloudStorage"].contains(where: { folder.path.hasPrefix(home + $0 + "/") }) {
             issues.append(StorageIssue(.error, .all, String(localized: "Android’s data can’t be in a folder that syncs to the cloud (iCloud Drive, Dropbox, Google Drive …): it changes all the time while Android runs. Choose a folder on this Mac or a drive.", bundle: .avoKit)))
         }
-        let volume = Self.volumeSummary(for: folder)
+        let volume = destinationVolume(folder)
         var problem: StorageProblem?
         if let error = Self.accessError(FileManager.default.fileExists(atPath: folder.path) ? folder : chosen),
            error == EPERM || error == EACCES {
@@ -317,13 +325,23 @@ actor StorageLocations {
         if problem == nil, target.holdsData {
             let manifest = try? AndroidDataManifest.load(from: folder)
             existing = target.summary(manifest: manifest)
+            // Replacing Avo's own copy erases them with it (the sheet says so).
+            existing?.checkpoints = CheckpointStore.count(in: folder)
             problem = target.problem(images: images())
         }
         let usage = currentAvailable ? currentFolder.usage() : (allocated: Int64(0), logical: Int64(0))
         var moveBytes = usage.allocated
+        if let volume, !volume.keepsSparseFiles { moveBytes = usage.logical }
+        // The checkpoints beside the data now: whether a move takes them along.
+        var checkpoints: CheckpointsMove?
+        if !isCurrent, currentAvailable, existing == nil || isInternal {
+            let movable = CheckpointStore.movable(in: current.folder)
+            let sameVolume = cloning && volume != nil && Self.volumeSummary(for: current.folder)?.mountPoint == volume?.mountPoint
+            checkpoints = Self.checkpointsMove(count: movable.count, bytes: movable.bytes, to: volume, sameVolume: sameVolume,
+                                               dataBytes: moveBytes)
+        }
         if let volume {
             let name = volume.name
-            if !volume.keepsSparseFiles { moveBytes = usage.logical }
             if volume.isNetwork {
                 issues.append(StorageIssue(.error, .all, String(localized: "Android’s data can’t be on a network volume. Choose a drive connected to this Mac.", bundle: .avoKit)))
             } else if volume.isReadOnly {
@@ -364,7 +382,25 @@ actor StorageLocations {
             issues.append(StorageIssue(.error, .fresh, String(localized: "This folder already holds Android data. Use it, or choose another folder.", bundle: .avoKit)))
         }
         return StorageCandidate(chosen: chosen.path, folder: folder.path, isInternal: isInternal, isCurrent: isCurrent, volume: volume,
-                                existing: existing, problem: problem, issues: issues, moveBytes: moveBytes, currentAvailable: currentAvailable)
+                                existing: existing, problem: problem, issues: issues, moveBytes: moveBytes, currentAvailable: currentAvailable,
+                                checkpoints: checkpoints)
+    }
+
+    /// What a move to `volume` does with `count` checkpoints whose copies
+    /// take `bytes`: APFS clones where the data stays on its volume, copies
+    /// on another APFS volume where they fit beside the data (`dataBytes`),
+    /// else they stay with the old copy. Off APFS no checkpoint can be
+    /// restored, so none goes there.
+    static func checkpointsMove(count: Int, bytes: Int64, to volume: VolumeSummary?, sameVolume: Bool,
+                                dataBytes: Int64) -> CheckpointsMove? {
+        guard count > 0 else { return nil }
+        // A volume statfs cannot describe: the copy finds out (one that
+        // runs out of room fails the move, and nothing changes).
+        guard let volume else { return CheckpointsMove(count: count, bytes: bytes) }
+        guard volume.keepsSparseFiles else { return CheckpointsMove(count: count, bytes: bytes, obstacle: .format(volume.formatName)) }
+        if sameVolume { return CheckpointsMove(count: count, bytes: 0) }
+        guard volume.freeBytes >= dataBytes + bytes + spareBytes else { return CheckpointsMove(count: count, bytes: bytes, obstacle: .room) }
+        return CheckpointsMove(count: count, bytes: bytes)
     }
 
     static func bytes(_ count: Int64) -> String { ByteCountFormatter.string(fromByteCount: count, countStyle: .decimal) }
@@ -435,9 +471,17 @@ actor StorageLocations {
             guard !replacing || request.replaceExisting else {
                 throw AvoError.internalError(String(localized: "Avo’s own storage holds a copy of Android’s data already. Use it, or replace it.", bundle: .avoKit))
             }
+            // Checkpoints the move can't take along stay with the old copy;
+            // without one they go only when the user was told how many.
+            let checkpoints = candidate.checkpoints
+            if let checkpoints, !checkpoints.comeAlong, !keepOldCopy, !request.leavesCheckpoints {
+                let name = candidate.volume?.name ?? destination.lastPathComponent
+                throw AvoError.internalError(String(localized: "Android’s checkpoints can’t come along to “\(name)”. Keep the old copy to keep them.", bundle: .avoKit))
+            }
             let source = resolve().folder
             if replacing { try removeData(in: paths.vm) }
-            try await copyData(from: source, to: destination, id: request.id, publish: publish)
+            let carried = checkpoints?.comeAlong == true ? CheckpointStore.movable(in: source).files : []
+            try await copyData(from: source, to: destination, checkpoints: carried, id: request.id, publish: publish)
             var manifest = (try? AndroidDataManifest.load(from: source)) ?? AndroidDataManifest()
             if manifest.diskBytes == nil { manifest.diskBytes = DataDiskStore.size(AndroidDataFolder(source).dataDisk) }
             try manifest.write(to: destination)
@@ -448,7 +492,8 @@ actor StorageLocations {
                 try removeData(in: source)
                 if source.standardizedFileURL.path != paths.vm.standardizedFileURL.path { Self.removeIfEmpty(source) }
             }
-            logger.notice("moved Android's data to \(destination.path, privacy: .public) (old copy \(keepOldCopy ? "kept" : "removed", privacy: .public))")
+            let left = checkpoints.map { $0.comeAlong ? "came along" : keepOldCopy ? "stayed with the old copy" : "went with the old copy" }
+            logger.notice("moved Android's data to \(destination.path, privacy: .public) (old copy \(keepOldCopy ? "kept" : "removed", privacy: .public); its \(checkpoints?.count ?? 0) checkpoints \(left ?? "-", privacy: .public))")
             return .moved
         case .useExisting:
             guard candidate.allows(.existing) || (request.allowNewerAndroid && candidate.existingNeedsNewerAndroid) else {
@@ -496,18 +541,20 @@ actor StorageLocations {
     /// counts as Android's data until the copy is checked and moved in.
     static let stagingName = ".avo-moving"
 
-    /// Copies and checks every portable item in a staging folder, then moves
-    /// them into place, the data disk last (with no data disk, a folder an
-    /// interrupted move left holds no Android data). On any failure the
-    /// staging folder goes again.
-    private func copyData(from source: URL, to destination: URL, id: UUID, publish: (StorageChangeProgress) -> Void) async throws {
+    /// Copies and checks every portable item and the `checkpoints` files
+    /// (CheckpointStore.movable) in a staging folder, then moves them into
+    /// place, each checkpoint whole, the data disk last (with no data disk, a
+    /// folder an interrupted move left holds no Android data). On any
+    /// failure the staging folder goes again.
+    private func copyData(from source: URL, to destination: URL, checkpoints: [String], id: UUID,
+                          publish: (StorageChangeProgress) -> Void) async throws {
         let createdFolder = !FileManager.default.fileExists(atPath: destination.path)
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
         let staging = destination.appending(path: Self.stagingName, directoryHint: .isDirectory)
         // What a move the daemon did not see to its end left.
         try? FileManager.default.removeItem(at: staging)
         try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
-        let items = AvoPaths.portableDataItems.filter { $0 != AvoPaths.dataManifestName }
+        let items = AvoPaths.portableDataItems.filter { $0 != AvoPaths.dataManifestName } + checkpoints
         var mounts: Set<String> = []
         for folder in [source, destination] {
             if let volume = Self.volumeSummary(for: folder), volume.mountPoint != "/" { mounts.insert(volume.mountPoint) }
@@ -538,15 +585,27 @@ actor StorageLocations {
                 }
             }
             try await work.value
-            // Into place (renames on one volume), the data disk last.
-            let names = copier.items.map(\.relative)
-            let copied = names.filter { $0 != "userdata.img" } + names.filter { $0 == "userdata.img" }
+            // Into place (renames on one volume): the disks bound to the data,
+            // the checkpoints, each folder whole with its record, then the
+            // data disk last.
+            let names = copier.items.map(\.relative).filter { !$0.hasPrefix(CheckpointStore.folderName + "/") }
             try FileManager.default.createDirectory(at: destination.appending(path: "cuttlefish", directoryHint: .isDirectory),
                                                     withIntermediateDirectories: true)
-            for item in copied {
-                let target = destination.appending(path: item)
-                if FileManager.default.fileExists(atPath: target.path) { try FileManager.default.removeItem(at: target) }
-                try FileManager.default.moveItem(at: staging.appending(path: item), to: target)
+            for item in names where item != "userdata.img" {
+                try Self.replace(destination.appending(path: item), with: staging.appending(path: item))
+            }
+            let stagedCheckpoints = staging.appending(path: CheckpointStore.folderName, directoryHint: .isDirectory)
+            let checkpointIDs = (try? FileManager.default.contentsOfDirectory(atPath: stagedCheckpoints.path)) ?? []
+            if !checkpointIDs.isEmpty {
+                let folder = destination.appending(path: CheckpointStore.folderName, directoryHint: .isDirectory)
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                for name in checkpointIDs {
+                    try Self.replace(folder.appending(path: name, directoryHint: .isDirectory),
+                                     with: stagedCheckpoints.appending(path: name, directoryHint: .isDirectory))
+                }
+            }
+            if names.contains("userdata.img") {
+                try Self.replace(destination.appending(path: "userdata.img"), with: staging.appending(path: "userdata.img"))
             }
             try? FileManager.default.removeItem(at: staging)
         } catch {
@@ -557,9 +616,16 @@ actor StorageLocations {
         }
     }
 
+    /// `target` becomes what `staged` is (a rename on one volume).
+    private static func replace(_ target: URL, with staged: URL) throws {
+        if FileManager.default.fileExists(atPath: target.path) { try FileManager.default.removeItem(at: target) }
+        try FileManager.default.moveItem(at: staged, to: target)
+    }
+
     /// Removes Android's data from `folder` (every portable item), and the
-    /// checkpoints of that data (CheckpointStore): a move does not carry
-    /// them, and a copy of each would take as much space as the data.
+    /// checkpoints of that data (CheckpointStore): a move took them along or
+    /// said they can't come (CheckpointsMove), and replacing or removing the
+    /// copy in Avo's own storage says how many go with it.
     private func removeData(in folder: URL) throws {
         for item in AvoPaths.portableDataItems + [CheckpointStore.folderName] {
             let url = folder.appending(path: item)

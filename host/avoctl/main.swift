@@ -187,7 +187,7 @@ func apply(_ assignments: [String], to override: AppGraphicsOverride) throws -> 
 
 /// `avoctl storage …` (Settings › Storage › Location).
 func storage(_ rest: [String], client: DaemonClient) async throws {
-    let usage = "usage: avoctl storage [status | location [<folder>|internal [move [--keep-old] | use | fresh <GB>] [--stop-android] [--replace]] | cancel | remove-internal-copy]"
+    let usage = "usage: avoctl storage [status | location [<folder>|internal [move [--keep-old] [--leave-checkpoints] | use | fresh <GB>] [--stop-android] [--replace]] | cancel | remove-internal-copy]"
     switch rest.first {
     case nil, "status":
         printJSON(try await client.storageLocation())
@@ -219,10 +219,12 @@ func storage(_ rest: [String], client: DaemonClient) async throws {
         default:
             fail(usage)
         }
-        let known: Set<String> = ["--keep-old", "--stop-android", "--replace"]
+        let known: Set<String> = ["--keep-old", "--leave-checkpoints", "--stop-android", "--replace"]
         if let unknown = flags.subtracting(known).first { fail("unknown option \(unknown)") }
+        // --leave-checkpoints: a move without --keep-old may delete the checkpoints it can't take along.
         let request = StorageChangeRequest(destination: destination, action: action, stopAndroid: flags.contains("--stop-android"),
-                                           replaceExisting: flags.contains("--replace"))
+                                           replaceExisting: flags.contains("--replace"),
+                                           leavesCheckpoints: flags.contains("--leave-checkpoints"))
         let progress = Task {
             var shown = ""
             for await event in client.events {

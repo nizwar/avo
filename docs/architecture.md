@@ -1578,6 +1578,16 @@ the record, cached by the file's identity).
   then removes the old copy unless it is kept; *use existing* adopts a folder
   Avo made (carried from another Mac); *start fresh* makes an empty folder
   with a new manifest. Starts wait meanwhile (`StorageProblem.changing`).
+- **Checkpoints on a move** (`CheckpointsMove`): they come along as clones
+  when the data stays on its volume, and as verified copies (each clone's
+  blocks again) on another APFS volume when the free space holds them beside
+  the data; each checkpoint folder is renamed into place whole, before the
+  data disk. Off APFS (where none could be restored) or without room they
+  stay with the old copy: the sheet says how many and why, keeps the old
+  copy by default, and a move that keeps none deletes them only with
+  `leavesCheckpoints` (the daemon refuses it otherwise, before anything
+  changes). Replacing or removing the copy in Avo's own storage says how
+  many checkpoints go with it.
 - **Checks** (`inspect`): FAT, network volumes, read-only volumes,
   cloud-synced folders and Avo's own folder are refused; exFAT and Mac OS
   Extended (no sparse files) and other formats warn; free space is checked
@@ -1653,8 +1663,9 @@ Restore points of Android's apps and data, beside the data wherever it is
   Android starts again when it ran; the apps list follows at that start
   (`syncApps`).
 - **What erases them.** Reset Android and Android's own factory reset take
-  the checkpoints with the data; moving the data elsewhere removes them with
-  the old copy (a kept old copy keeps its checkpoints). `avoctl checkpoints`
+  the checkpoints with the data. Moving the data takes them along where they
+  can be restored ("Checkpoints on a move" above); those that can't stay with
+  a kept old copy, or go with one the user lets go. `avoctl checkpoints`
   lists, creates, restores and deletes them.
 - **Quick boot** (a snapshot of the running VM's memory and devices) is not
   part of checkpoints; see engine.md, "Quick boot".

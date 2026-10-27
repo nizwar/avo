@@ -634,6 +634,16 @@
         }
       }
     },
+    "Android’s checkpoints can’t come along to “%@”. Keep the old copy to keep them." : {
+      "localizations" : {
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checkpoint Android tidak bisa ikut ke “%@”. Simpan salinan lama untuk menyimpannya."
+          }
+        }
+      }
+    },
     "Android’s data can’t be in a folder that syncs to the cloud (iCloud Drive, Dropbox, Google Drive …): it changes all the time while Android runs. Choose a folder on this Mac or a drive." : {
       "localizations" : {
         "id" : {

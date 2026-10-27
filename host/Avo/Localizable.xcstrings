@@ -2318,6 +2318,62 @@
         }
       }
     },
+    "Android’s %lld checkpoints can’t come along: checkpoints need an APFS drive, and “%@” is %@. They are deleted with the old copy unless you keep it." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Android’s %lld checkpoint can’t come along: checkpoints need an APFS drive, and “%@” is %@. It is deleted with the old copy unless you keep it."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Android’s %lld checkpoints can’t come along: checkpoints need an APFS drive, and “%@” is %@. They are deleted with the old copy unless you keep it."
+                }
+              }
+            }
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld checkpoint Android tidak bisa ikut: checkpoint memerlukan drive APFS, sedangkan “%2$@” berformat %3$@. Checkpoint itu dihapus bersama salinan lama, kecuali Anda menyimpannya."
+          }
+        }
+      }
+    },
+    "Android’s %lld checkpoints can’t come along: checkpoints need an APFS drive, and “%@” is %@. They stay with the old copy." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Android’s %lld checkpoint can’t come along: checkpoints need an APFS drive, and “%@” is %@. It stays with the old copy."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Android’s %lld checkpoints can’t come along: checkpoints need an APFS drive, and “%@” is %@. They stay with the old copy."
+                }
+              }
+            }
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld checkpoint Android tidak bisa ikut: checkpoint memerlukan drive APFS, sedangkan “%2$@” berformat %3$@. Checkpoint itu tetap ada di salinan lama."
+          }
+        }
+      }
+    },
     "Android’s Settings is adding a fingerprint: touch with the finger to add." : {
       "localizations" : {
         "id" : {
@@ -2848,6 +2904,62 @@
         }
       }
     },
+    "Avo copies Android’s data and its %lld checkpoints back to this Mac (%@), checks the copy, then uses it." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Avo copies Android’s data and its %lld checkpoint back to this Mac (%@), checks the copy, then uses it."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Avo copies Android’s data and its %lld checkpoints back to this Mac (%@), checks the copy, then uses it."
+                }
+              }
+            }
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avo menyalin data Android beserta %1$lld checkpoint-nya kembali ke Mac ini (%2$@), memeriksa salinannya, lalu memakainya."
+          }
+        }
+      }
+    },
+    "Avo copies Android’s data and its %lld checkpoints there (%@), checks every byte of the copy, then uses it." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Avo copies Android’s data and its %lld checkpoint there (%@), checks every byte of the copy, then uses it."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Avo copies Android’s data and its %lld checkpoints there (%@), checks every byte of the copy, then uses it."
+                }
+              }
+            }
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avo menyalin data Android beserta %1$lld checkpoint-nya ke sana (%2$@), memeriksa setiap byte salinannya, lalu memakainya."
+          }
+        }
+      }
+    },
     "Avo copies Android’s data back to this Mac (%@), checks the copy, then uses it." : {
       "localizations" : {
         "id" : {
@@ -3196,6 +3308,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "penyimpanan Avo sendiri"
+          }
+        }
+      }
+    },
+    "Avo’s own storage still holds a copy of Android’s data from before. It is erased first, with its %lld checkpoints." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Avo’s own storage still holds a copy of Android’s data from before. It is erased first, with its %lld checkpoint."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Avo’s own storage still holds a copy of Android’s data from before. It is erased first, with its %lld checkpoints."
+                }
+              }
+            }
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Penyimpanan Avo sendiri masih berisi salinan data Android dari sebelumnya. Salinan itu dihapus terlebih dahulu, beserta %lld checkpoint-nya."
           }
         }
       }
@@ -3707,12 +3847,12 @@
         }
       }
     },
-    "Checkpoints share their space with Android’s data and take more only as Android changes it. They need Android’s data on an APFS drive. Reset Android and moving Android’s data erase them." : {
+    "Checkpoints share their space with Android’s data and take more only as Android changes it. They need Android’s data on an APFS drive. Reset Android erases them. Moving Android’s data takes them along to an APFS drive with room for them, and says so when it can’t." : {
       "localizations" : {
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Checkpoint berbagi ruang dengan data Android dan hanya memakai lebih banyak ruang saat Android mengubahnya. Checkpoint memerlukan data Android di drive APFS. Reset Android dan memindahkan data Android akan menghapusnya."
+            "value" : "Checkpoint berbagi ruang dengan data Android dan hanya memakai lebih banyak ruang saat Android mengubahnya. Checkpoint memerlukan data Android di drive APFS. Reset Android menghapusnya. Memindahkan data Android membawanya serta ke drive APFS yang punya ruang untuknya, dan memberi tahu jika tidak bisa."
           }
         }
       }
@@ -6285,6 +6425,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Android masih berjalan setelah satu menit."
+          }
+        }
+      }
+    },
+    "Its %lld checkpoints are removed with it." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Its %lld checkpoint is removed with it."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Its %lld checkpoints are removed with it."
+                }
+              }
+            }
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld checkpoint-nya ikut dihapus."
           }
         }
       }
@@ -11763,6 +11931,62 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Android yang lebih lama"
+          }
+        }
+      }
+    },
+    "“%@” has no room for Android’s %lld checkpoints (%@) beside its data. They are deleted with the old copy unless you keep it." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "“%@” has no room for Android’s %lld checkpoint (%@) beside its data. It is deleted with the old copy unless you keep it."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "“%@” has no room for Android’s %lld checkpoints (%@) beside its data. They are deleted with the old copy unless you keep it."
+                }
+              }
+            }
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” tidak punya ruang untuk %2$lld checkpoint Android (%3$@) di samping datanya. Checkpoint itu dihapus bersama salinan lama, kecuali Anda menyimpannya."
+          }
+        }
+      }
+    },
+    "“%@” has no room for Android’s %lld checkpoints (%@) beside its data. They stay with the old copy." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "“%@” has no room for Android’s %lld checkpoint (%@) beside its data. It stays with the old copy."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "“%@” has no room for Android’s %lld checkpoints (%@) beside its data. They stay with the old copy."
+                }
+              }
+            }
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” tidak punya ruang untuk %2$lld checkpoint Android (%3$@) di samping datanya. Checkpoint itu tetap ada di salinan lama."
           }
         }
       }
