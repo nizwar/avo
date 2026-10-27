@@ -147,9 +147,14 @@ fn prepare_instance(options: &Options) -> Result<(), String> {
     Ok(())
 }
 
-/// APFS copy-on-write clone (falls back to a copy).
+/// APFS copy-on-write clone (falls back to a copy). `clonefile` is atomic:
+/// it leaves either a whole clone or nothing. The fallback copy is not, so it
+/// goes through a `.partial` file that is synced and renamed in only once it
+/// is whole — a crash or a pulled drive then leaves no half-written image for
+/// the next start to accept.
 fn clone_file(source: &Path, target: &Path) -> Result<(), String> {
     use std::ffi::CString;
+    use std::io::Write;
     unsafe extern "C" {
         fn clonefile(src: *const i8, dst: *const i8, flags: u32) -> i32;
     }
@@ -158,7 +163,19 @@ fn clone_file(source: &Path, target: &Path) -> Result<(), String> {
     if unsafe { clonefile(s.as_ptr(), t.as_ptr(), 0) } == 0 {
         return Ok(());
     }
-    std::fs::copy(source, target).map(|_| ()).map_err(|e| format!("{}: {e}", source.display()))
+    // clonefile cannot (data on another volume, or a non-APFS target): copy.
+    let partial = target.with_extension("partial");
+    let fail = |e: std::io::Error, what: &Path| {
+        let _ = std::fs::remove_file(&partial);
+        format!("{}: {e}", what.display())
+    };
+    let mut reader = std::fs::File::open(source).map_err(|e| format!("{}: {e}", source.display()))?;
+    let mut writer = std::fs::File::create(&partial).map_err(|e| format!("{}: {e}", partial.display()))?;
+    std::io::copy(&mut reader, &mut writer).map_err(|e| fail(e, source))?;
+    writer.flush().map_err(|e| fail(e, &partial))?;
+    writer.sync_all().map_err(|e| fail(e, &partial))?;
+    drop(writer);
+    std::fs::rename(&partial, target).map_err(|e| fail(e, target))
 }
 
 /// Cuttlefish's os_composite disk: A/B boot partitions, vbmeta, super and data.
