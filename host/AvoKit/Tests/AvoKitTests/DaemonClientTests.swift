@@ -39,4 +39,19 @@ import Testing
         await #expect(throws: CancellationError.self) { try await call.value }
         #expect(!made.withLock { $0 })
     }
+
+    /// A quick question the daemon never answers (it waits on an Android
+    /// that stopped answering) ends at its time limit; an answer in time is
+    /// the answer, and nothing comes after it.
+    @Test func aQuickQuestionEndsAtItsTimeLimit() async throws {
+        let started = ContinuousClock.now
+        await #expect(throws: AvoError.timedOut(DaemonClient.timedOutOperation)) {
+            let _: Int = try await DaemonClient.answer(timeout: .milliseconds(200)) { _ in }
+        }
+        #expect(ContinuousClock.now - started < .seconds(5))
+        #expect(AvoError.timedOut(DaemonClient.timedOutOperation).errorDescription == "Avo’s background service timed out.")
+
+        let answered: Int = try await DaemonClient.answer(timeout: .milliseconds(200)) { once in once.resume(with: .success(3)) }
+        #expect(answered == 3)
+    }
 }

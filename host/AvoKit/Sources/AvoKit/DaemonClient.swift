@@ -54,16 +54,26 @@ public final class DaemonClient: @unchecked Sendable {
 
     // MARK: Calls
 
-    public func hello() async throws -> DaemonHello {
+    /// How long a question that should answer at once may take, and one that
+    /// asks Android (its storage, volume, widgets, an app's permissions): the
+    /// daemon may wait on an Android that stopped answering, and a window,
+    /// the Control Panel or avoctl must not wait with it for good. Each such
+    /// call takes its own `timeout` (nil: no limit). Changes and long work
+    /// (installs, Google apps, starts and stops, storage, checkpoints, an
+    /// app's window) have none.
+    public static let quickTimeout: Duration = .seconds(10)
+    public static let androidTimeout: Duration = .seconds(20)
+
+    public func hello(timeout: Duration? = DaemonClient.androidTimeout) async throws -> DaemonHello {
         let request = AvoXPC.encode(ClientHello(role: role, version: version))
-        let data: Data = try await call { proxy, done in
+        let data: Data = try await call(timeout: timeout) { proxy, done in
             proxy.hello(request) { data, error in done(Self.result(data, error)) }
         }
         return try AvoXPC.decode(DaemonHello.self, from: data)
     }
 
-    public func status() async throws -> VMStatus {
-        let data: Data = try await call { proxy, done in proxy.status { done(.success($0)) } }
+    public func status(timeout: Duration? = DaemonClient.quickTimeout) async throws -> VMStatus {
+        let data: Data = try await call(timeout: timeout) { proxy, done in proxy.status { done(.success($0)) } }
         return try AvoXPC.decode(VMStatus.self, from: data)
     }
 
@@ -73,8 +83,8 @@ public final class DaemonClient: @unchecked Sendable {
     public func retryGPU() async throws { try await voidCall { $0.retryGPU(reply: $1) } }
 
     /// The engine's GPU shader cache: where and how big (Control Panel only).
-    public func gpuCacheStatus() async throws -> GPUCacheStatus {
-        let data: Data = try await call { proxy, done in
+    public func gpuCacheStatus(timeout: Duration? = DaemonClient.androidTimeout) async throws -> GPUCacheStatus {
+        let data: Data = try await call(timeout: timeout) { proxy, done in
             proxy.gpuCacheStatus { data, error in done(Self.result(data, error)) }
         }
         return try AvoXPC.decode(GPUCacheStatus.self, from: data)
@@ -92,8 +102,8 @@ public final class DaemonClient: @unchecked Sendable {
 
     // MARK: Checkpoints (Settings › Android › Checkpoints)
 
-    public func checkpoints() async throws -> CheckpointStatus {
-        let data: Data = try await call { proxy, done in
+    public func checkpoints(timeout: Duration? = DaemonClient.quickTimeout) async throws -> CheckpointStatus {
+        let data: Data = try await call(timeout: timeout) { proxy, done in
             proxy.checkpoints { data, error in done(Self.result(data, error)) }
         }
         return try AvoXPC.decode(CheckpointStatus.self, from: data)
@@ -118,8 +128,8 @@ public final class DaemonClient: @unchecked Sendable {
 
     // MARK: Where Android's data is (Settings › Storage › Location)
 
-    public func storageLocation() async throws -> StorageLocationStatus {
-        let data: Data = try await call { proxy, done in
+    public func storageLocation(timeout: Duration? = DaemonClient.quickTimeout) async throws -> StorageLocationStatus {
+        let data: Data = try await call(timeout: timeout) { proxy, done in
             proxy.storageLocation { data, error in done(Self.result(data, error)) }
         }
         return try AvoXPC.decode(StorageLocationStatus.self, from: data)
@@ -154,8 +164,8 @@ public final class DaemonClient: @unchecked Sendable {
         return try AvoXPC.decode(SharedFolderStatus.self, from: data)
     }
 
-    public func configuration() async throws -> ConfigurationSnapshot {
-        let data: Data = try await call { proxy, done in proxy.configuration { done(.success($0)) } }
+    public func configuration(timeout: Duration? = DaemonClient.androidTimeout) async throws -> ConfigurationSnapshot {
+        let data: Data = try await call(timeout: timeout) { proxy, done in proxy.configuration { done(.success($0)) } }
         return try AvoXPC.decode(ConfigurationSnapshot.self, from: data)
     }
 
@@ -188,13 +198,13 @@ public final class DaemonClient: @unchecked Sendable {
         return try AvoXPC.decode(ConfigUpdateResult.self, from: data)
     }
 
-    public func apps() async throws -> [AppRecord] {
-        let data: Data = try await call { proxy, done in proxy.apps { done(.success($0)) } }
+    public func apps(timeout: Duration? = DaemonClient.quickTimeout) async throws -> [AppRecord] {
+        let data: Data = try await call(timeout: timeout) { proxy, done in proxy.apps { done(.success($0)) } }
         return try AvoXPC.decode([AppRecord].self, from: data)
     }
 
-    public func icon(for package: String) async throws -> Data? {
-        try await call { proxy, done in proxy.icon(forPackage: package) { done(.success($0)) } }
+    public func icon(for package: String, timeout: Duration? = DaemonClient.quickTimeout) async throws -> Data? {
+        try await call(timeout: timeout) { proxy, done in proxy.icon(forPackage: package) { done(.success($0)) } }
     }
 
     /// Installs the package at `request.path`. This process opens the file and
@@ -218,8 +228,8 @@ public final class DaemonClient: @unchecked Sendable {
     }
 
     /// Whether macOS shows Avo's notifications, asked now.
-    public func notificationPermission() async throws -> MacNotificationPermission {
-        let data: Data = try await call { proxy, done in
+    public func notificationPermission(timeout: Duration? = DaemonClient.quickTimeout) async throws -> MacNotificationPermission {
+        let data: Data = try await call(timeout: timeout) { proxy, done in
             proxy.notificationPermission { data, error in done(Self.result(data, error)) }
         }
         return try AvoXPC.decode(MacNotificationPermission.self, from: data)
@@ -238,16 +248,16 @@ public final class DaemonClient: @unchecked Sendable {
     /// Unlocks Android with its screen lock's credential (`VMStatus.screenLock`;
     /// a pattern as its dots, "1235"). Returns once Android is unlocked; throws
     /// `AvoError.screenLockRejected` for a wrong credential.
-    public func unlockAndroid(credential: String) async throws {
-        try await voidCall { $0.unlockAndroid(credential: credential, reply: $1) }
+    public func unlockAndroid(credential: String, timeout: Duration? = .seconds(60)) async throws {
+        try await voidCall(timeout: timeout) { $0.unlockAndroid(credential: credential, reply: $1) }
     }
 
     // MARK: Fingerprints (Settings › Fingerprints, a window's fingerprint menu)
 
     /// Avo's fingers and what Android does with them; `refresh` asks Android
     /// now instead of using what the daemon learned in the last few seconds.
-    public func fingerprints(refresh: Bool = false) async throws -> FingerprintStatus {
-        let data: Data = try await call { proxy, done in
+    public func fingerprints(refresh: Bool = false, timeout: Duration? = DaemonClient.androidTimeout) async throws -> FingerprintStatus {
+        let data: Data = try await call(timeout: timeout) { proxy, done in
             proxy.fingerprints(refresh: refresh) { data, error in done(Self.result(data, error)) }
         }
         return try AvoXPC.decode(FingerprintStatus.self, from: data)
@@ -292,16 +302,16 @@ public final class DaemonClient: @unchecked Sendable {
     }
 
     /// Android's media volume, every app's (Quick Settings, Settings › Devices).
-    public func androidVolume() async throws -> AndroidVolume {
-        let data: Data = try await call { proxy, done in
+    public func androidVolume(timeout: Duration? = DaemonClient.androidTimeout) async throws -> AndroidVolume {
+        let data: Data = try await call(timeout: timeout) { proxy, done in
             proxy.androidVolume { data, error in done(Self.result(data, error)) }
         }
         return try AvoXPC.decode(AndroidVolume.self, from: data)
     }
 
     /// Sets Android's media volume, within its steps; returns it as Android has it now.
-    public func setAndroidVolume(_ level: Int) async throws -> AndroidVolume {
-        let data: Data = try await call { proxy, done in
+    public func setAndroidVolume(_ level: Int, timeout: Duration? = DaemonClient.androidTimeout) async throws -> AndroidVolume {
+        let data: Data = try await call(timeout: timeout) { proxy, done in
             proxy.setAndroidVolume(level: level) { data, error in done(Self.result(data, error)) }
         }
         return try AvoXPC.decode(AndroidVolume.self, from: data)
@@ -309,15 +319,15 @@ public final class DaemonClient: @unchecked Sendable {
 
     // MARK: Widgets
 
-    public func widgetProviders() async throws -> [WidgetProvider] {
-        let data: Data = try await call { proxy, done in
+    public func widgetProviders(timeout: Duration? = DaemonClient.androidTimeout) async throws -> [WidgetProvider] {
+        let data: Data = try await call(timeout: timeout) { proxy, done in
             proxy.widgetProviders { data, error in done(Self.result(data, error)) }
         }
         return try AvoXPC.decode([WidgetProvider].self, from: data)
     }
 
-    public func placedWidgets() async throws -> [PlacedWidget] {
-        let data: Data = try await call { proxy, done in
+    public func placedWidgets(timeout: Duration? = DaemonClient.quickTimeout) async throws -> [PlacedWidget] {
+        let data: Data = try await call(timeout: timeout) { proxy, done in
             proxy.placedWidgets { data, error in done(Self.result(data, error)) }
         }
         return try AvoXPC.decode([PlacedWidget].self, from: data)
@@ -338,8 +348,8 @@ public final class DaemonClient: @unchecked Sendable {
         try await voidCall { $0.lockAndroidForFingerprints(reply: $1) }
     }
 
-    public func permissions(for package: String) async throws -> [AppPermission] {
-        let data: Data = try await call { proxy, done in
+    public func permissions(for package: String, timeout: Duration? = DaemonClient.androidTimeout) async throws -> [AppPermission] {
+        let data: Data = try await call(timeout: timeout) { proxy, done in
             proxy.permissions(package: package) { data, error in done(Self.result(data, error)) }
         }
         return try AvoXPC.decode([AppPermission].self, from: data)
@@ -354,8 +364,8 @@ public final class DaemonClient: @unchecked Sendable {
     }
 
     /// How much each app was used (the Library's statistics).
-    public func appUsage() async throws -> [AppUsage] {
-        let data: Data = try await call { proxy, done in
+    public func appUsage(timeout: Duration? = DaemonClient.quickTimeout) async throws -> [AppUsage] {
+        let data: Data = try await call(timeout: timeout) { proxy, done in
             proxy.appUsage { data, error in done(Self.result(data, error)) }
         }
         return try AvoXPC.decode([AppUsage].self, from: data)
@@ -365,8 +375,8 @@ public final class DaemonClient: @unchecked Sendable {
 
     /// What Android and its apps use now; `watch`: also send
     /// `.systemActivity` every 2 seconds until called with false.
-    public func systemActivity(watch: Bool) async throws -> SystemActivity {
-        let data: Data = try await call { proxy, done in
+    public func systemActivity(watch: Bool, timeout: Duration? = DaemonClient.androidTimeout) async throws -> SystemActivity {
+        let data: Data = try await call(timeout: timeout) { proxy, done in
             proxy.systemActivity(watch: watch) { data, error in done(Self.result(data, error)) }
         }
         return try AvoXPC.decode(SystemActivity.self, from: data)
@@ -374,8 +384,8 @@ public final class DaemonClient: @unchecked Sendable {
 
     // MARK: Google apps
 
-    public func googleAppsStatus() async throws -> GoogleAppsStatus {
-        let data: Data = try await call { proxy, done in
+    public func googleAppsStatus(timeout: Duration? = DaemonClient.androidTimeout) async throws -> GoogleAppsStatus {
+        let data: Data = try await call(timeout: timeout) { proxy, done in
             proxy.googleAppsStatus { data, error in done(Self.result(data, error)) }
         }
         return try AvoXPC.decode(GoogleAppsStatus.self, from: data)
@@ -406,8 +416,8 @@ public final class DaemonClient: @unchecked Sendable {
 
     /// What Android's GPS reports, with the route's points; `watch`: also
     /// send `.location` events at every change until called with false.
-    public func location(watch: Bool) async throws -> LocationStatus {
-        let data: Data = try await call { proxy, done in
+    public func location(watch: Bool, timeout: Duration? = DaemonClient.quickTimeout) async throws -> LocationStatus {
+        let data: Data = try await call(timeout: timeout) { proxy, done in
             proxy.location(watch: watch) { data, error in done(Self.result(data, error)) }
         }
         return try AvoXPC.decode(LocationStatus.self, from: data)
@@ -516,8 +526,10 @@ public final class DaemonClient: @unchecked Sendable {
         return .success(data)
     }
 
-    private func call<T: Sendable>(_ body: (AvoDaemonXPC, @escaping @Sendable (Result<T, AvoError>) -> Void) -> Void) async throws -> T {
-        try await Self.answer { once in
+    /// `timeout`: how long the daemon has to answer (nil: as long as it takes).
+    private func call<T: Sendable>(timeout: Duration? = nil,
+                                   _ body: (AvoDaemonXPC, @escaping @Sendable (Result<T, AvoError>) -> Void) -> Void) async throws -> T {
+        try await Self.answer(timeout: timeout) { once in
             let proxy = connection.remoteObjectProxyWithErrorHandler { error in
                 once.resume(with: .failure(AvoError.daemonUnreachable(error.localizedDescription)))
             }
@@ -533,8 +545,17 @@ public final class DaemonClient: @unchecked Sendable {
     /// caller whose task is cancelled (a time limit ran out, its view went
     /// away) stops waiting at once with CancellationError, and one cancelled
     /// already makes no call: the daemon may answer late, or never when it hangs.
-    static func answer<T: Sendable>(_ start: (ResumeOnce<T>) -> Void) async throws -> T {
+    /// With a `timeout`, the caller stops waiting once it ran out (the Mac
+    /// asleep does not count), with `AvoError.timedOut`.
+    static func answer<T: Sendable>(timeout: Duration? = nil, _ start: (ResumeOnce<T>) -> Void) async throws -> T {
         let once = ResumeOnce<T>()
+        let deadline = timeout.map { limit in
+            Task {
+                try? await Task.sleep(for: limit, clock: .suspending)
+                if !Task.isCancelled { once.resume(with: .failure(AvoError.timedOut(Self.timedOutOperation))) }
+            }
+        }
+        defer { deadline?.cancel() }
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 if once.wait(in: continuation) { start(once) }
@@ -544,8 +565,11 @@ public final class DaemonClient: @unchecked Sendable {
         }
     }
 
-    private func voidCall(_ body: (AvoDaemonXPC, @escaping @Sendable (NSError?) -> Void) -> Void) async throws {
-        let _: Bool = try await call { proxy, done in
+    /// What a call that ran out of time names: "Avo’s background service timed out."
+    static var timedOutOperation: String { String(localized: "Avo’s background service", bundle: .avoKit) }
+
+    private func voidCall(timeout: Duration? = nil, _ body: (AvoDaemonXPC, @escaping @Sendable (NSError?) -> Void) -> Void) async throws {
+        let _: Bool = try await call(timeout: timeout) { proxy, done in
             body(proxy) { error in done(error.map { .failure(AvoXPC.avoError($0)) } ?? .success(true)) }
         }
     }
