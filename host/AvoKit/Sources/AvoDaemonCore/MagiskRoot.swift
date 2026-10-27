@@ -95,6 +95,13 @@ enum MagiskRoot {
     /// Where the patch runs in Android.
     static let staging = "/data/local/tmp/avo-magisk"
 
+    /// Lets Android's shell user (uid 2000: adbd, through which Avo runs its
+    /// root steps with su) in for good: a row in Magisk's policies, `policy`
+    /// 2 allowing, `until` 0 forever, with no log or toast. Magisk's daemon
+    /// reads it at its next start. Its tools are in /debug_ramdisk on a
+    /// system-as-root Android (Magisk 30).
+    static let allowShellCommand = #"M=/debug_ramdisk/magisk; [ -x "$M" ] || M=magisk; "$M" --sqlite "REPLACE INTO policies (uid,policy,until,logging,notification) VALUES(2000,2,0,0,0)""#
+
     /// Run as root in `staging`, with magisk.apk and init_boot.img there:
     /// Magisk's own patch script, as its app runs it (BOOTMODE: Android is
     /// up), leaves new-boot.img readable for the shell user.

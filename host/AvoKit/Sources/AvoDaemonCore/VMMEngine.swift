@@ -387,6 +387,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         await agent.shareFolder(Self.sharedFolderFlags(launch.config).last.map { URL(filePath: $0, directoryHint: .isDirectory) })
         await agent.useDisplayRate(launch.displayRate)
         await agent.useBluetooth(bluetooth != nil)
+        await agent.useMagisk(initBoot != nil)
         // Whether Android has Avo's Vulkan driver wrapper, for the next start's failures.
         await agent.noteVulkanWrapper { [paths = launch.paths] in GuestVulkanWrapper.noteInstalled($0, paths: paths) }
         await agent.useGLESWrapper(allowed: GuestGLESWrapper.allowed(paths: launch.paths)) { [paths = launch.paths] in

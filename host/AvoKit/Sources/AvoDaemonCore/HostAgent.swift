@@ -93,6 +93,8 @@ actor HostAgent: DisplayResizing {
     private var releasing: Set<Int> = []
     private var displayRate = FrameRates.standardRate
     private var hasBluetooth = false
+    /// Android starts with Magisk this boot: its su may ask before letting the shell in (`letShellUseMagisk`).
+    private var hasMagisk = false
     /// Settings › Devices: Android's Wi-Fi, the Mac's Bluetooth devices for
     /// it, and whether the modem has a SIM.
     private var wifiWanted = true
@@ -208,6 +210,8 @@ actor HostAgent: DisplayResizing {
         _ = adb
         sdk = UInt32(try await shell("getprop ro.build.version.sdk").trimmed) ?? 0
         build = try await shell("getprop ro.build.fingerprint").trimmed
+        // Before every other root step: they all go through su.
+        if hasMagisk { await letShellUseMagisk() }
         try await provision()
         // Before the Mac hears of Android: a screen lock keeps the windows locked.
         await checkScreenLock(initial: true)
@@ -300,6 +304,11 @@ actor HostAgent: DisplayResizing {
     /// Bluetooth may be on.
     func useBluetooth(_ on: Bool) {
         hasBluetooth = on
+    }
+
+    /// Android starts with Magisk this boot (avo-vmm's `--init-boot`, MagiskRoot).
+    func useMagisk(_ on: Bool) {
+        hasMagisk = on
     }
 
     /// netsimd's HCI port (avo-vmm's `bluetooth hci` event): the Mac's
@@ -396,6 +405,49 @@ actor HostAgent: DisplayResizing {
         guard let adb else { throw AvoError.guestUnavailable }
         let result = try await adb.shell(command, timeout: timeout)
         return result.output
+    }
+
+    /// Avo's root steps run as Android's shell user through su. Once Magisk
+    /// is fully set up (its app's additional setup filled /data/adb/magisk),
+    /// Magisk's own su takes the place of AOSP's, in /system/xbin as well,
+    /// and asks before it lets the shell in: on Android's own screen, which
+    /// no Mac window shows, so every root step waited for nothing. Magisk's
+    /// policy for the shell (`MagiskRoot.allowShellCommand`) lets it in from
+    /// Magisk's next start on. It is written at every Magisk start: through
+    /// su while su still answers (AOSP's, before the setup), else with adbd
+    /// turned root, which su lets in at once, for the rest of this boot.
+    func letShellUseMagisk() async {
+        if (try? await shell("timeout 5 su 0 sh -c 'id -u'", timeout: .seconds(15)))?.trimmed == "0" {
+            if (try? await root(MagiskRoot.allowShellCommand, timeout: .seconds(15)))?.succeeded != true {
+                logger.error("root: Magisk's policy for Android's shell was not written")
+            }
+            return
+        }
+        logger.notice("root: Magisk's su asks before it lets Android's shell in; adbd runs as root this boot")
+        do {
+            try await restartADBDAsRoot()
+            guard try await shell("id -u").trimmed == "0" else { throw AvoError.guestUnavailable }
+            guard let result = try await adb?.shell(MagiskRoot.allowShellCommand, timeout: .seconds(15)), result.succeeded else {
+                logger.error("root: Magisk's policy for Android's shell was not written")
+                return
+            }
+        } catch {
+            logger.error("root: adbd did not start again as root: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// adbd starts again as root (`root:`), which drops every connection to
+    /// it: Avo's own goes again.
+    private func restartADBDAsRoot() async throws {
+        guard let adb else { throw AvoError.guestUnavailable }
+        let stream = try await adb.open("root:")
+        let said = String(decoding: (try? await stream.readAll(limit: 4096)) ?? Data(), as: UTF8.self)
+        logger.notice("root: adbd says \(said.trimmed, privacy: .public)")
+        await adb.close()
+        self.adb = nil
+        // adbd takes a moment to come back.
+        try await Task.sleep(for: .seconds(1))
+        _ = try await connectADB(deadline: SuspendingClock.now + .seconds(30))
     }
 
     /// Runs `command` as root through su (userdebug images).
