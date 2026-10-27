@@ -18,7 +18,8 @@
 //! Android Emulator); --hwc
 //! host lets the composer use gfxstream's host composition (bring-up A/B).
 //! Without --gpu (or with 2d) Android renders in software. Exit code 75:
-//! the GPU renderer could not start, before any guest code ran.
+//! the GPU renderer could not start, before any guest code ran, or a panic
+//! on its threads. Any other panic exits 101 (cuttlefish::exit_on_panic).
 //!
 //! --refresh-rate is display 0's refresh rate (60 unless given; its EDID,
 //! virtio/gpu/edid.rs). The daemon plugs every app display in at the same
@@ -272,6 +273,9 @@ fn raise_file_limit() {
 }
 
 fn main() -> ExitCode {
+    // A panic on any thread ends the process with a status of its own
+    // (101; 75 on the renderer's threads), not SIGABRT.
+    cuttlefish::exit_on_panic();
     raise_file_limit();
     // The daemon that starts the engine runs at utility QoS, where macOS
     // coalesces timers by tens of milliseconds and schedules behind apps;

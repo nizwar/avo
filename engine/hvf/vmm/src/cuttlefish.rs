@@ -572,7 +572,9 @@ fn serve_console(path: &Path, input: ConsoleInput, clients: Arc<Mutex<Vec<UnixSt
 }
 
 /// Exit code when GPU mode cannot start (no guest code has run yet): the
-/// daemon starts Android again in software.
+/// daemon starts Android again in software. A panic on the renderer's
+/// threads ends the process with it too (`exit_on_panic`): the daemon then
+/// takes it for the GPU's failure, as it does a crash while Android runs.
 pub const EXIT_GPU_UNAVAILABLE: i32 = 75;
 
 /// Exit code when Android asked for a factory reset (Settings › System ›
@@ -593,6 +595,44 @@ pub const EXIT_GUEST_REBOOT: i32 = 77;
 /// and this one is not the GPU's (75) or a signal, so it never turns the GPU
 /// off; it simply ends the process so the daemon can start Android again.
 pub const EXIT_VCPU_FAULT: i32 = 70;
+
+/// Exit code for a panic (a bug of avo-vmm's own) on any thread but the
+/// renderer's, the status Rust gives a panicking main thread: the daemon
+/// reports it as the engine's failure, never the GPU's (GPURenderer.swift).
+pub const EXIT_PANIC: i32 = 101;
+
+/// Makes a panic on any thread end the process (one thread gone alone, a
+/// device's, a vCPU's or the renderer's, would leave the machine stuck) with
+/// a status that says whose it was: EXIT_GPU_UNAVAILABLE on the renderer's
+/// threads, EXIT_PANIC on the others. The release build's `panic = "abort"`
+/// alone ends the process by SIGABRT, which the daemon takes for gfxstream
+/// crashing: it would start Android in software and, after two, turn the
+/// GPU off for any bug at all. The panic's message goes to the log first
+/// (the default hook), then what `exit` lets go of goes too, without waiting
+/// for a lock the panic may hold. main() calls it; the tests do not (they
+/// unwind), but for the child process that tests it.
+pub fn exit_on_panic() {
+    let report = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        report(info);
+        let status = panic_status(std::thread::current().name());
+        let bluetooth = match BLUETOOTH.try_lock() {
+            Ok(bluetooth) => bluetooth.clone(),
+            Err(std::sync::TryLockError::Poisoned(poisoned)) => poisoned.into_inner().clone(),
+            Err(std::sync::TryLockError::WouldBlock) => None,
+        };
+        if let Some(bluetooth) = bluetooth {
+            bluetooth.kill();
+        }
+        crate::shm::unlink_all();
+        unsafe { libc::_exit(status) }
+    }));
+}
+
+/// The exit status of a panic on the thread named `thread`.
+fn panic_status(thread: Option<&str>) -> i32 {
+    if thread.is_some_and(render::is_renderer_thread) { EXIT_GPU_UNAVAILABLE } else { EXIT_PANIC }
+}
 
 /// misc's bootloader_message (bootable/recovery/bootloader_message.h):
 /// command[32], status[32], recovery[768], stage[32], reserved[1184].
@@ -1011,7 +1051,8 @@ mod exit_tests {
         (status, left)
     }
 
-    /// What the tests below run as their child (nothing in a normal run).
+    /// What the tests below run as their child (nothing in a normal run):
+    /// `exit`, or a panic on a thread of the name after `panic:`.
     #[test]
     fn a_child_that_ends() {
         let Ok(ending) = std::env::var(ENDING) else { return };
@@ -1020,6 +1061,11 @@ mod exit_tests {
         if ending == "exit" {
             exit(0);
         }
+        if let Some(thread) = ending.strip_prefix("panic:") {
+            exit_on_panic();
+            let panicking = std::thread::Builder::new().name(thread.into()).spawn(|| panic!("a bug")).unwrap();
+            let _ = panicking.join();
+        }
     }
 
     #[test]
@@ -1027,6 +1073,24 @@ mod exit_tests {
         let (status, left) = child("exit", &format!("/avo.{}.exit", std::process::id()));
         assert_eq!(status.code(), Some(0));
         assert!(!left, "the name outlived the process");
+    }
+
+    #[test]
+    fn a_panic_ends_the_process_with_its_own_status() {
+        use std::os::unix::process::ExitStatusExt;
+        let (status, left) = child("panic:avo-net", &format!("/avo.{}.panic", std::process::id()));
+        assert_eq!((status.code(), status.signal()), (Some(EXIT_PANIC), None), "not a crash, which the daemon takes for the GPU's");
+        assert!(!left, "the name outlived the process");
+    }
+
+    #[test]
+    fn a_panic_on_the_renderers_threads_is_the_gpus() {
+        for thread in ["gpu-render", "gpu-frames"] {
+            let (status, _) = child(&format!("panic:{thread}"), &format!("/avo.{}.{thread}", std::process::id()));
+            assert_eq!(status.code(), Some(EXIT_GPU_UNAVAILABLE), "{thread}");
+        }
+        assert_eq!(panic_status(Some("vcpu0")), EXIT_PANIC);
+        assert_eq!(panic_status(None), EXIT_PANIC, "a thread of gfxstream's or the main thread");
     }
 }
 
