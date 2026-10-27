@@ -191,12 +191,15 @@ adb shell pm list features | grep avo     # feature:com.avodroid.feature.MAC=1
 ### Graphics
 
 - **GPU** (`ro.boot.avo.renderer` = `gpu`; Settings › Graphics › Renderer is
-  Automatic by default and uses the GPU when the Android Emulator 37 or
-  later is installed on the Mac): Android's OpenGL ES and Vulkan go through
-  gfxstream to MoltenVK and Metal on the Mac's GPU. Apps get OpenGL ES 3.1
-  (ANGLE on Vulkan) and Vulkan at feature level 1.3
-  (`android.hardware.vulkan.version`; the driver reports API 1.4). No ES 3.2
-  and no geometry shaders (MoltenVK). GLES `flat` varyings take their value
+  Automatic by default and uses the Mac's GPU through the renderer built
+  into Avo): Android's OpenGL ES and Vulkan go through gfxstream to
+  MoltenVK and Metal on the Mac's GPU. Apps get OpenGL ES 3.2 (ANGLE on
+  Vulkan; Settings › Graphics › OpenGL ES offers 3.1, 3.0 or 2.0, to try a
+  weaker phone's GPU) and Vulkan at feature level 1.3
+  (`android.hardware.vulkan.version`; the driver reports API 1.4). No
+  geometry shaders (Apple's GPUs have no stage for them), and a texture
+  border color other than black, white or transparent is drawn as the
+  nearest of those. GLES `flat` varyings take their value
   from the *first* vertex of each primitive, not the last as OpenGL ES says
   (MoltenVK has no last-vertex mode); give every vertex of a primitive the
   same flat value. For example:
@@ -207,9 +210,11 @@ adb shell pm list features | grep avo     # feature:com.avodroid.feature.MAC=1
   and Vulkan 1.3 (`GL_RENDERER` contains `SwiftShader`). It is much slower;
   pick your lowest graphics tier. A GPU start that fails restarts Android in
   software, and the property then says `software`.
-- **Display**: 60 Hz. Every app runs on its own Android display sized to its
-  Mac window, or at a fixed 540p to 1080p resolution the user picks for
-  games and upscales on the Mac.
+- **Display**: Android draws at most Settings › Graphics › Max FPS frames a
+  second (60 by default; also 30, 90 and 120, and the Mac screen's own rate
+  between 60 and 120). Every app runs on its own Android display sized to
+  its Mac window, or at a fixed resolution from 540p to 2160p that the Mac
+  upscales (the Games preset uses 720p 16:9).
 
 ### Input
 
@@ -289,8 +294,7 @@ A player on Avo is almost always using a keyboard and a mouse or trackpad.
 1. Get a Mac with Apple Silicon and macOS 15 or later, and Avo from its
    [GitHub Releases](https://github.com/nizwar/avo/releases) page, or build
    it from source (see the [README](../README.md)).
-2. For the GPU renderer, install the Android Emulator 37 or later with
-   Android Studio's SDK Manager. Avo uses its gfxstream libraries.
+2. Nothing else to install: the GPU renderer is built into Avo.
 3. Install your game: drop an `.apk`, `.xapk`, `.apkm` or `.apks` (with OBB
    files) on Avo, or use adb.
 4. Turn on Settings › System › Developer › ADB support. `adb devices` then
