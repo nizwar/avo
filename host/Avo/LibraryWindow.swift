@@ -422,13 +422,14 @@ struct LibraryBanners: View {
         .padding(.top, hasBanner ? 20 : 0)
         // Banners come and go smoothly, the content below making room.
         .animation(Haze.Motion.animation(Haze.Motion.content, reduceMotion: reduceMotion), value: bannerState)
+        .animation(Haze.Motion.animation(Haze.Motion.content, reduceMotion: reduceMotion), value: hasStorageBanner)
     }
 
     private var bannerState: [Bool] {
         [model.daemonState == .connected, model.daemonState == .connecting, model.daemonState == .needsApproval,
          model.runsFromTemporaryCopy, model.screenLock != nil, model.status.isNotResponding, model.pendingRestart,
          images.needsImage && !assistant.isPresented,
-         model.status.renderer?.reason == .failed && model.config?.rendererMode != .software, hasStorageBanner]
+         model.status.renderer?.reason == .failed && model.config?.rendererMode != .software]
     }
 
     private var hasBanner: Bool {
