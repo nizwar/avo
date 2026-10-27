@@ -64,6 +64,10 @@ final class ControlPanelModel {
     private var daemonMachService = AvoIdentifiers.daemonMachService
     /// Android stopped for the update starts again on the new daemon.
     private var startAndroidAfterDaemonUpdate = false
+    /// A start promised while the background service did not answer (the
+    /// Setup Assistant's, once its image is in use): it goes at the next
+    /// hello that passes (`startVMOnceConnected`).
+    @ObservationIgnored private var startOnceConnected = false
     /// The unlock sheet (ScreenLockViews.swift): it opens by itself when
     /// Android reports it started locked; Cancel leaves the banner's Unlock….
     var unlockSheetShown = false
@@ -288,8 +292,9 @@ final class ControlPanelModel {
                 let hello = try await client.hello()
                 self?.daemonState = .connected
                 self?.daemonVersion = hello.daemonVersion
-                self?.checkDaemonBuild(hello)
+                let restarts = self?.checkDaemonBuild(hello) ?? false
                 self?.status = hello.status
+                self?.keepStartPromise(hello, daemonRestarts: restarts)
                 self?.systemStatus.connected(client)
                 // Settings › Devices › Location › Choose… (AvoWindowHost/LocationPanel.swift).
                 ControlPanelLocationWindow.connect(client) { [weak self] on in self?.watchLocation(on) }
@@ -341,9 +346,10 @@ final class ControlPanelModel {
     /// A daemon left from the build before an update (or with a plist the
     /// update changed) restarts on this build at once while Android holds
     /// nothing; while Android runs it stays, and restarts once Android stops.
-    private func checkDaemonBuild(_ hello: DaemonHello) {
+    /// True when it restarts now.
+    private func checkDaemonBuild(_ hello: DaemonHello) -> Bool {
         // Development: a daemon run by hand keeps its own way.
-        guard !ProcessInfo.processInfo.arguments.contains("-AvoSkipDaemonRegistration") else { return }
+        guard !ProcessInfo.processInfo.arguments.contains("-AvoSkipDaemonRegistration") else { return false }
         let decision = AppUpdate.daemonDecision(running: hello.daemonVersion, expected: Self.expectedDaemonVersion,
                                                 androidRunning: hello.status.state.holdsAndroid)
         // This build's daemon, and launchd holds this build's plist: nothing to do.
@@ -353,14 +359,39 @@ final class ControlPanelModel {
                 startAndroidAfterDaemonUpdate = false
                 Task { try? await client?.startVM() }
             }
-            return
+            return false
         }
         daemonUpdatePending = true
         if hello.status.state.holdsAndroid {
             logger.notice("the daemon is \(hello.daemonVersion, privacy: .public): it restarts on this build once Android stops")
-        } else {
-            finishDaemonUpdate()
+            return false
         }
+        finishDaemonUpdate()
+        return true
+    }
+
+    /// Starts Android now, or as soon as the background service answers
+    /// when it does not yet (the Setup Assistant said it would start).
+    func startVMOnceConnected() {
+        guard daemonState == .connected else {
+            startOnceConnected = true
+            return
+        }
+        startVM()
+    }
+
+    /// The start promised while the service was away: Android starts,
+    /// unless it runs (or starts) already, or this daemon restarts on this
+    /// build now (`daemonRestarts`: the next one hears the promise).
+    private func keepStartPromise(_ hello: DaemonHello, daemonRestarts: Bool) {
+        guard startOnceConnected else { return }
+        if hello.status.state.holdsAndroid {
+            startOnceConnected = false
+            return
+        }
+        guard !daemonRestarts else { return }
+        startOnceConnected = false
+        startVM()
     }
 
     /// Restarts the daemon on this build (Android holds nothing now); the connection comes back by itself.
