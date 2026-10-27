@@ -176,6 +176,11 @@ actor HostAgent: DisplayResizing {
     /// While System Status watches: where the look's samples of Android's
     /// processes go (SystemMonitor.swift, GuestActivity.swift).
     private var processSink: (@Sendable (GuestActivity.Sample) -> Void)?
+    /// Whether Android itself still answers ("Answers"): the questions so
+    /// far, the task asking them, and where a change goes.
+    private var answers = GuestAnswers()
+    private var answerWatch: Task<Void, Never>?
+    private var responsivenessSink: (@Sendable (Date?) -> Void)?
 
     init(engine: EngineControl, frames: FrameBridge, adbKey: ADBKey,
          connectGuest: @escaping @Sendable (UInt32) async throws -> any ByteStream) {
@@ -253,6 +258,13 @@ actor HostAgent: DisplayResizing {
         }
         linkWatch = Task { [weak self] in await self?.runLinks() }
         widgetsInstall = Task { [weak self] in await self?.installWidgets() ?? false }
+        answerWatch = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: GuestAnswers.interval)
+                guard let self else { return }
+                await askAndroid()
+            }
+        }
         polling = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(3))
@@ -326,6 +338,7 @@ actor HostAgent: DisplayResizing {
         await mediaStream?.close()
         linkWatch?.cancel()
         widgetsInstall?.cancel()
+        answerWatch?.cancel()
         bluetoothWatch?.cancel()
         await bluetoothBridge?.stop()
         await sharedFolder?.stop()
@@ -3629,6 +3642,80 @@ extension HostAgent: WidgetsGuest {
     func deleteWidget(slot: String) async {
         guard await widgetsInstall?.value == true else { return }
         _ = try? await shell(GuestWidgets.deleteCommand(slot: slot))
+    }
+}
+
+// MARK: - Answers (whether Android itself still answers: VMStatus.notRespondingSince)
+
+extension HostAgent {
+    /// Where it goes (VMMEngine.responsiveness): nil while Android answers,
+    /// else since when it has not. Set before `prepare`.
+    func forwardResponsiveness(to sink: @escaping @Sendable (Date?) -> Void) {
+        responsivenessSink = sink
+    }
+
+    /// The Control channel's keepalive is answered here, on the Mac, so it
+    /// never notices Android itself hanging: this asks Android, through its
+    /// adbd, what any shell answers at once. A paused Android answers
+    /// nothing; it is not asked, and its count starts over.
+    private func askAndroid() async {
+        guard isReady else { return }
+        guard !paused else {
+            answers.reset()
+            return
+        }
+        let asked = Date()
+        let answered = (try? await shell("echo avo", timeout: GuestAnswers.timeout))?.trimmed == "avo"
+        // Paused or stopped meanwhile: the question tells nothing.
+        guard isReady, !paused else { return }
+        switch answers.record(answered: answered, askedAt: asked) {
+        case .notResponding(let since)?:
+            logger.error("Android has not answered since \(since, privacy: .public)")
+            responsivenessSink?(since)
+        case .responding?:
+            logger.notice("Android answers again")
+            responsivenessSink?(nil)
+        case nil:
+            break
+        }
+    }
+}
+
+/// HostAgent's questions to Android: two in a row left unanswered (about
+/// half a minute) make it not responding, the next answer responding again.
+struct GuestAnswers: Sendable, Equatable {
+    static let interval: Duration = .seconds(15)
+    /// Android does more than this under the heaviest load.
+    static let timeout: Duration = .seconds(10)
+    static let unansweredLimit = 2
+
+    enum Change: Equatable {
+        case notResponding(since: Date)
+        case responding
+    }
+
+    private(set) var unanswered = 0
+    /// When the first of the questions in a row left unanswered was asked.
+    private(set) var firstUnanswered: Date?
+    private(set) var notResponding = false
+
+    mutating func record(answered: Bool, askedAt asked: Date) -> Change? {
+        guard !answered else {
+            defer { reset() }
+            return notResponding ? .responding : nil
+        }
+        unanswered += 1
+        if firstUnanswered == nil { firstUnanswered = asked }
+        guard unanswered >= Self.unansweredLimit, !notResponding, let since = firstUnanswered else { return nil }
+        notResponding = true
+        return .notResponding(since: since)
+    }
+
+    /// Paused: the questions start over once Android goes on.
+    mutating func reset() {
+        unanswered = 0
+        firstUnanswered = nil
+        notResponding = false
     }
 }
 

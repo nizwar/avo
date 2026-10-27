@@ -360,6 +360,16 @@ public actor VMManager {
         statusSink.yield(status)
     }
 
+    /// Android stopped answering, or answers again (ResponsivenessEngine);
+    /// kept only while it runs.
+    public func setNotResponding(since: Date?) {
+        let since = status.state == .running ? since : nil
+        guard status.notRespondingSince != since else { return }
+        status.notRespondingSince = since
+        if since != nil { logger.error("Android is not responding") }
+        statusSink.yield(status)
+    }
+
     /// GPU or software rendering, from the engine (VMMEngine.renderer).
     public func setRenderer(_ renderer: RendererStatus?) {
         guard status.renderer != renderer else { return }
@@ -459,10 +469,12 @@ public actor VMManager {
         }
     }
 
-    /// Pausing keeps everything else of the status (windows, renderer, lock).
+    /// Pausing keeps everything else of the status (windows, renderer, lock),
+    /// except whether Android answered: a paused one is not asked.
     private func setPause(_ state: VMState, _ pause: VMPause?) {
         status.state = state
         status.pause = pause
+        status.notRespondingSince = nil
         statusSink.yield(status)
     }
 
