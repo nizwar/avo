@@ -1023,6 +1023,9 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         pictureAfterFullScreen = false
         backgroundAfterFullScreen = false
         fullScreenTransitionEnded()
+        // The bars went to the window as it was leaving (`leaving`): they
+        // keep out of the game again, and the pointer at the top brings them.
+        if window.styleMask.contains(.fullScreen) { bars.entered() }
     }
 
     private func fullScreenTransitionBegan() {
