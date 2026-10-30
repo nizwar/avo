@@ -1,42 +1,48 @@
 <footer class="site-footer">
-  <div class="wrap footer-top">
-    <div class="footer-brand">
-      <img src="{{v:root}}assets/img/avo-icon-macos.svg" alt="" width="64" height="64" loading="lazy">
-      <p>{{t:footer.tagline}}</p>
-      <p class="footer-credit">{{h:builtText}}</p>
+  <div class="wrap">
+    <p class="footer-slogan" lang="{{v:lang}}">{{t:meta.slogan}}</p>
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <img src="{{v:root}}assets/img/avo-icon-macos.svg" alt="" width="56" height="56" loading="lazy">
+        <p>{{t:footer.tagline}}</p>
+      </div>
+      <nav class="footer-nav" aria-label="{{a:footer.project}}">
+        <div>
+          <h2 class="footer-title">{{t:footer.product}}</h2>
+          <ul>
+            <li><a href="{{v:homeHref}}#mac">{{t:nav.mac}}</a></li>
+            <li><a href="{{v:homeHref}}#gaming">{{t:nav.gaming}}</a></li>
+            <li><a href="{{v:homeHref}}#how">{{t:nav.how}}</a></li>
+            <li><a href="{{v:homeHref}}#faq">{{t:nav.faq}}</a></li>
+          </ul>
+        </div>
+        <div>
+          <h2 class="footer-title">{{t:footer.hub}}</h2>
+          <ul>
+            <li><a href="{{v:hubHref}}">{{t:nav.hub}}</a></li>
+            <li><a href="{{v:hubPricingUrl}}">{{t:footer.pricing}}</a></li>
+            <li><a href="{{v:hubTermsUrl}}">{{t:footer.terms}}</a></li>
+            <li><a href="{{v:hubPrivacyUrl}}">{{t:footer.privacy}}</a></li>
+            <li><a href="{{v:hubRefundUrl}}">{{t:footer.refund}}</a></li>
+          </ul>
+        </div>
+        <div>
+          <h2 class="footer-title">{{t:footer.project}}</h2>
+          <ul>
+            <li><a href="{{v:githubUrl}}">GitHub</a></li>
+            <li><a href="{{v:homeHref}}#developers">{{t:nav.developers}}</a></li>
+            <li><a href="{{v:homeHref}}#support">{{t:nav.support}}</a></li>
+            <li><a href="{{v:blobUrl}}/LICENSE">{{t:footer.license}}</a></li>
+            <li><a href="mailto:{{v:contactEmail}}">{{t:footer.contact}}</a></li>
+          </ul>
+        </div>
+      </nav>
     </div>
-    <nav class="footer-nav" aria-label="{{a:footer.project}}">
-      <div>
-        <h2 class="footer-title">{{t:footer.product}}</h2>
-        <ul>
-          <li><a href="{{v:homeHref}}#gaming">{{t:nav.gaming}}</a></li>
-          <li><a href="{{v:homeHref}}#mac">{{t:nav.mac}}</a></li>
-          <li><a href="{{v:homeHref}}#how">{{t:nav.how}}</a></li>
-          <li><a href="{{v:homeHref}}#faq">{{t:nav.faq}}</a></li>
-          <li><a href="{{v:hubHref}}">{{t:nav.hub}}</a></li>
-        </ul>
-      </div>
-      <div>
-        <h2 class="footer-title">{{t:footer.project}}</h2>
-        <ul>
-          <li><a href="{{v:githubUrl}}">GitHub</a></li>
-          <li><a href="{{v:homeHref}}#developers">{{t:nav.developers}}</a></li>
-          <li><a href="{{v:githubUrl}}#readme">{{t:footer.docs}}</a></li>
-          <li><a href="{{v:blobUrl}}/LICENSE">{{t:footer.license}}</a></li>
-        </ul>
-      </div>
-      <div>
-        <h2 class="footer-title">{{t:footer.support}}</h2>
-        <ul>
-          <li><a href="{{v:homeHref}}#support">{{t:nav.support}}</a></li>
-          <li><a href="mailto:{{v:contactEmail}}">{{t:footer.contact}}</a></li>
-        </ul>
-      </div>
-    </nav>
-  </div>
-  <div class="wrap footer-legal">
-    <p>{{h:copyright}}</p>
-    <p>{{t:footer.trademarks}} {{t:footer.noTracking}}</p>
-    <p><a href="{{v:langHref}}" hreflang="{{v:otherLang}}" lang="{{v:otherLang}}">{{t:common.langOther}}</a></p>
+    <div class="footer-legal">
+      <p>{{h:copyright}}</p>
+      <p>{{t:footer.trademarks}} {{t:footer.noTracking}}</p>
+      <p class="footer-credit">{{h:builtText}}</p>
+      <p><a href="{{v:langHref}}" hreflang="{{v:otherLang}}" lang="{{v:otherLang}}">{{t:common.langOther}}</a></p>
+    </div>
   </div>
 </footer>

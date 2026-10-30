@@ -11,6 +11,10 @@
 //   {{a:key}}   the same, as a plain attribute value
 //   {{v:name}}  a page variable, escaped
 //   {{h:name}}  HTML built here from the configuration
+//   {{p:name|alt.key|sizes|flags}}  a screenshot as <picture> (AVIF, WebP, JPEG)
+//               from PICTURES, with its alt text from the dictionary, a
+//               `sizes` preset from SIZES and flags: eager (the first screen's
+//               picture: high priority, not lazy) or decor (empty alt)
 //   {{> name}}  a partial from src/partials
 
 import { createHash } from 'node:crypto';
@@ -42,13 +46,45 @@ export function fontSetName(value) {
 
 // `og`: the social preview image, assets/img/og/<og>-<lang>.jpg (tools/og-image.html), and its description.
 const PAGES = [
-  { id: 'home', template: 'index.html', paths: { en: '', id: 'id/' }, title: 'meta.homeTitle', description: 'meta.homeDescription',
+  { id: 'home', template: 'index.html', paths: { en: '', id: 'id/' }, title: 'meta.homeTitle', ogTitle: 'meta.homeOgTitle', description: 'meta.homeDescription',
     og: 'og', ogAlt: 'meta.ogAlt' },
-  { id: 'hub', template: 'hub.html', paths: { en: 'hub/', id: 'id/hub/' }, title: 'meta.hubTitle', description: 'meta.hubDescription',
+  { id: 'hub', template: 'hub.html', paths: { en: 'hub/', id: 'id/hub/' }, title: 'meta.hubTitle', ogTitle: 'meta.hubOgTitle', description: 'meta.hubDescription',
     og: 'og-hub', ogAlt: 'meta.hubOgAlt' },
   { id: '404', template: '404.html', paths: { en: '404.html' }, title: 'meta.notFoundTitle', description: 'meta.homeDescription',
     og: 'og', ogAlt: 'meta.ogAlt' },
 ];
+
+// Screenshots in src/assets/img/screens/<file>-<width>.{avif,webp,jpg}: Avo's
+// own windows, Avo Hub's (rendered by its snapshot tests, with sample data),
+// and the disk image's background. `width`/`height` are the largest file's.
+export const PICTURES = {
+  library: { widths: [640, 1080], width: 1080, height: 760 },
+  'game-play': { widths: [640, 1309], width: 1309, height: 770 },
+  'game-keys': { widths: [640, 1309], width: 1309, height: 770 },
+  'settings-android': { widths: [640, 955], width: 955, height: 662 },
+  'settings-graphics': { widths: [640, 955], width: 955, height: 662 },
+  'settings-privacy': { widths: [640, 955], width: 955, height: 662 },
+  'settings-google': { widths: [640, 955], width: 955, height: 662 },
+  'hub-overview': { widths: [640, 1200], width: 1200, height: 724 },
+  'hub-notifications': { widths: [640, 936], width: 936, height: 724 },
+  'hub-messages': { widths: [640, 1200], width: 1200, height: 724 },
+  'hub-calls': { widths: [640, 1200], width: 1200, height: 724 },
+  'hub-files': { widths: [640, 1200], width: 1200, height: 724 },
+  'hub-readiness': { widths: [640, 1200], width: 1200, height: 724 },
+  'hub-menubar': { widths: [320], width: 320, height: 318 },
+  dmg: { widths: [640, 1280], width: 1280, height: 960 },
+};
+
+// How wide each picture shows, for the browser to pick a file (site.css).
+const SIZES = {
+  hero: '(max-width: 1099px) calc(100vw - 32px), min(44vw, 760px)',
+  half: '(max-width: 899px) calc(100vw - 32px), 44vw',
+  story: '(max-width: 899px) calc(100vw - 32px), 52vw',
+  teaser: '(max-width: 899px) calc(100vw - 32px), 50vw',
+  index: '(max-width: 899px) calc(100vw - 32px), 54vw',
+  menu: '280px',
+  dmg: '(max-width: 899px) calc(100vw - 32px), 560px',
+};
 
 // ------------------------------------------------------------------ helpers
 
@@ -80,6 +116,10 @@ function lookup(dict, key, lang) {
   const value = key.split('.').reduce((node, part) => (node && typeof node === 'object' ? node[part] : undefined), dict);
   if (typeof value !== 'string') throw new Error(`missing text "${key}" for ${lang}`);
   return value;
+}
+
+function lookupOptional(dict, key) {
+  return key.split('.').reduce((node, part) => (node && typeof node === 'object' ? node[part] : undefined), dict);
 }
 
 function findPlaceholders(value, where = 'config', out = []) {
@@ -124,6 +164,7 @@ function checkConfig(config) {
   url(config.release?.downloadUrl, 'release.downloadUrl', { optional: true });
   url(config.hub?.githubUrl, 'hub.githubUrl');
   url(config.hub?.release?.downloadUrl, 'hub.release.downloadUrl', { optional: true });
+  for (const key of ['pricingUrl', 'termsUrl', 'privacyUrl', 'refundUrl']) url(config.hub?.[key], `hub.${key}`);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(config.contact?.email || '')) errors.push('contact.email is not an email address');
   try {
     fontSetName(config.fonts);
@@ -159,6 +200,7 @@ async function checkDictionaries(dicts) {
 
 function render(template, ctx, depth = 0) {
   if (depth > 6) throw new Error('partials nest too deeply');
+  template = template.replace(/\{\{\s*p:([^}]+)\}\}/g, (match, args) => ctx.picture(...args.split('|').map((a) => a.trim())));
   return template.replace(/\{\{\s*(>|[tavh]:)\s*([\w.-]+)\s*\}\}/g, (match, kind, key) => {
     switch (kind) {
       case '>': {
@@ -274,6 +316,12 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
   ].join('; ');
   const year = String(new Date().getUTCFullYear());
   const written = [];
+  const imageEntries = {}; // page id -> [{ loc, title }] for the sitemap
+  const release = config.release || {};
+  const downloadUrl = release.downloadUrl || `${githubUrl}/releases/latest`;
+  const hubDownloadUrl = hubRelease.downloadUrl || `${hubGithubUrl}/releases/latest`;
+  const icon = (name) => `<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-${name}"/></svg>`;
+  const shotUrl = (name) => `${siteUrl}/assets/img/screens/${name}-${PICTURES[name].widths.at(-1)}.jpg`;
 
   for (const page of PAGES) {
     const template = await readFile(path.join(ROOT, 'src/pages', page.template), 'utf8');
@@ -287,104 +335,270 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
       const homePath = lang === 'en' ? '' : 'id/';
       const hubPath = lang === 'en' ? 'hub/' : 'id/hub/';
       const hrefTo = (target) => `${root}${target}` || './';
-      const tokens = { github: githubUrl, blob: blobUrl, contactEmail: config.contact.email, hubGithub: hubGithubUrl };
+      // Avo Hub's plans and policies, in the page's language.
+      const hubLink = (url) => `${url}?lang=${lang}`;
+      const hubLinks = {
+        pricing: hubLink(config.hub.pricingUrl),
+        terms: hubLink(config.hub.termsUrl),
+        privacy: hubLink(config.hub.privacyUrl),
+        refund: hubLink(config.hub.refundUrl),
+      };
+      const tokens = { github: githubUrl, blob: blobUrl, contactEmail: config.contact.email, hubGithub: hubGithubUrl, hubPricing: hubLinks.pricing };
       const text = (key, extra = {}) => lookup(dict, key, lang).replace(/\{(\w+)\}/g, (m, name) => (name in extra ? extra[name] : name in tokens ? escapeHtml(tokens[name]) : m));
       const t = (key, extra) => text(key, extra);
       const counterpart = page.paths[other] ?? null;
       const canonical = `${siteUrl}/${page.paths[lang]}`;
+      const homeUrl = `${siteUrl}/${homePath}`;
+      const hubUrl = `${siteUrl}/${hubPath}`;
+      const pictures = [];
 
-      const navHome = page.id === 'home' ? '' : hrefTo(homePath);
-      const navItems = [
-        [`${navHome}#gaming`, t('nav.gaming')],
-        [`${navHome}#mac`, t('nav.mac')],
-        [`${navHome}#how`, t('nav.how')],
-        [`${navHome}#faq`, t('nav.faq')],
-        [`${navHome}#support`, t('nav.support')],
-        [hrefTo(hubPath), t('nav.hub'), page.id === 'hub' ? 'page' : null],
-      ];
+      const picture = (name, altKey, sizesKey, ...flags) => {
+        const info = PICTURES[name];
+        if (!info) throw new Error(`unknown picture "${name}" in ${page.template}`);
+        const sizes = SIZES[sizesKey];
+        if (!sizes) throw new Error(`unknown sizes "${sizesKey}" in ${page.template}`);
+        const decor = flags.includes('decor');
+        const eager = flags.includes('eager');
+        const alt = decor ? '' : escapeHtml(stripTags(t(altKey)));
+        const set = (ext) => info.widths.map((w) => `${root}assets/img/screens/${name}-${w}.${ext} ${w}w`).join(', ');
+        const largest = info.widths.at(-1);
+        if (!decor) pictures.push({ loc: shotUrl(name), title: stripTags(t(altKey)) });
+        const loading = eager ? 'fetchpriority="high"' : 'loading="lazy" decoding="async"';
+        return [
+          '<picture>',
+          `<source type="image/avif" srcset="${escapeHtml(set('avif'))}" sizes="${escapeHtml(sizes)}">`,
+          `<source type="image/webp" srcset="${escapeHtml(set('webp'))}" sizes="${escapeHtml(sizes)}">`,
+          `<img src="${escapeHtml(`${root}assets/img/screens/${name}-${largest}.jpg`)}" srcset="${escapeHtml(set('jpg'))}" sizes="${escapeHtml(sizes)}" width="${info.width}" height="${info.height}" alt="${alt}" ${loading}>`,
+          '</picture>',
+        ].join('');
+      };
+      // The first screen's picture, fetched before the stylesheet asks for it.
+      const heroPicture = { home: 'library', hub: 'hub-overview' }[page.id];
+      const heroPreload = heroPicture
+        ? `<link rel="preload" as="image" type="image/avif" imagesrcset="${escapeHtml(PICTURES[heroPicture].widths.map((w) => `${root}assets/img/screens/${heroPicture}-${w}.avif ${w}w`).join(', '))}" imagesizes="${escapeHtml(SIZES.hero)}" fetchpriority="high">`
+        : '';
 
-      const release = config.release || {};
-      const downloadUrl = release.downloadUrl || `${githubUrl}/releases/latest`;
-      const releasePill = release.available
-        ? `<p class="status-pill is-released">${escapeHtml(stripTags(t('release.statusReleased', { version: escapeHtml(release.version || '') })))}</p>`
-        : `<p class="status-pill" title="${escapeHtml(stripTags(t('release.unreleasedNote')))}">${t('release.statusUnreleased')}</p>`;
+      const pageHome = page.id === 'home' ? '' : hrefTo(homePath);
+      const pageHub = page.id === 'hub' ? '' : hrefTo(hubPath);
+      const navItems = page.id === 'hub'
+        ? [
+            [`#features`, t('nav.hubFeatures')],
+            [`#how`, t('nav.hubHow')],
+            [`#faq`, t('nav.hubFaq')],
+            [hrefTo(hubPath), t('nav.hub'), 'page'],
+          ]
+        : [
+            [`${pageHome}#mac`, t('nav.mac')],
+            [`${pageHome}#gaming`, t('nav.gaming')],
+            [`${pageHome}#how`, t('nav.how')],
+            [`${pageHome}#faq`, t('nav.faq')],
+            [hrefTo(hubPath), t('nav.hub')],
+          ];
+
+      // ------------------------------------------------ Avo: release switches
+      const releaseLine = release.available
+        ? escapeHtml(stripTags(t('release.statusReleased', { version: release.version || '', size: release.size ? ` · ${release.size}` : '' })))
+        : t('release.statusUnreleased');
+      const releaseFacts = release.available
+        ? `        <li class="fact-strong">${releaseLine}</li>\n        <li>${t('release.downloadMeta')}</li>`
+        : `        <li class="fact-strong" title="${escapeHtml(stripTags(t('release.unreleasedNote')))}">${releaseLine}</li>`;
       const heroCtas = release.available
         ? [
-            `<a class="btn btn-primary" href="${escapeHtml(downloadUrl)}"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-down"/></svg>${t('release.download')}</a>`,
-            `<a class="btn btn-quiet" href="${escapeHtml(githubUrl)}">${t('release.watch')}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></a>`,
+            '<p class="cta-row">',
+            `<a class="btn btn-primary" href="${escapeHtml(downloadUrl)}">${icon('down')}${t('release.download')}</a>`,
+            `<a class="text-link" href="${escapeHtml(hrefTo(hubPath))}">${t('hero.hubLink')}${icon('arrow')}</a>`,
+            '</p>',
           ].join('\n')
         : [
-            `<a class="btn btn-primary" href="${escapeHtml(githubUrl)}">${t('release.watch')}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></a>`,
-            `<a class="btn btn-quiet" href="${escapeHtml(githubUrl)}#building">${t('release.build')}</a>`,
+            '<p class="cta-row">',
+            `<a class="btn btn-primary" href="${escapeHtml(githubUrl)}">${t('release.watch')}${icon('arrow')}</a>`,
+            `<a class="text-link" href="${escapeHtml(githubUrl)}#building">${t('release.build')}</a>`,
+            '</p>',
           ].join('\n');
-      // What the download is, under both buttons (beside one, it pushed the other away).
-      const heroMeta = release.available ? `<p class="cta-meta">${t('release.downloadMeta')}</p>` : '';
-
-      // Avo Hub's page: the same switches, from config.hub.release.
-      const hubDownloadUrl = hubRelease.downloadUrl || `${hubGithubUrl}/releases/latest`;
-      const hubPill = hubRelease.available
-        ? `<p class="status-pill is-released">${escapeHtml(stripTags(t('hub.statusReleased', { version: escapeHtml(hubRelease.version || '') })))}</p>`
-        : `<p class="status-pill" title="${escapeHtml(stripTags(t(hubOpen ? 'hub.unreleasedNote' : 'hub.unreleasedNotePrivate')))}">${t('hub.statusUnreleased')}</p>`;
-      const hubButtons = hubRelease.available
-        ? [
-            `<a class="btn btn-primary" href="${escapeHtml(hubDownloadUrl)}"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-down"/></svg>${t('hub.download')}</a>`,
-            ...(hubOpen ? [`<a class="btn btn-quiet" href="${escapeHtml(hubGithubUrl)}">${t('hub.watch')}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></a>`] : []),
-          ]
-        : hubOpen
-          ? [
-              `<a class="btn btn-primary" href="${escapeHtml(hubGithubUrl)}">${t('hub.watch')}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></a>`,
-              `<a class="btn btn-quiet" href="${escapeHtml(hubGithubUrl)}#building-from-source">${t('hub.build')}</a>`,
-            ]
-          : [];
-      // No row at all without a button (unreleased, the repository private).
-      const hubCtas = hubButtons.length ? `<div class="cta-row">\n${hubButtons.join('\n')}\n</div>` : '';
-      const hubPointOpen = hubOpen ? `<li>${t('hub.hero.pointOpen')}</li>` : '';
-      const hubOpenCard = hubOpen
-        ? `<li class="feature-card" data-tilt="card"><span class="feature-icon" data-tilt-depth aria-hidden="true"><svg class="icon"><use href="#i-code"/></svg></span><h3>${t('hub.avo.openTitle')}</h3><p>${t('hub.avo.openText')}</p></li>`
+      const ctaButtons = release.available
+        ? `<p class="cta-row"><a class="btn btn-ink" href="${escapeHtml(downloadUrl)}">${icon('down')}${t('release.download')}</a><span class="cta-meta">${releaseLine}</span></p>`
+        : `<p class="cta-row"><a class="btn btn-ink" href="${escapeHtml(githubUrl)}">${t('release.watch')}${icon('arrow')}</a></p>`;
+      const sizeFigure = release.available && release.size
+        ? `        <div class="figure-item"><dt><span class="figure">${escapeHtml(release.size)}</span><span class="figure-label">${t('req.sizeLabel')}</span></dt><dd>${t('req.sizeText')}</dd></div>`
         : '';
-      const hubMeta = hubRelease.available ? `<p class="cta-meta">${t('hub.downloadMeta')}</p>` : '';
+      const headerAction = page.id === 'hub'
+        ? `      <a class="btn btn-primary btn-small header-action" href="${escapeHtml(hubLinks.pricing)}">${t('common.pricing')}</a>`
+        : release.available
+          ? `      <a class="btn btn-primary btn-small header-action" href="${escapeHtml(downloadUrl)}">${icon('down')}${t('common.download')}</a>`
+          : `      <a class="btn btn-primary btn-small header-action" href="${escapeHtml(githubUrl)}">${t('common.github')}</a>`;
 
-      const supportChannels = config.support.channels.length ? channelList(config.support.channels, t) : `<p class="note">${t('support.noChannels')}</p>`;
+      // -------------------------------------------- Avo Hub: release switches
+      const hubStatus = hubRelease.available
+        ? `<strong>${escapeHtml(stripTags(t('hub.statusReleased', { version: escapeHtml(hubRelease.version || '') })))}</strong>`
+        : `<strong title="${escapeHtml(stripTags(t(hubOpen ? 'hub.unreleasedNote' : 'hub.unreleasedNotePrivate')))}">${t('hub.statusUnreleased')}</strong>`;
+      const hubCtas = hubRelease.available
+        ? [
+            '<p class="cta-row">',
+            `<a class="btn btn-primary" href="${escapeHtml(hubDownloadUrl)}">${icon('down')}${t('hub.download')}</a>`,
+            `<a class="text-link" href="${escapeHtml(hubLinks.pricing)}">${t('hub.pricingCta')}${icon('out')}</a>`,
+            '</p>',
+            `<p class="cta-meta">${t('hub.downloadMeta')}</p>`,
+          ].join('\n')
+        : [
+            '<p class="cta-row">',
+            `<a class="btn btn-primary" href="${escapeHtml(hubLinks.pricing)}">${t('hub.pricingCta')}${icon('out')}</a>`,
+            `<a class="text-link" href="#how">${t('hub.howLink')}${icon('down')}</a>`,
+            '</p>',
+          ].join('\n');
+      const hubGetCtas = hubRelease.available
+        ? `<p class="cta-row"><a class="btn btn-ink" href="${escapeHtml(hubDownloadUrl)}">${icon('down')}${t('hub.download')}</a><span class="cta-meta">${t('hub.downloadMeta')}</span></p>`
+        : [
+            '<p class="cta-row">',
+            `<a class="btn btn-ink" href="${escapeHtml(hubLinks.pricing)}">${t('hub.pricingCta')}${icon('out')}</a>`,
+            `<a class="btn btn-quiet-ink" href="${escapeHtml(hrefTo(homePath))}">${t('hub.get.avoCta')}${icon('arrow')}</a>`,
+            ...(hubOpen ? [`<a class="text-link" href="${escapeHtml(hubGithubUrl)}">${t('hub.watch')}${icon('arrow')}</a>`] : []),
+            '</p>',
+          ].join('\n');
+
+      const supportChannels = config.support.channels.length ? channelList(config.support.channels, t) : `<p class="muted">${t('support.noChannels')}</p>`;
       const maintainer = config.maintainer?.name;
       const builtText = maintainer ? t('built.textNamed', { maintainer: escapeHtml(maintainer) }) : t('built.textAnon');
 
-      const jsonLd = page.id === 'hub'
-        ? {
-            '@context': 'https://schema.org',
-            '@type': 'SoftwareApplication',
-            name: 'Avo Hub',
-            description: t('meta.hubDescription'),
-            url: canonical,
-            applicationCategory: 'UtilitiesApplication',
-            operatingSystem: 'macOS 15 or later, Apple silicon; Android 11 or later',
-            ...(hubOpen ? { license: 'https://www.apache.org/licenses/LICENSE-2.0' } : {}),
-            inLanguage: lang,
-          }
-        : {
-            '@context': 'https://schema.org',
-            '@type': 'SoftwareApplication',
-            name: 'Avo',
-            description: t('meta.homeDescription'),
-            url: canonical,
-            applicationCategory: 'UtilitiesApplication',
-            operatingSystem: 'macOS 15 or later, Apple silicon',
-            isAccessibleForFree: true,
-            license: 'https://www.apache.org/licenses/LICENSE-2.0',
-            offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-            inLanguage: lang,
-          };
+      // The questions on this page, for the page and for search engines.
+      const faqPrefix = page.id === 'hub' ? 'hub.faq' : 'faq';
+      const faq = [];
+      for (let i = 1; lookupOptional(dict, `${faqPrefix}.q${i}`) !== undefined; i++) faq.push({ q: t(`${faqPrefix}.q${i}`), a: t(`${faqPrefix}.a${i}`) });
+      const faqItems = faq
+        .map(({ q, a }, i) => `        <details class="faq-item" name="faq"${i === 0 ? ' open' : ''}><summary>${q}<span class="faq-sign" aria-hidden="true"></span></summary><div class="faq-answer"><p>${a}</p></div></details>`)
+        .join('\n');
+
+      // ------------------------------------------------------ structured data
+      const orgId = `${siteUrl}/#organization`;
+      const siteId = `${siteUrl}/#website`;
+      const avoId = `${siteUrl}/#avo`;
+      const hubId = `${siteUrl}/hub/#avo-hub`;
+      const organization = {
+        '@type': 'Organization',
+        '@id': orgId,
+        name: 'Avo',
+        url: `${siteUrl}/`,
+        logo: { '@type': 'ImageObject', url: `${siteUrl}/assets/img/favicon-512.png`, width: 512, height: 512 },
+        email: config.contact.email,
+        description: stripTags(t('meta.orgDescription')),
+        sameAs: [githubUrl],
+      };
+      const website = {
+        '@type': 'WebSite',
+        '@id': siteId,
+        url: `${siteUrl}/`,
+        name: 'Avo',
+        alternateName: 'avodroid.com',
+        description: stripTags(t('meta.homeDescription')),
+        inLanguage: ['en', 'id'],
+        publisher: { '@id': orgId },
+      };
+      const avoApp = {
+        '@type': 'SoftwareApplication',
+        '@id': avoId,
+        name: 'Avo',
+        url: homeUrl,
+        description: stripTags(t('meta.homeDescription')),
+        slogan: stripTags(t('meta.slogan')),
+        applicationCategory: 'UtilitiesApplication',
+        applicationSubCategory: 'Android app player',
+        operatingSystem: 'macOS 15 or later on Apple silicon',
+        processorRequirements: 'Apple silicon (M1 or newer)',
+        storageRequirements: '10 GB',
+        ...(release.available ? { softwareVersion: release.version, downloadUrl, ...(release.size ? { fileSize: release.size.replace(/\s+/g, '') } : {}) } : {}),
+        isAccessibleForFree: true,
+        license: 'https://www.apache.org/licenses/LICENSE-2.0',
+        image: shotUrl('library'),
+        screenshot: ['library', 'game-play', 'game-keys', 'settings-graphics'].map(shotUrl),
+        offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', ...(release.available ? { availability: 'https://schema.org/InStock' } : {}) },
+        publisher: { '@id': orgId },
+        inLanguage: lang,
+      };
+      const hubApp = {
+        '@type': 'SoftwareApplication',
+        '@id': hubId,
+        name: 'Avo Hub',
+        url: hubUrl,
+        description: stripTags(t('meta.hubDescription')),
+        slogan: stripTags(t('meta.slogan')),
+        applicationCategory: 'UtilitiesApplication',
+        operatingSystem: 'macOS 15 or later on Apple silicon; Android 11 or later',
+        processorRequirements: 'Apple silicon (M1 or newer)',
+        ...(hubRelease.available ? { softwareVersion: hubRelease.version, downloadUrl: hubDownloadUrl } : {}),
+        ...(hubOpen ? { license: 'https://www.apache.org/licenses/LICENSE-2.0' } : {}),
+        image: shotUrl('hub-overview'),
+        screenshot: ['hub-overview', 'hub-notifications', 'hub-messages', 'hub-calls', 'hub-files', 'hub-readiness'].map(shotUrl),
+        offers: [
+          { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'USD', url: hubLinks.pricing },
+          {
+            '@type': 'Offer',
+            name: 'Pro',
+            price: '2',
+            priceCurrency: 'USD',
+            url: hubLinks.pricing,
+            priceSpecification: { '@type': 'UnitPriceSpecification', price: '2', priceCurrency: 'USD', billingDuration: 'P1M', referenceQuantity: { '@type': 'QuantitativeValue', value: 1, unitText: 'device' } },
+          },
+        ],
+        isRelatedTo: { '@id': avoId },
+        publisher: { '@id': orgId },
+        inLanguage: lang,
+      };
+      const pageTitle = stripTags(t(page.title));
+      const webPage = {
+        '@type': 'WebPage',
+        '@id': `${canonical}#webpage`,
+        url: canonical,
+        name: pageTitle,
+        description: stripTags(t(page.description)),
+        inLanguage: lang,
+        isPartOf: { '@id': siteId },
+        about: { '@id': page.id === 'hub' ? hubId : avoId },
+        primaryImageOfPage: { '@type': 'ImageObject', url: `${siteUrl}/assets/img/og/${page.og}-${lang}.jpg`, width: 1200, height: 630 },
+        ...(page.id === 'hub' ? { breadcrumb: { '@id': `${canonical}#breadcrumb` } } : {}),
+      };
+      const graph = page.id === '404'
+        ? [organization, website]
+        : [
+            organization,
+            website,
+            webPage,
+            page.id === 'hub' ? hubApp : avoApp,
+            ...(page.id === 'hub'
+              ? [{
+                  '@type': 'BreadcrumbList',
+                  '@id': `${canonical}#breadcrumb`,
+                  itemListElement: [
+                    { '@type': 'ListItem', position: 1, name: stripTags(t('meta.breadcrumbHome')), item: homeUrl },
+                    { '@type': 'ListItem', position: 2, name: 'Avo Hub', item: hubUrl },
+                  ],
+                }]
+              : []),
+            ...(faq.length
+              ? [{
+                  '@type': 'FAQPage',
+                  '@id': `${canonical}#faq`,
+                  inLanguage: lang,
+                  isPartOf: { '@id': `${canonical}#webpage` },
+                  mainEntity: faq.map(({ q, a }) => ({ '@type': 'Question', name: stripTags(q), acceptedAnswer: { '@type': 'Answer', text: a } })),
+                }]
+              : []),
+          ];
+      const jsonLd = { '@context': 'https://schema.org', '@graph': graph };
 
       const ogName = `${page.og}-${lang}.jpg`;
       const ctx = {
         page: `${page.template} (${lang})`,
         partials,
         text: (key) => t(key),
+        picture,
         vars: {
           lang,
           otherLang: other,
           root,
-          title: stripTags(t(page.title)),
+          title: pageTitle,
+          ogTitle: stripTags(t(page.ogTitle ?? page.title)),
           description: stripTags(t(page.description)),
+          robots: is404 ? 'noindex' : 'index, follow, max-image-preview:large',
+          author: 'Avo',
           csp,
           canonical,
           altEn: `${siteUrl}/${page.paths.en}`,
@@ -401,6 +615,11 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
           githubUrl,
           blobUrl,
           contactEmail: config.contact.email,
+          hubPricingUrl: hubLinks.pricing,
+          hubTermsUrl: hubLinks.terms,
+          hubPrivacyUrl: hubLinks.privacy,
+          hubRefundUrl: hubLinks.refund,
+          dmgName: release.available && release.version ? `Avo ${release.version}` : 'Avo',
           otherNotFound: stripTags(lookup(dicts[other], 'notFound.title', other)),
           otherHomeHref: hrefTo(other === 'en' ? '' : 'id/'),
           otherHomeLabel: stripTags(lookup(dicts[other], 'notFound.home', other)),
@@ -409,16 +628,20 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
           navItems: navItems
             .map(([href, label, current]) => `        <li><a href="${escapeHtml(href)}"${current ? ` aria-current="${current}"` : ''}>${label}</a></li>`)
             .join('\n'),
-          releasePill,
+          headerAction,
+          heroPreload,
           heroCtas,
-          heroMeta,
-          hubPill,
+          releaseFacts,
+          sizeFigure,
+          ctaButtons,
+          hubStatus,
           hubCtas,
-          hubMeta,
-          hubPointOpen,
-          hubOpenCard,
+          hubGetCtas,
+          hubFactOpen: hubOpen ? `<li>${t('hub.hero.factOpen')}</li>` : '',
+          hubOpenText: hubOpen ? `<p>${t('hub.avo.openText')}</p>` : '',
           hubGetTitle: t(hubRelease.available ? 'hub.get.titleReleased' : 'hub.get.titleUnreleased'),
           hubGetText: t(hubRelease.available ? 'hub.get.textReleased' : hubOpen ? 'hub.get.textUnreleased' : 'hub.get.textUnreleasedPrivate'),
+          faqItems,
           supportChannels,
           builtText,
           copyright: t('footer.copyright', { year }),
@@ -435,20 +658,24 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
       await mkdir(path.dirname(target), { recursive: true });
       await writeFile(target, html);
       written.push(outPath);
+      if (!is404) imageEntries[`${page.id}:${lang}`] = [...new Map(pictures.map((p) => [p.loc, p])).values()];
     }
   }
 
-  // Search engines and browsers.
+  // Search engines and browsers: every page in both languages, each with its
+  // alternates and the screenshots on it.
   const urls = PAGES.filter((p) => p.id !== '404');
   const sitemap = [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
     ...urls.flatMap((p) =>
       LANGS.map((lang) =>
         [
           '  <url>',
           `    <loc>${escapeHtml(`${siteUrl}/${p.paths[lang]}`)}</loc>`,
           ...LANGS.map((alt) => `    <xhtml:link rel="alternate" hreflang="${alt}" href="${escapeHtml(`${siteUrl}/${p.paths[alt]}`)}"/>`),
+          `    <xhtml:link rel="alternate" hreflang="x-default" href="${escapeHtml(`${siteUrl}/${p.paths.en}`)}"/>`,
+          ...(imageEntries[`${p.id}:${lang}`] || []).map((img) => `    <image:image><image:loc>${escapeHtml(img.loc)}</image:loc></image:image>`),
           '  </url>',
         ].join('\n'),
       ),
@@ -457,13 +684,15 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
     '',
   ].join('\n');
   await writeFile(path.join(outDir, 'sitemap.xml'), sitemap);
-  await writeFile(path.join(outDir, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${siteUrl}/sitemap.xml\n`);
+  await writeFile(path.join(outDir, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: /404.html\n\nSitemap: ${siteUrl}/sitemap.xml\n`);
   await writeFile(
     path.join(outDir, 'site.webmanifest'),
     `${JSON.stringify(
       {
         name: 'Avo',
         short_name: 'Avo',
+        description: stripTags(lookup(dicts.en, 'meta.homeDescription', 'en')),
+        lang: 'en',
         start_url: './',
         display: 'browser',
         background_color: '#0a1108',

@@ -4,8 +4,10 @@
 <meta name="description" content="{{v:description}}">
 <meta http-equiv="Content-Security-Policy" content="{{v:csp}}">
 <meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="robots" content="{{v:robots}}">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0a1108">
+<meta name="author" content="{{v:author}}">
 <link rel="canonical" href="{{v:canonical}}">
 <link rel="alternate" hreflang="en" href="{{v:altEn}}">
 <link rel="alternate" hreflang="id" href="{{v:altId}}">
@@ -15,17 +17,23 @@
 <link rel="apple-touch-icon" href="{{v:root}}assets/img/favicon-180.png">
 <link rel="manifest" href="{{v:root}}site.webmanifest">
 {{h:fontPreloads}}
+{{h:heroPreload}}
 <link rel="stylesheet" href="{{v:root}}assets/css/site.css?v={{v:cssVersion}}">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Avo">
-<meta property="og:title" content="{{v:title}}">
+<meta property="og:title" content="{{v:ogTitle}}">
 <meta property="og:description" content="{{v:description}}">
 <meta property="og:url" content="{{v:canonical}}">
 <meta property="og:image" content="{{v:ogImage}}">
+<meta property="og:image:type" content="image/jpeg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="{{v:ogAlt}}">
 <meta property="og:locale" content="{{v:ogLocale}}">
 <meta property="og:locale:alternate" content="{{v:ogLocaleAlt}}">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{v:ogTitle}}">
+<meta name="twitter:description" content="{{v:description}}">
+<meta name="twitter:image" content="{{v:ogImage}}">
+<meta name="twitter:image:alt" content="{{v:ogAlt}}">
 <script type="application/ld+json">{{h:jsonLd}}</script>

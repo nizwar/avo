@@ -2,11 +2,13 @@
 <!-- Template for the 1200x630 social preview images in src/assets/img/og/.
      Render with headless Chrome, then convert to JPEG, for example:
        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars \
-         --allow-file-access-from-files --window-size=1200,630 --screenshot=/tmp/og-en.png \
+         --allow-file-access-from-files --window-size=1200,630 --screenshot=og-en.png \
          "file://$PWD/tools/og-image.html?lang=en"
-       sips -s format jpeg -s formatOptions 86 /tmp/og-en.png --out src/assets/img/og/og-en.jpg
-     lang: en | id. page: avo (the default) | hub, for Avo Hub's page (its mark and icon are
-     in tools/og-hub/). Files: og-en, og-id, og-hub-en, og-hub-id. -->
+       sips -s format jpeg -s formatOptions 86 og-en.png --out src/assets/img/og/og-en.jpg
+     lang: en | id. page: avo (the default) | hub, for Avo Hub's page (its mark is in
+     tools/og-hub/). Files: og-en, og-id, og-hub-en, og-hub-id.
+     The card is the site's first screen in small: the slogan's two halves, a real
+     window between them, flat Avo colours, no gradient. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -14,68 +16,52 @@
 <style>
   @font-face { font-family: 'Hubot Sans'; src: url('../src/assets/fonts/hubot-sans/hubot-sans.woff2') format('woff2'); font-weight: 200 900; font-stretch: 75% 125%; }
   @font-face { font-family: 'Mona Sans'; src: url('../src/assets/fonts/mona-sans/mona-sans.woff2') format('woff2'); font-weight: 200 900; font-stretch: 75% 125%; }
-  @font-face { font-family: 'Mona Sans Mono'; src: url('../src/assets/fonts/mona-sans-mono/mona-sans-mono.woff2') format('woff2'); font-weight: 200 900; }
   * { box-sizing: border-box; }
   html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
   body {
     position: relative;
+    background: #0a1108;
     color: #f3f1e8;
-    font-family: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background:
-      radial-gradient(38% 52% at 80% 52%, rgba(234, 205, 150, 0.30), transparent 70%),
-      radial-gradient(22% 30% at 80% 52%, rgba(251, 236, 201, 0.35), transparent 70%),
-      radial-gradient(70% 70% at 10% 0%, rgba(47, 74, 31, 0.65), transparent 70%),
-      radial-gradient(60% 50% at 60% 100%, rgba(34, 53, 25, 0.8), transparent 70%),
-      #0a1108;
+    font-family: 'Mona Sans', -apple-system, sans-serif;
   }
-  .smoke { position: absolute; inset: 0; opacity: 0.5; }
-  .copy { position: absolute; left: 84px; top: 64px; width: 640px; }
-  .brand { display: flex; align-items: center; gap: 18px; margin-bottom: 40px; }
-  .brand img { width: 84px; height: 84px; }
-  .brand span { font: 650 44px/1 'Hubot Sans', sans-serif; font-stretch: 108%; letter-spacing: -0.01em; }
-  h1 { margin: 0 0 26px; font: 650 60px/1.04 'Hubot Sans', sans-serif; font-stretch: 108%; letter-spacing: -0.01em; }
-  p { margin: 0; color: #c5cdb9; font-size: 26px; line-height: 1.4; }
-  .tags { position: absolute; left: 84px; bottom: 52px; display: flex; gap: 12px; }
-  .tags span { padding: 10px 18px; border-radius: 999px; background: rgba(216, 232, 167, 0.1); color: #e3eccd; font: 500 19px/1.2 'Mona Sans Mono', monospace; text-transform: uppercase; letter-spacing: 0.04em; }
-  .mark { position: absolute; right: 120px; top: 165px; width: 300px; height: 300px; opacity: 0.95; filter: drop-shadow(0 30px 60px rgba(0,0,0,0.5)); }
+  .stage { position: absolute; right: 0; top: 0; bottom: 0; width: 600px; background: #223519; }
+  .window { position: absolute; left: 650px; top: 86px; width: 700px; border-radius: 14px; overflow: hidden; background: #0c120b; }
+  .window img { display: block; width: 100%; }
+  .brand { position: absolute; left: 64px; top: 56px; display: flex; align-items: center; gap: 14px; }
+  .brand img { width: 44px; height: 44px; }
+  .brand span { font: 700 32px/1 'Hubot Sans', sans-serif; font-stretch: 108%; letter-spacing: -0.01em; }
+  h1 { position: absolute; left: 64px; top: 160px; width: 510px; margin: 0; font: 700 56px/1 'Hubot Sans', sans-serif; font-stretch: 108%; letter-spacing: -0.03em; }
+  h1 span { display: block; }
+  h1 span + span { margin-top: 14px; color: #d8e8a7; }
+  p { position: absolute; left: 64px; bottom: 56px; width: 480px; margin: 0; color: #c5cdb9; font-size: 23px; line-height: 1.4; }
 </style>
 </head>
 <body>
-<svg class="smoke" viewBox="0 0 1200 630" aria-hidden="true">
-  <filter id="f"><feTurbulence type="fractalNoise" baseFrequency="0.004 0.009" numOctaves="4" seed="7"/><feColorMatrix values="0 0 0 0 0.55  0 0 0 0 0.6  0 0 0 0 0.45  0 0 0 1.1 -0.45"/></filter>
-  <rect width="1200" height="630" filter="url(#f)"/>
-</svg>
-<div class="copy">
-  <div class="brand"><img id="brandMark" src="../src/assets/img/avo-mark.svg" alt=""><span id="brandName">Avo</span></div>
-  <h1 id="title"></h1>
-  <p id="line"></p>
-</div>
-<img class="mark" id="mark" src="../src/assets/img/avo-icon-macos.svg" alt="">
-<div class="tags" id="tags"></div>
+<div class="stage"></div>
+<div class="window"><img id="shot" src="../src/assets/img/screens/library-1080.jpg" alt=""></div>
+<div class="brand"><img id="brandMark" src="../src/assets/img/avo-mark.svg" alt=""><span id="brandName">Avo</span></div>
+<h1><span id="a"></span><span id="b"></span></h1>
+<p id="line"></p>
 <script>
   const q = new URLSearchParams(location.search);
   const lang = q.get('lang') || 'en';
   const hub = q.get('page') === 'hub';
   const text = (hub ? {
-    en: ['Your Android phone, at home on your Mac.', 'Its screen, notifications, messages, photos and files, over a cable, Wi\u2011Fi or the internet.', ['In development', 'No account', 'For Apple chips']],
-    id: ['Ponsel Android kamu, menyatu dengan Mac.', 'Layar, notifikasi, pesan, foto, dan file, lewat kabel, Wi\u2011Fi, atau internet.', ['Masih dikembangkan', 'Tanpa akun', 'Untuk chip Apple']],
+    en: ['Your Android phone,', 'on your Mac.', 'Its screen, notifications, messages, calls and files, over a cable, Wi‑Fi or the internet.'],
+    id: ['Ponsel Android kamu,', 'langsung di Mac.', 'Layar, notifikasi, pesan, panggilan, dan file-nya, lewat kabel, Wi‑Fi, atau internet.'],
   } : {
-    en: ['Android apps and games, right on your Mac.', 'Each app in its own window. Play with keyboard, mouse or controller.', ['Free', 'Open source', 'For Apple chips']],
-    id: ['Aplikasi dan game Android, langsung di Mac kamu.', 'Setiap aplikasi di jendelanya sendiri. Main pakai keyboard, mouse, atau controller.', ['Gratis', 'Open source', 'Untuk chip Apple']],
+    en: ['Android at heart.', 'Mac to the core.', 'Android apps and games on your Mac, each in its own window. Free, for Apple silicon.'],
+    id: ['Jiwa Android,', 'rasa Mac.', 'Aplikasi dan game Android di Mac kamu, masing-masing di jendelanya sendiri. Gratis, untuk chip Apple.'],
   })[lang];
   if (hub) {
     document.getElementById('brandMark').src = 'og-hub/avo-hub-mark.svg';
     document.getElementById('brandName').textContent = 'Avo Hub';
-    document.getElementById('mark').src = 'og-hub/avo-hub-icon-macos.svg';
+    document.getElementById('shot').src = '../src/assets/img/screens/hub-overview-1200.jpg';
   }
   document.documentElement.lang = lang;
-  document.getElementById('title').textContent = text[0];
-  document.getElementById('line').textContent = text[1];
-  for (const tag of text[2]) {
-    const span = document.createElement('span');
-    span.textContent = tag;
-    document.getElementById('tags').append(span);
-  }
+  document.getElementById('a').textContent = text[0];
+  document.getElementById('b').textContent = text[1];
+  document.getElementById('line').textContent = text[2];
 </script>
 </body>
 </html>

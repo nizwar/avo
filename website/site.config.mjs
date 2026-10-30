@@ -22,6 +22,8 @@ export default {
     version: '1.0.0',
     // The disk image itself, so the button downloads at once. Update with each release.
     downloadUrl: 'https://github.com/nizwar/avo/releases/download/v1.0.0/Avo-1.0.0-b123.dmg',
+    // The disk image's size as visitors read it, next to the button. Update with each release.
+    size: '26 MB',
   },
 
   // Avo Hub, Avo's sibling app that connects the phone in your pocket, has a
@@ -40,6 +42,11 @@ export default {
       version: null,
       downloadUrl: null,
     },
+    // Avo Hub's plans and policies live with its accounts (auth.avodroid.com).
+    pricingUrl: 'https://auth.avodroid.com/pricing',
+    termsUrl: 'https://auth.avodroid.com/terms',
+    privacyUrl: 'https://auth.avodroid.com/privacy',
+    refundUrl: 'https://auth.avodroid.com/refund',
   },
 
   // Typefaces, one switch for the whole site (only the chosen set is published):

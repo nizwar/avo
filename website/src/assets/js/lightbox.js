@@ -58,9 +58,11 @@ export function setupLightbox({ reduceMotion }) {
     big.sizes = `(max-width: ${big.width}px) 96vw, ${big.width}px`;
     big.srcset = bestSrcset(picture, img);
 
+    // A caption under the screenshot, or the words it illustrates.
     const figcaption = shot.closest('figure')?.querySelector('figcaption');
-    const title = figcaption?.querySelector('h3, .shot-label')?.textContent ?? '';
-    const text = figcaption?.querySelector('p, .shot-text')?.textContent ?? '';
+    const host = shot.closest('.story-step, .index-item, [data-shot]');
+    const title = host?.querySelector('h3')?.textContent ?? '';
+    const text = figcaption?.textContent.trim() || host?.querySelector('h3 ~ p, .index-body > p')?.textContent || '';
     caption.replaceChildren();
     if (title) {
       const strong = document.createElement('strong');
@@ -131,8 +133,7 @@ export function setupLightbox({ reduceMotion }) {
       open(shot, button);
     });
     shot.addEventListener('click', (event) => {
-      // Hotspots and the card behind in the games showcase have their own clicks.
-      if (event.target.closest('button, a, .hotspot') || shot.closest('.is-back')) return;
+      if (event.target.closest('button, a')) return;
       open(shot, button);
     });
   }

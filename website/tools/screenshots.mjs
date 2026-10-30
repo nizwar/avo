@@ -29,16 +29,18 @@ const VIEWS = option('--views', null);
 
 const VIEWPORTS = {
   desktop: { width: 1440, height: 900, scale: 1, mobile: false },
+  laptop: { width: 1280, height: 800, scale: 1, mobile: false },
   tablet: { width: 820, height: 1180, scale: 1, mobile: false },
   phone: { width: 390, height: 844, scale: 2, mobile: true },
-  small: { width: 360, height: 740, scale: 1, mobile: true },
+  small: { width: 320, height: 640, scale: 2, mobile: true },
 };
 
+const ALL = ['desktop', 'laptop', 'tablet', 'phone', 'small'];
 const SHOTS = [
-  { name: 'home-en', url: SITE, views: ['desktop', 'tablet', 'phone', 'small'] },
-  { name: 'home-id', url: `${SITE}id/`, views: ['desktop', 'phone'] },
-  { name: 'hub-en', url: `${SITE}hub/`, views: ['desktop', 'tablet', 'phone', 'small'] },
-  { name: 'hub-id', url: `${SITE}id/hub/`, views: ['desktop', 'phone'] },
+  { name: 'home-en', url: SITE, views: ALL },
+  { name: 'home-id', url: `${SITE}id/`, views: ALL },
+  { name: 'hub-en', url: `${SITE}hub/`, views: ALL },
+  { name: 'hub-id', url: `${SITE}id/hub/`, views: ALL },
   { name: 'notfound', url: `${SITE}does-not-exist/deeper/`, views: ['desktop', 'phone'], expectStatus: 404 },
   { name: 'home-en-reduced-motion', url: SITE, views: ['desktop'], reducedMotion: true },
 ];
@@ -245,10 +247,10 @@ async function shoot(browser, shot, viewName) {
 const MAX_HEIGHT = 24000;
 
 async function fullPage(send, evaluate, view) {
-  // Sticky things would repeat in every slice: unstick them, and show the
-  // header only at the top.
+  // Held (sticky) things would repeat in every slice: put them back in the
+  // flow, and show the header only at the top.
   await evaluate(`(() => {
-    for (const el of document.querySelectorAll('.art, .terminal')) el.style.position = 'relative';
+    for (const el of document.querySelectorAll('.story-text, .story-figure, .faq-title, .index-stage, .pair-stage')) el.style.position = 'relative';
     return true;
   })()`);
   const total = await evaluate('document.documentElement.scrollHeight');
