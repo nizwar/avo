@@ -43,6 +43,9 @@ const SHOTS = [
   { name: 'hub-id', url: `${SITE}id/hub/`, views: ALL },
   { name: 'notfound', url: `${SITE}does-not-exist/deeper/`, views: ['desktop', 'phone'], expectStatus: 404 },
   { name: 'home-en-reduced-motion', url: SITE, views: ['desktop'], reducedMotion: true },
+  // Without JavaScript every word and picture must still be there.
+  { name: 'home-en-no-script', url: SITE, views: ['desktop', 'phone'], noScript: true },
+  { name: 'hub-en-no-script', url: `${SITE}hub/`, views: ['desktop', 'phone'], noScript: true },
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -172,6 +175,7 @@ async function shoot(browser, shot, viewName) {
   await send('Emulation.setDeviceMetricsOverride', { width: view.width, height: view.height, deviceScaleFactor: view.scale, mobile: view.mobile });
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: shot.reducedMotion ? 'reduce' : 'no-preference' }, { name: 'prefers-color-scheme', value: 'dark' }] });
   await send('Emulation.setTouchEmulationEnabled', { enabled: view.mobile, maxTouchPoints: view.mobile ? 5 : 1 });
+  await send('Emulation.setScriptExecutionDisabled', { value: Boolean(shot.noScript) });
 
   const loaded = new Promise((resolve) => {
     const stop = browser.on((msg) => {

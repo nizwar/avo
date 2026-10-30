@@ -63,18 +63,21 @@ function setupCurrentSection() {
     if (target) map.set(target, link);
   }
   if (!map.size || !('IntersectionObserver' in window)) return;
+  // Back at the first screen, no section is being read.
+  const hero = document.querySelector('main > .hero');
   const io = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
         for (const other of map.values()) if (other.getAttribute('aria-current') === 'location') other.removeAttribute('aria-current');
         const link = map.get(entry.target);
-        if (!link.hasAttribute('aria-current')) link.setAttribute('aria-current', 'location');
+        if (link && !link.hasAttribute('aria-current')) link.setAttribute('aria-current', 'location');
       }
     },
     { rootMargin: '-45% 0px -50% 0px' },
   );
   for (const target of map.keys()) io.observe(target);
+  if (hero) io.observe(hero);
 }
 
 /**

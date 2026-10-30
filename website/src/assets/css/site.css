@@ -2389,7 +2389,7 @@ p {
   display: grid;
   grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
   gap: 32px clamp(32px, 5vw, 96px);
-  align-items: end;
+  align-items: center;
 }
 
 .not-found-copy {
@@ -2646,6 +2646,20 @@ html.has-lightbox {
   from {
     opacity: 0;
     transform: translateY(-18px);
+  }
+}
+
+/* Less motion: pictures change at once, nothing travels. */
+@media (prefers-reduced-motion: reduce) {
+  .js .reel-item,
+  .js .reel-item.is-current,
+  .index-stage .index-figure,
+  .index-stage .index-figure.is-current,
+  .js .sheet-state,
+  .js .sheet-state.is-current {
+    transition-duration: 1ms;
+    transition-delay: 0s;
+    transform: none;
   }
 }
 
@@ -3004,6 +3018,10 @@ html.has-lightbox {
 @media (max-width: 360px) {
   .brand-name {
     display: none;
+  }
+
+  .hero-half {
+    font-size: 9.2vw;
   }
 
   .sheet-code {
