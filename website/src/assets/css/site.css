@@ -1201,6 +1201,19 @@ p {
   background: var(--deep);
 }
 
+/* Each statement shows the part of the settings it talks about, close up:
+   the window cropped to its content pane (the sidebar is the same in all
+   four). A click opens the whole window. */
+.story-figure .window {
+  aspect-ratio: 16 / 11;
+}
+
+.story-figure .window img {
+  width: 146%;
+  max-width: none;
+  translate: -28.5% 0;
+}
+
 /* On wide screens each statement holds its screen while it is read. */
 @media (min-width: 900px) {
   .story-step {
