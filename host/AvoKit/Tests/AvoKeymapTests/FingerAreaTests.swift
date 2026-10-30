@@ -8,7 +8,7 @@ private let W = 2400.0, H = 1080.0
 
 private func engine(_ controls: [Control], fps: FPSSettings? = nil) -> KeymapEngine {
     KeymapEngine(profile: KeymapProfile(package: "com.example.game", name: "Test", controls: controls, fps: fps),
-                 displayID: 7, width: W, height: H)
+                 displayID: 7, width: W, height: H, touchSpread: 0)
 }
 
 private func summary(_ events: [TouchEvent]) -> [String] {

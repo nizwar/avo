@@ -129,7 +129,7 @@ private let eye = Control(id: "eye", kind: .aim(area: NormalizedRect(0.5, 0.1, 1
 }
 
 @Suite struct GamepadEngineTests {
-    private func engine(_ p: KeymapProfile) -> KeymapEngine { KeymapEngine(profile: p, displayID: 7, width: W, height: H) }
+    private func engine(_ p: KeymapProfile) -> KeymapEngine { KeymapEngine(profile: p, displayID: 7, width: W, height: H, touchSpread: 0) }
 
     @Test func theJoystickFollowsTheProfilesDeadZoneAndSensitivity() {
         var move = move

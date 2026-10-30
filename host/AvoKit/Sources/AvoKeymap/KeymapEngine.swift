@@ -135,12 +135,22 @@ public struct KeymapEngine: Sendable {
     /// Since when each eye's stick has rested, while its finger is down.
     private var stickRestingSince: [String: TimeInterval] = [:]
     private var lastTick: TimeInterval?
+    /// How far a touch spreads from where a control aims it, 0…1 (see
+    /// `init(touchSpread:)`).
+    private let touchSpread: Double
+    private let randomUnit: @Sendable () -> Double = { Double.random(in: 0..<1) }
 
-    public init(profile: KeymapProfile, displayID: UInt32, width: Double, height: Double) {
+    /// - Parameter touchSpread: how far a touch spreads from the point its
+    ///   control aims at, 0…1. A finger lands near the middle of a button,
+    ///   never the same pixel twice, and a thumb rests somewhere around the
+    ///   eye's point in its box: 1 (the default) touches like a finger; 0
+    ///   touches exactly the points, for deterministic tests.
+    public init(profile: KeymapProfile, displayID: UInt32, width: Double, height: Double, touchSpread: Double = 1) {
         self.profile = profile
         self.displayID = displayID
         self.width = width
         self.height = height
+        self.touchSpread = min(max(touchSpread, 0), 1)
         mode = profile.firstMode
     }
 
@@ -449,18 +459,18 @@ public struct KeymapEngine: Sendable {
         case .tap(let point), .hold(let point):
             if trigger.isMomentary {
                 // A wheel notch has no release: a short tap.
-                tap(point, at: now)
-            } else if held[control.id] == nil, let touch = down(point) {
+                tap(point, on: control, at: now)
+            } else if held[control.id] == nil, let touch = down(landing(on: control, at: point)) {
                 // Down while the key is down, like a finger: a tap or a hold.
                 held[control.id] = touch
                 heldSince[control.id] = now
             }
         case let .ads(point, toggle):
             if toggle {
-                tap(point, at: now)
+                tap(point, on: control, at: now)
                 adsActive.toggle()
             } else if held[control.id] == nil {
-                held[control.id] = down(point)
+                held[control.id] = down(landing(on: control, at: point))
                 adsActive = true
             }
         case .dpad:
@@ -479,12 +489,12 @@ public struct KeymapEngine: Sendable {
             }
             enqueue(now + Double(ms) / 1000, .lift(touch: touch))
         case let .repeatTap(point, interval):
-            tap(point, at: now)
+            tap(point, on: control, at: now)
             enqueue(now + Double(interval) / 1000, .repeatTap(control: control.id, trigger: trigger))
         case .macro:
             runMacroStep(control, index: 0, at: now)
         case let .anchor(point, radius):
-            guard held[control.id] == nil, let touch = down(point) else { return }
+            guard held[control.id] == nil, let touch = down(landing(on: control, at: point)) else { return }
             held[control.id] = touch
             anchors[control.id] = AnchorTouch(x: point.x * width, y: point.y * height, centerX: point.x * width,
                                               centerY: point.y * height, radius: radius.map { $0 * height })
@@ -523,8 +533,11 @@ public struct KeymapEngine: Sendable {
         }
     }
 
-    private mutating func tap(_ point: NormalizedPoint, at now: TimeInterval) {
-        guard let touch = down(point) else { return }
+    /// A short touch where the control's button is, lifted whole after
+    /// `tapDurationMilliseconds`: the finger lands somewhere on the button's
+    /// face (`landing(on:at:)`).
+    private mutating func tap(_ point: NormalizedPoint, on control: Control, at now: TimeInterval) {
+        guard let touch = down(landing(on: control, at: point)) else { return }
         enqueue(now + Double(Self.tapDurationMilliseconds) / 1000, .lift(touch: touch))
     }
 
@@ -532,9 +545,9 @@ public struct KeymapEngine: Sendable {
         guard case .macro(let steps) = control.kind, index < steps.count else { return }
         let step = steps[index]
         switch step {
-        case .tap(let point): tap(point, at: now)
+        case .tap(let point): tap(point, on: control, at: now)
         case let .hold(point, ms):
-            if let touch = down(point) { enqueue(now + Double(ms) / 1000, .lift(touch: touch)) }
+            if let touch = down(landing(on: control, at: point)) { enqueue(now + Double(ms) / 1000, .lift(touch: touch)) }
         case .wait: break
         }
         enqueue(now + Double(step.duration) / 1000, .macroStep(control: control.id, index: index + 1))
@@ -719,13 +732,47 @@ public struct KeymapEngine: Sendable {
 
     /// Where the eye's finger touches down, and touches down again once it
     /// reaches the edge of its area: its point (the centre unless the player
-    /// moved it), in pixels, inside the area by the pixel the finger keeps
-    /// from its edge.
+    /// moved it), spread within the box so the thumb never rests on the same
+    /// pixel, inside the area by the pixel the finger keeps from its edge.
     private func touchDown(in area: NormalizedRect, at origin: NormalizedPoint?) -> (x: Double, y: Double) {
         let p = origin ?? area.center
         let minX = area.minX * width + 1, maxX = max(area.maxX * width - 1, minX)
         let minY = area.minY * height + 1, maxY = max(area.maxY * height - 1, minY)
-        return (min(max(p.x * width, minX), maxX), min(max(p.y * height, minY), maxY))
+        let half = min(maxX - minX, maxY - minY) / 2
+        let landed = nudged(p.x * width, p.y * height, sigma: half * 0.3, limit: half * 0.8)
+        return (min(max(landed.x, minX), maxX), min(max(landed.y, minY), maxY))
+    }
+
+    // MARK: Where a finger lands
+
+    /// A control's point spread across its button's face (`size`, a fraction
+    /// of the display height): a finger aims for the middle of the button and
+    /// never takes the same pixel twice.
+    private func landing(on control: Control, at point: NormalizedPoint) -> NormalizedPoint {
+        let radius = (control.size ?? Control.defaultSize) * height / 2
+        let landed = nudged(point.x * width, point.y * height, sigma: radius / 2.5, limit: radius * 0.8)
+        return NormalizedPoint(clampX(landed.x) / max(width, 1), clampY(landed.y) / max(height, 1))
+    }
+
+    /// (x, y) nudged the way a hand works: a Gaussian spread of `sigma`
+    /// pixels around the aim, never further than `limit` pixels away.
+    private func nudged(_ x: Double, _ y: Double, sigma: Double, limit: Double) -> (x: Double, y: Double) {
+        guard touchSpread > 0, sigma > 0, limit > 0 else { return (x, y) }
+        var dx = gaussian() * sigma * touchSpread
+        var dy = gaussian() * sigma * touchSpread
+        let reach = limit * touchSpread
+        let distance = hypot(dx, dy)
+        if distance > reach, distance > 0 {
+            dx *= reach / distance
+            dy *= reach / distance
+        }
+        return (x + dx, y + dy)
+    }
+
+    /// A standard normal random number (Box–Muller).
+    private func gaussian() -> Double {
+        let u1 = max(randomUnit(), .ulpOfOne), u2 = randomUnit()
+        return (-2 * log(u1)).squareRoot() * cos(2 * .pi * u2)
     }
 
     // MARK: Scheduling
@@ -749,7 +796,7 @@ public struct KeymapEngine: Sendable {
             case let .repeatTap(controlID, trigger):
                 guard pressed.contains(trigger), let control = controls.first(where: { $0.id == controlID }),
                       case let .repeatTap(point, interval) = control.kind, isActive(control) else { continue }
-                tap(point, at: time)
+                tap(point, on: control, at: time)
                 enqueue(time + Double(interval) / 1000, .repeatTap(control: controlID, trigger: trigger))
             case let .macroStep(controlID, index):
                 guard let control = controls.first(where: { $0.id == controlID }) else { continue }

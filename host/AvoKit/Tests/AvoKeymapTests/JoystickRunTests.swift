@@ -20,7 +20,8 @@ private func walk(run: JoystickRun? = JoystickRun(trigger: .key(.shift), scale: 
 }
 
 private func engine(_ controls: [Control]) -> KeymapEngine {
-    KeymapEngine(profile: KeymapProfile(package: "x", name: "x", controls: controls), displayID: 7, width: W, height: H)
+    KeymapEngine(profile: KeymapProfile(package: "x", name: "x", controls: controls), displayID: 7, width: W, height: H,
+                 touchSpread: 0)
 }
 
 /// A joystick that runs: further while its key is held, back when it is let go.

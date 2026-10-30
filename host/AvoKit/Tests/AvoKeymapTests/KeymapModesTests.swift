@@ -7,7 +7,7 @@ import Testing
 private let W = 2400.0, H = 1080.0
 
 private func engine(_ profile: KeymapProfile) -> KeymapEngine {
-    KeymapEngine(profile: profile, displayID: 7, width: W, height: H)
+    KeymapEngine(profile: profile, displayID: 7, width: W, height: H, touchSpread: 0)
 }
 
 private func summary(_ events: [TouchEvent]) -> [String] {
