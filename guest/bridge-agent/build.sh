@@ -61,10 +61,14 @@ CXX="$NDK/toolchains/llvm/prebuilt/$(ls "$NDK/toolchains/llvm/prebuilt" | head -
   -o "$OUT/lib/arm64-v8a/libavobridge_jni.so" "$HERE/jni/avobridge_jni.cpp"
 
 # 8. Cross-language check: decode the host encoder's golden records with the
-#    same accessors the injector uses (plain JVM).
+#    same accessors the injector uses (plain JVM), and the touch profile's
+#    ranges.
 mkdir -p "$OUT/test-classes"
-javac --release 17 -d "$OUT/test-classes" "$HERE/src/com/avodroid/bridge/input/InputRecords.java" "$HERE/test/InputRecordsTest.java"
+javac --release 17 -d "$OUT/test-classes" "$HERE/src/com/avodroid/bridge/input/InputRecords.java" \
+    "$HERE/src/com/avodroid/bridge/input/TouchProfile.java" \
+    "$HERE/test/InputRecordsTest.java" "$HERE/test/TouchProfileTest.java"
 java -cp "$OUT/test-classes" InputRecordsTest "$ROOT/proto/testdata/input-v1.bin"
+java -cp "$OUT/test-classes" TouchProfileTest
 
 # 9. Package, align and sign.
 cp "$OUT/base.apk" "$OUT/unsigned.apk"
