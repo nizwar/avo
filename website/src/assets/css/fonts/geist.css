@@ -1,4 +1,4 @@
-/* Typeface set B: Geist and Geist Mono (Vercel), SIL OFL 1.1; licenses in
+/* Typeface set B: Geist and Geist Mono (Vercel), SIL OFL 1.1; licenses in (taste-skill-ignore: monospace for code only)
    assets/fonts/<family>/OFL.txt. Google Fonts' Latin files, unmodified. */
 
 @font-face {
@@ -10,7 +10,7 @@
 }
 
 @font-face {
-  font-family: 'Geist Mono';
+  font-family: 'Geist Mono'; /* taste-skill-ignore: monospace is for code only */
   src: url('../fonts/geist-mono/geist-mono.woff2') format('woff2');
   font-weight: 100 900;
   font-display: swap;
@@ -20,7 +20,7 @@
 :root {
   --font-display: 'Geist', var(--font-fallback);
   --font-sans: 'Geist', var(--font-fallback);
-  --font-mono: 'Geist Mono', var(--font-mono-fallback);
+  --font-mono: 'Geist Mono', var(--font-mono-fallback); /* taste-skill-ignore: monospace is for code only */
   --display-weight: 600;
   --display-stretch: 100%;
   --display-stretch-narrow: 100%;

@@ -98,12 +98,12 @@ function setupRise() {
         .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top || a.boundingClientRect.left - b.boundingClientRect.left);
       arriving.forEach((entry, i) => {
         const el = entry.target;
-        el.style.setProperty('--rise-delay', `${Math.min(i, 4) * 75}ms`);
+        el.style.setProperty('--rise-delay', `${Math.min(i, 3) * 70}ms`);
         el.classList.add('is-in');
         io.unobserve(el);
       });
     },
-    { rootMargin: '0px 0px -8% 0px', threshold: 0.04 },
+    { rootMargin: '0px 0px -6% 0px', threshold: 0.02 },
   );
   const selector = [...parts.map((part) => `main ${part}`), '.footer-slogan'].join(',');
   for (const el of document.querySelectorAll(selector)) {

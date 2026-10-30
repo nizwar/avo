@@ -7,6 +7,8 @@
 
 const EASE_OUT = 'cubic-bezier(0.16, 1, 0.3, 1)';
 const EASE_IN_OUT = 'cubic-bezier(0.65, 0, 0.35, 1)';
+// For what leaves for good, short.
+const EASE_EXIT = 'cubic-bezier(0.55, 0.055, 0.675, 0.19)';
 
 /** The transform that puts `to` exactly over `from` (both client rects). */
 const flip = (from, to) =>
@@ -96,11 +98,11 @@ export function setupLightbox({ reduceMotion }) {
       const onScreen = end.bottom > 0 && end.top < window.innerHeight && end.width > 0;
       const start = big.getBoundingClientRect();
       const motions = [
-        scrim.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 360, easing: 'ease-in', fill: 'forwards' }),
+        scrim.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 360, easing: EASE_EXIT, fill: 'forwards' }),
         ...[caption, closeButton].map((el) => el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, fill: 'forwards' })),
         onScreen
           ? big.animate([{ transform: 'none' }, { transform: flip(end, start) }], { duration: 420, easing: EASE_IN_OUT, fill: 'forwards' })
-          : big.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.96)' }], { duration: 260, easing: 'ease-in', fill: 'forwards' }),
+          : big.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.96)' }], { duration: 260, easing: EASE_EXIT, fill: 'forwards' }),
       ];
       await Promise.all(motions.map((m) => m.finished.catch(() => {})));
       dialog.close();

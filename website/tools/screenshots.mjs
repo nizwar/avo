@@ -250,7 +250,9 @@ async function fullPage(send, evaluate, view) {
   // Held (sticky) things would repeat in every slice: put them back in the
   // flow, and show the header only at the top.
   await evaluate(`(() => {
-    for (const el of document.querySelectorAll('.story-text, .story-figure, .faq-title, .index-stage, .pair-stage')) el.style.position = 'relative';
+    for (const el of document.querySelectorAll('.story-text, .story-figure, .faq-title, .index-stage, .pair-stage')) el.style.position = 'static';
+    // Entrances that the quick scroll above passed by: let them all in.
+    for (const el of document.querySelectorAll('[data-rise]')) el.classList.add('is-in');
     return true;
   })()`);
   const total = await evaluate('document.documentElement.scrollHeight');

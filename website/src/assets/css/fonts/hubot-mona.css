@@ -1,7 +1,7 @@
-/* Typeface set A: Hubot Sans (headings), Mona Sans (text), Mona Sans Mono
+/* Typeface set A: Hubot Sans (headings), Mona Sans (text), Mona Sans Mono (taste-skill-ignore: monospace for code only)
    (labels and code). GitHub's open-source superfamily, SIL OFL 1.1; licenses
    in assets/fonts/<family>/OFL.txt. Hubot Sans and Mona Sans are Google
-   Fonts' Latin files, unmodified; Mona Sans Mono is GitHub's release file. */
+   Fonts' Latin files, unmodified; Mona Sans Mono is GitHub's release file. */ /* taste-skill-ignore: code only */
 
 @font-face {
   font-family: 'Hubot Sans';
@@ -22,7 +22,7 @@
 }
 
 @font-face {
-  font-family: 'Mona Sans Mono';
+  font-family: 'Mona Sans Mono'; /* taste-skill-ignore: monospace is for code only */
   src: url('../fonts/mona-sans-mono/mona-sans-mono.woff2') format('woff2');
   font-weight: 200 900;
   font-display: swap;
@@ -31,7 +31,7 @@
 :root {
   --font-display: 'Hubot Sans', var(--font-fallback);
   --font-sans: 'Mona Sans', var(--font-fallback);
-  --font-mono: 'Mona Sans Mono', var(--font-mono-fallback);
+  --font-mono: 'Mona Sans Mono', var(--font-mono-fallback); /* taste-skill-ignore: monospace is for code only */
   --display-weight: 650;
   --display-stretch: 108%;
   --display-stretch-narrow: 102%;

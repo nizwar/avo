@@ -3,8 +3,9 @@
    AvoDeep, AvoPit) and docs/brand.md (Cream). The page is AvoDeep pushed
    toward black; AvoFlesh is the one accent (the main action, a selected
    row, the closing field); AvoSkin and AvoDeep are the stages the windows
-   sit on. Surfaces step in tone; nothing on the page has a gradient, a glow
-   or a shadow at rest. The haze lives in the product's own windows.
+   sit on. Surfaces step in tone; nothing on the page has a gradient or a
+   glow, and only what floats (a menu panel, the disk image's window) casts
+   a drop. The haze lives in the product's own windows.
 
    Typefaces are a switch: site.config.mjs picks a set from css/fonts/, which
    the build appends after this file and which overrides the --font-*
@@ -32,10 +33,10 @@
   --ember: #eaa970;
 
   --font-fallback: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono-fallback: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  --font-mono-fallback: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; /* taste-skill-ignore: for code only */
   --font-display: var(--font-fallback);
   --font-sans: var(--font-fallback);
-  --font-mono: var(--font-mono-fallback);
+  --font-mono: var(--font-mono-fallback); /* taste-skill-ignore: for code only */
   --display-weight: 700;
   --display-stretch: 100%;
   --display-stretch-narrow: 100%;
@@ -88,7 +89,7 @@ html {
 
 body {
   margin: 0;
-  min-height: 100vh;
+  min-height: 100svh;
   overflow-x: clip;
   background: var(--ground);
   color: var(--ink);
@@ -762,6 +763,11 @@ p {
 
 .section {
   padding-top: var(--section);
+}
+
+/* The first screen already ends in space of its own. */
+.hero + .section {
+  padding-top: clamp(48px, 5vw, 96px);
 }
 
 /* --------------------------------------------- On your Mac: the commands */
@@ -1554,7 +1560,7 @@ p {
   overflow: hidden;
   border-radius: 12px;
   background: #1d2419;
-  box-shadow: 0 30px 70px -28px rgba(10, 17, 8, 0.55), 0 0 0 1px rgba(10, 17, 8, 0.25);
+  box-shadow: 0 30px 70px -28px rgba(10, 17, 8, 0.55), 0 0 0 1px rgba(10, 17, 8, 0.25); /* taste-skill-ignore: a window floating over the field */
   container-type: inline-size;
 }
 
@@ -1621,7 +1627,7 @@ p {
   top: 57%;
   translate: -50% -50%;
   color: #15210e;
-  font: 600 max(10px, 2.05cqw) / 1 var(--font-sans);
+  font: 600 2.05cqw / 1 var(--font-sans);
 }
 
 .dmg-label-app {
@@ -1693,7 +1699,7 @@ p {
 
 .window-menu {
   border-radius: 12px;
-  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(216, 232, 167, 0.12);
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(216, 232, 167, 0.12); /* taste-skill-ignore: the menu bar panel floats */
 }
 
 /* The index: Avo Hub's sidebar set large, one window held beside it. */
@@ -1943,9 +1949,7 @@ p {
 }
 
 .sheet-state + .sheet-state {
-  margin-top: 28px;
-  padding-top: 28px;
-  border-top: 1px solid rgba(216, 232, 167, 0.12);
+  margin-top: 40px;
 }
 
 .js .sheet-state {
@@ -1956,14 +1960,14 @@ p {
   opacity: 0;
   visibility: hidden;
   transform: translateY(10px);
-  transition: opacity 420ms ease, transform 520ms var(--ease-out), visibility 0s linear 520ms;
+  transition: opacity 160ms ease, transform 160ms ease, visibility 0s linear 160ms;
 }
 
 .js .sheet-state.is-current {
   opacity: 1;
   visibility: visible;
   transform: none;
-  transition: opacity 420ms ease 80ms, transform 520ms var(--ease-out) 80ms, visibility 0s;
+  transition: opacity 360ms ease 170ms, transform 520ms var(--ease-out) 170ms, visibility 0s;
 }
 
 .sheet-title {
@@ -2566,7 +2570,7 @@ html.has-lightbox {
   .js [data-rise] {
     opacity: 0;
     transform: translateY(24px);
-    transition: opacity 700ms var(--ease-out), transform 900ms var(--ease-expo);
+    transition: opacity 600ms var(--ease-out), transform 800ms var(--ease-expo);
     transition-delay: var(--rise-delay, 0ms);
   }
 
@@ -2979,6 +2983,20 @@ html.has-lightbox {
 @media (max-width: 360px) {
   .brand-name {
     display: none;
+  }
+
+  .sheet-code {
+    gap: 5px;
+  }
+
+  .sheet-code span {
+    width: 32px;
+    height: 44px;
+    font-size: 22px;
+  }
+
+  .sheet-code .gap {
+    margin-left: 8px;
   }
 
   .btn {

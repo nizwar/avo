@@ -1,5 +1,5 @@
 /* Typeface set C: Archivo (Omnibus-Type), wide cuts for headings, normal
-   width for text; JetBrains Mono for labels and code. SIL OFL 1.1; licenses
+   width for text; JetBrains Mono for labels and code. SIL OFL 1.1; licenses (taste-skill-ignore: monospace for code only)
    in assets/fonts/<family>/OFL.txt. Google Fonts' Latin files, unmodified. */
 
 @font-face {
@@ -12,7 +12,7 @@
 }
 
 @font-face {
-  font-family: 'JetBrains Mono';
+  font-family: 'JetBrains Mono'; /* taste-skill-ignore: monospace is for code only */
   src: url('../fonts/jetbrains-mono/jetbrains-mono.woff2') format('woff2');
   font-weight: 100 800;
   font-display: swap;
@@ -22,7 +22,7 @@
 :root {
   --font-display: 'Archivo', var(--font-fallback);
   --font-sans: 'Archivo', var(--font-fallback);
-  --font-mono: 'JetBrains Mono', var(--font-mono-fallback);
+  --font-mono: 'JetBrains Mono', var(--font-mono-fallback); /* taste-skill-ignore: monospace is for code only */
   --display-weight: 650;
   --display-stretch: 112.5%;
   --display-stretch-narrow: 104%;
