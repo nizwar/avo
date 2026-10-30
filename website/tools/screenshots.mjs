@@ -165,17 +165,19 @@ async function shoot(browser, shot, viewName) {
     if (msg.method === 'Runtime.exceptionThrown') problems.push(`exception: ${msg.params.exceptionDetails.exception?.description || msg.params.exceptionDetails.text}`);
     if (msg.method === 'Runtime.consoleAPICalled' && msg.params.type === 'error') problems.push(`console.error: ${msg.params.args.map((a) => a.value ?? a.description).join(' ')}`);
     if (msg.method === 'Log.entryAdded' && msg.params.entry.level === 'error' && !/favicon/.test(msg.params.entry.url || '')) {
-      const expected404 = (shot.expectStatus === 404 && /status of 404/.test(msg.params.entry.text)) || shot.expectLog?.test(msg.params.entry.text);
+      const expected404 = (shot.expectStatus === 404 && /status of 404/.test(msg.params.entry.text)) || shot.expectLog?.test(msg.params.entry.text) || (shot.noScript && /ERR_BLOCKED_BY_CLIENT/.test(msg.params.entry.text));
       if (!expected404) problems.push(`log: ${msg.params.entry.text} ${msg.params.entry.url || ''}`);
     }
     if (msg.method === 'Network.responseReceived' && msg.params.type === 'Document') status = msg.params.response.status;
-    if (msg.method === 'Network.loadingFailed' && !msg.params.canceled) problems.push(`request failed: ${msg.params.errorText}`);
+    if (msg.method === 'Network.loadingFailed' && !msg.params.canceled && !(shot.noScript && msg.params.blockedReason)) problems.push(`request failed: ${msg.params.errorText}`);
   });
   await send('Network.clearBrowserCookies');
   await send('Emulation.setDeviceMetricsOverride', { width: view.width, height: view.height, deviceScaleFactor: view.scale, mobile: view.mobile });
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: shot.reducedMotion ? 'reduce' : 'no-preference' }, { name: 'prefers-color-scheme', value: 'dark' }] });
   await send('Emulation.setTouchEmulationEnabled', { enabled: view.mobile, maxTouchPoints: view.mobile ? 5 : 1 });
-  await send('Emulation.setScriptExecutionDisabled', { value: Boolean(shot.noScript) });
+  // Without JavaScript: the site's own scripts are not loaded (the tool's
+  // checks still run in the page).
+  await send('Network.setBlockedURLs', { urls: shot.noScript ? ['*/assets/js/*'] : [] });
 
   const loaded = new Promise((resolve) => {
     const stop = browser.on((msg) => {
