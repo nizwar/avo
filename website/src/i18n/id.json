@@ -292,7 +292,7 @@
     "pricingCta": "Lihat paket dan harga",
     "howLink": "Cara tersambung",
     "hero": {
-      "titleA": "Ponsel Android kamu,",
+      "titleA": "Android kamu,",
       "titleB": "langsung di Mac.",
       "lede": "Avo Hub menghadirkan ponsel yang sudah kamu punya ke Mac: layar, notifikasi, pesan, panggilan, dan file-nya. Lewat kabel, Wi‑Fi yang sama, atau internet.",
       "factBrand": "Merek apa pun, Android 11 ke atas",
@@ -395,7 +395,7 @@
       "note": "Aplikasi yang melindungi layarnya, seperti sebagian aplikasi bank dan streaming, tampil hitam di jendela."
     },
     "avo": {
-      "title": "Dibuat untuk berdampingan dengan Avo.",
+      "title": "Pasangan serasi untuk Avo.",
       "text": "Avo menjalankan aplikasi dan game Android di Mac kamu tanpa ponsel sama sekali; Avo Hub menyambungkan ponsel yang kamu punya. Keduanya aplikasi terpisah: pakai salah satu, atau dua-duanya. Game yang sudah kamu atur di Avo memakai tata letak tombol yang sama di Avo Hub.",
       "link": "Unduh Avo, gratis",
       "openText": "Open source seperti Avo, dengan lisensi Apache 2.0 yang sama, dan semua kodenya <a href=\"{hubGithub}\">ada di GitHub</a>."

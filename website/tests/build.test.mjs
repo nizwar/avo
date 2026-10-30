@@ -49,8 +49,8 @@ test('the slogan leads both pages, in both languages', () => {
   const h1 = (page) => text(read(page).match(/<h1 id="hero-title" class="hero-title">([\s\S]*?)<\/h1>/)[1]);
   assert.equal(h1('index.html'), 'Android at heart. Mac to the core.');
   assert.equal(h1('id/index.html'), 'Jiwa Android, rasa Mac.');
-  assert.equal(h1('hub/index.html'), 'Your Android phone, on your Mac.');
-  assert.equal(h1('id/hub/index.html'), 'Ponsel Android kamu, langsung di Mac.');
+  assert.equal(h1('hub/index.html'), 'Your Android, on your Mac.');
+  assert.equal(h1('id/hub/index.html'), 'Android kamu, langsung di Mac.');
   // In the title and description search engines show, and in the footer's close.
   assert.match(read('index.html'), /<title>Avo: Android apps on your Mac · Android at heart, Mac to the core<\/title>/);
   assert.match(meta(read('index.html'), 'name', 'description'), /^Android at heart, Mac to the core: /);

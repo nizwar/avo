@@ -117,13 +117,14 @@ export function setupReel({ reduceMotion }) {
     if (reduceMotion.matches) stop();
   });
 
-  // The other windows wait until the first one has loaded.
-  const first = items[0].querySelector('img');
+  // The other windows load once the page has, so they never compete with
+  // the first screen.
   const warm = () => {
     for (const img of stage.querySelectorAll('img[loading="lazy"]')) img.loading = 'eager';
   };
-  if (first?.complete) warm();
-  else first?.addEventListener('load', warm, { once: true });
+  const idle = () => ('requestIdleCallback' in window ? requestIdleCallback(warm, { timeout: 2500 }) : setTimeout(warm, 600));
+  if (document.readyState === 'complete') idle();
+  else window.addEventListener('load', idle, { once: true });
 
   show(0);
 }

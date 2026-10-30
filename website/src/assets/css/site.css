@@ -2697,6 +2697,14 @@ html.has-lightbox {
     margin-top: 24px;
   }
 
+  .hero {
+    min-height: 0;
+  }
+
+  .hero + .section {
+    padding-top: var(--section);
+  }
+
 }
 
 @media (max-width: 1000px) {
@@ -2910,12 +2918,12 @@ html.has-lightbox {
   }
 
   .js .pair-step {
-    min-height: 46svh;
+    min-height: 34svh;
     align-content: center;
   }
 
-  .js .pair-label {
-    display: none;
+  .pair-label {
+    font-size: 14px;
   }
 
   .sheet {

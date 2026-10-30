@@ -6,6 +6,12 @@ a small Node script. Plain HTML, CSS and
 JavaScript; no framework, no npm dependencies, no cookies, no analytics. It
 is hosted on GitHub Pages as is.
 
+The slogan is **Android at heart. Mac to the core.** (Indonesian: **Jiwa
+Android, rasa Mac.**). Both pages open with its two halves split by the
+product's real windows, and the footer closes with it. The look is Avo's
+haze palette set flat: no gradients, glows, blur or shadows at rest; the
+pictures are the apps' own windows.
+
 ## Contents
 
 ```
@@ -16,19 +22,23 @@ website/
 │   ├── pages/               index.html (landing page), hub.html (Avo Hub, at /hub), 404.html
 │   ├── partials/            head, header, footer, SVG sprite
 │   ├── i18n/en.json, id.json  All wording, English and Indonesian (same keys; the build checks)
-│   └── assets/              css/site.css, css/fonts/ (one file per typeface set), js/ (site
-│                            behaviour, pointer motion, games showcase, tabs, click to zoom,
-│                            WebGL haze), fonts/ (one folder per family, each with
-│                            its OFL.txt), img/ (Avo mark and icon from branding/, favicons, og/,
-│                            screens/: screenshots of Avo in AVIF, WebP and JPEG at 640 px and
-│                            full width, with player names and device IDs blurred)
+│   └── assets/              css/site.css, css/fonts/ (one file per typeface set), js/ (site.js:
+│                            header, entrances; reel.js: the hero's windows; commands.js: Avo's
+│                            commands and the game keys; story.js: the held story, Avo Hub's
+│                            index and pairing walk-through; lightbox.js: click to zoom),
+│                            fonts/ (one folder per family, each with its OFL.txt), img/ (Avo
+│                            mark and icon from branding/, favicons, og/, screens/: Avo's
+│                            windows, Avo Hub's windows from its snapshot tests and the disk
+│                            image's background, in AVIF, WebP and JPEG at 640 px and full
+│                            width, with player names and device IDs blurred)
 ├── tools/
 │   ├── build.mjs            Builds dist/ (npm run build); --strict refuses placeholders
 │   ├── serve.mjs            Local development server with rebuild on change
 │   ├── screenshots.mjs      Headless Chrome screenshots and layout checks
 │   └── og-image.html        Template for the social preview images (src/assets/img/og/)
 ├── tests/                   node --test: the built site (both languages, links, no emoji,
-│                            CSP-friendly markup, configuration switches)
+│                            CSP-friendly markup, titles, share cards, structured data,
+│                            sitemap, configuration switches)
 ├── deploy/github-pages.yml  GitHub Actions workflow to copy into .github/workflows/
 └── dist/                    Build output (ignored by git)
 ```
@@ -47,8 +57,8 @@ the ones left and `npm run build:strict` refuses to build until none are.
 | --- | --- |
 | `siteUrl` | Public address of the site (`https://avodroid.com`). Used for canonical links, the sitemap and social previews. |
 | `githubUrl`, `githubBranch` | The repository and its branch, for links into `docs/`. |
-| `release` | `available: false` says plainly that no build is published and offers "Build from source". Set `available: true`, `version` and `downloadUrl` when a release is out. |
-| `hub` | Avo Hub's page: its repository (`githubUrl`) and `release`, which works like Avo's. While `available` is false the page says Avo Hub isn't released yet and points to GitHub and to building from source. |
+| `release` | `available: false` says plainly that no build is published and offers "Build from source". Set `available: true`, `version`, `downloadUrl` and `size` (the disk image's size, shown beside the button and as a figure) when a release is out. |
+| `hub` | Avo Hub's page: its repository (`githubUrl`, linked only once `openSource` is true), `release`, which works like Avo's, and the links to its plans and policies (`pricingUrl`, `termsUrl`, `privacyUrl`, `refundUrl`, opened with `?lang=` in the page's language). While `available` is false the page says Avo Hub isn't released yet and leads to its pricing. |
 | `fonts` | The typeface set, one switch for the whole site: `'hubot-mona'` (A, default: Hubot Sans headings, Mona Sans text, Mona Sans Mono labels), `'geist'` (B), `'archivo'` (C), `'jakarta'` (D, Plus Jakarta Sans). Letters work too. Only the chosen set's files are published. |
 | `maintainer.name` | Named in the footer credit ("Made by … in West Kalimantan, with help from Claude."). `null` says "an independent developer". |
 | `contact.email` | Public contact address. |
@@ -83,6 +93,20 @@ runs:
 ```sh
 node tools/screenshots.mjs --out /tmp/avo-shots [--only home-en] [--views desktop,phone]
 ```
+
+It takes every page at 1440 (desktop), 1280 (laptop), 820 (tablet), 390
+(phone) and 320 px (small), in both languages.
+
+## Search engines and link previews
+
+The build gives every page its own title and description, a canonical link,
+`hreflang` alternates (en, id, x-default), Open Graph and Twitter cards with
+the images in `src/assets/img/og/` (rendered from `tools/og-image.html`),
+and one JSON-LD graph: the organisation, the website, the page, the app
+(Avo, or Avo Hub with its Free and Pro offers), the page's questions as a
+FAQPage, and a breadcrumb on /hub. `sitemap.xml` lists both languages of each
+page with their alternates and screenshots; `robots.txt` points to it. The
+first screen's picture is preloaded (AVIF) along with the two typefaces.
 
 ## Deploy
 
