@@ -625,6 +625,20 @@ validation enforces the spec's hard limits: in FPS mode, repeated taps and
 macros are rejected and swipes may not touch the aim area (no automatic rapid
 fire or recoil compensation).
 
+**Landing like a finger.** A press lands somewhere on its button's face, not
+on one pixel: a Gaussian spread around the control's point (σ 40 % of the
+face's radius, clipped at 80 %; every face is `Control.defaultSize` of the
+display height across), drawn once per gesture. That covers taps, holds,
+ADS, anchor taps (dragged from where they landed, their reach still
+measured from the point), each repeated tap, macro steps and wheel notches.
+The camera touch lands on a fresh spot within its area at every touch-down
+(σ 30 % of the area's shorter half-side, clipped at 80 %), and stays down
+while it is still where it touched down and cannot go further that way, so
+a point on the area's edge does not lift and touch down on every mouse
+movement. D-pads, MOBA joysticks, smart casts, swipes and scroll bars still
+touch down exactly, where their math expects. `KeymapEngine(touchSpread:)`
+scales all of it: 1 by default, 0 (exact points) in the tests.
+
 **Running.** A D-pad control may have a key held to run (`run`: its
 trigger and a `scale` of 1 to 4): while it is held the finger goes that many
 times further from the centre, for games that walk with the joystick
