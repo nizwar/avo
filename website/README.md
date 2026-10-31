@@ -1,8 +1,9 @@
 # Avo website
 
 The public website for Avo, in English and Indonesian: a landing page, a page
-for Avo Hub (`/hub`, Avo's sibling app for the phone) and a 404 page, built by
-a small Node script. Plain HTML, CSS and
+for Avo Hub (`/hub`, Avo's sibling app for the phone), Avo Hub's pricing and
+policies (`/hub/pricing/`, `/hub/terms/`, `/hub/privacy/`, `/hub/refunds/`)
+and a 404 page, built by a small Node script. Plain HTML, CSS and
 JavaScript; no framework, no npm dependencies, no cookies, no analytics. It
 is hosted on GitHub Pages as is.
 
@@ -21,13 +22,18 @@ website/
 ├── site.config.mjs          Everything to fill in or decide: URLs, release state, contact,
 │                            support channels, typeface set
 ├── src/
-│   ├── pages/               index.html (landing page), hub.html (Avo Hub, at /hub), 404.html
-│   ├── partials/            head, header, footer, SVG sprite
+│   ├── pages/               index.html (landing page), hub.html (Avo Hub, at /hub), hub-pricing.html
+│   │                        (/hub/pricing/), hub-legal.html (/hub/terms/, /hub/privacy/,
+│   │                        /hub/refunds/), 404.html
+│   ├── partials/            head, header, footer, SVG sprite, the hub pages' tabs and seller line
 │   ├── i18n/en.json, id.json  All wording, English and Indonesian (same keys; the build checks)
+│   ├── hub/                 Avo Hub's Terms, Privacy Policy and Refund Policy (terms.json,
+│   │                        privacy.json, refunds.json: { en, id }, the same shape in both)
 │   └── assets/              css/site.css, css/fonts/ (one file per typeface set), js/ (site.js:
 │                            header, entrances; reel.js: the hero's windows; commands.js: Avo's
 │                            commands and the game keys; story.js: the held story, Avo Hub's
-│                            index and pairing walk-through; lightbox.js: click to zoom),
+│                            index and pairing walk-through; lightbox.js: click to zoom;
+│                            hub-pages.js: the hub pages' language, way back and prices),
 │                            fonts/ (one folder per family, each with its OFL.txt), img/ (Avo
 │                            mark and icon from branding/, favicons, og/, screens/: Avo's
 │                            windows, Avo Hub's windows from its snapshot tests and the disk
@@ -60,7 +66,7 @@ the ones left and `npm run build:strict` refuses to build until none are.
 | `siteUrl` | Public address of the site (`https://avodroid.com`). Used for canonical links, the sitemap and social previews. |
 | `githubUrl`, `githubBranch` | The repository and its branch, for links into `docs/`. |
 | `release` | `available: false` says plainly that no build is published and offers "Build from source". Set `available: true`, `version`, `downloadUrl` and `size` (the disk image's size, shown beside the button and as a figure) when a release is out. |
-| `hub` | Avo Hub's page: its repository (`githubUrl`, linked only once `openSource` is true), `release`, which works like Avo's, the links to its plans and policies (`pricingUrl`, `termsUrl`, `privacyUrl`, `refundUrl`, opened with `?lang=` in the page's language), and Pro's prices (`pricing`: the launch price, the day it ends and the standard price, which the wording and the structured data both read). While `available` is false the page says Avo Hub isn't released yet and leads to its pricing. |
+| `hub` | Avo Hub's page: its repository (`githubUrl`, linked only once `openSource` is true), `release`, which works like Avo's, the Avo Hub account (`accountUrl`: sign in, the trial and Get Pro), who sells it and the plans' numbers the policies quote (`legal`: `seller`, `email`, `updated`, `plan`), and Pro's prices (`pricing`: the launch price, the day it ends and the standard price, which the wording and the structured data both read). While `available` is false the page says Avo Hub isn't released yet and leads to its pricing. |
 | `fonts` | The typeface set, one switch for the whole site: `'hubot-mona'` (A, default: Hubot Sans headings, Mona Sans text, Mona Sans Mono labels), `'geist'` (B), `'archivo'` (C), `'jakarta'` (D, Plus Jakarta Sans). Letters work too. Only the chosen set's files are published. |
 | `maintainer.name` | Named in the footer credit ("Made by … in West Kalimantan, with help from Claude."). `null` says "an independent developer". |
 | `contact.email` | Public contact address. |
@@ -69,9 +75,43 @@ the ones left and `npm run build:strict` refuses to build until none are.
 The wording is in `src/i18n/en.json` and `src/i18n/id.json`. Both files must
 have the same keys; the build stops if they differ. Strings may contain
 `{github}`, `{blob}`, `{contactEmail}`, `{hubGithub}`, `{hubPricing}`,
-`{launchEnds}` and Pro's prices (`{launchFirstMonth}`, `{launchExtraMonth}`,
-`{launchFirstYear}`, `{launchExtraYear}` and the same with `standard`), which
-the build fills in.
+`{hubTerms}`, `{hubPrivacy}`, `{hubRefunds}`, `{account}`, `{seller}`,
+`{hubEmail}`, the plans' numbers (`{trialDays}`, `{refundDays}`… from
+`hub.legal.plan`), `{launchEnds}` and Pro's prices (`{launchFirstMonth}`,
+`{launchExtraMonth}`, `{launchFirstYear}`, `{launchExtraYear}` and the same
+with `standard`), which the build fills in.
+
+## Avo Hub's pricing and policies
+
+This site owns them: `/hub/pricing/`, `/hub/terms/`, `/hub/privacy/` and
+`/hub/refunds/`, with `/id/hub/…` in Indonesian, are the only copy of their
+text (the policies in `src/hub/*.json`, the pricing page in the `hubPricing`
+wording). Avo Hub's account (`auth.avodroid.com`) no longer has pages of its
+own: its old addresses (`/pricing`, `/terms`, `/privacy`, `/refund`, with or
+without `.html`) redirect here permanently, with their query kept, and its
+apps, emails and sign-in page link here. Change the text here, never there.
+
+- The policies keep their legal meaning; edit both languages together (the
+  build refuses a policy whose languages differ in sections, paragraphs or
+  lists). Links are `[label](href)`, with `{hubPricing}`, `{hubTerms}`,
+  `{hubPrivacy}`, `{hubRefunds}` and `{account}` for the addresses; a bare
+  email address becomes a link. Update `hub.legal.updated` when they change.
+- The numbers they quote (trial, refund window, retention…) come from
+  `hub.legal.plan` and the prices from `hub.pricing`; keep both equal to Avo
+  Hub's `docs/accounts.md` and its server's PayPal plans.
+- The pricing page carries both price lists; the one not in force is
+  hidden, by the build's clock and then by the visitor's (`hub-pages.js`),
+  so the launch price disappears on its own after its last day.
+- `?lang=en|id` (an old address's language) moves to that language's page.
+  `?back=` (a page opened from the account's sign-in, only
+  `hub.accountUrl`'s own sign-in page) shows "Back to Sign In" and keeps it
+  on the links between these pages; opened from the Mac's or the phone's
+  sign-in (`client_id`), the page shows nothing else to wander off through
+  (no menu, no footer links, no pricing), and links to other sites open
+  beside it.
+- Get Started and the trial lead to `hub.accountUrl`; Get Pro to
+  `hub.accountUrl?pro=month` (or `?pro=year`), whose Get Pro opens on that
+  period after signing in.
 
 Product claims on the page follow `docs/` and the code. The Avo Hub page
 follows Avo Hub's own repository (its README, docs and changelog). When a feature lands
@@ -98,8 +138,10 @@ runs:
 node tools/screenshots.mjs --out /tmp/avo-shots [--only home-en] [--views desktop,phone]
 ```
 
-It takes every page at 1440 (desktop), 1280 (laptop), 820 (tablet), 390
-(phone) and 320 px (small), in both languages.
+It takes the product pages at 1440 (desktop), 1280 (laptop), 820 (tablet),
+390 (phone) and 320 px (small), Avo Hub's pricing and policies at 1440 and
+390 (also opened from an app's sign-in, and from an old address with
+`?lang=id`), in both languages.
 
 ## Search engines and link previews
 
@@ -117,7 +159,9 @@ x-default), Open Graph and Twitter cards with the images in
 `src/assets/img/og/` (rendered from `tools/og-image.html`), and one JSON-LD
 graph: the organisation, the website, the page, the app (Avo, or Avo Hub
 with Free and Pro at its launch and standard prices) with its feature list,
-the page's questions as a FAQPage, and a breadcrumb on /hub. `sitemap.xml`
+the page's questions as a FAQPage, and a breadcrumb on /hub and its
+pricing and policy pages (Avo › Avo Hub › the page; the pricing page also
+carries Avo Hub's offers, a policy the day it last changed). `sitemap.xml`
 lists both languages of each page with their alternates, screenshots and
 the date of the last commit that changed them (so the workflow checks out
 the whole history); `robots.txt` points to it; `llms.txt` describes both

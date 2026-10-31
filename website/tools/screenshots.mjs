@@ -41,6 +41,14 @@ const SHOTS = [
   { name: 'home-id', url: `${SITE}id/`, views: ALL },
   { name: 'hub-en', url: `${SITE}hub/`, views: ALL },
   { name: 'hub-id', url: `${SITE}id/hub/`, views: ALL },
+  // Avo Hub's pricing and policies, and the same opened from an app's sign-in (only the way back).
+  ...['pricing', 'terms', 'privacy', 'refunds'].flatMap((name) => [
+    { name: `hub-${name}-en`, url: `${SITE}hub/${name}/`, views: ['desktop', 'phone'] },
+    { name: `hub-${name}-id`, url: `${SITE}id/hub/${name}/`, views: ['desktop', 'phone'] },
+  ]),
+  { name: 'hub-terms-from-app', url: `${SITE}hub/terms/?back=${encodeURIComponent('https://auth.avodroid.com/?client_id=mac&state=x')}`, views: ['desktop', 'phone'] },
+  // An old address's language (auth.avodroid.com/privacy?lang=id redirects here with its query).
+  { name: 'hub-privacy-lang-id', url: `${SITE}hub/privacy/?lang=id`, views: ['phone'] },
   { name: 'notfound', url: `${SITE}does-not-exist/deeper/`, views: ['desktop', 'phone'], expectStatus: 404 },
   { name: 'home-en-reduced-motion', url: SITE, views: ['desktop'], reducedMotion: true },
   // Without JavaScript every word and picture must still be there.
