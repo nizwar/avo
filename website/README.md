@@ -6,9 +6,11 @@ a small Node script. Plain HTML, CSS and
 JavaScript; no framework, no npm dependencies, no cookies, no analytics. It
 is hosted on GitHub Pages as is.
 
-The slogan is **Android at heart. Mac to the core.** (Indonesian: **Jiwa
-Android, rasa Mac.**). Both pages open with its two halves split by the
-product's real windows, and the footer closes with it. The look is Avo's
+The slogan is **Android in your ecosystem.** (Indonesian: **Android di
+ekosistemmu.**). It stands over both pages' headlines, which say what each
+app is (Android emulator for your Mac; Your Android phone, on your Mac) in
+two halves split by the product's real windows; it ends every title and
+share card, and the footer closes with it. The look is Avo's
 haze palette set flat: no gradients, glows, blur or shadows at rest; the
 pictures are the apps' own windows.
 
@@ -58,7 +60,7 @@ the ones left and `npm run build:strict` refuses to build until none are.
 | `siteUrl` | Public address of the site (`https://avodroid.com`). Used for canonical links, the sitemap and social previews. |
 | `githubUrl`, `githubBranch` | The repository and its branch, for links into `docs/`. |
 | `release` | `available: false` says plainly that no build is published and offers "Build from source". Set `available: true`, `version`, `downloadUrl` and `size` (the disk image's size, shown beside the button and as a figure) when a release is out. |
-| `hub` | Avo Hub's page: its repository (`githubUrl`, linked only once `openSource` is true), `release`, which works like Avo's, and the links to its plans and policies (`pricingUrl`, `termsUrl`, `privacyUrl`, `refundUrl`, opened with `?lang=` in the page's language). While `available` is false the page says Avo Hub isn't released yet and leads to its pricing. |
+| `hub` | Avo Hub's page: its repository (`githubUrl`, linked only once `openSource` is true), `release`, which works like Avo's, the links to its plans and policies (`pricingUrl`, `termsUrl`, `privacyUrl`, `refundUrl`, opened with `?lang=` in the page's language), and Pro's prices (`pricing`: the launch price, the day it ends and the standard price, which the wording and the structured data both read). While `available` is false the page says Avo Hub isn't released yet and leads to its pricing. |
 | `fonts` | The typeface set, one switch for the whole site: `'hubot-mona'` (A, default: Hubot Sans headings, Mona Sans text, Mona Sans Mono labels), `'geist'` (B), `'archivo'` (C), `'jakarta'` (D, Plus Jakarta Sans). Letters work too. Only the chosen set's files are published. |
 | `maintainer.name` | Named in the footer credit ("Made by … in West Kalimantan, with help from Claude."). `null` says "an independent developer". |
 | `contact.email` | Public contact address. |
@@ -66,8 +68,10 @@ the ones left and `npm run build:strict` refuses to build until none are.
 
 The wording is in `src/i18n/en.json` and `src/i18n/id.json`. Both files must
 have the same keys; the build stops if they differ. Strings may contain
-`{github}`, `{blob}`, `{contactEmail}` and `{hubGithub}`, which the build
-fills in.
+`{github}`, `{blob}`, `{contactEmail}`, `{hubGithub}`, `{hubPricing}`,
+`{launchEnds}` and Pro's prices (`{launchFirstMonth}`, `{launchExtraMonth}`,
+`{launchFirstYear}`, `{launchExtraYear}` and the same with `standard`), which
+the build fills in.
 
 Product claims on the page follow `docs/` and the code. The Avo Hub page
 follows Avo Hub's own repository (its README, docs and changelog). When a feature lands
@@ -99,14 +103,26 @@ It takes every page at 1440 (desktop), 1280 (laptop), 820 (tablet), 390
 
 ## Search engines and link previews
 
-The build gives every page its own title and description, a canonical link,
-`hreflang` alternates (en, id, x-default), Open Graph and Twitter cards with
-the images in `src/assets/img/og/` (rendered from `tools/og-image.html`),
-and one JSON-LD graph: the organisation, the website, the page, the app
-(Avo, or Avo Hub with its Free and Pro offers), the page's questions as a
-FAQPage, and a breadcrumb on /hub. `sitemap.xml` lists both languages of each
-page with their alternates and screenshots; `robots.txt` points to it. The
-first screen's picture is preloaded (AVIF) along with the two typefaces.
+Each page leads with the phrase people search for, in its title (at most 60
+characters, ending with the slogan), its description (120 to 160) and its
+headline: **Android emulator for Mac** / **Emulator Android untuk Mac** on
+the home page, **Mirror Android to Mac** / **Mirror HP Android ke Mac** on
+/hub. Section headings and the questions cover the rest (Apple silicon from
+M1 to M4, games with keys and mouse, BlueStacks, Phone Link on the Mac,
+scrcpy, AirDroid), saying only what the apps do; keep it that way when the
+wording changes.
+
+The build gives every page a canonical link, `hreflang` alternates (en, id,
+x-default), Open Graph and Twitter cards with the images in
+`src/assets/img/og/` (rendered from `tools/og-image.html`), and one JSON-LD
+graph: the organisation, the website, the page, the app (Avo, or Avo Hub
+with Free and Pro at its launch and standard prices) with its feature list,
+the page's questions as a FAQPage, and a breadcrumb on /hub. `sitemap.xml`
+lists both languages of each page with their alternates, screenshots and
+the date of the last commit that changed them (so the workflow checks out
+the whole history); `robots.txt` points to it; `llms.txt` describes both
+apps in plain text. The first screen's picture is preloaded (AVIF) along
+with the two typefaces. The 404 page is `noindex`.
 
 ## Deploy
 
