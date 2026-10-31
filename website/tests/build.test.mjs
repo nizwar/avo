@@ -7,10 +7,14 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { build } from '../tools/build.mjs';
+import { build, HUB_PAGES } from '../tools/build.mjs';
+import { isAppSignIn, keepBack, languageMove, priceList, wayBack } from '../src/assets/js/hub-pages.js';
 
 let out;
-const PAGES = ['index.html', 'id/index.html', 'hub/index.html', 'id/hub/index.html', '404.html'];
+// The product pages, then Avo Hub's pricing and policies, then the 404 page.
+const PRODUCT = ['index.html', 'id/index.html', 'hub/index.html', 'id/hub/index.html'];
+const HUB = HUB_PAGES.flatMap((name) => [`hub/${name}/index.html`, `id/hub/${name}/index.html`]);
+const PAGES = [...PRODUCT, ...HUB, '404.html'];
 const INDEXED = PAGES.filter((p) => p !== '404.html');
 const read = (rel) => readFileSync(path.join(out, rel), 'utf8');
 const meta = (html, attr, name) => html.match(new RegExp(`<meta ${attr}="${name.replace(/[.:]/g, '\\$&')}" content="([^"]*)">`))?.[1];
@@ -39,7 +43,7 @@ test('every page exists in both languages with the right lang and alternates', (
     const html = read(page);
     assert.match(html, /<link rel="alternate" hreflang="en" href="https:\/\/[^"]+">/, page);
     assert.match(html, /<link rel="alternate" hreflang="id" href="https:\/\/[^"]+\/id\/[^"]*">/, page);
-    assert.match(html, /<link rel="alternate" hreflang="x-default" href="https:\/\/avodroid\.com\/(hub\/)?">/, page);
+    assert.match(html, /<link rel="alternate" hreflang="x-default" href="https:\/\/avodroid\.com\/(hub\/((pricing|terms|privacy|refunds)\/)?)?">/, page);
     assert.match(html, /<meta property="og:image" content="https:\/\/[^"]+\.jpg">/, page);
     assert.match(html, /<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self';/, page);
   }
@@ -52,12 +56,16 @@ test('the slogan opens both pages and closes every page, in both languages', () 
   for (const page of INDEXED) {
     const html = read(page);
     const slogan = SLOGAN[langOf(page)];
+    assert.ok(html.match(/<title>([^<]+)<\/title>/)[1].endsWith(` · ${slogan.slice(0, -1)}`), `${page}: the title ends with the slogan`);
+    assert.doesNotMatch(html, /Android at heart|Jiwa Android/, `${page}: the old slogan is gone`);
+  }
+  for (const page of PRODUCT) {
+    const html = read(page);
+    const slogan = SLOGAN[langOf(page)];
     // Over the headline, never inside it: the headline says what the app is.
     assert.equal(text(html.match(/<p class="hero-eyebrow">([\s\S]*?)<\/p>\s*<h1 /)?.[1] ?? ''), slogan, page);
-    assert.ok(html.match(/<title>([^<]+)<\/title>/)[1].endsWith(` · ${slogan.slice(0, -1)}`), `${page}: the title ends with the slogan`);
     assert.ok(meta(html, 'property', 'og:title').endsWith(slogan), `${page}: share card`);
     assert.equal(ofType(jsonLd(html), 'SoftwareApplication')[0].slogan, slogan, page);
-    assert.doesNotMatch(html, /Android at heart|Jiwa Android/, `${page}: the old slogan is gone`);
   }
   for (const page of PAGES) assert.match(read(page), new RegExp(`<p class="footer-slogan" lang="(en|id)">(${SLOGAN.en}|${SLOGAN.id})</p>`.replace(/\./g, '\\.')), page);
   // Never Apple's name in the slogan, nor a claim to be part of Apple's own.
@@ -170,13 +178,17 @@ test('structured data: the organisation, the site, each app, its questions and t
 test('the sitemap lists every page with its languages and screenshots; robots point to it', () => {
   const sitemap = read('sitemap.xml');
   const urls = [...sitemap.matchAll(/<url>([\s\S]*?)<\/url>/g)].map(([, body]) => body);
-  assert.equal(urls.length, 4);
+  assert.equal(urls.length, INDEXED.length);
+  for (const page of INDEXED) assert.ok(sitemap.includes(`<loc>https://avodroid.com/${page.replace(/index\.html$/, '')}</loc>`), page);
   for (const body of urls) {
     assert.match(body, /<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/);
     assert.match(body, /hreflang="en"/);
     assert.match(body, /hreflang="id"/);
     assert.match(body, /hreflang="x-default"/);
-    assert.match(body, /<image:image><image:loc>https:\/\/avodroid\.com\/assets\/img\/screens\/[^<]+\.jpg<\/image:loc><\/image:image>/);
+    // The product pages show their screenshots; the pricing and policies have none.
+    if (/<loc>https:\/\/avodroid\.com\/(id\/)?(hub\/)?<\/loc>/.test(body)) {
+      assert.match(body, /<image:image><image:loc>https:\/\/avodroid\.com\/assets\/img\/screens\/[^<]+\.jpg<\/image:loc><\/image:image>/);
+    }
   }
   for (const loc of sitemap.matchAll(/<image:loc>https:\/\/avodroid\.com\/([^<]+)<\/image:loc>/g)) assert.ok(existsSync(path.join(out, loc[1])), loc[1]);
   assert.match(read('robots.txt'), /^Sitemap: https:\/\/avodroid\.com\/sitemap\.xml$/m);
@@ -186,6 +198,8 @@ test('llms.txt describes both apps plainly, with their pages and prices', () => 
   const llms = read('llms.txt');
   assert.match(llms, /^# Avo\n\n> Android in your ecosystem\. /);
   for (const url of ['https://avodroid.com/', 'https://avodroid.com/id/', 'https://avodroid.com/hub/', 'https://avodroid.com/id/hub/']) assert.ok(llms.includes(`(${url})`), url);
+  for (const name of HUB_PAGES) assert.ok(llms.includes(`(https://avodroid.com/hub/${name}/)`), name);
+  assert.doesNotMatch(llms, /auth\.avodroid\.com\/(pricing|terms|privacy|refund)/);
   assert.match(llms, /launch price until January 1, 2027, \$2 a month for the first device and \$1 for each one after/);
   assert.match(llms, /after that \$5 and \$3 a month, or \$50 and \$30 a year/);
   assert.doesNotMatch(llms, /<[a-z]/i, "plain text, no markup");
@@ -216,10 +230,10 @@ test('Avo Hub has its page in both languages, in the menu, honest about its rele
   for (const page of PAGES) assert.match(read(page), /<li><a href="[^"]*hub\/"( aria-current="page")?>Avo Hub<\/a><\/li>/, page);
   assert.match(en, /<a href="\.\.\/hub\/" aria-current="page">Avo Hub<\/a>/);
 
-  // Its plans and policies, in the page's language.
-  for (const name of ['pricing', 'terms', 'privacy', 'refund']) {
-    assert.ok(en.includes(`href="https://auth.avodroid.com/${name}?lang=en"`), `en: ${name}`);
-    assert.ok(id.includes(`href="https://auth.avodroid.com/${name}?lang=id"`), `id: ${name}`);
+  // Its plans and policies: this site's pages, in the page's language.
+  for (const name of HUB_PAGES) {
+    assert.ok(en.includes(`href="../hub/${name}/"`), `en: ${name}`);
+    assert.ok(id.includes(`href="../../id/hub/${name}/"`), `id: ${name}`);
   }
   assert.match(en, /<span class="plan-figure">\$2<\/span> <span class="plan-per">a month for the first device<\/span>/);
   // The launch price, said as the price it is, then what comes after: no
@@ -460,4 +474,191 @@ test('the credit is one plain line in the footer', () => {
 test('a strict build refuses placeholders', async () => {
   const overrides = { contact: { email: 'hello@example.org' } };
   await assert.rejects(build({ outDir: path.join(tmpdir(), 'avo-never'), quiet: true, strict: true, overrides }), /placeholders/);
+});
+
+// ------------------------------------------- Avo Hub's pricing and policies
+
+const POLICIES = { terms: ['Terms of Service', 'Ketentuan Layanan'], privacy: ['Privacy Policy', 'Kebijakan Privasi'], refunds: ['Refund Policy', 'Kebijakan Pengembalian Dana'] };
+const h1Of = (html) => text(html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/)[1]);
+const visibleText = (html) => text(html.replace(/<(\w+)[^>]*\shidden[^>]*>[\s\S]*?<\/\1>/g, ' '));
+
+test("Avo Hub's pricing and policies are this site's pages, in both languages, each with its own address", () => {
+  for (const name of HUB_PAGES) {
+    const en = read(`hub/${name}/index.html`);
+    const id = read(`id/hub/${name}/index.html`);
+    assert.match(en, /<html lang="en">/, name);
+    assert.match(id, /<html lang="id">/, name);
+    assert.ok(en.includes(`<link rel="canonical" href="https://avodroid.com/hub/${name}/">`), name);
+    assert.ok(id.includes(`<link rel="canonical" href="https://avodroid.com/id/hub/${name}/">`), name);
+    for (const html of [en, id]) {
+      assert.ok(html.includes(`<link rel="alternate" hreflang="en" href="https://avodroid.com/hub/${name}/">`), name);
+      assert.ok(html.includes(`<link rel="alternate" hreflang="id" href="https://avodroid.com/id/hub/${name}/">`), name);
+      // The four pages side by side, this one marked; each leads to the others in the same language.
+      const tabs = html.match(/<nav class="hub-tabs"[\s\S]*?<\/nav>/)[0];
+      assert.equal((tabs.match(/<li>/g) || []).length, 4, name);
+      assert.match(tabs, new RegExp(`<a href="\\./" aria-current="page" data-hub-tab="${name}">`), name);
+      for (const other of HUB_PAGES.filter((n) => n !== name)) assert.ok(tabs.includes(`href="../${other}/"`), `${name} -> ${other}`);
+      // Who sells Avo Hub, and how to reach them.
+      assert.match(html, /Mochamad Nizwar Syafuan/, name);
+      assert.match(html, /<a href="mailto:support@avodroid\.com">support@avodroid\.com<\/a>/, name);
+      // The way back to the account's sign-in, shown only when the page was opened from it.
+      assert.match(html, /<p class="hub-back" data-hub-back hidden><a class="btn btn-secondary btn-small" href="https:\/\/auth\.avodroid\.com\/">/, name);
+      assert.match(html, /<body class="page page-hub-pages [^"]*" data-account="https:\/\/auth\.avodroid\.com\/"/, name);
+      // A breadcrumb: Avo, Avo Hub, the page.
+      const crumbs = ofType(jsonLd(html), 'BreadcrumbList')[0].itemListElement;
+      assert.equal(crumbs.length, 3, name);
+      assert.equal(crumbs[2].item, html.match(/<link rel="canonical" href="([^"]+)">/)[1], name);
+    }
+    assert.ok(en.includes(`<a class="lang-switch" href="../../id/hub/${name}/"`), name);
+    assert.ok(id.includes(`<a class="lang-switch" href="../../../hub/${name}/"`), name);
+  }
+  for (const [name, [en, id]] of Object.entries(POLICIES)) {
+    assert.equal(h1Of(read(`hub/${name}/index.html`)), en);
+    assert.equal(h1Of(read(`id/hub/${name}/index.html`)), id);
+  }
+});
+
+test('every page leads to them: the footer and the Avo Hub page', () => {
+  for (const page of PAGES) {
+    const footer = read(page).slice(read(page).indexOf('<footer'));
+    for (const name of HUB_PAGES) assert.match(footer, new RegExp(`<li><a href="[^"]*hub/${name}/">`), `${page}: ${name}`);
+  }
+  for (const page of ['hub/index.html', 'id/hub/index.html']) {
+    const main = read(page).slice(read(page).indexOf('<main'), read(page).indexOf('</main>'));
+    for (const name of HUB_PAGES) assert.match(main, new RegExp(`href="[^"]*hub/${name}/"`), `${page}: ${name}`);
+  }
+  // Nothing leads to the account's old pages any more.
+  for (const rel of files(out)) {
+    if (!/\.(html|txt|xml)$/.test(rel)) continue;
+    assert.doesNotMatch(readFileSync(path.join(out, rel), 'utf8'), /auth\.avodroid\.com\/(pricing|terms|privacy|refund)/, rel);
+  }
+});
+
+test('the policies say all of their text, in both languages, with their links working', () => {
+  for (const name of Object.keys(POLICIES)) {
+    const source = JSON.parse(readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src/hub', `${name}.json`), 'utf8'));
+    for (const lang of ['en', 'id']) {
+      const page = lang === 'en' ? `hub/${name}/index.html` : `id/hub/${name}/index.html`;
+      const html = read(page);
+      const sections = [...html.matchAll(/<section class="legal-section" id="section-(\d+)"/g)];
+      assert.equal(sections.length, source[lang].sections.length, page);
+      // Listed beside the text, each entry leading to its section.
+      assert.equal((html.match(/<li><a href="#section-\d+">/g) || []).length, sections.length, page);
+      const body = text(html.slice(html.indexOf('<div class="legal-body">'), html.indexOf('<p class="hub-pages-seller">')));
+      for (const section of source[lang].sections) {
+        const words = (line) => line.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/\{\w+\}/g, ' ').split(/\s+/).filter((w) => w.length > 3).slice(0, 6);
+        for (const word of words(section.heading)) assert.ok(body.includes(word), `${page}: ${word}`);
+        for (const block of section.body) for (const line of [block].flat()) for (const word of words(line)) assert.ok(body.includes(word), `${page}: ${word}`);
+      }
+      // The numbers the text quotes, filled in.
+      assert.doesNotMatch(html.replace(/<script[\s\S]*?<\/script>/g, ''), /\{[a-zA-Z]+\}/, page);
+    }
+  }
+  const terms = read('hub/terms/index.html');
+  assert.match(terms, /<a href="\.\.\/pricing\/">Pricing<\/a>/);
+  assert.match(terms, /<a href="\.\.\/refunds\/">Refund Policy<\/a>/);
+  assert.match(terms, /<a href="\.\.\/privacy\/">Privacy Policy<\/a>/);
+  assert.match(terms, /<a href="https:\/\/www\.paypal\.com\/legalhub\/paypal\/useragreement-full" rel="noopener">User Agreement<\/a>/);
+  assert.match(terms, /Launch prices apply to subscriptions started up to and including January 1, 2027\./);
+  assert.match(read('id/hub/terms/index.html'), /<a href="\.\.\/refunds\/">Kebijakan Pengembalian Dana<\/a>/);
+  assert.match(read('hub/refunds/index.html'), /Full refund within 14 days/);
+  assert.match(read('hub/privacy/index.html'), /up to 30 days after you close it/);
+  // Their structured data: when they last changed.
+  assert.equal(ofType(jsonLd(terms), 'WebPage')[0].dateModified, '2026-10-31');
+  assert.equal(ofType(jsonLd(terms), 'SoftwareApplication').length, 0);
+});
+
+test('the pricing page: Free and Pro per device, the launch price until it ends, and Get Pro at the account', async () => {
+  const en = read('hub/pricing/index.html');
+  const id = read('id/hub/pricing/index.html');
+  // Built before the launch price ends: it shows, the standard price waits hidden for the visitor's clock.
+  assert.equal(text(visibleText(en).match(/Free over a cable and Wi‑Fi\. Pro from \$\d+ a month\./)[0]), 'Free over a cable and Wi‑Fi. Pro from $2 a month.');
+  assert.match(visibleText(id), /Gratis lewat kabel dan Wi‑Fi\. Pro mulai \$2 per bulan\./);
+  assert.match(en, /<body class="page page-hub-pages page-hub-pricing" data-account="https:\/\/auth\.avodroid\.com\/" data-launch-ends="2027-01-02T12:00:00Z">/);
+  // The date kept whole (no-break spaces) where the line wraps.
+  assert.match(en, /<p class="hub-plan-launch" data-price-list="launch">Launch price until January\u00a01,\u00a02027<\/p>/);
+  assert.match(visibleText(en), /\$1 a month for each device after that\./);
+  assert.match(visibleText(en), /Or \$20 a year for the first device and \$10 for each one after it/);
+  assert.match(visibleText(en), /Then \$5 a month for the first device and \$3 for each one after it, or \$50 and \$30 a year\./);
+  assert.match(visibleText(en), /keep this price for as long as your subscription stays active/);
+  assert.match(visibleText(en), /3 devices ?\$4 \$40/);
+  assert.match(visibleText(en), /5 devices ?\$6 \$60/);
+  // Never a struck-through "former" price.
+  assert.doesNotMatch(en, /<(s|del|strike)\b/);
+  // Getting started and Get Pro: the account (signing in first), its Get Pro on the period chosen.
+  assert.match(en, /<a class="btn btn-secondary" href="https:\/\/auth\.avodroid\.com\/">Get Started<\/a>/);
+  assert.match(en, /<a class="btn btn-primary" href="https:\/\/auth\.avodroid\.com\/\?pro=month">Get Pro<\/a>/);
+  assert.match(en, /<a class="text-link" href="https:\/\/auth\.avodroid\.com\/\?pro=year">Get Pro yearly/);
+  assert.match(en, /<a href="https:\/\/auth\.avodroid\.com\/">try Pro free for 14 days<\/a>/);
+  assert.match(en, /<a class="btn btn-primary btn-small header-action" href="https:\/\/auth\.avodroid\.com\/\?pro=month">Get Pro<\/a>/);
+  assert.match(id, /<a class="btn btn-primary" href="https:\/\/auth\.avodroid\.com\/\?pro=month">Ambil Pro<\/a>/);
+  assert.match(en, /one Mac you look from is free, and browsers never count\./);
+  assert.match(en, /see the <a href="\.\.\/refunds\/">Refund Policy<\/a>/);
+  assert.doesNotMatch(en, /Paddle|Merchant of Record/);
+  // Avo Hub and its offers, as on the Avo Hub page.
+  const [app] = ofType(jsonLd(en), 'SoftwareApplication');
+  assert.equal(app.name, 'Avo Hub');
+  assert.ok(app.offers.every((offer) => offer.url === 'https://avodroid.com/hub/pricing/'));
+
+  // Built after the launch price ended: the standard price by itself.
+  const dir = await mkdtemp(path.join(tmpdir(), 'avo-site-'));
+  try {
+    await build({ outDir: dir, quiet: true, now: new Date('2027-01-02T12:00:00Z') });
+    const later = readFileSync(path.join(dir, 'hub/pricing/index.html'), 'utf8');
+    assert.match(visibleText(later), /Pro from \$5 a month\./);
+    assert.doesNotMatch(visibleText(later), /Launch price|\$2 a month/);
+    assert.match(visibleText(later), /\$3 a month for each device after that\./);
+    assert.match(visibleText(later), /3 devices ?\$11 \$110/);
+    // Still 1 January somewhere on Earth: the launch price.
+    await build({ outDir: dir, quiet: true, now: new Date('2027-01-02T11:59:00Z') });
+    assert.match(visibleText(readFileSync(path.join(dir, 'hub/pricing/index.html'), 'utf8')), /Pro from \$2 a month\./);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("the pages' script: the old addresses' language, the way back to the sign-in, the prices in force", () => {
+  const account = 'https://auth.avodroid.com/';
+  const signIn = 'https://auth.avodroid.com/?client_id=mac&redirect_uri=avohub%3A%2F%2Fauth%2Fcallback&state=x';
+  const search = (back) => `?${new URLSearchParams({ back })}`;
+  assert.equal(wayBack(search(signIn), account), signIn);
+  assert.equal(wayBack(search('https://auth.avodroid.com/?return=https%3A%2F%2Fhub.avodroid.com%2F'), account), 'https://auth.avodroid.com/?return=https%3A%2F%2Fhub.avodroid.com%2F');
+  // Only the account's own sign-in page.
+  assert.equal(wayBack(search('https://evil.example/'), account), null);
+  assert.equal(wayBack(search('https://auth.avodroid.com.evil.example/'), account), null);
+  assert.equal(wayBack(search('https://auth.avodroid.com/pricing'), account), null);
+  assert.equal(wayBack(search('javascript:alert(1)'), account), null);
+  assert.equal(wayBack('?back=not%20a%20url', account), null);
+  assert.equal(wayBack('', account), null);
+  assert.equal(isAppSignIn(signIn), true);
+  assert.equal(isAppSignIn('https://auth.avodroid.com/?return=x'), false);
+
+  // auth.avodroid.com/privacy?lang=id&back=… arrives at /hub/privacy/ with its query.
+  const alternates = { en: 'https://avodroid.com/hub/privacy/', id: 'https://avodroid.com/id/hub/privacy/' };
+  assert.equal(languageMove(`https://avodroid.com/hub/privacy/?lang=id&back=${encodeURIComponent(signIn)}`, 'en', alternates), `https://avodroid.com/id/hub/privacy/?back=${encodeURIComponent(signIn)}`);
+  assert.equal(languageMove('https://avodroid.com/id/hub/privacy/?lang=en#section-2', 'id', alternates), 'https://avodroid.com/hub/privacy/#section-2');
+  assert.equal(languageMove('https://avodroid.com/hub/privacy/?lang=en', 'en', alternates), null);
+  assert.equal(languageMove('https://avodroid.com/hub/privacy/?lang=fr', 'en', alternates), null);
+  assert.equal(languageMove('https://avodroid.com/hub/privacy/', 'en', alternates), null);
+
+  const base = 'https://avodroid.com/hub/terms/';
+  assert.equal(keepBack('../privacy/', signIn, base, account), `https://avodroid.com/hub/privacy/?back=${encodeURIComponent(signIn)}`);
+  assert.equal(keepBack('../../../id/hub/terms/', signIn, base, account), `https://avodroid.com/id/hub/terms/?back=${encodeURIComponent(signIn)}`);
+  assert.equal(keepBack('https://auth.avodroid.com/?pro=month', signIn, base, account), signIn);
+  assert.equal(keepBack('https://www.paypal.com/disputes/', signIn, base, account), 'https://www.paypal.com/disputes/');
+  assert.equal(keepBack('../../', signIn, base, account), '../../');
+  assert.equal(keepBack('#section-2', signIn, base, account), '#section-2');
+  assert.equal(keepBack('../privacy/', null, base, account), '../privacy/');
+
+  assert.equal(priceList(Date.parse('2026-11-15T10:00:00Z'), '2027-01-02T12:00:00Z'), 'launch');
+  assert.equal(priceList(Date.parse('2027-01-02T11:59:59Z'), '2027-01-02T12:00:00Z'), 'launch');
+  assert.equal(priceList(Date.parse('2027-01-02T12:00:00Z'), '2027-01-02T12:00:00Z'), 'standard');
+});
+
+test('a policy whose languages differ in shape stops the build', async () => {
+  const { inlineHtml } = await import('../tools/build.mjs');
+  assert.equal(inlineHtml('See the [Refund Policy](../refunds/). Write to support@avodroid.com <now>.'), 'See the <a href="../refunds/">Refund Policy</a>. Write to <a href="mailto:support@avodroid.com">support@avodroid.com</a> &lt;now&gt;.');
+  assert.equal(inlineHtml('[PayPal](https://www.paypal.com/x)'), '<a href="https://www.paypal.com/x" rel="noopener">PayPal</a>');
+  await assert.rejects(build({ outDir: path.join(tmpdir(), 'avo-never'), quiet: true, overrides: { hub: { accountUrl: 'https://auth.avodroid.com/pricing' } } }), /hub\.accountUrl must be the account's address itself/);
+  await assert.rejects(build({ outDir: path.join(tmpdir(), 'avo-never'), quiet: true, overrides: { hub: { legal: { email: 'nobody' } } } }), /hub\.legal\.email/);
 });
