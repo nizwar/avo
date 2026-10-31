@@ -336,7 +336,7 @@
       "status": "Avo Hub masih dikembangkan. Fitur-fitur ini sudah dibuat dan sedang diuji, dan bisa berubah sebelum rilis pertama."
     },
     "how": {
-      "title": "Cara menyambungkan ponsel ke Mac",
+      "title": "Cara ponselmu tersambung ke Mac",
       "s1Title": "Colokkan sekali saja.",
       "s1Text": "Nyalakan USB debugging, lalu sambungkan ponsel ke Mac dengan kabel. Avo Hub memasang aplikasinya di ponsel, dan asisten penyiapan memandumu sampai selesai.",
       "s2Title": "Cocokkan enam angka.",
@@ -383,7 +383,7 @@
       "pro3": "Kamera ponsel jadi webcam lewat internet",
       "pro4": "Beberapa layar tambahan sekaligus, sampai 120 Hz",
       "proTrial": "Gratis 14 hari, tanpa kartu.",
-      "proLater": "Setelah itu, Pro jadi {standardFirstMonth} dan {standardExtraMonth} per bulan, atau {standardFirstYear} dan {standardExtraYear} per tahun. Berlangganan dengan harga peluncuran, dan harganya tetap selama langgananmu aktif, juga saat kamu menambah perangkat.",
+      "proLater": "Setelah masa peluncuran, langganan baru jadi {standardFirstMonth} dan {standardExtraMonth} per bulan, atau {standardFirstYear} dan {standardExtraYear} per tahun. Berlangganan dengan harga peluncuran, dan harganya tetap selama langgananmu aktif, juga saat kamu menambah perangkat.",
       "full": "Harga lengkap",
       "terms": "Ketentuan Layanan",
       "privacy": "Kebijakan Privasi",

@@ -224,10 +224,10 @@ test('Avo Hub has its page in both languages, in the menu, honest about its rele
   assert.match(en, /<span class="plan-figure">\$2<\/span> <span class="plan-per">a month for the first device<\/span>/);
   // The launch price, said as the price it is, then what comes after: no
   // crossed-out price that was never charged.
-  assert.match(en, /<p class="plan-launch">Launch price until January 1, 2027<\/p>/);
-  assert.match(id, /<p class="plan-launch">Harga peluncuran sampai 1 Januari 2027<\/p>/);
+  assert.match(en, /<p class="plan-launch">Launch price until January\u00a01,\u00a02027<\/p>/);
+  assert.match(id, /<p class="plan-launch">Harga peluncuran sampai 1\u00a0Januari\u00a02027<\/p>/);
   assert.match(en, /\$1 a month for each one after, or \$20 and \$10 a year\./);
-  assert.match(en, /After that, Pro is \$5 and \$3 a month, or \$50 and \$30 a year\. Subscribe at the launch price and you keep it for as long as you stay subscribed/);
+  assert.match(en, /After the launch, new subscriptions are \$5 and \$3 a month, or \$50 and \$30 a year\. Subscribe at the launch price and you keep it for as long as you stay subscribed/);
   for (const html of [en, id]) assert.doesNotMatch(html, /<(s|del|strike)\b|line-through/);
   assert.doesNotMatch(read('assets/css/site.css'), /line-through/);
 

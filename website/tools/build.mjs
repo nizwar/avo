@@ -416,7 +416,7 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
           }),
         ),
       );
-      const launchEnds = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'id-ID', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${prices.launchEnds}T00:00:00Z`));
+      const launchEnds = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'id-ID', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${prices.launchEnds}T00:00:00Z`)).replace(/ /g, '\u00a0');
       const tokens = { github: githubUrl, blob: blobUrl, contactEmail: config.contact.email, hubGithub: hubGithubUrl, hubPricing: hubLinks.pricing, launchEnds, ...priceTokens };
       const text = (key, extra = {}) => lookup(dict, key, lang).replace(/\{(\w+)\}/g, (m, name) => (name in extra ? extra[name] : name in tokens ? escapeHtml(tokens[name]) : m));
       const t = (key, extra) => text(key, extra);

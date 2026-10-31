@@ -2346,13 +2346,10 @@ p {
 /* The launch price is the price; what comes after it is said plainly,
    never crossed out. */
 .plan-pro .plan-launch {
-  justify-self: start;
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: var(--deep);
   color: var(--flesh);
   font-size: var(--fs-small);
   font-weight: 650;
+  letter-spacing: 0.01em;
   line-height: 1.3;
 }
 
@@ -2756,7 +2753,7 @@ html.has-lightbox {
 
   .hero-stage {
     grid-column: 1;
-    grid-row: 2;
+    grid-row: 3;
   }
 
   .hero-copy {
