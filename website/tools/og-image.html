@@ -7,8 +7,8 @@
        sips -s format jpeg -s formatOptions 86 og-en.png --out src/assets/img/og/og-en.jpg
      lang: en | id. page: avo (the default) | hub, for Avo Hub's page (its mark is in
      tools/og-hub/). Files: og-en, og-id, og-hub-en, og-hub-id.
-     The card is the site's first screen in small: the slogan's two halves, a real
-     window between them, flat Avo colours, no gradient. -->
+     The card is the site's first screen in small: the slogan over the headline's
+     two halves, a real window beside them, flat Avo colours, no gradient. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -30,7 +30,8 @@
   .brand { position: absolute; left: 64px; top: 56px; display: flex; align-items: center; gap: 14px; }
   .brand img { width: 44px; height: 44px; }
   .brand span { font: 700 32px/1 'Hubot Sans', sans-serif; font-stretch: 108%; letter-spacing: -0.01em; }
-  h1 { position: absolute; left: 64px; top: 160px; width: 510px; margin: 0; font: 700 56px/1 'Hubot Sans', sans-serif; font-stretch: 108%; letter-spacing: -0.03em; }
+  .slogan { position: absolute; left: 64px; top: 146px; margin: 0; color: #d8e8a7; font: 650 26px/1.2 'Hubot Sans', sans-serif; font-stretch: 108%; letter-spacing: -0.005em; }
+  h1 { position: absolute; left: 64px; top: 196px; width: 510px; margin: 0; font: 700 56px/1 'Hubot Sans', sans-serif; font-stretch: 108%; letter-spacing: -0.03em; }
   h1 span { display: block; }
   h1 span + span { margin-top: 14px; color: #d8e8a7; }
   p { position: absolute; left: 64px; bottom: 56px; width: 480px; margin: 0; color: #c5cdb9; font-size: 23px; line-height: 1.4; }
@@ -40,18 +41,20 @@
 <div class="stage"></div>
 <div class="window"><img id="shot" src="../src/assets/img/screens/library-1080.jpg" alt=""></div>
 <div class="brand"><img id="brandMark" src="../src/assets/img/avo-mark.svg" alt=""><span id="brandName">Avo</span></div>
+<p class="slogan" id="slogan"></p>
 <h1><span id="a"></span><span id="b"></span></h1>
 <p id="line"></p>
 <script>
   const q = new URLSearchParams(location.search);
   const lang = q.get('lang') || 'en';
   const hub = q.get('page') === 'hub';
+  const slogan = { en: 'Android in your ecosystem.', id: 'Android di ekosistemmu.' }[lang];
   const text = (hub ? {
-    en: ['Your Android,', 'on your Mac.', 'Its screen, notifications, messages, calls and files, over a cable, Wi‑Fi or the internet.'],
-    id: ['Android kamu,', 'langsung di Mac.', 'Layar, notifikasi, pesan, panggilan, dan file-nya, lewat kabel, Wi‑Fi, atau internet.'],
+    en: ['Your Android phone,', 'on your Mac.', 'Mirror and control it, with its notifications, messages, calls and files, over a cable, Wi‑Fi or the internet.'],
+    id: ['Ponsel Android kamu,', 'langsung di Mac.', 'Tampilkan dan kendalikan, lengkap dengan notifikasi, pesan, panggilan, dan file, lewat kabel, Wi‑Fi, atau internet.'],
   } : {
-    en: ['Android at heart.', 'Mac to the core.', 'Android apps and games on your Mac, each in its own window. Free, for Apple silicon.'],
-    id: ['Jiwa Android,', 'rasa Mac.', 'Aplikasi dan game Android di Mac kamu, masing-masing di jendelanya sendiri. Gratis, untuk chip Apple.'],
+    en: ['Android emulator', 'for your Mac.', 'Android apps and games on your Mac, each in its own window. Free, for Apple silicon.'],
+    id: ['Emulator Android', 'untuk Mac.', 'Aplikasi dan game Android di Mac kamu, masing-masing di jendelanya sendiri. Gratis, untuk chip Apple.'],
   })[lang];
   if (hub) {
     document.getElementById('brandMark').src = 'og-hub/avo-hub-mark.svg';
@@ -59,6 +62,7 @@
     document.getElementById('shot').src = '../src/assets/img/screens/hub-overview-1200.jpg';
   }
   document.documentElement.lang = lang;
+  document.getElementById('slogan').textContent = slogan;
   document.getElementById('a').textContent = text[0];
   document.getElementById('b').textContent = text[1];
   document.getElementById('line').textContent = text[2];
