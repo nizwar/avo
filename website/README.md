@@ -1,7 +1,8 @@
 # Avo website
 
-The public website for Avo, in English and Indonesian: a landing page, a page
-for Avo Hub (`/hub`, Avo's sibling app for the phone), Avo Hub's pricing and
+The public website for Avo, in English and Indonesian: a landing page, Avo's
+own Terms of Use and Privacy Policy (`/terms/`, `/privacy/`), a page for Avo
+Hub (`/hub`, Avo's sibling app for the phone), Avo Hub's pricing and
 policies (`/hub/pricing/`, `/hub/terms/`, `/hub/privacy/`, `/hub/refunds/`)
 and a 404 page, built by a small Node script. Plain HTML, CSS and
 JavaScript; no framework, no npm dependencies, no cookies, no analytics. It
@@ -22,11 +23,14 @@ website/
 ├── site.config.mjs          Everything to fill in or decide: URLs, release state, contact,
 │                            support channels, typeface set
 ├── src/
-│   ├── pages/               index.html (landing page), hub.html (Avo Hub, at /hub), hub-pricing.html
+│   ├── pages/               index.html (landing page), avo-legal.html (Avo's /terms/ and
+│   │                        /privacy/), hub.html (Avo Hub, at /hub), hub-pricing.html
 │   │                        (/hub/pricing/), hub-legal.html (/hub/terms/, /hub/privacy/,
 │   │                        /hub/refunds/), 404.html
 │   ├── partials/            head, header, footer, SVG sprite, the hub pages' tabs and seller line
 │   ├── i18n/en.json, id.json  All wording, English and Indonesian (same keys; the build checks)
+│   ├── avo/                 Avo's own Terms of Use and Privacy Policy (terms.json,
+│   │                        privacy.json: { en, id }, the same shape in both)
 │   ├── hub/                 Avo Hub's Terms, Privacy Policy and Refund Policy (terms.json,
 │   │                        privacy.json, refunds.json: { en, id }, the same shape in both)
 │   └── assets/              css/site.css, css/fonts/ (one file per typeface set), js/ (site.js:
@@ -69,17 +73,45 @@ the ones left and `npm run build:strict` refuses to build until none are.
 | `hub` | Avo Hub's page: its repository (`githubUrl`, linked only once `openSource` is true), `release`, which works like Avo's, the Avo Hub account (`accountUrl`: sign in, the trial and Get Pro), who sells it and the plans' numbers the policies quote (`legal`: `seller`, `email`, `updated`, `plan`), and Pro's prices (`pricing`: the launch price, the day it ends and the standard price, which the wording and the structured data both read). While `available` is false the page says Avo Hub isn't released yet and leads to its pricing. |
 | `fonts` | The typeface set, one switch for the whole site: `'hubot-mona'` (A, default: Hubot Sans headings, Mona Sans text, Mona Sans Mono labels), `'geist'` (B), `'archivo'` (C), `'jakarta'` (D, Plus Jakarta Sans). Letters work too. Only the chosen set's files are published. |
 | `maintainer.name` | Named in the footer credit ("Made by … in West Kalimantan, with help from Claude."). `null` says "an independent developer". |
-| `contact.email` | Public contact address. |
+| `contact.email` | Public contact address, also the address Avo's own policies give. |
+| `legal.updated` | When Avo's own Terms of Use and Privacy Policy last changed (shown on both pages and in their structured data). |
 | `support.channels` | Ways to support the developer personally (GitHub Sponsors, Saweria, ...): `name`, `url`, `currency`, `frequency` (`monthly`, `once`, `monthly-or-once`), optional `details` text (for example a bank account). An empty list shows "Support links are coming soon". |
 
 The wording is in `src/i18n/en.json` and `src/i18n/id.json`. Both files must
 have the same keys; the build stops if they differ. Strings may contain
-`{github}`, `{blob}`, `{contactEmail}`, `{hubGithub}`, `{hubPricing}`,
+`{github}`, `{blob}`, `{contactEmail}`, `{avoTerms}`, `{avoPrivacy}`, `{hubGithub}`, `{hubPricing}`,
 `{hubTerms}`, `{hubPrivacy}`, `{hubRefunds}`, `{account}`, `{seller}`,
 `{hubEmail}`, the plans' numbers (`{trialDays}`, `{refundDays}`… from
 `hub.legal.plan`), `{launchEnds}` and Pro's prices (`{launchFirstMonth}`,
 `{launchExtraMonth}`, `{launchFirstYear}`, `{launchExtraYear}` and the same
 with `standard`), which the build fills in.
+
+## Avo's terms and privacy
+
+Avo's own policies are `/terms/` (Terms of Use) and `/privacy/` (Privacy
+Policy), with `/id/terms/` and `/id/privacy/` in Indonesian, their text in
+`src/avo/terms.json` and `src/avo/privacy.json`. They are apart from Avo
+Hub's: their own two tabs, no seller, no prices, no refunds (Avo is free),
+and `contact.email` as their address. The footer of every page keeps the
+two apart too: **Avo's policies** (Terms, Privacy) and **Avo Hub's pricing
+and policies** (Pricing, Terms, Privacy, Refunds), under the columns they
+belong to; the home page's question about privacy links to Avo's.
+
+- They say only what Avo does, in plain words: the Apache License 2.0 (and
+  NOTICE) as the licence, no warranty, what Avo keeps on the Mac, the only
+  places it goes online (Google's server for Android, GitHub for updates
+  and, when asked, Google apps and Magisk), Apple's services some features
+  use, no analytics or crash reports, the camera, microphone, location and
+  clipboard as set in Settings, Report a Problem saving locally, the
+  trademarks, and this site (no cookies or analytics; GitHub Pages logs
+  visitors' IP addresses). When Avo changes any of that (a new connection,
+  telemetry, an account), change the policy in both languages and
+  `legal.updated` with it.
+- Edit both languages together: the build refuses a policy whose languages
+  differ in sections, paragraphs or lists. Links are `[label](href)`, with
+  `{github}`, `{license}`, `{notice}`, `{issues}`, `{security}` (a private
+  security report), `{support}`, `{avoTerms}`, `{avoPrivacy}`, `{hubTerms}`
+  and `{hubPrivacy}` for the addresses, and `{email}` for `contact.email`.
 
 ## Avo Hub's pricing and policies
 
@@ -139,8 +171,8 @@ node tools/screenshots.mjs --out /tmp/avo-shots [--only home-en] [--views deskto
 ```
 
 It takes the product pages at 1440 (desktop), 1280 (laptop), 820 (tablet),
-390 (phone) and 320 px (small), Avo Hub's pricing and policies at 1440 and
-390 (also opened from an app's sign-in, and from an old address with
+390 (phone) and 320 px (small), Avo's terms and privacy and Avo Hub's
+pricing and policies at 1440 and 390 (also opened from an app's sign-in, and from an old address with
 `?lang=id`), in both languages.
 
 ## Search engines and link previews
@@ -159,9 +191,10 @@ x-default), Open Graph and Twitter cards with the images in
 `src/assets/img/og/` (rendered from `tools/og-image.html`), and one JSON-LD
 graph: the organisation, the website, the page, the app (Avo, or Avo Hub
 with Free and Pro at its launch and standard prices) with its feature list,
-the page's questions as a FAQPage, and a breadcrumb on /hub and its
-pricing and policy pages (Avo › Avo Hub › the page; the pricing page also
-carries Avo Hub's offers, a policy the day it last changed). `sitemap.xml`
+the page's questions as a FAQPage (links in the answers as full
+addresses), and a breadcrumb on Avo's policies (Avo › the policy), on /hub
+and on its pricing and policy pages (Avo › Avo Hub › the page; the pricing
+page also carries Avo Hub's offers, a policy the day it last changed). `sitemap.xml`
 lists both languages of each page with their alternates, screenshots and
 the date of the last commit that changed them (so the workflow checks out
 the whole history); `robots.txt` points to it; `llms.txt` describes both

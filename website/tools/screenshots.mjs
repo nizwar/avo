@@ -41,6 +41,11 @@ const SHOTS = [
   { name: 'home-id', url: `${SITE}id/`, views: ALL },
   { name: 'hub-en', url: `${SITE}hub/`, views: ALL },
   { name: 'hub-id', url: `${SITE}id/hub/`, views: ALL },
+  // Avo's own policies.
+  ...['terms', 'privacy'].flatMap((name) => [
+    { name: `avo-${name}-en`, url: `${SITE}${name}/`, views: ['desktop', 'phone'] },
+    { name: `avo-${name}-id`, url: `${SITE}id/${name}/`, views: ['desktop', 'phone'] },
+  ]),
   // Avo Hub's pricing and policies, and the same opened from an app's sign-in (only the way back).
   ...['pricing', 'terms', 'privacy', 'refunds'].flatMap((name) => [
     { name: `hub-${name}-en`, url: `${SITE}hub/${name}/`, views: ['desktop', 'phone'] },
