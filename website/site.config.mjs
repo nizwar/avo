@@ -113,10 +113,12 @@ export default {
   },
 
   // Avo's own Terms of Use and Privacy Policy, apart from Avo Hub's:
-  // /terms/ and /privacy/ (and /id/...), their text in src/avo/*.json, with
-  // `contact.email` as their address. `updated`: when they last changed
-  // (shown on each page and in its structured data).
+  // /terms/ and /privacy/ (and /id/...), their text in src/avo/*.json.
+  // `email`: the address they give, the same as Avo Hub's support address.
+  // `updated`: when they last changed (shown on each page and in its
+  // structured data).
   legal: {
+    email: 'support@avodroid.com',
     updated: '2026-11-01',
   },
 

@@ -61,6 +61,18 @@
         ]
       },
       {
+        "heading": "Age",
+        "body": [
+          "You need to be at least 13 to use Avo. If you’re under the age of adulthood where you live, use it with a parent’s or guardian’s permission."
+        ]
+      },
+      {
+        "heading": "Governing law",
+        "body": [
+          "These terms follow the laws of the Republic of Indonesia."
+        ]
+      },
+      {
         "heading": "Changes to these terms",
         "body": [
           "If these terms change, we update this page and the date at the top."
@@ -133,6 +145,18 @@
         "heading": "Bantuan dan dukungan",
         "body": [
           "Bantuan diberikan di [GitHub]({issues}), sesuai waktu yang ada: Avo dirawat oleh satu orang. Uang yang Anda kirim untuk [mendukung pengembangnya]({support}) adalah pemberian. Uang itu tidak membeli fitur atau bantuan yang didahulukan."
+        ]
+      },
+      {
+        "heading": "Usia",
+        "body": [
+          "Anda harus berusia minimal 13 tahun untuk memakai Avo. Bila Anda belum dewasa menurut hukum di tempat Anda tinggal, pakailah dengan izin orang tua atau wali."
+        ]
+      },
+      {
+        "heading": "Hukum yang berlaku",
+        "body": [
+          "Ketentuan ini tunduk pada hukum Republik Indonesia."
         ]
       },
       {

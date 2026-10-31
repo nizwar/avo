@@ -254,6 +254,7 @@ function checkConfig(config) {
     if (!(typeof value === 'string' ? value : Number.isFinite(value) && value > 0)) errors.push(`hub.legal.plan.${name} is not valid`);
   }
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(config.contact?.email || '')) errors.push('contact.email is not an email address');
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(config.legal?.email || '')) errors.push('legal.email is not an email address');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(config.legal?.updated || '')) errors.push('legal.updated must be a date like 2026-11-01');
   const pricing = config.hub?.pricing;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(pricing?.launchEnds || '')) errors.push('hub.pricing.launchEnds must be a date like 2027-01-01');
@@ -692,7 +693,7 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
       // the way to Avo Hub's.
       const legalValues = page.avo
         ? {
-            email: config.contact.email,
+            email: config.legal.email,
             github: githubUrl,
             license: `${blobUrl}/LICENSE`,
             notice: `${blobUrl}/NOTICE`,
