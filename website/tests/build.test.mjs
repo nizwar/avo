@@ -502,10 +502,10 @@ test("Avo's terms and privacy are pages of their own, in both languages, apart f
       assert.match(tabs, new RegExp(`<a href="\\./" aria-current="page" data-avo-tab="${name}">`), name);
       for (const other of AVO_PAGES.filter((n) => n !== name)) assert.ok(tabs.includes(`href="../${other}/"`), `${name} -> ${other}`);
       const main = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
-      assert.doesNotMatch(main, /hub-tabs|data-hub-back|Mochamad Nizwar Syafuan|support@avodroid\.com|auth\.avodroid\.com/, name);
+      assert.doesNotMatch(main, /hub-tabs|data-hub-back|Mochamad Nizwar Syafuan|auth\.avodroid\.com/, name);
       assert.match(html, /<body class="page page-avo-legal">/, name);
       // Their own address, and the date they last changed.
-      assert.match(main, /<a href="mailto:nizwar\.id@gmail\.com">nizwar\.id@gmail\.com<\/a>/, name);
+      assert.match(main, /<a href="mailto:support@avodroid\.com">support@avodroid\.com<\/a>/, name);
       assert.match(main, /<p class="legal-pages-updated">(Last updated November 1, 2026|Terakhir diperbarui 1 November 2026)<\/p>/, name);
       const data = jsonLd(html);
       const [webPage] = ofType(data, 'WebPage');

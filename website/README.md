@@ -73,7 +73,8 @@ the ones left and `npm run build:strict` refuses to build until none are.
 | `hub` | Avo Hub's page: its repository (`githubUrl`, linked only once `openSource` is true), `release`, which works like Avo's, the Avo Hub account (`accountUrl`: sign in, the trial and Get Pro), who sells it and the plans' numbers the policies quote (`legal`: `seller`, `email`, `updated`, `plan`), and Pro's prices (`pricing`: the launch price, the day it ends and the standard price, which the wording and the structured data both read). While `available` is false the page says Avo Hub isn't released yet and leads to its pricing. |
 | `fonts` | The typeface set, one switch for the whole site: `'hubot-mona'` (A, default: Hubot Sans headings, Mona Sans text, Mona Sans Mono labels), `'geist'` (B), `'archivo'` (C), `'jakarta'` (D, Plus Jakarta Sans). Letters work too. Only the chosen set's files are published. |
 | `maintainer.name` | Named in the footer credit ("Made by … in West Kalimantan, with help from Claude."). `null` says "an independent developer". |
-| `contact.email` | Public contact address, also the address Avo's own policies give. |
+| `contact.email` | Public contact address. |
+| `legal.email` | The address Avo's own policies give (the support address, like Avo Hub's). |
 | `legal.updated` | When Avo's own Terms of Use and Privacy Policy last changed (shown on both pages and in their structured data). |
 | `support.channels` | Ways to support the developer personally (GitHub Sponsors, Saweria, ...): `name`, `url`, `currency`, `frequency` (`monthly`, `once`, `monthly-or-once`), optional `details` text (for example a bank account). An empty list shows "Support links are coming soon". |
 
@@ -92,7 +93,7 @@ Avo's own policies are `/terms/` (Terms of Use) and `/privacy/` (Privacy
 Policy), with `/id/terms/` and `/id/privacy/` in Indonesian, their text in
 `src/avo/terms.json` and `src/avo/privacy.json`. They are apart from Avo
 Hub's: their own two tabs, no seller, no prices, no refunds (Avo is free),
-and `contact.email` as their address. The footer of every page keeps the
+and `legal.email` as their address. The footer of every page keeps the
 two apart too: **Avo's policies** (Terms, Privacy) and **Avo Hub's pricing
 and policies** (Pricing, Terms, Privacy, Refunds), under the columns they
 belong to; the home page's question about privacy links to Avo's.
@@ -111,7 +112,7 @@ belong to; the home page's question about privacy links to Avo's.
   differ in sections, paragraphs or lists. Links are `[label](href)`, with
   `{github}`, `{license}`, `{notice}`, `{issues}`, `{security}` (a private
   security report), `{support}`, `{avoTerms}`, `{avoPrivacy}`, `{hubTerms}`
-  and `{hubPrivacy}` for the addresses, and `{email}` for `contact.email`.
+  and `{hubPrivacy}` for the addresses, and `{email}` for `legal.email`.
 
 ## Avo Hub's pricing and policies
 
