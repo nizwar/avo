@@ -2418,6 +2418,420 @@ p {
   text-decoration-color: color-mix(in srgb, var(--accent-ink) 40%, transparent);
 }
 
+/* ------------------------------------- Avo Hub: pricing and policies */
+
+/* /hub/pricing/, /hub/terms/, /hub/privacy/, /hub/refunds/: the four pages
+   side by side under the header, a plain head, then the plans or the text
+   with its sections listed beside it. Set like the rest of the site: flat
+   tones, one accent, no ornaments. */
+.hub-pages {
+  padding-top: clamp(28px, 4vw, 56px);
+}
+
+.hub-pages [hidden] {
+  display: none !important;
+}
+
+.hub-back {
+  margin-bottom: 20px;
+}
+
+.icon-back {
+  transform: scaleX(-1);
+}
+
+.hub-tabs ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hub-tabs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--tone-1);
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color var(--t-hover) ease, color var(--t-hover) ease;
+}
+
+.hub-tabs a[aria-current='page'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hub-tabs a:not([aria-current]):hover {
+    background: var(--tone-2);
+    color: var(--ink);
+  }
+}
+
+.hub-pages-head {
+  display: grid;
+  gap: 18px;
+  max-width: 52em;
+  padding-block: clamp(48px, 7vw, 112px) clamp(36px, 5vw, 72px);
+}
+
+.hub-pages-eyebrow {
+  color: var(--accent);
+  font-size: var(--fs-small);
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.hub-pages-title {
+  font-size: clamp(36px, 4.6vw, 76px);
+  max-width: 15em;
+}
+
+.hub-pages-updated {
+  color: var(--ink-3);
+  font-size: var(--fs-small);
+}
+
+.hub-pages-head .lead {
+  color: var(--ink-2);
+}
+
+/* The text of a policy, its sections listed beside it on wide screens. */
+.legal-layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 3fr) minmax(0, 8fr);
+  gap: clamp(32px, 5vw, 96px);
+  align-items: start;
+  padding-top: clamp(28px, 3vw, 44px);
+  border-top: 1px solid var(--tone-2);
+}
+
+.legal-toc {
+  position: sticky;
+  top: calc(var(--header-h) + 24px);
+  max-height: calc(100svh - var(--header-h) - 48px);
+  overflow-y: auto;
+}
+
+.legal-toc-title {
+  margin-bottom: 12px;
+  color: var(--ink-3);
+  font-size: var(--fs-small);
+  font-weight: 650;
+}
+
+.legal-toc ol {
+  display: grid;
+  gap: 2px;
+  counter-reset: toc;
+}
+
+.legal-toc li {
+  counter-increment: toc;
+}
+
+.legal-toc a {
+  display: grid;
+  grid-template-columns: 1.9em 1fr;
+  padding: 6px 10px;
+  border-radius: 10px;
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+.legal-toc a::before {
+  content: counter(toc);
+  color: var(--ink-3);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .legal-toc a:hover {
+    background: var(--tone-1);
+    color: var(--ink);
+  }
+}
+
+.legal-body {
+  display: grid;
+  gap: clamp(36px, 4vw, 52px);
+  max-width: 44em;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.legal-section {
+  display: grid;
+  gap: 14px;
+}
+
+.legal-heading {
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(22px, 1.9vw, 28px);
+  font-weight: 650;
+  font-stretch: var(--display-stretch);
+  letter-spacing: -0.012em;
+  line-height: 1.2;
+}
+
+.legal-number {
+  flex: none;
+  min-width: 1.4em;
+  color: var(--accent);
+  font-size: 0.8em;
+}
+
+.legal-list {
+  display: grid;
+  gap: 8px;
+  padding-left: 1.3em;
+  list-style: disc;
+}
+
+.legal-list li::marker {
+  color: var(--accent);
+}
+
+.legal-body a,
+.hub-notes a,
+.hub-plan-fine a,
+.hub-pages-seller a {
+  color: var(--ink);
+}
+
+.hub-pages-seller {
+  max-width: 44em;
+  margin-top: clamp(56px, 7vw, 104px);
+  padding-top: 24px;
+  border-top: 1px solid var(--tone-2);
+  color: var(--ink-3);
+  font-size: var(--fs-small);
+}
+
+/* Pricing: Free stated plainly, Pro on its own field, rows that line up. */
+.hub-plans {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(6, auto);
+  column-gap: clamp(16px, 2vw, 28px);
+}
+
+.hub-plan {
+  display: grid;
+  grid-row: span 6;
+  grid-template-rows: subgrid;
+  align-content: start;
+  padding: clamp(24px, 3vw, 44px);
+  border-radius: var(--radius);
+  background: var(--tone-1);
+}
+
+.hub-plan-pro {
+  background: var(--skin);
+}
+
+.hub-plan-name {
+  font-family: var(--font-display);
+  font-size: var(--fs-sub);
+  font-weight: 650;
+  font-stretch: var(--display-stretch);
+  letter-spacing: -0.012em;
+  line-height: 1.12;
+}
+
+.hub-plan-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-top: 18px;
+}
+
+.hub-plan-figure {
+  font-family: var(--font-sans);
+  font-size: clamp(44px, 4vw, 60px);
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.hub-plan-pro .hub-plan-figure {
+  color: var(--flesh);
+}
+
+.hub-plan-per {
+  color: var(--ink-2);
+  font-size: var(--fs-lead);
+  font-weight: 500;
+}
+
+.hub-plan-pro .hub-plan-per {
+  color: var(--ink);
+}
+
+.hub-plan-sub {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+}
+
+.hub-plan-pro .hub-plan-sub {
+  color: var(--ink);
+}
+
+/* The launch price is the price; what comes after it is said plainly,
+   never crossed out. */
+.hub-plan-launch {
+  justify-self: start;
+  margin-bottom: 4px;
+  color: var(--flesh);
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.hub-plan-later {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(216, 232, 167, 0.18);
+  color: var(--ink-2);
+}
+
+.hub-plan-cta {
+  margin-top: 26px;
+}
+
+.hub-plan-cta.cta-row {
+  gap: 14px 22px;
+}
+
+.hub-plan-fine {
+  margin-top: 12px;
+  color: var(--ink-3);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+}
+
+.hub-plan-pro .hub-plan-fine {
+  color: var(--ink-2);
+}
+
+.hub-plan-list {
+  align-content: start;
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--tone-2);
+}
+
+.hub-plan-pro .hub-plan-list {
+  border-top-color: rgba(216, 232, 167, 0.18);
+}
+
+.hub-block {
+  display: grid;
+  gap: 24px;
+  margin-top: clamp(64px, 8vw, 120px);
+}
+
+.hub-table {
+  overflow-x: auto;
+  border-radius: var(--radius);
+  background: var(--tone-1);
+}
+
+.hub-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.hub-table th,
+.hub-table td {
+  padding: 16px clamp(14px, 2vw, 24px);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.hub-table thead th {
+  color: var(--ink-3);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+.hub-table tbody tr {
+  border-top: 1px solid var(--tone-2);
+}
+
+.hub-table td {
+  color: var(--ink-2);
+}
+
+.hub-notes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.hub-notes li {
+  padding: 22px 24px;
+  border-radius: var(--radius);
+  background: var(--tone-1);
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+
+/* Opened from an app's sign-in (site.js): nothing to wander off through,
+   only the way back, the policies and the language. */
+.from-app .site-nav,
+.from-app .header-action,
+.from-app .nav-toggle,
+.from-app .footer-nav,
+.from-app .hub-tabs li:has([data-hub-tab='pricing']) {
+  display: none !important;
+}
+
+.from-app .header-actions {
+  margin-left: auto;
+}
+
+@media (max-width: 1000px) {
+  .legal-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .legal-toc {
+    display: none;
+  }
+}
+
+@media (max-width: 899px) {
+  .hub-plans {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    row-gap: 16px;
+  }
+
+  .hub-plan {
+    grid-row: auto;
+    grid-template-rows: none;
+  }
+
+  .hub-notes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* ---------------------------------------------------------------- 404 */
 
 .not-found {

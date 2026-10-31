@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="{{v:lang}}">
+<head>
+{{> head}}
+</head>
+<body class="page page-hub-pages page-hub-legal" data-account="{{v:accountUrl}}">
+{{> sprite}}
+{{> header}}
+<main id="main" class="hub-pages">
+  <div class="wrap">
+{{> hub-pages-top}}
+    <header class="hub-pages-head">
+      <p class="hub-pages-eyebrow">{{t:hubLegal.eyebrow}}</p>
+      <h1 class="h-display hub-pages-title">{{v:legalTitle}}</h1>
+      <p class="hub-pages-updated">{{v:legalUpdated}}</p>
+      <p class="lead">{{h:legalLead}}</p>
+    </header>
+    <!-- The sections listed beside the text on wide screens. -->
+    <div class="legal-layout">
+      <nav class="legal-toc" aria-labelledby="legal-toc-title">
+        <p id="legal-toc-title" class="legal-toc-title">{{t:hubLegal.toc}}</p>
+        <ol>
+{{h:legalToc}}
+        </ol>
+      </nav>
+      <div class="legal-body">
+{{h:legalSections}}
+      </div>
+    </div>
+{{> hub-pages-seller}}
+  </div>
+</main>
+{{> footer}}
+<script type="module" src="{{v:root}}assets/js/site.js?v={{v:jsVersion}}"></script>
+</body>
+</html>

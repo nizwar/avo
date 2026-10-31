@@ -1,0 +1,228 @@
+{
+  "en": {
+    "title": "Privacy Policy",
+    "lead": "Avo Hub is built so our servers never need to see what’s on your devices. This page says what we do keep, why, for how long, and how to get it or have it deleted.",
+    "sections": [
+      {
+        "heading": "Who’s responsible",
+        "body": [
+          "{seller}, an independent developer in Indonesia, is responsible for the personal data described here. Write to {email} about anything on this page."
+        ]
+      },
+      {
+        "heading": "What we never see",
+        "body": [
+          "What travels between your devices is encrypted end to end. We never receive or store, in a form we can read:",
+          [
+            "your phone’s screen, audio and camera;",
+            "your notifications and messages;",
+            "your contacts, photos and files;",
+            "what you type and click."
+          ],
+          "The keys that pair your devices stay on them. If you use Avo Hub without an account, we hold nothing about you."
+        ]
+      },
+      {
+        "heading": "What we keep",
+        "body": [
+          [
+            "Account: your email address, a name if you give one, and how you sign in (a passkey’s public key, or the Google or Apple account you chose).",
+            "Devices: for each device on your account, its device key (a public key), its type and model, the name you gave it, its app version and the day it was last seen.",
+            "Subscription: your PayPal subscription ID, your plan, its status and number of devices, the period paid for, and the ID, amount and date of each payment. Your PayPal sign-in and your card or bank details stay with PayPal and never reach us.",
+            "Usage: how much internet data each device used each month, to count the Free plan’s allowance. Only the amount, never what it was.",
+            "Access logs: the IP address, time and path of each request to our servers, without the rest of the address."
+          ]
+        ]
+      },
+      {
+        "heading": "Cookies and browser storage",
+        "body": [
+          "Our web pages set one cookie, to keep you signed in. It’s sent only to our sign-in server. Each browser also keeps its own device key and your settings in its own storage.",
+          "There are no advertising or analytics cookies, and no third-party scripts, on our pages."
+        ]
+      },
+      {
+        "heading": "Why we use it",
+        "body": [
+          [
+            "to run your account and the features you use (our agreement with you);",
+            "to bill for Pro, through PayPal (our agreement with you, and tax law);",
+            "to keep Avo Hub secure and stop abuse, such as attacks on sign-in (our legitimate interest in a safe service);",
+            "to email you sign-in codes, billing notices, trial reminders and important changes."
+          ],
+          "We don’t send marketing email without asking, we don’t sell your data, and we don’t use it for advertising."
+        ]
+      },
+      {
+        "heading": "Who else handles it",
+        "body": [
+          "These services process data for us, each only for its own part:",
+          [
+            "PayPal: payments, receipts and refunds. PayPal handles your payment details under [its own privacy statement](https://www.paypal.com/legalhub/paypal/privacy-full).",
+            "Cloudflare: delivers our web pages and protects our servers.",
+            "Resend: sends our emails.",
+            "Contabo and Biznet: the data centres that run our account server and the servers that pass encrypted traffic between your devices.",
+            "n0 (number 0): until our own servers carry all of it, encrypted traffic between your devices may pass through n0’s public servers, which see only IP addresses and encrypted data.",
+            "Google or Apple, only if you choose to sign in with them."
+          ],
+          "These services may be in countries other than yours. Where the law requires it, the transfer is covered by the safeguards it asks for."
+        ]
+      },
+      {
+        "heading": "How long we keep it",
+        "body": [
+          [
+            "account, devices and subscription: while your account exists, and up to {purgeDays} days after you close it;",
+            "monthly usage amounts: {usageMonths} months;",
+            "access logs: {logDays} days;",
+            "payment records: kept by us and by PayPal for as long as tax law requires."
+          ]
+        ]
+      },
+      {
+        "heading": "Your rights",
+        "body": [
+          "You can ask to see, download, correct or delete your data, or object to how we use it. Write to {email} from your account’s email address; we answer within 30 days. Closing your account deletes its data within {purgeDays} days.",
+          "These rights come from Indonesia’s Personal Data Protection Law (UU PDP) and, if you’re in the European Union or the UK, the GDPR. You can also complain to your data protection authority."
+        ]
+      },
+      {
+        "heading": "Security",
+        "body": [
+          "Devices trust each other only through pairing, with a code shown on both screens, so an account on its own can’t open a device. Sign-in uses passkeys or one-time email codes, never passwords. If a breach puts your data at risk, we tell you and the authorities within 3 × 24 hours, as Indonesian law requires."
+        ]
+      },
+      {
+        "heading": "Children",
+        "body": [
+          "Avo Hub isn’t meant for children under 13, and we don’t knowingly keep data about them. If you think a child has an account, write to us and we’ll delete it."
+        ]
+      },
+      {
+        "heading": "Changes to this policy",
+        "body": [
+          "If we change this policy in a way that matters, we email you before the change applies. The date at the top says when it last changed."
+        ]
+      },
+      {
+        "heading": "Contact",
+        "body": [
+          "{seller} · {email}"
+        ]
+      }
+    ]
+  },
+  "id": {
+    "title": "Kebijakan Privasi",
+    "lead": "Avo Hub dibuat supaya server kami tidak perlu melihat isi perangkat Anda. Halaman ini menjelaskan apa yang kami simpan, alasannya, berapa lama, dan cara mendapatkannya atau meminta penghapusannya.",
+    "sections": [
+      {
+        "heading": "Siapa yang bertanggung jawab",
+        "body": [
+          "{seller}, pengembang independen di Indonesia, bertanggung jawab atas data pribadi yang dijelaskan di sini. Kirim email ke {email} untuk apa pun tentang halaman ini."
+        ]
+      },
+      {
+        "heading": "Yang tidak pernah kami lihat",
+        "body": [
+          "Yang lewat di antara perangkat Anda terenkripsi ujung ke ujung. Kami tidak pernah menerima atau menyimpan, dalam bentuk yang bisa kami baca:",
+          [
+            "layar, audio, dan kamera ponsel Anda;",
+            "notifikasi dan pesan Anda;",
+            "kontak, foto, dan file Anda;",
+            "apa yang Anda ketik dan klik."
+          ],
+          "Kunci pemasangan perangkat tetap di perangkat itu. Bila Anda memakai Avo Hub tanpa akun, kami tidak menyimpan apa pun tentang Anda."
+        ]
+      },
+      {
+        "heading": "Yang kami simpan",
+        "body": [
+          [
+            "Akun: alamat email, nama bila Anda memberikannya, dan cara Anda masuk (kunci publik passkey, atau akun Google atau Apple yang Anda pilih).",
+            "Perangkat: untuk setiap perangkat di akun Anda, kunci perangkatnya (kunci publik), jenis dan modelnya, nama yang Anda berikan, versi app, dan hari terakhir terlihat.",
+            "Langganan: ID langganan PayPal, paket, status dan jumlah perangkatnya, periode yang sudah dibayar, serta ID, jumlah, dan tanggal setiap pembayaran. Data masuk PayPal serta data kartu atau bank Anda tetap di PayPal dan tidak pernah sampai ke kami.",
+            "Pemakaian: jumlah data internet yang dipakai tiap perangkat per bulan, untuk menghitung kuota paket Gratis. Hanya jumlahnya, tidak pernah isinya.",
+            "Log akses: alamat IP, waktu, dan path setiap permintaan ke server kami, tanpa sisa alamatnya."
+          ]
+        ]
+      },
+      {
+        "heading": "Cookie dan penyimpanan browser",
+        "body": [
+          "Halaman web kami memasang satu cookie, supaya Anda tetap masuk. Cookie itu hanya dikirim ke server masuk kami. Setiap browser juga menyimpan kunci perangkatnya sendiri dan setelan Anda di penyimpanannya sendiri.",
+          "Tidak ada cookie iklan atau analitik, dan tidak ada skrip pihak ketiga, di halaman kami."
+        ]
+      },
+      {
+        "heading": "Untuk apa kami memakainya",
+        "body": [
+          [
+            "menjalankan akun Anda dan fitur yang Anda pakai (perjanjian kami dengan Anda);",
+            "menagih Pro, lewat PayPal (perjanjian kami dengan Anda, dan hukum pajak);",
+            "menjaga keamanan Avo Hub dan mencegah penyalahgunaan, seperti serangan pada proses masuk (kepentingan sah kami atas layanan yang aman);",
+            "mengirim kode masuk, pemberitahuan tagihan, pengingat masa coba, dan perubahan penting lewat email."
+          ],
+          "Kami tidak mengirim email pemasaran tanpa bertanya, tidak menjual data Anda, dan tidak memakainya untuk iklan."
+        ]
+      },
+      {
+        "heading": "Siapa lagi yang memprosesnya",
+        "body": [
+          "Layanan berikut memproses data untuk kami, masing-masing hanya untuk bagiannya:",
+          [
+            "PayPal: pembayaran, tanda terima, dan pengembalian dana. PayPal menangani data pembayaran Anda menurut [pernyataan privasinya sendiri](https://www.paypal.com/legalhub/paypal/privacy-full).",
+            "Cloudflare: mengantarkan halaman web kami dan melindungi server kami.",
+            "Resend: mengirim email kami.",
+            "Contabo dan Biznet: pusat data yang menjalankan server akun kami dan server yang meneruskan lalu lintas terenkripsi di antara perangkat Anda.",
+            "n0 (number 0): sampai server kami sendiri membawa semuanya, lalu lintas terenkripsi di antara perangkat Anda bisa lewat server publik n0, yang hanya melihat alamat IP dan data terenkripsi.",
+            "Google atau Apple, hanya bila Anda memilih masuk dengan akun mereka."
+          ],
+          "Layanan ini bisa berada di negara selain negara Anda. Bila hukum mewajibkannya, pemindahan data dilindungi dengan pengaman yang dimintanya."
+        ]
+      },
+      {
+        "heading": "Berapa lama kami menyimpannya",
+        "body": [
+          [
+            "akun, perangkat, dan langganan: selama akun Anda ada, dan paling lama {purgeDays} hari setelah Anda menutupnya;",
+            "jumlah pemakaian bulanan: {usageMonths} bulan;",
+            "log akses: {logDays} hari;",
+            "catatan pembayaran: disimpan kami dan PayPal selama diwajibkan hukum pajak."
+          ]
+        ]
+      },
+      {
+        "heading": "Hak Anda",
+        "body": [
+          "Anda bisa meminta untuk melihat, mengunduh, memperbaiki, atau menghapus data Anda, atau menolak cara kami memakainya. Kirim email ke {email} dari alamat email akun Anda; kami menjawab dalam 30 hari. Menutup akun menghapus datanya dalam {purgeDays} hari.",
+          "Hak ini berasal dari Undang-Undang Pelindungan Data Pribadi (UU PDP) dan, bila Anda berada di Uni Eropa atau Inggris, GDPR. Anda juga bisa mengadu ke otoritas pelindungan data di tempat Anda."
+        ]
+      },
+      {
+        "heading": "Keamanan",
+        "body": [
+          "Perangkat hanya saling percaya lewat pemasangan, dengan kode yang tampil di kedua layar, sehingga akun saja tidak bisa membuka perangkat. Masuk memakai passkey atau kode email sekali pakai, tidak pernah kata sandi. Bila kebocoran membahayakan data Anda, kami memberi tahu Anda dan otoritas dalam 3 × 24 jam, sesuai hukum Indonesia."
+        ]
+      },
+      {
+        "heading": "Anak-anak",
+        "body": [
+          "Avo Hub tidak ditujukan untuk anak di bawah 13 tahun, dan kami tidak dengan sengaja menyimpan data tentang mereka. Bila Anda menduga seorang anak punya akun, kirim email kepada kami dan kami akan menghapusnya."
+        ]
+      },
+      {
+        "heading": "Perubahan kebijakan",
+        "body": [
+          "Bila kami mengubah kebijakan ini secara berarti, kami mengirim email sebelum perubahan berlaku. Tanggal di bagian atas menunjukkan kapan terakhir diubah."
+        ]
+      },
+      {
+        "heading": "Kontak",
+        "body": [
+          "{seller} · {email}"
+        ]
+      }
+    ]
+  }
+}

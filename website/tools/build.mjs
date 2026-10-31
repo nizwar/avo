@@ -51,9 +51,23 @@ const PAGES = [
     og: 'og', ogAlt: 'meta.ogAlt' },
   { id: 'hub', template: 'hub.html', paths: { en: 'hub/', id: 'id/hub/' }, title: 'meta.hubTitle', ogTitle: 'meta.hubOgTitle', description: 'meta.hubDescription',
     og: 'og-hub', ogAlt: 'meta.hubOgAlt' },
+  // Avo Hub's pricing and policies (`hub`: the slug under /hub/; `legal`: the policy's text in src/hub/).
+  { id: 'hub-pricing', template: 'hub-pricing.html', hub: 'pricing', paths: { en: 'hub/pricing/', id: 'id/hub/pricing/' }, title: 'meta.hubPricingTitle', description: 'meta.hubPricingDescription',
+    og: 'og-hub', ogAlt: 'meta.hubOgAlt' },
+  { id: 'hub-terms', template: 'hub-legal.html', hub: 'terms', legal: 'terms', paths: { en: 'hub/terms/', id: 'id/hub/terms/' }, title: 'meta.hubTermsTitle', description: 'meta.hubTermsDescription',
+    og: 'og-hub', ogAlt: 'meta.hubOgAlt' },
+  { id: 'hub-privacy', template: 'hub-legal.html', hub: 'privacy', legal: 'privacy', paths: { en: 'hub/privacy/', id: 'id/hub/privacy/' }, title: 'meta.hubPrivacyTitle', description: 'meta.hubPrivacyDescription',
+    og: 'og-hub', ogAlt: 'meta.hubOgAlt' },
+  { id: 'hub-refunds', template: 'hub-legal.html', hub: 'refunds', legal: 'refunds', paths: { en: 'hub/refunds/', id: 'id/hub/refunds/' }, title: 'meta.hubRefundsTitle', description: 'meta.hubRefundsDescription',
+    og: 'og-hub', ogAlt: 'meta.hubOgAlt' },
   { id: '404', template: '404.html', paths: { en: '404.html' }, title: 'meta.notFoundTitle', description: 'meta.homeDescription',
     og: 'og', ogAlt: 'meta.ogAlt' },
 ];
+
+/** Avo Hub's pricing and policy pages, in the order every list of them shows. */
+export const HUB_PAGES = ['pricing', 'terms', 'privacy', 'refunds'];
+/** A policy's text: src/hub/<name>.json, { en, id } each { title, lead, sections: [{ heading, body: [paragraph | [item]] }] }. */
+export const LEGAL = ['terms', 'privacy', 'refunds'];
 
 // The day a page last changed, for the sitemap: the newest commit touching
 // what the page is built from (git's committer date), or today outside git.
@@ -114,6 +128,46 @@ const scriptJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c').rep
 
 /** The day after an ISO date (2027-01-01 -> 2027-01-02). */
 const nextDay = (date) => new Date(Date.parse(`${date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+
+/**
+ * When the launch price ends for new subscriptions: the end of its last day
+ * anywhere on Earth (UTC-12), 2027-01-01 -> 2027-01-02T12:00:00Z, as Avo Hub's
+ * server counts it.
+ */
+export const launchEndsAt = (lastDay) => `${nextDay(lastDay)}T12:00:00Z`;
+
+/**
+ * A line of a policy's text as HTML: `[label](href)` becomes a link and a
+ * bare email address a mailto link; everything else is escaped text.
+ */
+export function inlineHtml(text) {
+  const pattern = /\[([^\]]+)\]\(([^)\s]+)\)|([\w.+-]+@[\w-]+(?:\.[\w-]+)+)/g;
+  let html = '';
+  let last = 0;
+  for (const match of text.matchAll(pattern)) {
+    html += escapeHtml(text.slice(last, match.index));
+    const [whole, label, href, email] = match;
+    if (email) html += `<a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>`;
+    else html += `<a href="${escapeHtml(href)}"${/^https?:/.test(href) ? ' rel="noopener"' : ''}>${escapeHtml(label)}</a>`;
+    last = match.index + whole.length;
+  }
+  return html + escapeHtml(text.slice(last));
+}
+
+/** A policy in one language: the same shape in both (checked at build). */
+function checkLegal(name, doc) {
+  const shape = (policy) => policy.sections.map((section) => section.body.map((block) => (Array.isArray(block) ? block.length : 's')).join(','));
+  for (const lang of LANGS) {
+    const policy = doc[lang];
+    if (!policy || typeof policy.title !== 'string' || typeof policy.lead !== 'string' || !Array.isArray(policy.sections) || !policy.sections.length) {
+      throw new Error(`src/hub/${name}.json: ${lang} needs a title, a lead and sections`);
+    }
+  }
+  const [first, ...rest] = LANGS;
+  for (const lang of rest) {
+    if (shape(doc[lang]).join('|') !== shape(doc[first]).join('|')) throw new Error(`src/hub/${name}.json: ${lang} differs in shape from ${first} (sections, paragraphs, lists)`);
+  }
+}
 
 const hash = (text) => createHash('sha256').update(text).digest('hex').slice(0, 10);
 
@@ -178,7 +232,17 @@ function checkConfig(config) {
   url(config.release?.downloadUrl, 'release.downloadUrl', { optional: true });
   url(config.hub?.githubUrl, 'hub.githubUrl');
   url(config.hub?.release?.downloadUrl, 'hub.release.downloadUrl', { optional: true });
-  for (const key of ['pricingUrl', 'termsUrl', 'privacyUrl', 'refundUrl']) url(config.hub?.[key], `hub.${key}`);
+  url(config.hub?.accountUrl, 'hub.accountUrl');
+  try {
+    if (new URL(config.hub?.accountUrl).pathname !== '/') errors.push('hub.accountUrl must be the account\'s address itself, ending in /');
+  } catch {}
+  const legal = config.hub?.legal;
+  if (!legal?.seller) errors.push('hub.legal.seller is required');
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(legal?.email || '')) errors.push('hub.legal.email is not an email address');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(legal?.updated || '')) errors.push('hub.legal.updated must be a date like 2026-10-31');
+  for (const [name, value] of Object.entries(legal?.plan || {})) {
+    if (!(typeof value === 'string' ? value : Number.isFinite(value) && value > 0)) errors.push(`hub.legal.plan.${name} is not valid`);
+  }
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(config.contact?.email || '')) errors.push('contact.email is not an email address');
   const pricing = config.hub?.pricing;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(pricing?.launchEnds || '')) errors.push('hub.pricing.launchEnds must be a date like 2027-01-01');
@@ -300,7 +364,8 @@ function llmsText({ config, siteUrl, githubUrl, dict }) {
     ...say('meta.hubFeatureList').split('; ').map((feature) => `  - ${feature}`),
     `- Status: ${config.hub.release?.available ? `version ${config.hub.release.version} is out` : 'in development; no build is published yet'}.`,
     `- Price: free over a USB cable and the same Wi-Fi, with or without an account. Pro, for internet use without a monthly allowance and extras: launch price until ${ends}, $${p.launch.month[0]} a month for the first device and $${p.launch.month[1]} for each one after, or $${p.launch.year[0]} and $${p.launch.year[1]} a year; after that $${p.standard.month[0]} and $${p.standard.month[1]} a month, or $${p.standard.year[0]} and $${p.standard.year[1]} a year. Launch subscribers keep their price while they stay subscribed.`,
-    `- [Pricing](${config.hub.pricingUrl}), [Terms](${config.hub.termsUrl}), [Privacy](${config.hub.privacyUrl}), [Refunds](${config.hub.refundUrl})`,
+    `- [Pricing](${siteUrl}/hub/pricing/), [Terms](${siteUrl}/hub/terms/), [Privacy](${siteUrl}/hub/privacy/), [Refunds](${siteUrl}/hub/refunds/), in Indonesian under ${siteUrl}/id/hub/`,
+    `- Pro is sold by ${config.hub.legal.seller}; payments go through PayPal. Sign in and subscribe at ${config.hub.accountUrl}`,
     '',
     '## Contact',
     '',
@@ -311,7 +376,7 @@ function llmsText({ config, siteUrl, githubUrl, dict }) {
 
 // -------------------------------------------------------------------- build
 
-export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, overrides = {}, quiet = false } = {}) {
+export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, overrides = {}, quiet = false, now = new Date() } = {}) {
   const log = quiet ? () => {} : (...args) => console.log(...args);
   const config = await loadConfig(overrides);
   checkConfig(config);
@@ -323,6 +388,12 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
   const dicts = {};
   for (const lang of LANGS) dicts[lang] = JSON.parse(await readFile(path.join(ROOT, 'src/i18n', `${lang}.json`), 'utf8'));
   await checkDictionaries(dicts);
+
+  const legalDocs = {};
+  for (const name of LEGAL) {
+    legalDocs[name] = JSON.parse(await readFile(path.join(ROOT, 'src/hub', `${name}.json`), 'utf8'));
+    checkLegal(name, legalDocs[name]);
+  }
 
   const partials = {};
   for (const file of await readdir(path.join(ROOT, 'src/partials'))) {
@@ -383,6 +454,12 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
   const release = config.release || {};
   const downloadUrl = release.downloadUrl || `${githubUrl}/releases/latest`;
   const hubDownloadUrl = hubRelease.downloadUrl || `${hubGithubUrl}/releases/latest`;
+  // The Avo Hub account, and Pro's prices now: the launch ones until their end, by the build's clock
+  // (the pricing page's script then follows the visitor's).
+  const accountUrl = config.hub.accountUrl;
+  const legal = config.hub.legal;
+  const launchEnd = launchEndsAt(config.hub.pricing.launchEnds);
+  const currentList = now.getTime() < Date.parse(launchEnd) ? 'launch' : 'standard';
   const icon = (name) => `<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-${name}"/></svg>`;
   const shotUrl = (name) => `${siteUrl}/assets/img/screens/${name}-${PICTURES[name].widths.at(-1)}.jpg`;
 
@@ -398,14 +475,11 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
       const homePath = lang === 'en' ? '' : 'id/';
       const hubPath = lang === 'en' ? 'hub/' : 'id/hub/';
       const hrefTo = (target) => `${root}${target}` || './';
-      // Avo Hub's plans and policies, in the page's language.
-      const hubLink = (url) => `${url}?lang=${lang}`;
-      const hubLinks = {
-        pricing: hubLink(config.hub.pricingUrl),
-        terms: hubLink(config.hub.termsUrl),
-        privacy: hubLink(config.hub.privacyUrl),
-        refund: hubLink(config.hub.refundUrl),
-      };
+      // Avo Hub's plans and policies, in the page's language: this site's pages.
+      const hubPagePath = (name) => `${hubPath}${name}/`;
+      const hubLinks = Object.fromEntries(
+        HUB_PAGES.map((name) => [name, page.hub === name ? './' : page.hub ? `../${name}/` : hrefTo(hubPagePath(name))]),
+      );
       // Pro's prices and the launch price's last day, as the page writes them.
       const prices = config.hub.pricing;
       const priceTokens = Object.fromEntries(
@@ -417,7 +491,23 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
         ),
       );
       const launchEnds = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'id-ID', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${prices.launchEnds}T00:00:00Z`)).replace(/ /g, '\u00a0');
-      const tokens = { github: githubUrl, blob: blobUrl, contactEmail: config.contact.email, hubGithub: hubGithubUrl, hubPricing: hubLinks.pricing, launchEnds, ...priceTokens };
+      const longDate = (iso) => new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'id-ID', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`));
+      const tokens = {
+        github: githubUrl,
+        blob: blobUrl,
+        contactEmail: config.contact.email,
+        hubGithub: hubGithubUrl,
+        hubPricing: hubLinks.pricing,
+        hubTerms: hubLinks.terms,
+        hubPrivacy: hubLinks.privacy,
+        hubRefunds: hubLinks.refunds,
+        account: accountUrl,
+        seller: legal.seller,
+        hubEmail: legal.email,
+        launchEnds,
+        ...Object.fromEntries(Object.entries(legal.plan).map(([name, value]) => [name, String(value)])),
+        ...priceTokens,
+      };
       const text = (key, extra = {}) => lookup(dict, key, lang).replace(/\{(\w+)\}/g, (m, name) => (name in extra ? extra[name] : name in tokens ? escapeHtml(tokens[name]) : m));
       const t = (key, extra) => text(key, extra);
       const counterpart = page.paths[other] ?? null;
@@ -461,7 +551,14 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
             [`#faq`, t('nav.hubFaq')],
             [hrefTo(hubPath), t('nav.hub'), 'page'],
           ]
-        : [
+        : page.hub
+          ? [
+              [`${hrefTo(hubPath)}#features`, t('nav.hubFeatures')],
+              [`${hrefTo(hubPath)}#how`, t('nav.hubHow')],
+              [`${hrefTo(hubPath)}#faq`, t('nav.hubFaq')],
+              [hrefTo(hubPath), t('nav.hub')],
+            ]
+          : [
             [`${pageHome}#mac`, t('nav.mac')],
             [`${pageHome}#gaming`, t('nav.gaming')],
             [`${pageHome}#how`, t('nav.how')],
@@ -495,7 +592,9 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
       const sizeFigure = release.available && release.size
         ? `        <div class="figure-item"><dt><span class="figure">${escapeHtml(release.size)}</span><span class="figure-label">${t('req.sizeLabel')}</span></dt><dd>${t('req.sizeText')}</dd></div>`
         : '';
-      const headerAction = page.id === 'hub'
+      const headerAction = page.id === 'hub-pricing'
+        ? `      <a class="btn btn-primary btn-small header-action" href="${escapeHtml(`${accountUrl}?pro=month`)}">${t('hubPricing.proCta')}</a>`
+        : page.id === 'hub' || page.hub
         ? `      <a class="btn btn-primary btn-small header-action" href="${escapeHtml(hubLinks.pricing)}">${t('common.pricing')}</a>`
         : release.available
           ? `      <a class="btn btn-primary btn-small header-action" href="${escapeHtml(downloadUrl)}">${icon('down')}${t('common.download')}</a>`
@@ -509,13 +608,13 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
         ? [
             '<p class="cta-row">',
             `<a class="btn btn-primary" href="${escapeHtml(hubDownloadUrl)}">${icon('down')}${t('hub.download')}</a>`,
-            `<a class="text-link" href="${escapeHtml(hubLinks.pricing)}">${t('hub.pricingCta')}${icon('out')}</a>`,
+            `<a class="text-link" href="${escapeHtml(hubLinks.pricing)}">${t('hub.pricingCta')}${icon('arrow')}</a>`,
             '</p>',
             `<p class="cta-meta">${t('hub.downloadMeta')}</p>`,
           ].join('\n')
         : [
             '<p class="cta-row">',
-            `<a class="btn btn-primary" href="${escapeHtml(hubLinks.pricing)}">${t('hub.pricingCta')}${icon('out')}</a>`,
+            `<a class="btn btn-primary" href="${escapeHtml(hubLinks.pricing)}">${t('hub.pricingCta')}${icon('arrow')}</a>`,
             `<a class="text-link" href="#how">${t('hub.howLink')}${icon('down')}</a>`,
             '</p>',
           ].join('\n');
@@ -523,20 +622,86 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
         ? `<p class="cta-row"><a class="btn btn-ink" href="${escapeHtml(hubDownloadUrl)}">${icon('down')}${t('hub.download')}</a><span class="cta-meta">${t('hub.downloadMeta')}</span></p>`
         : [
             '<p class="cta-row">',
-            `<a class="btn btn-ink" href="${escapeHtml(hubLinks.pricing)}">${t('hub.pricingCta')}${icon('out')}</a>`,
+            `<a class="btn btn-ink" href="${escapeHtml(hubLinks.pricing)}">${t('hub.pricingCta')}${icon('arrow')}</a>`,
             `<a class="btn btn-quiet-ink" href="${escapeHtml(hrefTo(homePath))}">${t('hub.get.avoCta')}${icon('arrow')}</a>`,
             ...(hubOpen ? [`<a class="text-link" href="${escapeHtml(hubGithubUrl)}">${t('hub.watch')}${icon('arrow')}</a>`] : []),
             '</p>',
           ].join('\n');
+
+      // ------------------------------------- Avo Hub's pricing and policies
+      const pricingUrl = `${siteUrl}/${hubPagePath('pricing')}`;
+      const hubTabs = [
+        `<nav class="hub-tabs" aria-label="${escapeHtml(stripTags(t('hubLegal.nav')))}">`,
+        '  <ul>',
+        ...HUB_PAGES.map((name) => `    <li><a href="${escapeHtml(hubLinks[name])}"${page.hub === name ? ' aria-current="page"' : ''} data-hub-tab="${name}">${t(`hubLegal.${name}`)}</a></li>`),
+        '  </ul>',
+        '</nav>',
+      ].join('\n');
+      // Pro's prices on one list, as the pricing page's wording names them.
+      const listValues = (list) => {
+        const { month, year } = prices[list];
+        return { firstMonth: `$${month[0]}`, extraMonth: `$${month[1]}`, firstYear: `$${year[0]}`, extraYear: `$${year[1]}` };
+      };
+      // What differs between the launch and the standard prices: both, the
+      // list not in force hidden (site.js follows the visitor's clock).
+      const shown = (list) => (list === currentList ? '' : ' hidden');
+      const byList = (render) => {
+        const [launch, standard] = ['launch', 'standard'].map(render);
+        if (launch === standard) return launch;
+        return `<span data-price-list="launch"${shown('launch')}>${launch}</span><span data-price-list="standard"${shown('standard')}>${standard}</span>`;
+      };
+      // Each price as both lists' figures, for the wording to place.
+      const pricesNow = Object.fromEntries(['firstMonth', 'extraMonth', 'firstYear', 'extraYear'].map((name) => [name, byList((list) => listValues(list)[name])]));
+      const total = (list, period, devices) => prices[list][period][0] + (devices - 1) * prices[list][period][1];
+      const pricingRows = [1, 2, 3, 5]
+        .map((devices) => {
+          const name = devices === 1 ? t('hubPricing.exampleOne') : t('hubPricing.exampleOther', { count: String(devices) });
+          const cell = (period) => `<td>${byList((list) => `$${total(list, period, devices)}`)}</td>`;
+          return `            <tr><th scope="row">${name}</th>${cell('month')}${cell('year')}</tr>`;
+        })
+        .join('\n');
+      // A policy's text, filled and linked; the same placeholders as Avo Hub's account pages.
+      const legalValues = {
+        seller: legal.seller,
+        email: legal.email,
+        launchUntil: longDate(prices.launchEnds),
+        account: accountUrl,
+        hubPricing: hubLinks.pricing,
+        hubTerms: hubLinks.terms,
+        hubPrivacy: hubLinks.privacy,
+        hubRefunds: hubLinks.refunds,
+        ...Object.fromEntries(Object.entries(legal.plan).map(([name, value]) => [name, String(value)])),
+      };
+      const fillLegal = (line) =>
+        line.replace(/\{(\w+)\}/g, (match, name) => {
+          if (!(name in legalValues)) throw new Error(`src/hub/${page.legal}.json: unknown placeholder ${match}`);
+          return legalValues[name];
+        });
+      const legalLine = (line) => inlineHtml(fillLegal(line));
+      const policy = page.legal ? legalDocs[page.legal][lang] : null;
+      const legalSections = policy
+        ? policy.sections
+            .map((section, index) => {
+              const id = `section-${index + 1}`;
+              const body = section.body
+                .map((block) => (Array.isArray(block) ? `    <ul class="legal-list">\n${block.map((item) => `      <li>${legalLine(item)}</li>`).join('\n')}\n    </ul>` : `    <p>${legalLine(block)}</p>`))
+                .join('\n');
+              return `  <section class="legal-section" id="${id}" aria-labelledby="${id}-title">\n    <h2 id="${id}-title" class="legal-heading"><span class="legal-number">${index + 1}</span>${legalLine(section.heading)}</h2>\n${body}\n  </section>`;
+            })
+            .join('\n')
+        : '';
+      const legalToc = policy
+        ? policy.sections.map((section, index) => `          <li><a href="#section-${index + 1}">${legalLine(section.heading)}</a></li>`).join('\n')
+        : '';
 
       const supportChannels = config.support.channels.length ? channelList(config.support.channels, t) : `<p class="muted">${t('support.noChannels')}</p>`;
       const maintainer = config.maintainer?.name;
       const builtText = maintainer ? t('built.textNamed', { maintainer: escapeHtml(maintainer) }) : t('built.textAnon');
 
       // The questions on this page, for the page and for search engines.
-      const faqPrefix = page.id === 'hub' ? 'hub.faq' : 'faq';
+      const faqPrefix = { home: 'faq', hub: 'hub.faq' }[page.id];
       const faq = [];
-      for (let i = 1; lookupOptional(dict, `${faqPrefix}.q${i}`) !== undefined; i++) faq.push({ q: t(`${faqPrefix}.q${i}`), a: t(`${faqPrefix}.a${i}`) });
+      for (let i = 1; faqPrefix && lookupOptional(dict, `${faqPrefix}.q${i}`) !== undefined; i++) faq.push({ q: t(`${faqPrefix}.q${i}`), a: t(`${faqPrefix}.a${i}`) });
       const faqItems = faq
         .map(({ q, a }, i) => `        <details class="faq-item" name="faq"${i === 0 ? ' open' : ''}><summary>${q}<span class="faq-sign" aria-hidden="true"></span></summary><div class="faq-answer"><p>${a}</p></div></details>`)
         .join('\n');
@@ -607,7 +772,7 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
         // Free, then Pro by the month and by the year: the launch price for
         // subscriptions started up to its last day, the standard one after.
         offers: [
-          { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'USD', url: hubLinks.pricing },
+          { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'USD', url: pricingUrl },
           ...['launch', 'standard'].flatMap((tier) =>
             ['month', 'year'].map((period) => {
               const [first, extra] = prices[tier][period];
@@ -618,7 +783,7 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
                 name: `Pro, ${period === 'month' ? 'monthly' : 'yearly'}${tier === 'launch' ? ' (launch price)' : ''}`,
                 price: String(first),
                 priceCurrency: 'USD',
-                url: hubLinks.pricing,
+                url: pricingUrl,
                 ...(tier === 'launch' ? { priceValidUntil: prices.launchEnds } : { validFrom: nextDay(prices.launchEnds) }),
                 priceSpecification: [unit(first, 'first device'), unit(extra, 'each further device')],
               };
@@ -630,6 +795,7 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
         inLanguage: lang,
       };
       const pageTitle = stripTags(t(page.title));
+      const onHub = page.id === 'hub' || Boolean(page.hub);
       const webPage = {
         '@type': 'WebPage',
         '@id': `${canonical}#webpage`,
@@ -638,27 +804,30 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
         description: stripTags(t(page.description)),
         inLanguage: lang,
         isPartOf: { '@id': siteId },
-        about: { '@id': page.id === 'hub' ? hubId : avoId },
+        about: { '@id': onHub ? hubId : avoId },
         primaryImageOfPage: { '@type': 'ImageObject', url: `${siteUrl}/assets/img/og/${page.og}-${lang}.jpg`, width: 1200, height: 630 },
-        ...(page.id === 'hub' ? { breadcrumb: { '@id': `${canonical}#breadcrumb` } } : {}),
+        ...(page.legal ? { dateModified: legal.updated } : {}),
+        ...(onHub ? { breadcrumb: { '@id': `${canonical}#breadcrumb` } } : {}),
       };
+      const breadcrumb = {
+        '@type': 'BreadcrumbList',
+        '@id': `${canonical}#breadcrumb`,
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: stripTags(t('meta.breadcrumbHome')), item: homeUrl },
+          { '@type': 'ListItem', position: 2, name: 'Avo Hub', item: hubUrl },
+          ...(page.hub ? [{ '@type': 'ListItem', position: 3, name: stripTags(t(`hubLegal.${page.hub}`)), item: canonical }] : []),
+        ],
+      };
+      // The product pages carry their app; the pricing page Avo Hub's offers; a policy only itself.
+      const app = page.id === 'home' ? [avoApp] : page.id === 'hub' || page.id === 'hub-pricing' ? [hubApp] : [];
       const graph = page.id === '404'
         ? [organization, website]
         : [
             organization,
             website,
             webPage,
-            page.id === 'hub' ? hubApp : avoApp,
-            ...(page.id === 'hub'
-              ? [{
-                  '@type': 'BreadcrumbList',
-                  '@id': `${canonical}#breadcrumb`,
-                  itemListElement: [
-                    { '@type': 'ListItem', position: 1, name: stripTags(t('meta.breadcrumbHome')), item: homeUrl },
-                    { '@type': 'ListItem', position: 2, name: 'Avo Hub', item: hubUrl },
-                  ],
-                }]
-              : []),
+            ...app,
+            ...(onHub ? [breadcrumb] : []),
             ...(faq.length
               ? [{
                   '@type': 'FAQPage',
@@ -702,10 +871,16 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
           githubUrl,
           blobUrl,
           contactEmail: config.contact.email,
-          hubPricingUrl: hubLinks.pricing,
-          hubTermsUrl: hubLinks.terms,
-          hubPrivacyUrl: hubLinks.privacy,
-          hubRefundUrl: hubLinks.refund,
+          hubPricingUrl: hrefTo(hubPagePath('pricing')),
+          hubTermsUrl: hrefTo(hubPagePath('terms')),
+          hubPrivacyUrl: hrefTo(hubPagePath('privacy')),
+          hubRefundsUrl: hrefTo(hubPagePath('refunds')),
+          accountUrl,
+          proMonthUrl: `${accountUrl}?pro=month`,
+          proYearUrl: `${accountUrl}?pro=year`,
+          launchEndsAt: launchEnd,
+          legalTitle: policy?.title ?? '',
+          legalUpdated: stripTags(t('hubLegal.updated', { date: escapeHtml(longDate(legal.updated)) })),
           dmgName: release.available && release.version ? `Avo ${release.version}` : 'Avo',
           otherNotFound: stripTags(lookup(dicts[other], 'notFound.title', other)),
           otherHomeHref: hrefTo(other === 'en' ? '' : 'id/'),
@@ -736,6 +911,16 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
             .map((file) => `<link rel="preload" href="${escapeHtml(`${root}assets/fonts/${file}`)}" as="font" type="font/woff2" crossorigin>`)
             .join('\n'),
           jsonLd: scriptJson(jsonLd),
+          hubTabs,
+          pricingHeadline: t('hubPricing.headline', pricesNow),
+          pricingFigure: pricesNow.firstMonth,
+          pricingExtra: t('hubPricing.proExtra', pricesNow),
+          pricingYear: t('hubPricing.proYear', pricesNow),
+          launchShown: shown('launch'),
+          pricingRows,
+          legalLead: policy ? legalLine(policy.lead) : '',
+          legalToc,
+          legalSections,
         },
       };
       const html = render(template, ctx);
@@ -756,7 +941,7 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
     ...urls.flatMap((p) => {
-      const lastmod = lastChanged([`src/pages/${p.template}`, 'src/i18n', 'src/partials', 'site.config.mjs']);
+      const lastmod = lastChanged([`src/pages/${p.template}`, 'src/i18n', 'src/partials', 'site.config.mjs', ...(p.legal ? [`src/hub/${p.legal}.json`] : [])]);
       return LANGS.map((lang) =>
         [
           '  <url>',

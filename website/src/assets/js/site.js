@@ -1,7 +1,9 @@
 // Every page: the header and its menu, entrances as sections arrive, and
 // click to zoom on screenshots; then each page's own piece: the windows of
 // the hero, Avo's commands, the keys on the game, the held story, Avo Hub's
-// index and its pairing walk-through.
+// index and its pairing walk-through, and Avo Hub's pricing and policies
+// (the language an old address asked for, the way back to the account's
+// sign-in, the prices in force).
 // Nothing here is required to read the site; without JavaScript every
 // word and picture is on the page.
 
@@ -9,6 +11,7 @@ import { setupLightbox } from './lightbox.js';
 import { setupReel } from './reel.js';
 import { setupCommands, setupKeys } from './commands.js';
 import { setupIndex, setupPair, setupStory } from './story.js';
+import { setupHubPages } from './hub-pages.js';
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 document.documentElement.classList.add('js');
@@ -119,6 +122,7 @@ function setupRise() {
   });
 }
 
+setupHubPages();
 setupHeader();
 setupCurrentSection();
 setupReel({ reduceMotion });

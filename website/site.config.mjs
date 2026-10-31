@@ -42,16 +42,51 @@ export default {
       version: null,
       downloadUrl: null,
     },
-    // Avo Hub's plans and policies live with its accounts (auth.avodroid.com).
-    pricingUrl: 'https://auth.avodroid.com/pricing',
-    termsUrl: 'https://auth.avodroid.com/terms',
-    privacyUrl: 'https://auth.avodroid.com/privacy',
-    refundUrl: 'https://auth.avodroid.com/refund',
+    // The Avo Hub account: where people sign in, start the free trial and
+    // subscribe to Pro. The pricing page's buttons lead there (`?pro=month`
+    // or `?pro=year` opens its Get Pro on that period), and the policy pages
+    // lead back to its sign-in when they were opened from it (`?back=`, only
+    // this address's own sign-in page).
+    accountUrl: 'https://auth.avodroid.com/',
+    // Avo Hub's pricing and policies are this site's pages, in both
+    // languages: /hub/pricing/, /hub/terms/, /hub/privacy/, /hub/refunds/
+    // (and /id/hub/...). Their text lives here, in src/hub/*.json and the
+    // `hubPricing` wording; the account's old addresses
+    // (auth.avodroid.com/pricing, /terms, /privacy, /refund) redirect here.
+    // `legal` holds who sells Avo Hub and the plans' numbers the text quotes:
+    // keep them equal to Avo Hub's docs/accounts.md and its server.
+    legal: {
+      // The seller, exactly as on the PayPal business account.
+      seller: 'Mochamad Nizwar Syafuan',
+      // Billing, privacy and refund questions.
+      email: 'support@avodroid.com',
+      // When the policies last changed (shown on each page).
+      updated: '2026-10-31',
+      plan: {
+        trialDays: 14,
+        trialDevices: 5,
+        freeDevices: 2,
+        freeBrowsers: 2,
+        proBrowsers: 10,
+        refundDays: 14,
+        graceDays: 7,
+        passDays: 7,
+        noticeDays: 30,
+        purgeDays: 30,
+        usageMonths: 13,
+        logDays: 14,
+        freeInternet: '1 GB',
+        fairUse: '200 GB',
+      },
+    },
     // Pro's prices in US dollars, per device: [first device, each one after]
     // (Avo Hub's docs/decisions.md D-17). The launch price is for
-    // subscriptions started up to and including `launchEnds`, and stays with
-    // them for as long as they last; the standard price is for those started
-    // later. The page's wording and its structured data both read these.
+    // subscriptions started up to and including `launchEnds` (to the end of
+    // that day anywhere on Earth), and stays with them for as long as they
+    // last; the standard price is for those started later. The pages'
+    // wording and their structured data read these; the pricing page shows
+    // the launch price until then and the standard one after, by the
+    // visitor's clock. They must match Avo Hub's PayPal plans (its D-17).
     pricing: {
       launchEnds: '2027-01-01',
       launch: { month: [2, 1], year: [20, 10] },

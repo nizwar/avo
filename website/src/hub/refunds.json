@@ -1,0 +1,108 @@
+{
+  "en": {
+    "title": "Refund Policy",
+    "lead": "If Pro isn’t right for you, you can have your money back. You buy Pro from {seller}; payments go through PayPal, and so do refunds.",
+    "sections": [
+      {
+        "heading": "Full refund within {refundDays} days",
+        "body": [
+          "You get a full refund, no reason needed, if you ask within {refundDays} days of:",
+          [
+            "your first payment for Pro, monthly or yearly;",
+            "a yearly renewal."
+          ]
+        ]
+      },
+      {
+        "heading": "Monthly renewals",
+        "body": [
+          "Monthly renewals aren’t refunded, except where the law says otherwise. Cancel at any time and you won’t be charged again; Pro stays on until the end of the month you paid for."
+        ]
+      },
+      {
+        "heading": "Adding or removing devices",
+        "body": [
+          "When you add devices, you pay for them for the rest of the current period at once, through PayPal, and they count as soon as that payment goes through; your next bills include them once you approve the new total in PayPal. When you remove devices, they stay until the end of the period you paid for and your next bill is lower; there’s no credit for the unused part."
+        ]
+      },
+      {
+        "heading": "The free trial",
+        "body": [
+          "The {trialDays}-day trial costs nothing and needs no card, so there’s nothing to refund."
+        ]
+      },
+      {
+        "heading": "How to ask",
+        "body": [
+          "Write to {email} from your Avo Hub account’s email address or your PayPal one, with the date of the payment or the transaction ID from PayPal’s receipt. You can also open a case in [PayPal’s Resolution Center](https://www.paypal.com/disputes/).",
+          "We refund through PayPal, back to the way you paid: at once to a PayPal balance, usually within 5 to 10 business days to a card or bank account, depending on your bank."
+        ]
+      },
+      {
+        "heading": "After a refund",
+        "body": [
+          "A refund of your latest payment ends Pro on your account at once and stops the subscription, so it won’t renew. Your devices see it when they next renew their pass: within a day while they’re online, within {passDays} days at most. A refund of the payment for added devices ends those devices the same way. Your account, devices and settings stay."
+        ]
+      },
+      {
+        "heading": "Repeated requests",
+        "body": [
+          "We may decline refunds that look like abuse, such as buying and refunding Pro again and again. Your rights under consumer law always apply."
+        ]
+      }
+    ]
+  },
+  "id": {
+    "title": "Kebijakan Pengembalian Dana",
+    "lead": "Bila Pro tidak cocok untuk Anda, uang Anda bisa kembali. Anda membeli Pro dari {seller}; pembayaran lewat PayPal, begitu juga pengembalian dananya.",
+    "sections": [
+      {
+        "heading": "Pengembalian penuh dalam {refundDays} hari",
+        "body": [
+          "Anda mendapat pengembalian dana penuh, tanpa perlu alasan, bila memintanya dalam {refundDays} hari setelah:",
+          [
+            "pembayaran pertama Anda untuk Pro, bulanan atau tahunan;",
+            "perpanjangan tahunan."
+          ]
+        ]
+      },
+      {
+        "heading": "Perpanjangan bulanan",
+        "body": [
+          "Perpanjangan bulanan tidak dikembalikan, kecuali hukum menentukan lain. Batalkan kapan saja dan Anda tidak akan ditagih lagi; Pro tetap aktif sampai akhir bulan yang sudah dibayar."
+        ]
+      },
+      {
+        "heading": "Menambah atau mengurangi perangkat",
+        "body": [
+          "Saat Anda menambah perangkat, Anda membayarnya untuk sisa periode berjalan saat itu juga, lewat PayPal, dan perangkat itu dihitung begitu pembayarannya berhasil; tagihan berikutnya ikut menghitungnya setelah Anda menyetujui total baru di PayPal. Saat Anda mengurangi perangkat, perangkat itu tetap ada sampai akhir periode yang sudah dibayar dan tagihan berikutnya lebih kecil; tidak ada kredit untuk bagian yang belum terpakai."
+        ]
+      },
+      {
+        "heading": "Masa coba gratis",
+        "body": [
+          "Masa coba {trialDays} hari tidak dikenai biaya dan tidak butuh kartu, jadi tidak ada yang perlu dikembalikan."
+        ]
+      },
+      {
+        "heading": "Cara meminta",
+        "body": [
+          "Kirim email ke {email} dari alamat email akun Avo Hub atau akun PayPal Anda, dengan tanggal pembayaran atau ID transaksi dari tanda terima PayPal. Anda juga bisa membuka kasus di [Pusat Resolusi PayPal](https://www.paypal.com/disputes/).",
+          "Kami mengembalikan dana lewat PayPal, ke cara Anda membayar: langsung ke saldo PayPal, biasanya dalam 5 sampai 10 hari kerja ke kartu atau rekening bank, tergantung bank Anda."
+        ]
+      },
+      {
+        "heading": "Setelah pengembalian dana",
+        "body": [
+          "Pengembalian dana untuk pembayaran terakhir Anda langsung mengakhiri Pro di akun Anda dan menghentikan langganan, sehingga tidak diperpanjang. Perangkat Anda mengetahuinya saat memperbarui pass berikutnya: dalam sehari selama terhubung, paling lama {passDays} hari. Pengembalian dana pembayaran perangkat tambahan mengakhiri perangkat itu dengan cara yang sama. Akun, perangkat, dan setelan Anda tetap ada."
+        ]
+      },
+      {
+        "heading": "Permintaan berulang",
+        "body": [
+          "Kami bisa menolak pengembalian dana yang tampak sebagai penyalahgunaan, seperti membeli lalu meminta pengembalian Pro berulang kali. Hak Anda menurut hukum perlindungan konsumen selalu berlaku."
+        ]
+      }
+    ]
+  }
+}

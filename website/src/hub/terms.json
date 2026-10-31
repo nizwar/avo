@@ -1,0 +1,230 @@
+{
+  "en": {
+    "title": "Terms of Service",
+    "lead": "These terms are the agreement between you and {seller} about Avo Hub. If anything here isn't clear, write to {email}.",
+    "sections": [
+      {
+        "heading": "Who we are",
+        "body": [
+          "Avo Hub is made and sold by {seller}, an independent developer in Indonesia (“we”, “us”). Avo Hub means the Mac app, the Android app, Avo Hub Web, Avo Remote Web, the Avo Hub account and the servers behind them."
+        ]
+      },
+      {
+        "heading": "Using Avo Hub",
+        "body": [
+          "Avo Hub connects devices you own or are allowed to manage. Each phone is paired with a code shown on both screens, and the phone shows when it’s being reached. You agree to:",
+          [
+            "use Avo Hub only with your own devices, or with devices whose owner knows and has agreed;",
+            "not use it to watch, record or control anyone without their knowledge, or to get into data you have no right to;",
+            "use our servers only for Avo Hub’s own connections: not as a proxy or VPN, not to resell them, and not to attack or overload anyone;",
+            "not get around a plan’s limits, and not copy or resell the apps;",
+            "follow the law where you and your devices are."
+          ],
+          "You’re responsible for keeping your devices, your passkeys and your email account safe."
+        ]
+      },
+      {
+        "heading": "Your account",
+        "body": [
+          "You don’t need an account to use Avo Hub over a cable and the same Wi‑Fi. An account is needed for use over the internet, the web apps, sync and Pro.",
+          "You need to be at least 13, and old enough where you live to accept these terms, or have a parent or guardian accept them for you. Keep your email address current: sign-in codes and billing notices go there.",
+          "You can close your account at any time by writing to {email}."
+        ]
+      },
+      {
+        "heading": "Plans and prices",
+        "body": [
+          "Avo Hub has a Free plan and a Pro plan. Pro is priced per device: the phones and tablets you reach, and a Mac you control from somewhere else. What each plan includes and what Pro costs is on the [Pricing]({hubPricing}) page.",
+          "Every account can try Pro free once, for {trialDays} days and up to {trialDevices} devices, without a card. When the trial ends, the account is back on Free: nothing is charged and nothing is deleted.",
+          "Launch prices apply to subscriptions started up to and including {launchUntil}. A subscription started at a launch price keeps it for as long as it stays active, also when you add devices."
+        ]
+      },
+      {
+        "heading": "Payment",
+        "body": [
+          "You buy Pro from {seller}. Payments are processed by PayPal: you approve the subscription in your PayPal account, and PayPal takes each payment and sends your receipts. PayPal’s [User Agreement](https://www.paypal.com/legalhub/paypal/useragreement-full) covers your PayPal account. Prices are in US dollars.",
+          "A Pro subscription renews by itself at the end of each month or year until you cancel.",
+          "You can cancel at any time from your account page, or in your PayPal account under Automatic payments. Pro stays on until the end of the period you paid for; then the account is back on Free.",
+          "If a payment fails, PayPal tries again, and Pro stays on for {graceDays} days after the end of the period you paid for; after that the account is back on Free until a payment goes through. If payments keep failing, PayPal pauses the subscription: choose Pay Now on your account page to settle what’s owed, and it goes on at the same price.",
+          "Adding devices costs the rest of the current period at once, and they count once that payment goes through; removed devices stay until the period you paid for ends.",
+          "If we change the price of a subscription you have, we email you at least {noticeDays} days before, and the new price starts at your next renewal; you can cancel before then. A launch price is never raised while its subscription stays active.",
+          "Refunds follow our [Refund Policy]({hubRefunds})."
+        ]
+      },
+      {
+        "heading": "Fair use",
+        "body": [
+          "Pro has no monthly internet allowance, but it’s meant for you and your own devices. If a device uses more than {fairUse} in a month, we may get in touch to understand why. We don’t cut anyone off without talking to them first, unless the use harms our servers or other people."
+        ]
+      },
+      {
+        "heading": "Your data",
+        "body": [
+          "What travels between your devices (the screen, notifications, messages, contacts, photos, files, audio and camera) is encrypted end to end. Our servers pass it along, can’t read it and never store it.",
+          "What we do keep, and why, is in the [Privacy Policy]({hubPrivacy})."
+        ]
+      },
+      {
+        "heading": "The apps and updates",
+        "body": [
+          "We give you a personal, non-exclusive, non-transferable licence to use the Avo Hub apps on your devices for as long as you follow these terms. The apps remain ours. Parts of them are open-source software under their own licences.",
+          "We update Avo Hub to fix problems and add features, and may change or remove a feature. Safety features, such as choosing what each device can reach and disconnecting everything at once, stay free on every plan."
+        ]
+      },
+      {
+        "heading": "Availability",
+        "body": [
+          "Over a cable and the same Wi‑Fi, Avo Hub works without our servers. Over the internet and on the web it needs them and the networks in between. We work to keep them running, but can’t promise they’ll never be slow or down."
+        ]
+      },
+      {
+        "heading": "Ending",
+        "body": [
+          "You can stop using Avo Hub and close your account at any time.",
+          "We may suspend or close an account that breaks these terms, especially to protect other people or our servers. Where we can, we warn you first and say why. If we close an account through no fault of yours, we refund the unused part of your Pro payment.",
+          "If we ever stop offering Avo Hub’s online services, we tell you at least {noticeDays} days ahead and refund the unused part of any Pro payment. The apps keep working over a cable and the same Wi‑Fi."
+        ]
+      },
+      {
+        "heading": "Warranty and liability",
+        "body": [
+          "Avo Hub is provided “as is”. As far as the law allows, we give no warranties beyond these terms, and we aren’t liable for indirect or consequential losses, such as lost data or lost profits.",
+          "As far as the law allows, our total liability to you is limited to what you paid for Avo Hub in the 12 months before the claim.",
+          "Nothing in these terms limits rights you have under consumer law that can’t be limited."
+        ]
+      },
+      {
+        "heading": "Changes to these terms",
+        "body": [
+          "If we change these terms in a way that matters, we email you at least {noticeDays} days before the change applies. If you don’t agree, you can cancel and close your account; using Avo Hub after that date means you accept the new terms."
+        ]
+      },
+      {
+        "heading": "Governing law",
+        "body": [
+          "These terms are governed by the laws of the Republic of Indonesia, and disputes go to the courts of Indonesia. If you’re a consumer, you keep the protection of the mandatory laws where you live, and can bring a claim there."
+        ]
+      },
+      {
+        "heading": "Contact",
+        "body": [
+          "{seller} · {email}"
+        ]
+      }
+    ]
+  },
+  "id": {
+    "title": "Ketentuan Layanan",
+    "lead": "Ketentuan ini adalah perjanjian antara Anda dan {seller} tentang Avo Hub. Bila ada yang kurang jelas, kirim email ke {email}.",
+    "sections": [
+      {
+        "heading": "Siapa kami",
+        "body": [
+          "Avo Hub dibuat dan dijual oleh {seller}, pengembang independen di Indonesia (“kami”). Avo Hub berarti app Mac, app Android, Avo Hub Web, Avo Remote Web, akun Avo Hub, dan server di baliknya."
+        ]
+      },
+      {
+        "heading": "Memakai Avo Hub",
+        "body": [
+          "Avo Hub menyambungkan perangkat milik Anda atau yang boleh Anda kelola. Setiap ponsel dipasangkan dengan kode yang tampil di kedua layar, dan ponsel menunjukkan saat sedang dijangkau. Anda setuju untuk:",
+          [
+            "memakai Avo Hub hanya dengan perangkat Anda sendiri, atau perangkat yang pemiliknya tahu dan setuju;",
+            "tidak memakainya untuk mengawasi, merekam, atau mengendalikan siapa pun tanpa sepengetahuan mereka, atau untuk masuk ke data yang bukan hak Anda;",
+            "memakai server kami hanya untuk koneksi Avo Hub sendiri: bukan sebagai proxy atau VPN, tidak menjualnya kembali, dan tidak untuk menyerang atau membebani siapa pun;",
+            "tidak mengakali batas paket, dan tidak menyalin atau menjual kembali app-nya;",
+            "mematuhi hukum di tempat Anda dan perangkat Anda berada."
+          ],
+          "Anda bertanggung jawab menjaga keamanan perangkat, passkey, dan akun email Anda."
+        ]
+      },
+      {
+        "heading": "Akun Anda",
+        "body": [
+          "Anda tidak perlu akun untuk memakai Avo Hub lewat kabel dan Wi‑Fi yang sama. Akun diperlukan untuk pemakaian lewat internet, app web, sinkron, dan Pro.",
+          "Anda harus berusia minimal 13 tahun dan cukup umur di tempat Anda untuk menerima ketentuan ini, atau orang tua atau wali menerimanya untuk Anda. Pastikan alamat email Anda terkini: kode masuk dan pemberitahuan tagihan dikirim ke sana.",
+          "Anda bisa menutup akun kapan saja dengan mengirim email ke {email}."
+        ]
+      },
+      {
+        "heading": "Paket dan harga",
+        "body": [
+          "Avo Hub punya paket Gratis dan paket Pro. Harga Pro dihitung per perangkat: ponsel dan tablet yang Anda jangkau, dan Mac yang Anda kendalikan dari tempat lain. Isi tiap paket dan harga Pro ada di halaman [Harga]({hubPricing}).",
+          "Setiap akun bisa mencoba Pro gratis sekali, selama {trialDays} hari untuk maksimal {trialDevices} perangkat, tanpa kartu. Setelah masa coba berakhir, akun kembali ke Gratis: tidak ada tagihan dan tidak ada yang dihapus.",
+          "Harga peluncuran berlaku untuk langganan yang dimulai sampai dan termasuk {launchUntil}. Langganan yang dimulai dengan harga peluncuran mempertahankannya selama langganan itu aktif, juga saat Anda menambah perangkat."
+        ]
+      },
+      {
+        "heading": "Pembayaran",
+        "body": [
+          "Anda membeli Pro dari {seller}. Pembayaran diproses oleh PayPal: Anda menyetujui langganan di akun PayPal Anda, dan PayPal menerima setiap pembayaran serta mengirim tanda terima. [Perjanjian Pengguna](https://www.paypal.com/legalhub/paypal/useragreement-full) PayPal berlaku untuk akun PayPal Anda. Harga dalam dolar AS.",
+          "Langganan Pro diperpanjang otomatis di akhir setiap bulan atau tahun sampai Anda membatalkannya.",
+          "Anda bisa membatalkan kapan saja dari halaman akun Anda, atau di akun PayPal Anda pada bagian Pembayaran otomatis. Pro tetap aktif sampai akhir periode yang sudah dibayar; setelah itu akun kembali ke Gratis.",
+          "Bila pembayaran gagal, PayPal mencoba lagi, dan Pro tetap aktif selama {graceDays} hari setelah akhir periode yang sudah dibayar; setelah itu akun kembali ke Gratis sampai pembayaran berhasil. Bila pembayaran terus gagal, PayPal menjeda langganan: pilih Bayar Sekarang di halaman akun Anda untuk melunasi tagihan, dan langganan berlanjut dengan harga yang sama.",
+          "Menambah perangkat dikenai biaya sisa periode berjalan saat itu juga, dan perangkat dihitung begitu pembayarannya berhasil; perangkat yang dikurangi tetap ada sampai periode yang sudah dibayar berakhir.",
+          "Bila kami mengubah harga langganan yang Anda miliki, kami mengirim email minimal {noticeDays} hari sebelumnya, dan harga baru berlaku mulai perpanjangan berikutnya; Anda bisa membatalkan sebelum itu. Harga peluncuran tidak pernah dinaikkan selama langganannya aktif.",
+          "Pengembalian dana mengikuti [Kebijakan Pengembalian Dana]({hubRefunds}) kami."
+        ]
+      },
+      {
+        "heading": "Pemakaian wajar",
+        "body": [
+          "Pro tidak punya kuota internet bulanan, tetapi ditujukan untuk Anda dan perangkat Anda sendiri. Bila satu perangkat memakai lebih dari {fairUse} dalam sebulan, kami mungkin menghubungi Anda untuk memahami alasannya. Kami tidak memutus siapa pun tanpa bicara dulu, kecuali pemakaiannya merugikan server kami atau orang lain."
+        ]
+      },
+      {
+        "heading": "Data Anda",
+        "body": [
+          "Yang lewat di antara perangkat Anda (layar, notifikasi, pesan, kontak, foto, file, audio, dan kamera) terenkripsi ujung ke ujung. Server kami hanya meneruskannya, tidak bisa membacanya, dan tidak pernah menyimpannya.",
+          "Apa yang kami simpan, dan alasannya, ada di [Kebijakan Privasi]({hubPrivacy})."
+        ]
+      },
+      {
+        "heading": "App dan pembaruan",
+        "body": [
+          "Kami memberi Anda lisensi pribadi, non-eksklusif, dan tidak dapat dipindahkan untuk memakai app Avo Hub di perangkat Anda selama Anda mematuhi ketentuan ini. App-nya tetap milik kami. Sebagian isinya adalah perangkat lunak open source dengan lisensinya sendiri.",
+          "Kami memperbarui Avo Hub untuk memperbaiki masalah dan menambah fitur, dan bisa mengubah atau menghapus fitur. Fitur keamanan, seperti memilih apa yang bisa dijangkau tiap perangkat dan memutus semuanya sekaligus, tetap gratis di semua paket."
+        ]
+      },
+      {
+        "heading": "Ketersediaan",
+        "body": [
+          "Lewat kabel dan Wi‑Fi yang sama, Avo Hub berjalan tanpa server kami. Lewat internet dan di web, Avo Hub membutuhkan server kami dan jaringan di antaranya. Kami berusaha menjaganya tetap berjalan, tetapi tidak bisa menjanjikan server tidak pernah lambat atau mati."
+        ]
+      },
+      {
+        "heading": "Berakhirnya layanan",
+        "body": [
+          "Anda bisa berhenti memakai Avo Hub dan menutup akun kapan saja.",
+          "Kami bisa menangguhkan atau menutup akun yang melanggar ketentuan ini, terutama untuk melindungi orang lain atau server kami. Bila memungkinkan, kami memberi peringatan lebih dulu beserta alasannya. Bila kami menutup akun bukan karena kesalahan Anda, kami mengembalikan bagian pembayaran Pro yang belum terpakai.",
+          "Bila suatu saat kami berhenti menyediakan layanan online Avo Hub, kami memberi tahu minimal {noticeDays} hari sebelumnya dan mengembalikan bagian pembayaran Pro yang belum terpakai. App tetap berjalan lewat kabel dan Wi‑Fi yang sama."
+        ]
+      },
+      {
+        "heading": "Jaminan dan tanggung jawab",
+        "body": [
+          "Avo Hub disediakan “sebagaimana adanya”. Sejauh diizinkan hukum, kami tidak memberi jaminan di luar ketentuan ini, dan tidak bertanggung jawab atas kerugian tidak langsung, seperti data atau keuntungan yang hilang.",
+          "Sejauh diizinkan hukum, tanggung jawab kami kepada Anda paling banyak sebesar yang Anda bayar untuk Avo Hub dalam 12 bulan sebelum klaim diajukan.",
+          "Tidak ada bagian dari ketentuan ini yang membatasi hak Anda menurut hukum perlindungan konsumen yang tidak bisa dibatasi."
+        ]
+      },
+      {
+        "heading": "Perubahan ketentuan",
+        "body": [
+          "Bila kami mengubah ketentuan ini secara berarti, kami mengirim email minimal {noticeDays} hari sebelum perubahan berlaku. Bila Anda tidak setuju, Anda bisa membatalkan langganan dan menutup akun; memakai Avo Hub setelah tanggal itu berarti Anda menerima ketentuan yang baru."
+        ]
+      },
+      {
+        "heading": "Hukum yang berlaku",
+        "body": [
+          "Ketentuan ini tunduk pada hukum Republik Indonesia, dan sengketa diselesaikan di pengadilan Indonesia. Bila Anda konsumen, Anda tetap dilindungi hukum wajib di tempat Anda tinggal dan bisa mengajukan klaim di sana."
+        ]
+      },
+      {
+        "heading": "Kontak",
+        "body": [
+          "{seller} · {email}"
+        ]
+      }
+    ]
+  }
+}

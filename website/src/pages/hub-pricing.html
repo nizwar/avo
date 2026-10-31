@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="{{v:lang}}">
+<head>
+{{> head}}
+</head>
+<body class="page page-hub-pages page-hub-pricing" data-account="{{v:accountUrl}}" data-launch-ends="{{v:launchEndsAt}}">
+{{> sprite}}
+{{> header}}
+<main id="main" class="hub-pages">
+  <div class="wrap">
+{{> hub-pages-top}}
+    <header class="hub-pages-head">
+      <p class="hub-pages-eyebrow">{{t:hubPricing.eyebrow}}</p>
+      <h1 class="h-display hub-pages-title">{{h:pricingHeadline}}</h1>
+      <p class="lead">{{t:hubPricing.lead}}</p>
+    </header>
+
+    <!-- Free stated plainly, Pro on its own field. Both price lists are in
+         the page; the one not in force is hidden (site.js keeps it to the
+         visitor's clock). -->
+    <section class="hub-plans" aria-labelledby="plans-title">
+      <h2 id="plans-title" class="visually-hidden">{{t:hubPricing.plans}}</h2>
+      <div class="hub-plan hub-plan-free">
+        <h3 class="hub-plan-name">{{t:hubPricing.freeName}}</h3>
+        <p class="hub-plan-price"><span class="hub-plan-figure">{{t:hubPricing.freePrice}}</span> <span class="hub-plan-per">{{t:hubPricing.freePer}}</span></p>
+        <p class="hub-plan-sub">{{t:hubPricing.freeNote}}</p>
+        <p class="hub-plan-cta"><a class="btn btn-secondary" href="{{v:accountUrl}}">{{t:hubPricing.freeCta}}</a></p>
+        <p class="hub-plan-fine">{{t:hubPricing.optional}}</p>
+        <ul class="plan-list hub-plan-list">
+          <li>{{t:hubPricing.free1}}</li>
+          <li>{{t:hubPricing.free2}}</li>
+          <li>{{t:hubPricing.free3}}</li>
+          <li>{{t:hubPricing.free4}}</li>
+          <li>{{t:hubPricing.free5}}</li>
+          <li>{{t:hubPricing.free6}}</li>
+        </ul>
+      </div>
+      <div class="hub-plan hub-plan-pro">
+        <h3 class="hub-plan-name">{{t:hubPricing.proName}}</h3>
+        <p class="hub-plan-price"><span class="hub-plan-figure">{{h:pricingFigure}}</span> <span class="hub-plan-per">{{t:hubPricing.proPer}}</span></p>
+        <div class="hub-plan-sub">
+          <p class="hub-plan-launch" data-price-list="launch"{{h:launchShown}}>{{t:hubPricing.launchBadge}}</p>
+          <p>{{h:pricingExtra}}</p>
+          <p>{{h:pricingYear}}</p>
+          <p class="hub-plan-later" data-price-list="launch"{{h:launchShown}}>{{t:hubPricing.launchThen}} {{t:hubPricing.launchLock}}</p>
+        </div>
+        <p class="hub-plan-cta cta-row"><a class="btn btn-primary" href="{{v:proMonthUrl}}">{{t:hubPricing.proCta}}</a><a class="text-link" href="{{v:proYearUrl}}">{{t:hubPricing.proYearCta}}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow"/></svg></a></p>
+        <p class="hub-plan-fine">{{t:hubPricing.orTrial}}</p>
+        <ul class="plan-list hub-plan-list">
+          <li>{{t:hubPricing.pro1}}</li>
+          <li>{{t:hubPricing.pro2}}</li>
+          <li>{{t:hubPricing.pro3}}</li>
+          <li>{{t:hubPricing.pro4}}</li>
+          <li>{{t:hubPricing.pro5}}</li>
+          <li>{{t:hubPricing.pro6}}</li>
+          <li>{{t:hubPricing.pro7}}</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="hub-block" aria-labelledby="examples-title">
+      <h2 id="examples-title" class="h-sub">{{t:hubPricing.examples}}</h2>
+      <div class="hub-table">
+        <table>
+          <thead>
+            <tr><th scope="col">{{t:hubPricing.exampleDevices}}</th><th scope="col">{{t:hubPricing.monthly}}</th><th scope="col">{{t:hubPricing.yearly}}</th></tr>
+          </thead>
+          <tbody>
+{{h:pricingRows}}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="hub-block" aria-labelledby="notes-title">
+      <h2 id="notes-title" class="h-sub">{{t:hubPricing.notes}}</h2>
+      <ul class="hub-notes">
+        <li>{{t:hubPricing.note1}}</li>
+        <li>{{t:hubPricing.note2}}</li>
+        <li>{{t:hubPricing.note3}}</li>
+        <li>{{t:hubPricing.note4}}</li>
+        <li>{{t:hubPricing.note5}}</li>
+        <li>{{t:hubPricing.note6}}</li>
+      </ul>
+    </section>
+{{> hub-pages-seller}}
+  </div>
+</main>
+{{> footer}}
+<script type="module" src="{{v:root}}assets/js/site.js?v={{v:jsVersion}}"></script>
+</body>
+</html>
