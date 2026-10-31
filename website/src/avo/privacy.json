@@ -1,0 +1,174 @@
+{
+  "en": {
+    "title": "Privacy Policy",
+    "lead": "Avo runs on your Mac and keeps what it needs there. It has no account, no ads, no analytics and no tracking, and it sends nothing about you to us.",
+    "sections": [
+      {
+        "heading": "In short",
+        "body": [
+          [
+            "We get no personal data from Avo, and we never see what you do in Android.",
+            "Everything Avo keeps stays on your Mac.",
+            "Avo goes online only to get Android, to look for updates and to fetch the extras you ask for.",
+            "This website sets no cookies and has no analytics."
+          ]
+        ]
+      },
+      {
+        "heading": "What Avo keeps on your Mac",
+        "body": [
+          "Avo keeps these in your Mac’s Library folder, and Android’s data on the drive you chose for it:",
+          [
+            "Android and everything in it: your apps, accounts, files and photos;",
+            "Avo’s settings, your key mappings and the apps’ icons;",
+            "logs, which help find the cause when something goes wrong."
+          ],
+          "None of it is sent to us. Reset Android, in Avo’s Settings, erases Android’s apps, accounts and files at any time."
+        ]
+      },
+      {
+        "heading": "When Avo goes online",
+        "body": [
+          "Avo itself connects only to:",
+          [
+            "Google’s public server for Android, to list and download Android when you set Avo up or look at Android versions in Settings;",
+            "GitHub, once a day, to look for a new version of Avo (you can turn this off in Avo’s Settings);",
+            "GitHub, only when you open Google apps in Settings or turn on root access, to find and download Google apps (MindTheGapps) or Magisk."
+          ],
+          "These requests carry nothing about you beyond what any download does, such as your IP address, which Google and GitHub handle under their own privacy policies. Avo sends no analytics and no crash reports.",
+          "A few features use Apple’s own services on your Mac: the map in the Location window comes from Apple Maps, your Mac’s location comes from macOS, and Translate Screen uses Apple’s translation."
+        ]
+      },
+      {
+        "heading": "Camera, microphone, location and clipboard",
+        "body": [
+          "Android apps can use your Mac’s camera, microphone and location, and share its clipboard, only as you set it in Avo’s Settings. macOS asks you before Avo first uses the camera, the microphone or your location. Turned off, Avo doesn’t touch them.",
+          "Android’s notifications show in your Mac’s Notification Center, and stay on your Mac."
+        ]
+      },
+      {
+        "heading": "Android and the apps you install",
+        "body": [
+          "Android reaches the internet through your Mac, as a phone would. The apps you install, and Google if you sign in to it, handle your data under their own privacy policies. Avo doesn’t collect what they send."
+        ]
+      },
+      {
+        "heading": "Reporting a problem",
+        "body": [
+          "Help › Report a Problem saves a file on your Mac with Avo’s logs and settings, with personal details removed. Avo never sends it by itself. If you attach it to a report on GitHub, anyone can see it there, so look it over first."
+        ]
+      },
+      {
+        "heading": "This website",
+        "body": [
+          "avodroid.com sets no cookies, has no analytics or tracking, and loads nothing from other sites. It is hosted on GitHub Pages: GitHub logs each visitor’s IP address for security, under [GitHub’s privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).",
+          "Avo’s downloads come from GitHub too, and the support links lead to GitHub Sponsors, PayPal and Saweria, each under its own privacy policy."
+        ]
+      },
+      {
+        "heading": "Avo Hub",
+        "body": [
+          "Avo Hub, the app for your phone, works differently: it has an optional account and its own servers. [Its Privacy Policy]({hubPrivacy}) says what it keeps."
+        ]
+      },
+      {
+        "heading": "Changes to this policy",
+        "body": [
+          "If this policy changes, we update this page and the date at the top."
+        ]
+      },
+      {
+        "heading": "Contact",
+        "body": [
+          "Questions about privacy: {email} · Security problems: please report them privately on [GitHub]({security})."
+        ]
+      }
+    ]
+  },
+  "id": {
+    "title": "Kebijakan Privasi",
+    "lead": "Avo berjalan di Mac Anda dan menyimpan yang dibutuhkannya di sana. Tanpa akun, iklan, analitik, atau pelacakan, dan Avo tidak mengirim apa pun tentang Anda kepada kami.",
+    "sections": [
+      {
+        "heading": "Ringkasnya",
+        "body": [
+          [
+            "Kami tidak menerima data pribadi dari Avo, dan kami tidak pernah melihat apa yang Anda lakukan di Android.",
+            "Semua yang disimpan Avo tetap di Mac Anda.",
+            "Avo hanya online untuk mengambil Android, memeriksa pembaruan, dan mengunduh tambahan yang Anda minta.",
+            "Situs web ini tidak memasang cookie dan tanpa analitik."
+          ]
+        ]
+      },
+      {
+        "heading": "Yang disimpan Avo di Mac Anda",
+        "body": [
+          "Avo menyimpan ini di folder Library Mac Anda, dan data Android di drive yang Anda pilih untuknya:",
+          [
+            "Android dan semua isinya: aplikasi, akun, file, dan foto Anda;",
+            "pengaturan Avo, pemetaan tombol Anda, dan ikon aplikasi;",
+            "log, yang membantu mencari penyebab saat ada yang tidak beres."
+          ],
+          "Tidak ada yang dikirim kepada kami. Reset Android, di Pengaturan Avo, menghapus aplikasi, akun, dan file Android kapan saja."
+        ]
+      },
+      {
+        "heading": "Kapan Avo online",
+        "body": [
+          "Avo sendiri hanya terhubung ke:",
+          [
+            "server publik Google untuk Android, untuk melihat daftar dan mengunduh Android saat Anda menyiapkan Avo atau melihat versi Android di Pengaturan;",
+            "GitHub, sehari sekali, untuk memeriksa versi baru Avo (Anda bisa mematikannya di Pengaturan Avo);",
+            "GitHub, hanya saat Anda membuka Aplikasi Google di Pengaturan atau menyalakan akses root, untuk mencari dan mengunduh aplikasi Google (MindTheGapps) atau Magisk."
+          ],
+          "Permintaan ini tidak membawa apa pun tentang Anda selain yang dibawa setiap unduhan, seperti alamat IP Anda, yang ditangani Google dan GitHub menurut kebijakan privasi mereka sendiri. Avo tidak mengirim analitik maupun laporan crash.",
+          "Beberapa fitur memakai layanan Apple sendiri di Mac Anda: peta di jendela Lokasi berasal dari Apple Maps, lokasi Mac berasal dari macOS, dan Terjemahkan Layar memakai terjemahan Apple."
+        ]
+      },
+      {
+        "heading": "Kamera, mikrofon, lokasi, dan clipboard",
+        "body": [
+          "Aplikasi Android bisa memakai kamera, mikrofon, dan lokasi Mac Anda, serta berbagi clipboard, hanya sesuai pengaturan Anda di Avo. macOS bertanya dulu sebelum Avo pertama kali memakai kamera, mikrofon, atau lokasi Anda. Bila dimatikan, Avo tidak menyentuhnya.",
+          "Notifikasi Android tampil di Pusat Notifikasi Mac Anda, dan tetap di Mac Anda."
+        ]
+      },
+      {
+        "heading": "Android dan aplikasi yang Anda pasang",
+        "body": [
+          "Android terhubung ke internet lewat Mac Anda, seperti ponsel. Aplikasi yang Anda pasang, dan Google bila Anda masuk ke akun Google, menangani data Anda menurut kebijakan privasi mereka sendiri. Avo tidak mengumpulkan apa yang mereka kirim."
+        ]
+      },
+      {
+        "heading": "Melaporkan masalah",
+        "body": [
+          "Bantuan › Laporkan Masalah menyimpan file di Mac Anda berisi log dan pengaturan Avo, dengan data pribadi dihapus. Avo tidak pernah mengirimnya sendiri. Bila Anda melampirkannya ke laporan di GitHub, siapa pun bisa melihatnya di sana, jadi periksa dulu isinya."
+        ]
+      },
+      {
+        "heading": "Situs web ini",
+        "body": [
+          "avodroid.com tidak memasang cookie, tanpa analitik atau pelacakan, dan tidak memuat apa pun dari situs lain. Situs ini di-hosting di GitHub Pages: GitHub mencatat alamat IP setiap pengunjung demi keamanan, menurut [pernyataan privasi GitHub](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).",
+          "Unduhan Avo juga berasal dari GitHub, dan tautan dukungan menuju GitHub Sponsors, PayPal, dan Saweria, masing-masing dengan kebijakan privasinya sendiri."
+        ]
+      },
+      {
+        "heading": "Avo Hub",
+        "body": [
+          "Avo Hub, app untuk ponsel Anda, bekerja dengan cara lain: ada akun opsional dan server sendiri. [Kebijakan Privasinya]({hubPrivacy}) menjelaskan apa yang disimpannya."
+        ]
+      },
+      {
+        "heading": "Perubahan kebijakan",
+        "body": [
+          "Bila kebijakan ini berubah, kami memperbarui halaman ini beserta tanggal di atas."
+        ]
+      },
+      {
+        "heading": "Kontak",
+        "body": [
+          "Pertanyaan tentang privasi: {email} · Masalah keamanan: mohon laporkan secara tertutup lewat [GitHub]({security})."
+        ]
+      }
+    ]
+  }
+}

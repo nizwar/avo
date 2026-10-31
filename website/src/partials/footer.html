@@ -6,37 +6,57 @@
         <img src="{{v:root}}assets/img/avo-icon-macos.svg" alt="" width="56" height="56" loading="lazy">
         <p>{{t:footer.tagline}}</p>
       </div>
-      <nav class="footer-nav" aria-label="{{a:footer.project}}">
-        <div>
-          <h2 class="footer-title">{{t:footer.product}}</h2>
-          <ul>
-            <li><a href="{{v:homeHref}}#mac">{{t:nav.mac}}</a></li>
-            <li><a href="{{v:homeHref}}#gaming">{{t:nav.gaming}}</a></li>
-            <li><a href="{{v:homeHref}}#how">{{t:nav.how}}</a></li>
-            <li><a href="{{v:homeHref}}#faq">{{t:nav.faq}}</a></li>
-          </ul>
-        </div>
-        <div>
-          <h2 class="footer-title">{{t:footer.hub}}</h2>
-          <ul>
-            <li><a href="{{v:hubHref}}">{{t:nav.hub}}</a></li>
-            <li><a href="{{v:hubPricingUrl}}">{{t:footer.pricing}}</a></li>
-            <li><a href="{{v:hubTermsUrl}}">{{t:footer.terms}}</a></li>
-            <li><a href="{{v:hubPrivacyUrl}}">{{t:footer.privacy}}</a></li>
-            <li><a href="{{v:hubRefundsUrl}}">{{t:footer.refund}}</a></li>
-          </ul>
-        </div>
-        <div>
-          <h2 class="footer-title">{{t:footer.project}}</h2>
-          <ul>
-            <li><a href="{{v:githubUrl}}">GitHub</a></li>
-            <li><a href="{{v:homeHref}}#developers">{{t:nav.developers}}</a></li>
-            <li><a href="{{v:homeHref}}#support">{{t:nav.support}}</a></li>
-            <li><a href="{{v:blobUrl}}/LICENSE">{{t:footer.license}}</a></li>
-            <li><a href="mailto:{{v:contactEmail}}">{{t:footer.contact}}</a></li>
-          </ul>
-        </div>
-      </nav>
+      <div class="footer-links">
+        <nav class="footer-nav" aria-label="{{a:footer.project}}">
+          <div>
+            <h2 class="footer-title">{{t:footer.product}}</h2>
+            <ul>
+              <li><a href="{{v:homeHref}}#mac">{{t:nav.mac}}</a></li>
+              <li><a href="{{v:homeHref}}#gaming">{{t:nav.gaming}}</a></li>
+              <li><a href="{{v:homeHref}}#how">{{t:nav.how}}</a></li>
+              <li><a href="{{v:homeHref}}#faq">{{t:nav.faq}}</a></li>
+            </ul>
+          </div>
+          <div>
+            <h2 class="footer-title">{{t:footer.hub}}</h2>
+            <ul>
+              <li><a href="{{v:hubHref}}">{{t:nav.hub}}</a></li>
+              <li><a href="{{v:hubHref}}#features">{{t:nav.hubFeatures}}</a></li>
+              <li><a href="{{v:hubHref}}#how">{{t:nav.hubHow}}</a></li>
+              <li><a href="{{v:hubHref}}#faq">{{t:nav.hubFaq}}</a></li>
+            </ul>
+          </div>
+          <div>
+            <h2 class="footer-title">{{t:footer.project}}</h2>
+            <ul>
+              <li><a href="{{v:githubUrl}}">GitHub</a></li>
+              <li><a href="{{v:homeHref}}#developers">{{t:nav.developers}}</a></li>
+              <li><a href="{{v:homeHref}}#support">{{t:nav.support}}</a></li>
+              <li><a href="{{v:blobUrl}}/LICENSE">{{t:footer.license}}</a></li>
+              <li><a href="mailto:{{v:contactEmail}}">{{t:footer.contact}}</a></li>
+            </ul>
+          </div>
+        </nav>
+        <!-- Each app's own policies, kept apart: Avo's, then Avo Hub's. -->
+        <nav class="footer-policies" aria-label="{{a:footer.policies}}">
+          <div class="footer-policy" data-policies="avo">
+            <h2 class="footer-title">{{t:footer.avoPolicies}}</h2>
+            <ul>
+              <li><a href="{{v:avoTermsUrl}}">{{t:footer.terms}}</a></li>
+              <li><a href="{{v:avoPrivacyUrl}}">{{t:footer.privacy}}</a></li>
+            </ul>
+          </div>
+          <div class="footer-policy" data-policies="hub">
+            <h2 class="footer-title">{{t:footer.hubPolicies}}</h2>
+            <ul>
+              <li><a href="{{v:hubPricingUrl}}">{{t:footer.pricing}}</a></li>
+              <li><a href="{{v:hubTermsUrl}}">{{t:footer.terms}}</a></li>
+              <li><a href="{{v:hubPrivacyUrl}}">{{t:footer.privacy}}</a></li>
+              <li><a href="{{v:hubRefundsUrl}}">{{t:footer.refund}}</a></li>
+            </ul>
+          </div>
+        </nav>
+      </div>
     </div>
     <div class="footer-legal">
       <p>{{h:copyright}}</p>

@@ -22,7 +22,11 @@
     "hubPrivacyTitle": "Kebijakan Privasi Avo Hub · Android di ekosistemmu",
     "hubPrivacyDescription": "Apa yang disimpan Avo Hub tentang Anda dan apa yang tidak pernah dilihatnya, berapa lama, siapa yang mengolahnya, dan cara meminta data Anda atau menghapusnya.",
     "hubRefundsTitle": "Pengembalian Dana Avo Hub · Android di ekosistemmu",
-    "hubRefundsDescription": "Pengembalian dana Avo Hub Pro: uang kembali penuh dalam {refundDays} hari setelah pembayaran pertama atau perpanjangan tahunan, dan cara memintanya."
+    "hubRefundsDescription": "Pengembalian dana Avo Hub Pro: uang kembali penuh dalam {refundDays} hari setelah pembayaran pertama atau perpanjangan tahunan, dan cara memintanya.",
+    "avoTermsTitle": "Ketentuan Penggunaan Avo · Android di ekosistemmu",
+    "avoTermsDescription": "Ketentuan memakai Avo, emulator Android gratis untuk Mac: lisensi open source, aplikasi dan file Anda, tanpa jaminan, merek dagang, dan kontak.",
+    "avoPrivacyTitle": "Kebijakan Privasi Avo · Android di ekosistemmu",
+    "avoPrivacyDescription": "Avo menyimpan yang dibutuhkannya di Mac Anda dan tidak mengirim apa pun tentang Anda: tanpa akun, analitik, atau pelacakan. Kapan Avo online, dan untuk apa."
   },
   "common": {
     "skip": "Langsung ke isi",
@@ -257,7 +261,7 @@
     "q8": "Aplikasi bank bisa jalan?",
     "a8": "Biasanya tidak. Kebanyakan aplikasi bank hanya mau jalan di ponsel sungguhan.",
     "q9": "Apakah aman dan menjaga privasi?",
-    "a9": "Android berjalan terpisah dari bagian lain di Mac kamu, dan kode Avo terbuka untuk dicek siapa saja. Tidak ada akun, iklan, atau pelacakan.",
+    "a9": "Android berjalan terpisah dari bagian lain di Mac kamu, dan kode Avo terbuka untuk dicek siapa saja. Tidak ada akun, iklan, atau pelacakan. Baca <a href=\"{avoPrivacy}\">Kebijakan Privasi Avo</a>.",
     "q10": "Uang dukungan dipakai untuk apa?",
     "a10": "Langsung ke developer secara pribadi: untuk alat dan perangkat yang dipakai membuat dan menguji Avo, serta biaya Apple Developer Program supaya Avo bisa dibuka tanpa peringatan keamanan."
   },
@@ -280,6 +284,9 @@
     "terms": "Ketentuan",
     "privacy": "Privasi",
     "refund": "Pengembalian dana",
+    "policies": "Kebijakan",
+    "avoPolicies": "Kebijakan Avo",
+    "hubPolicies": "Harga dan kebijakan Avo Hub",
     "copyright": "Hak cipta {year} kontributor Avo. Open source dengan lisensi Apache 2.0.",
     "trademarks": "Android adalah merek dagang Google LLC. Mac dan macOS adalah merek dagang Apple Inc. Avo tidak berafiliasi dengan Google maupun Apple. Nama produk lain milik pemiliknya masing-masing.",
     "noTracking": "Tanpa cookie, tanpa pelacakan."
@@ -295,6 +302,13 @@
     "toc": "Di halaman ini",
     "back": "Kembali ke Halaman Masuk",
     "seller": "Avo Hub dibuat dan dijual oleh {seller}, pengembang independen di Indonesia. Pembayaran diproses oleh PayPal. Pertanyaan: <a href=\"mailto:{hubEmail}\">{hubEmail}</a>"
+  },
+  "avoLegal": {
+    "nav": "Kebijakan Avo",
+    "terms": "Ketentuan",
+    "privacy": "Privasi",
+    "eyebrow": "Avo · Legal",
+    "about": "Avo gratis dan open source, dibuat oleh para kontributor Avo dan dirawat oleh seorang pengembang independen di Indonesia. Pertanyaan: <a href=\"mailto:{contactEmail}\">{contactEmail}</a>"
   },
   "hubPricing": {
     "eyebrow": "Harga Avo Hub",

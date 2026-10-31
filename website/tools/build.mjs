@@ -51,14 +51,19 @@ const PAGES = [
     og: 'og', ogAlt: 'meta.ogAlt' },
   { id: 'hub', template: 'hub.html', paths: { en: 'hub/', id: 'id/hub/' }, title: 'meta.hubTitle', ogTitle: 'meta.hubOgTitle', description: 'meta.hubDescription',
     og: 'og-hub', ogAlt: 'meta.hubOgAlt' },
-  // Avo Hub's pricing and policies (`hub`: the slug under /hub/; `legal`: the policy's text in src/hub/).
+  // Avo's own policies (`avo`: the slug; `legal`: the policy's text, src/<legal>.json).
+  { id: 'avo-terms', template: 'avo-legal.html', avo: 'terms', legal: 'avo/terms', paths: { en: 'terms/', id: 'id/terms/' }, title: 'meta.avoTermsTitle', description: 'meta.avoTermsDescription',
+    og: 'og', ogAlt: 'meta.ogAlt' },
+  { id: 'avo-privacy', template: 'avo-legal.html', avo: 'privacy', legal: 'avo/privacy', paths: { en: 'privacy/', id: 'id/privacy/' }, title: 'meta.avoPrivacyTitle', description: 'meta.avoPrivacyDescription',
+    og: 'og', ogAlt: 'meta.ogAlt' },
+  // Avo Hub's pricing and policies (`hub`: the slug under /hub/; `legal`: the policy's text, src/<legal>.json).
   { id: 'hub-pricing', template: 'hub-pricing.html', hub: 'pricing', paths: { en: 'hub/pricing/', id: 'id/hub/pricing/' }, title: 'meta.hubPricingTitle', description: 'meta.hubPricingDescription',
     og: 'og-hub', ogAlt: 'meta.hubOgAlt' },
-  { id: 'hub-terms', template: 'hub-legal.html', hub: 'terms', legal: 'terms', paths: { en: 'hub/terms/', id: 'id/hub/terms/' }, title: 'meta.hubTermsTitle', description: 'meta.hubTermsDescription',
+  { id: 'hub-terms', template: 'hub-legal.html', hub: 'terms', legal: 'hub/terms', paths: { en: 'hub/terms/', id: 'id/hub/terms/' }, title: 'meta.hubTermsTitle', description: 'meta.hubTermsDescription',
     og: 'og-hub', ogAlt: 'meta.hubOgAlt' },
-  { id: 'hub-privacy', template: 'hub-legal.html', hub: 'privacy', legal: 'privacy', paths: { en: 'hub/privacy/', id: 'id/hub/privacy/' }, title: 'meta.hubPrivacyTitle', description: 'meta.hubPrivacyDescription',
+  { id: 'hub-privacy', template: 'hub-legal.html', hub: 'privacy', legal: 'hub/privacy', paths: { en: 'hub/privacy/', id: 'id/hub/privacy/' }, title: 'meta.hubPrivacyTitle', description: 'meta.hubPrivacyDescription',
     og: 'og-hub', ogAlt: 'meta.hubOgAlt' },
-  { id: 'hub-refunds', template: 'hub-legal.html', hub: 'refunds', legal: 'refunds', paths: { en: 'hub/refunds/', id: 'id/hub/refunds/' }, title: 'meta.hubRefundsTitle', description: 'meta.hubRefundsDescription',
+  { id: 'hub-refunds', template: 'hub-legal.html', hub: 'refunds', legal: 'hub/refunds', paths: { en: 'hub/refunds/', id: 'id/hub/refunds/' }, title: 'meta.hubRefundsTitle', description: 'meta.hubRefundsDescription',
     og: 'og-hub', ogAlt: 'meta.hubOgAlt' },
   { id: '404', template: '404.html', paths: { en: '404.html' }, title: 'meta.notFoundTitle', description: 'meta.homeDescription',
     og: 'og', ogAlt: 'meta.ogAlt' },
@@ -66,8 +71,13 @@ const PAGES = [
 
 /** Avo Hub's pricing and policy pages, in the order every list of them shows. */
 export const HUB_PAGES = ['pricing', 'terms', 'privacy', 'refunds'];
-/** A policy's text: src/hub/<name>.json, { en, id } each { title, lead, sections: [{ heading, body: [paragraph | [item]] }] }. */
-export const LEGAL = ['terms', 'privacy', 'refunds'];
+/** Avo's own policy pages (/terms/, /privacy/), apart from Avo Hub's. */
+export const AVO_PAGES = ['terms', 'privacy'];
+/**
+ * A policy's text: src/<name>.json (Avo's in src/avo/, Avo Hub's in src/hub/),
+ * { en, id } each { title, lead, sections: [{ heading, body: [paragraph | [item]] }] }.
+ */
+export const LEGAL = PAGES.filter((page) => page.legal).map((page) => page.legal);
 
 // The day a page last changed, for the sitemap: the newest commit touching
 // what the page is built from (git's committer date), or today outside git.
@@ -160,12 +170,12 @@ function checkLegal(name, doc) {
   for (const lang of LANGS) {
     const policy = doc[lang];
     if (!policy || typeof policy.title !== 'string' || typeof policy.lead !== 'string' || !Array.isArray(policy.sections) || !policy.sections.length) {
-      throw new Error(`src/hub/${name}.json: ${lang} needs a title, a lead and sections`);
+      throw new Error(`src/${name}.json: ${lang} needs a title, a lead and sections`);
     }
   }
   const [first, ...rest] = LANGS;
   for (const lang of rest) {
-    if (shape(doc[lang]).join('|') !== shape(doc[first]).join('|')) throw new Error(`src/hub/${name}.json: ${lang} differs in shape from ${first} (sections, paragraphs, lists)`);
+    if (shape(doc[lang]).join('|') !== shape(doc[first]).join('|')) throw new Error(`src/${name}.json: ${lang} differs in shape from ${first} (sections, paragraphs, lists)`);
   }
 }
 
@@ -244,6 +254,7 @@ function checkConfig(config) {
     if (!(typeof value === 'string' ? value : Number.isFinite(value) && value > 0)) errors.push(`hub.legal.plan.${name} is not valid`);
   }
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(config.contact?.email || '')) errors.push('contact.email is not an email address');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(config.legal?.updated || '')) errors.push('legal.updated must be a date like 2026-11-01');
   const pricing = config.hub?.pricing;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(pricing?.launchEnds || '')) errors.push('hub.pricing.launchEnds must be a date like 2027-01-01');
   for (const tier of ['launch', 'standard']) {
@@ -354,6 +365,7 @@ function llmsText({ config, siteUrl, githubUrl, dict }) {
     ...say('meta.avoFeatureList').split('; ').map((feature) => `  - ${feature}`),
     ...(release.available ? [`- Download: [Avo ${release.version}](${release.downloadUrl}) (disk image)`] : []),
     `- [Source code and documentation](${githubUrl})`,
+    `- [Terms of Use](${siteUrl}/terms/), [Privacy Policy](${siteUrl}/privacy/), in Indonesian under ${siteUrl}/id/: no account, no analytics or tracking; what Avo keeps stays on the Mac.`,
     '',
     '## Avo Hub: your Android phone on your Mac',
     '',
@@ -391,7 +403,7 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
 
   const legalDocs = {};
   for (const name of LEGAL) {
-    legalDocs[name] = JSON.parse(await readFile(path.join(ROOT, 'src/hub', `${name}.json`), 'utf8'));
+    legalDocs[name] = JSON.parse(await readFile(path.join(ROOT, 'src', `${name}.json`), 'utf8'));
     checkLegal(name, legalDocs[name]);
   }
 
@@ -480,6 +492,11 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
       const hubLinks = Object.fromEntries(
         HUB_PAGES.map((name) => [name, page.hub === name ? './' : page.hub ? `../${name}/` : hrefTo(hubPagePath(name))]),
       );
+      // Avo's own policies, in the page's language: /terms/ and /privacy/ (or /id/...).
+      const avoPagePath = (name) => `${homePath}${name}/`;
+      const avoLinks = Object.fromEntries(
+        AVO_PAGES.map((name) => [name, page.avo === name ? './' : page.avo ? `../${name}/` : hrefTo(avoPagePath(name))]),
+      );
       // Pro's prices and the launch price's last day, as the page writes them.
       const prices = config.hub.pricing;
       const priceTokens = Object.fromEntries(
@@ -501,6 +518,8 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
         hubTerms: hubLinks.terms,
         hubPrivacy: hubLinks.privacy,
         hubRefunds: hubLinks.refunds,
+        avoTerms: avoLinks.terms,
+        avoPrivacy: avoLinks.privacy,
         account: accountUrl,
         seller: legal.seller,
         hubEmail: legal.email,
@@ -637,6 +656,14 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
         '  </ul>',
         '</nav>',
       ].join('\n');
+      // Avo's two policies side by side, apart from Avo Hub's four.
+      const avoTabs = [
+        `<nav class="legal-tabs" aria-label="${escapeHtml(stripTags(t('avoLegal.nav')))}">`,
+        '  <ul>',
+        ...AVO_PAGES.map((name) => `    <li><a href="${escapeHtml(avoLinks[name])}"${page.avo === name ? ' aria-current="page"' : ''} data-avo-tab="${name}">${t(`avoLegal.${name}`)}</a></li>`),
+        '  </ul>',
+        '</nav>',
+      ].join('\n');
       // Pro's prices on one list, as the pricing page's wording names them.
       const listValues = (list) => {
         const { month, year } = prices[list];
@@ -660,21 +687,37 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
           return `            <tr><th scope="row">${name}</th>${cell('month')}${cell('year')}</tr>`;
         })
         .join('\n');
-      // A policy's text, filled and linked; the same placeholders as Avo Hub's account pages.
-      const legalValues = {
-        seller: legal.seller,
-        email: legal.email,
-        launchUntil: longDate(prices.launchEnds),
-        account: accountUrl,
-        hubPricing: hubLinks.pricing,
-        hubTerms: hubLinks.terms,
-        hubPrivacy: hubLinks.privacy,
-        hubRefunds: hubLinks.refunds,
-        ...Object.fromEntries(Object.entries(legal.plan).map(([name, value]) => [name, String(value)])),
-      };
+      // A policy's text, filled and linked. Avo Hub's: the same placeholders
+      // as Avo Hub's account pages; Avo's: its repository, its address and
+      // the way to Avo Hub's.
+      const legalValues = page.avo
+        ? {
+            email: config.contact.email,
+            github: githubUrl,
+            license: `${blobUrl}/LICENSE`,
+            notice: `${blobUrl}/NOTICE`,
+            issues: `${githubUrl}/issues`,
+            security: `${githubUrl}/security/advisories/new`,
+            support: `${hrefTo(homePath)}#support`,
+            avoTerms: avoLinks.terms,
+            avoPrivacy: avoLinks.privacy,
+            hubTerms: hubLinks.terms,
+            hubPrivacy: hubLinks.privacy,
+          }
+        : {
+            seller: legal.seller,
+            email: legal.email,
+            launchUntil: longDate(prices.launchEnds),
+            account: accountUrl,
+            hubPricing: hubLinks.pricing,
+            hubTerms: hubLinks.terms,
+            hubPrivacy: hubLinks.privacy,
+            hubRefunds: hubLinks.refunds,
+            ...Object.fromEntries(Object.entries(legal.plan).map(([name, value]) => [name, String(value)])),
+          };
       const fillLegal = (line) =>
         line.replace(/\{(\w+)\}/g, (match, name) => {
-          if (!(name in legalValues)) throw new Error(`src/hub/${page.legal}.json: unknown placeholder ${match}`);
+          if (!(name in legalValues)) throw new Error(`src/${page.legal}.json: unknown placeholder ${match}`);
           return legalValues[name];
         });
       const legalLine = (line) => inlineHtml(fillLegal(line));
@@ -796,6 +839,9 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
       };
       const pageTitle = stripTags(t(page.title));
       const onHub = page.id === 'hub' || Boolean(page.hub);
+      const crumbed = onHub || Boolean(page.avo);
+      // When the policy on this page last changed: Avo's or Avo Hub's.
+      const policyUpdated = page.avo ? config.legal.updated : legal.updated;
       const webPage = {
         '@type': 'WebPage',
         '@id': `${canonical}#webpage`,
@@ -806,17 +852,23 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
         isPartOf: { '@id': siteId },
         about: { '@id': onHub ? hubId : avoId },
         primaryImageOfPage: { '@type': 'ImageObject', url: `${siteUrl}/assets/img/og/${page.og}-${lang}.jpg`, width: 1200, height: 630 },
-        ...(page.legal ? { dateModified: legal.updated } : {}),
-        ...(onHub ? { breadcrumb: { '@id': `${canonical}#breadcrumb` } } : {}),
+        ...(page.legal ? { dateModified: policyUpdated } : {}),
+        ...(crumbed ? { breadcrumb: { '@id': `${canonical}#breadcrumb` } } : {}),
       };
+      // Avo › Avo Hub › its page, or Avo › one of Avo's policies.
       const breadcrumb = {
         '@type': 'BreadcrumbList',
         '@id': `${canonical}#breadcrumb`,
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: stripTags(t('meta.breadcrumbHome')), item: homeUrl },
-          { '@type': 'ListItem', position: 2, name: 'Avo Hub', item: hubUrl },
-          ...(page.hub ? [{ '@type': 'ListItem', position: 3, name: stripTags(t(`hubLegal.${page.hub}`)), item: canonical }] : []),
-        ],
+        itemListElement: page.avo
+          ? [
+              { '@type': 'ListItem', position: 1, name: stripTags(t('meta.breadcrumbHome')), item: homeUrl },
+              { '@type': 'ListItem', position: 2, name: policy.title, item: canonical },
+            ]
+          : [
+              { '@type': 'ListItem', position: 1, name: stripTags(t('meta.breadcrumbHome')), item: homeUrl },
+              { '@type': 'ListItem', position: 2, name: 'Avo Hub', item: hubUrl },
+              ...(page.hub ? [{ '@type': 'ListItem', position: 3, name: stripTags(t(`hubLegal.${page.hub}`)), item: canonical }] : []),
+            ],
       };
       // The product pages carry their app; the pricing page Avo Hub's offers; a policy only itself.
       const app = page.id === 'home' ? [avoApp] : page.id === 'hub' || page.id === 'hub-pricing' ? [hubApp] : [];
@@ -827,14 +879,15 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
             website,
             webPage,
             ...app,
-            ...(onHub ? [breadcrumb] : []),
+            ...(crumbed ? [breadcrumb] : []),
             ...(faq.length
               ? [{
                   '@type': 'FAQPage',
                   '@id': `${canonical}#faq`,
                   inLanguage: lang,
                   isPartOf: { '@id': `${canonical}#webpage` },
-                  mainEntity: faq.map(({ q, a }) => ({ '@type': 'Question', name: stripTags(q), acceptedAnswer: { '@type': 'Answer', text: a } })),
+                  // Links in the answers lead to the same place from the data as from the page.
+                  mainEntity: faq.map(({ q, a }) => ({ '@type': 'Question', name: stripTags(q), acceptedAnswer: { '@type': 'Answer', text: a.replace(/href="([^"]+)"/g, (m, href) => `href="${new URL(href.replace(/&amp;/g, '&'), canonical).href}"`) } })),
                 }]
               : []),
           ];
@@ -875,12 +928,14 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
           hubTermsUrl: hrefTo(hubPagePath('terms')),
           hubPrivacyUrl: hrefTo(hubPagePath('privacy')),
           hubRefundsUrl: hrefTo(hubPagePath('refunds')),
+          avoTermsUrl: hrefTo(avoPagePath('terms')),
+          avoPrivacyUrl: hrefTo(avoPagePath('privacy')),
           accountUrl,
           proMonthUrl: `${accountUrl}?pro=month`,
           proYearUrl: `${accountUrl}?pro=year`,
           launchEndsAt: launchEnd,
           legalTitle: policy?.title ?? '',
-          legalUpdated: stripTags(t('hubLegal.updated', { date: escapeHtml(longDate(legal.updated)) })),
+          legalUpdated: stripTags(t('hubLegal.updated', { date: escapeHtml(longDate(policyUpdated)) })),
           dmgName: release.available && release.version ? `Avo ${release.version}` : 'Avo',
           otherNotFound: stripTags(lookup(dicts[other], 'notFound.title', other)),
           otherHomeHref: hrefTo(other === 'en' ? '' : 'id/'),
@@ -912,6 +967,7 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
             .join('\n'),
           jsonLd: scriptJson(jsonLd),
           hubTabs,
+          avoTabs,
           pricingHeadline: t('hubPricing.headline', pricesNow),
           pricingFigure: pricesNow.firstMonth,
           pricingExtra: t('hubPricing.proExtra', pricesNow),
@@ -941,7 +997,7 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
     ...urls.flatMap((p) => {
-      const lastmod = lastChanged([`src/pages/${p.template}`, 'src/i18n', 'src/partials', 'site.config.mjs', ...(p.legal ? [`src/hub/${p.legal}.json`] : [])]);
+      const lastmod = lastChanged([`src/pages/${p.template}`, 'src/i18n', 'src/partials', 'site.config.mjs', ...(p.legal ? [`src/${p.legal}.json`] : [])]);
       return LANGS.map((lang) =>
         [
           '  <url>',

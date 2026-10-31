@@ -112,6 +112,14 @@ export default {
     email: 'nizwar.id@gmail.com',
   },
 
+  // Avo's own Terms of Use and Privacy Policy, apart from Avo Hub's:
+  // /terms/ and /privacy/ (and /id/...), their text in src/avo/*.json, with
+  // `contact.email` as their address. `updated`: when they last changed
+  // (shown on each page and in its structured data).
+  legal: {
+    updated: '2026-11-01',
+  },
+
   // Personal support for Avo's developer. `frequency`: 'monthly', 'once' or
   // 'monthly-or-once'. `details` is optional plain text (for example a bank
   // account); `url` may be null for a channel that only has details. An empty

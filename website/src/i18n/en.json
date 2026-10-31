@@ -22,7 +22,11 @@
     "hubPrivacyTitle": "Avo Hub Privacy Policy · Android in your ecosystem",
     "hubPrivacyDescription": "What Avo Hub keeps about you and what it never sees, how long it keeps it, who handles it for us, and how to get your data or have it deleted.",
     "hubRefundsTitle": "Avo Hub Refund Policy · Android in your ecosystem",
-    "hubRefundsDescription": "Refunds for Avo Hub Pro: your money back within {refundDays} days of your first payment or a yearly renewal, how to ask, and what happens to Pro after a refund."
+    "hubRefundsDescription": "Refunds for Avo Hub Pro: your money back within {refundDays} days of your first payment or a yearly renewal, how to ask, and what happens to Pro after a refund.",
+    "avoTermsTitle": "Avo Terms of Use · Android in your ecosystem",
+    "avoTermsDescription": "The terms for using Avo, the free Android emulator for Mac: its open-source licence, your apps and files, no warranty, trademarks and how to reach us.",
+    "avoPrivacyTitle": "Avo Privacy Policy · Android in your ecosystem",
+    "avoPrivacyDescription": "Avo keeps what it needs on your Mac and sends nothing about you to us: no account, no analytics, no tracking. When it goes online, and why."
   },
   "common": {
     "skip": "Skip to content",
@@ -257,7 +261,7 @@
     "q8": "Do banking apps work?",
     "a8": "Usually not. Most banking apps only run on a real phone.",
     "q9": "Is it safe and private?",
-    "a9": "Android runs walled off from the rest of your Mac, and Avo's code is open for anyone to check. There's no account, no ads and no tracking.",
+    "a9": "Android runs walled off from the rest of your Mac, and Avo's code is open for anyone to check. There's no account, no ads and no tracking. Read the <a href=\"{avoPrivacy}\">Privacy Policy</a>.",
     "q10": "Where does support money go?",
     "a10": "To the developer, personally. It pays for the tools and hardware Avo is built and tested with, and for the Apple Developer Program fee that lets Avo open without a security warning."
   },
@@ -280,6 +284,9 @@
     "terms": "Terms",
     "privacy": "Privacy",
     "refund": "Refunds",
+    "policies": "Policies",
+    "avoPolicies": "Avo’s policies",
+    "hubPolicies": "Avo Hub’s pricing and policies",
     "copyright": "Copyright {year} Avo contributors. Open source under the Apache License 2.0.",
     "trademarks": "Android is a trademark of Google LLC. Mac and macOS are trademarks of Apple Inc. Avo isn't affiliated with Google or Apple. Other product names belong to their owners.",
     "noTracking": "No cookies, no tracking."
@@ -295,6 +302,13 @@
     "toc": "On this page",
     "back": "Back to Sign In",
     "seller": "Avo Hub is made and sold by {seller}, an independent developer in Indonesia. Payments are processed by PayPal. Questions: <a href=\"mailto:{hubEmail}\">{hubEmail}</a>"
+  },
+  "avoLegal": {
+    "nav": "Avo’s policies",
+    "terms": "Terms",
+    "privacy": "Privacy",
+    "eyebrow": "Avo · Legal",
+    "about": "Avo is free and open source, made by Avo’s contributors and kept up by an independent developer in Indonesia. Questions: <a href=\"mailto:{contactEmail}\">{contactEmail}</a>"
   },
   "hubPricing": {
     "eyebrow": "Avo Hub pricing",

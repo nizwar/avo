@@ -2423,8 +2423,10 @@ p {
 /* /hub/pricing/, /hub/terms/, /hub/privacy/, /hub/refunds/: the four pages
    side by side under the header, a plain head, then the plans or the text
    with its sections listed beside it. Set like the rest of the site: flat
-   tones, one accent, no ornaments. */
-.hub-pages {
+   tones, one accent, no ornaments. Avo's own policies (/terms/, /privacy/,
+   .legal-pages) are set the same way, with their own two tabs. */
+.hub-pages,
+.legal-pages {
   padding-top: clamp(28px, 4vw, 56px);
 }
 
@@ -2440,13 +2442,15 @@ p {
   transform: scaleX(-1);
 }
 
-.hub-tabs ul {
+.hub-tabs ul,
+.legal-tabs ul {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.hub-tabs a {
+.hub-tabs a,
+.legal-tabs a {
   display: inline-flex;
   align-items: center;
   min-height: 40px;
@@ -2460,43 +2464,50 @@ p {
   transition: background-color var(--t-hover) ease, color var(--t-hover) ease;
 }
 
-.hub-tabs a[aria-current='page'] {
+.hub-tabs a[aria-current='page'],
+.legal-tabs a[aria-current='page'] {
   background: var(--accent);
   color: var(--accent-ink);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .hub-tabs a:not([aria-current]):hover {
+  .hub-tabs a:not([aria-current]):hover,
+  .legal-tabs a:not([aria-current]):hover {
     background: var(--tone-2);
     color: var(--ink);
   }
 }
 
-.hub-pages-head {
+.hub-pages-head,
+.legal-pages-head {
   display: grid;
   gap: 18px;
   max-width: 52em;
   padding-block: clamp(48px, 7vw, 112px) clamp(36px, 5vw, 72px);
 }
 
-.hub-pages-eyebrow {
+.hub-pages-eyebrow,
+.legal-pages-eyebrow {
   color: var(--accent);
   font-size: var(--fs-small);
   font-weight: 650;
   letter-spacing: 0.01em;
 }
 
-.hub-pages-title {
+.hub-pages-title,
+.legal-pages-title {
   font-size: clamp(36px, 4.6vw, 76px);
   max-width: 15em;
 }
 
-.hub-pages-updated {
+.hub-pages-updated,
+.legal-pages-updated {
   color: var(--ink-3);
   font-size: var(--fs-small);
 }
 
-.hub-pages-head .lead {
+.hub-pages-head .lead,
+.legal-pages-head .lead {
   color: var(--ink-2);
 }
 
@@ -2604,11 +2615,13 @@ p {
 .legal-body a,
 .hub-notes a,
 .hub-plan-fine a,
-.hub-pages-seller a {
+.hub-pages-seller a,
+.legal-pages-about a {
   color: var(--ink);
 }
 
-.hub-pages-seller {
+.hub-pages-seller,
+.legal-pages-about {
   max-width: 44em;
   margin-top: clamp(56px, 7vw, 104px);
   padding-top: 24px;
@@ -2797,6 +2810,7 @@ p {
 .from-app .header-action,
 .from-app .nav-toggle,
 .from-app .footer-nav,
+.from-app .footer-policies,
 .from-app .hub-tabs li:has([data-hub-tab='pricing']) {
   display: none !important;
 }
@@ -2892,10 +2906,35 @@ main:has(> .cta:last-child) + .site-footer,
   color: var(--ink-2);
 }
 
+.footer-links {
+  display: grid;
+  gap: 40px;
+}
+
 .footer-nav {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 32px;
+}
+
+/* Each app's policies apart, under the columns they line up with: Avo's
+   under Avo, Avo Hub's under the other two. */
+.footer-policies {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px 32px;
+  padding-top: 28px;
+  border-top: 1px solid var(--tone-2);
+}
+
+.footer-policy[data-policies='hub'] {
+  grid-column: span 2;
+}
+
+.footer-policies ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
 }
 
 .footer-title {
@@ -2909,14 +2948,16 @@ main:has(> .cta:last-child) + .site-footer,
   gap: 8px;
 }
 
-.footer-nav a {
+.footer-nav a,
+.footer-policies a {
   color: var(--ink-2);
   font-size: var(--fs-small);
   text-decoration: none;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .footer-nav a:hover {
+  .footer-nav a:hover,
+  .footer-policies a:hover {
     color: var(--ink);
     text-decoration: underline;
   }
@@ -3367,8 +3408,13 @@ html.has-lightbox {
     justify-self: start;
   }
 
-  .footer-nav {
+  .footer-nav,
+  .footer-policies {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .footer-policy[data-policies='hub'] {
+    grid-column: auto;
   }
 
   .pair-grid {
@@ -3454,7 +3500,8 @@ html.has-lightbox {
     width: 46%;
   }
 
-  .footer-nav {
+  .footer-nav,
+  .footer-policies {
     grid-template-columns: minmax(0, 1fr);
   }
 

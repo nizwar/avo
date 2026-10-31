@@ -1,0 +1,152 @@
+{
+  "en": {
+    "title": "Terms of Use",
+    "lead": "Avo is free and open source. These terms say plainly what that means for you. If anything here isn’t clear, write to {email}.",
+    "sections": [
+      {
+        "heading": "Who we are",
+        "body": [
+          "Avo is made by Avo’s contributors and kept up by one independent developer in Indonesia (“we”, “us”). Avo means the Mac app and this website. Avo Hub, the app for the phone in your pocket, has [its own terms]({hubTerms})."
+        ]
+      },
+      {
+        "heading": "Free and open source",
+        "body": [
+          "Avo costs nothing, shows no ads and needs no account. Its code is public on [GitHub]({github}) under the [Apache License 2.0]({license}), which lets you use, copy, change and share it. Where these terms and that licence differ, the licence comes first.",
+          "Some parts of Avo come from other open-source projects, under their own licences. The [NOTICE]({notice}) file lists them."
+        ]
+      },
+      {
+        "heading": "Using Avo",
+        "body": [
+          "You may use Avo for anything the law allows. The apps, games, accounts and files you add to Android are yours, and so is the responsibility for them: we don’t check, host or sell them. You agree to:",
+          [
+            "install only apps and files you have the right to use;",
+            "follow the rules of the apps, games and services you use in Avo, Google Play included;",
+            "not use Avo to cheat in games, harm other people or break the law."
+          ],
+          "Some apps and online games don’t run in an emulator, or don’t allow one. Avo adds no cheats, doesn’t hide itself from them and doesn’t try to get around their checks."
+        ]
+      },
+      {
+        "heading": "Android and the extras",
+        "body": [
+          "When you set Avo up, it downloads Android from Google’s public server. Google Play and root access are optional: Avo downloads them only when you turn them on, from the projects that make them (MindTheGapps and Magisk), and their own terms apply. Google Play and your Google account also come under Google’s terms."
+        ]
+      },
+      {
+        "heading": "Updates",
+        "body": [
+          "Once a day, Avo looks for a new version, and asks before installing one. You can turn this off in Avo’s Settings."
+        ]
+      },
+      {
+        "heading": "No warranty",
+        "body": [
+          "Avo is provided “as is”, without warranties of any kind, as the Apache License 2.0 says. We work to make it good, but it can have bugs and can lose data: keep a copy of anything important.",
+          "As far as the law allows, Avo’s contributors aren’t liable for any damage or loss that comes from using Avo. Nothing here limits rights you have under consumer law that can’t be limited."
+        ]
+      },
+      {
+        "heading": "Trademarks",
+        "body": [
+          "Android is a trademark of Google LLC. Mac and macOS are trademarks of Apple Inc. Avo isn’t affiliated with or endorsed by Google or Apple, and other product names belong to their owners. The phone names Avo shows to apps are there only so apps work as on a familiar phone.",
+          "The licence doesn’t give the right to use Avo’s name or logo, except to say truthfully where your copy comes from."
+        ]
+      },
+      {
+        "heading": "Help and support",
+        "body": [
+          "Help is given on [GitHub]({issues}), as time allows: Avo is kept up by one person. Money sent to [support the developer]({support}) is a gift. It doesn’t buy features or priority help."
+        ]
+      },
+      {
+        "heading": "Changes to these terms",
+        "body": [
+          "If these terms change, we update this page and the date at the top."
+        ]
+      },
+      {
+        "heading": "Contact",
+        "body": [
+          "{email} · Security problems: please report them privately on [GitHub]({security})."
+        ]
+      }
+    ]
+  },
+  "id": {
+    "title": "Ketentuan Penggunaan",
+    "lead": "Avo gratis dan open source. Ketentuan ini menjelaskan dengan sederhana apa artinya bagi Anda. Bila ada yang kurang jelas, kirim email ke {email}.",
+    "sections": [
+      {
+        "heading": "Siapa kami",
+        "body": [
+          "Avo dibuat oleh para kontributor Avo dan dirawat oleh seorang pengembang independen di Indonesia (“kami”). Avo berarti app Mac dan situs web ini. Avo Hub, app untuk ponsel di saku Anda, punya [ketentuannya sendiri]({hubTerms})."
+        ]
+      },
+      {
+        "heading": "Gratis dan open source",
+        "body": [
+          "Avo tidak berbayar, tanpa iklan, dan tanpa akun. Kodenya terbuka di [GitHub]({github}) dengan [Lisensi Apache 2.0]({license}), yang membolehkan Anda memakai, menyalin, mengubah, dan membagikannya. Bila ketentuan ini dan lisensi itu berbeda, lisensi yang berlaku.",
+          "Sebagian Avo berasal dari proyek open source lain, dengan lisensinya masing-masing. Daftarnya ada di file [NOTICE]({notice})."
+        ]
+      },
+      {
+        "heading": "Memakai Avo",
+        "body": [
+          "Anda boleh memakai Avo untuk apa pun yang diizinkan hukum. Aplikasi, game, akun, dan file yang Anda masukkan ke Android adalah milik dan tanggung jawab Anda: kami tidak memeriksa, menyimpan, atau menjualnya. Anda setuju untuk:",
+          [
+            "hanya memasang aplikasi dan file yang berhak Anda pakai;",
+            "mematuhi aturan aplikasi, game, dan layanan yang Anda pakai di Avo, termasuk Google Play;",
+            "tidak memakai Avo untuk curang dalam game, merugikan orang lain, atau melanggar hukum."
+          ],
+          "Sebagian aplikasi dan game online tidak berjalan di emulator, atau tidak mengizinkannya. Avo tidak menambahkan cheat, tidak menyembunyikan diri, dan tidak mencoba mengakali pemeriksaan mereka."
+        ]
+      },
+      {
+        "heading": "Android dan tambahannya",
+        "body": [
+          "Saat Anda menyiapkan Avo, Avo mengunduh Android dari server publik Google. Google Play dan akses root bersifat pilihan: Avo mengunduhnya hanya saat Anda menyalakannya, dari proyek pembuatnya (MindTheGapps dan Magisk), dan ketentuan mereka sendiri berlaku. Google Play dan akun Google Anda juga tunduk pada ketentuan Google."
+        ]
+      },
+      {
+        "heading": "Pembaruan",
+        "body": [
+          "Sehari sekali Avo memeriksa versi baru, dan bertanya dulu sebelum memasangnya. Anda bisa mematikannya di Pengaturan Avo."
+        ]
+      },
+      {
+        "heading": "Tanpa jaminan",
+        "body": [
+          "Avo disediakan “sebagaimana adanya”, tanpa jaminan apa pun, sesuai Lisensi Apache 2.0. Kami berusaha membuatnya bagus, tetapi Avo bisa punya bug dan bisa kehilangan data: simpan salinan dari apa pun yang penting.",
+          "Sejauh diizinkan hukum, para kontributor Avo tidak bertanggung jawab atas kerusakan atau kerugian apa pun akibat memakai Avo. Tidak ada bagian di sini yang membatasi hak Anda menurut hukum perlindungan konsumen yang tidak bisa dibatasi."
+        ]
+      },
+      {
+        "heading": "Merek dagang",
+        "body": [
+          "Android adalah merek dagang Google LLC. Mac dan macOS adalah merek dagang Apple Inc. Avo tidak berafiliasi dengan, atau didukung oleh, Google maupun Apple, dan nama produk lain milik pemiliknya masing-masing. Nama ponsel yang ditunjukkan Avo ke aplikasi hanya dipakai supaya aplikasi berjalan seperti di ponsel yang dikenalnya.",
+          "Lisensinya tidak memberi hak memakai nama atau logo Avo, kecuali untuk menyebut dengan jujur dari mana salinan Anda berasal."
+        ]
+      },
+      {
+        "heading": "Bantuan dan dukungan",
+        "body": [
+          "Bantuan diberikan di [GitHub]({issues}), sesuai waktu yang ada: Avo dirawat oleh satu orang. Uang yang Anda kirim untuk [mendukung pengembangnya]({support}) adalah pemberian. Uang itu tidak membeli fitur atau bantuan yang didahulukan."
+        ]
+      },
+      {
+        "heading": "Perubahan ketentuan",
+        "body": [
+          "Bila ketentuan ini berubah, kami memperbarui halaman ini beserta tanggal di atas."
+        ]
+      },
+      {
+        "heading": "Kontak",
+        "body": [
+          "{email} · Masalah keamanan: mohon laporkan secara tertutup lewat [GitHub]({security})."
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="{{v:lang}}">
+<head>
+{{> head}}
+</head>
+<body class="page page-avo-legal">
+{{> sprite}}
+{{> header}}
+<main id="main" class="legal-pages">
+  <div class="wrap">
+<!-- Avo's own policies side by side (Avo Hub's have their own, under /hub/). -->
+{{h:avoTabs}}
+    <header class="legal-pages-head">
+      <p class="legal-pages-eyebrow">{{t:avoLegal.eyebrow}}</p>
+      <h1 class="h-display legal-pages-title">{{v:legalTitle}}</h1>
+      <p class="legal-pages-updated">{{v:legalUpdated}}</p>
+      <p class="lead">{{h:legalLead}}</p>
+    </header>
+    <!-- The sections listed beside the text on wide screens. -->
+    <div class="legal-layout">
+      <nav class="legal-toc" aria-labelledby="legal-toc-title">
+        <p id="legal-toc-title" class="legal-toc-title">{{t:hubLegal.toc}}</p>
+        <ol>
+{{h:legalToc}}
+        </ol>
+      </nav>
+      <div class="legal-body">
+{{h:legalSections}}
+      </div>
+    </div>
+    <p class="legal-pages-about">{{t:avoLegal.about}}</p>
+  </div>
+</main>
+{{> footer}}
+<script type="module" src="{{v:root}}assets/js/site.js?v={{v:jsVersion}}"></script>
+</body>
+</html>
