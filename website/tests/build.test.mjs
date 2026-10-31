@@ -7,14 +7,15 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { build, HUB_PAGES } from '../tools/build.mjs';
+import { AVO_PAGES, build, HUB_PAGES } from '../tools/build.mjs';
 import { isAppSignIn, keepBack, languageMove, priceList, wayBack } from '../src/assets/js/hub-pages.js';
 
 let out;
-// The product pages, then Avo Hub's pricing and policies, then the 404 page.
+// The product pages, Avo's policies, Avo Hub's pricing and policies, then the 404 page.
 const PRODUCT = ['index.html', 'id/index.html', 'hub/index.html', 'id/hub/index.html'];
+const AVO = AVO_PAGES.flatMap((name) => [`${name}/index.html`, `id/${name}/index.html`]);
 const HUB = HUB_PAGES.flatMap((name) => [`hub/${name}/index.html`, `id/hub/${name}/index.html`]);
-const PAGES = [...PRODUCT, ...HUB, '404.html'];
+const PAGES = [...PRODUCT, ...AVO, ...HUB, '404.html'];
 const INDEXED = PAGES.filter((p) => p !== '404.html');
 const read = (rel) => readFileSync(path.join(out, rel), 'utf8');
 const meta = (html, attr, name) => html.match(new RegExp(`<meta ${attr}="${name.replace(/[.:]/g, '\\$&')}" content="([^"]*)">`))?.[1];
@@ -43,7 +44,7 @@ test('every page exists in both languages with the right lang and alternates', (
     const html = read(page);
     assert.match(html, /<link rel="alternate" hreflang="en" href="https:\/\/[^"]+">/, page);
     assert.match(html, /<link rel="alternate" hreflang="id" href="https:\/\/[^"]+\/id\/[^"]*">/, page);
-    assert.match(html, /<link rel="alternate" hreflang="x-default" href="https:\/\/avodroid\.com\/(hub\/((pricing|terms|privacy|refunds)\/)?)?">/, page);
+    assert.match(html, /<link rel="alternate" hreflang="x-default" href="https:\/\/avodroid\.com\/(hub\/((pricing|terms|privacy|refunds)\/)?|(terms|privacy)\/)?">/, page);
     assert.match(html, /<meta property="og:image" content="https:\/\/[^"]+\.jpg">/, page);
     assert.match(html, /<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self';/, page);
   }
@@ -476,6 +477,106 @@ test('a strict build refuses placeholders', async () => {
   await assert.rejects(build({ outDir: path.join(tmpdir(), 'avo-never'), quiet: true, strict: true, overrides }), /placeholders/);
 });
 
+// ------------------------------------------------------- Avo's own policies
+
+const AVO_POLICIES = { terms: ['Terms of Use', 'Ketentuan Penggunaan'], privacy: ['Privacy Policy', 'Kebijakan Privasi'] };
+const SRC = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src');
+
+test("Avo's terms and privacy are pages of their own, in both languages, apart from Avo Hub's", () => {
+  for (const name of AVO_PAGES) {
+    const en = read(`${name}/index.html`);
+    const id = read(`id/${name}/index.html`);
+    assert.match(en, /<html lang="en">/, name);
+    assert.match(id, /<html lang="id">/, name);
+    assert.ok(en.includes(`<link rel="canonical" href="https://avodroid.com/${name}/">`), name);
+    assert.ok(id.includes(`<link rel="canonical" href="https://avodroid.com/id/${name}/">`), name);
+    assert.equal(h1Of(en), AVO_POLICIES[name][0]);
+    assert.equal(h1Of(id), AVO_POLICIES[name][1]);
+    for (const html of [en, id]) {
+      assert.ok(html.includes(`<link rel="alternate" hreflang="en" href="https://avodroid.com/${name}/">`), name);
+      assert.ok(html.includes(`<link rel="alternate" hreflang="id" href="https://avodroid.com/id/${name}/">`), name);
+      assert.ok(html.includes(`<link rel="alternate" hreflang="x-default" href="https://avodroid.com/${name}/">`), name);
+      // Avo's two pages side by side, this one marked; never Avo Hub's tabs, its seller or its account.
+      const tabs = html.match(/<nav class="legal-tabs"[\s\S]*?<\/nav>/)[0];
+      assert.equal((tabs.match(/<li>/g) || []).length, 2, name);
+      assert.match(tabs, new RegExp(`<a href="\\./" aria-current="page" data-avo-tab="${name}">`), name);
+      for (const other of AVO_PAGES.filter((n) => n !== name)) assert.ok(tabs.includes(`href="../${other}/"`), `${name} -> ${other}`);
+      const main = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
+      assert.doesNotMatch(main, /hub-tabs|data-hub-back|Mochamad Nizwar Syafuan|support@avodroid\.com|auth\.avodroid\.com/, name);
+      assert.match(html, /<body class="page page-avo-legal">/, name);
+      // Their own address, and the date they last changed.
+      assert.match(main, /<a href="mailto:nizwar\.id@gmail\.com">nizwar\.id@gmail\.com<\/a>/, name);
+      assert.match(main, /<p class="legal-pages-updated">(Last updated November 1, 2026|Terakhir diperbarui 1 November 2026)<\/p>/, name);
+      const data = jsonLd(html);
+      const [webPage] = ofType(data, 'WebPage');
+      assert.equal(webPage.dateModified, '2026-11-01', name);
+      assert.equal(webPage.about['@id'], 'https://avodroid.com/#avo', name);
+      assert.equal(ofType(data, 'SoftwareApplication').length, 0, name);
+      // A breadcrumb: Avo, then the page.
+      const crumbs = ofType(data, 'BreadcrumbList')[0].itemListElement;
+      assert.deepEqual(crumbs.map((c) => c.position), [1, 2], name);
+      assert.equal(crumbs[0].name, 'Avo', name);
+      assert.equal(crumbs[1].item, html.match(/<link rel="canonical" href="([^"]+)">/)[1], name);
+      assert.equal(crumbs[1].name, h1Of(html), name);
+    }
+    assert.ok(en.includes(`<a class="lang-switch" href="../id/${name}/"`), name);
+    assert.ok(id.includes(`<a class="lang-switch" href="../../${name}/"`), name);
+  }
+});
+
+test("Avo's policies say all of their text, the same shape in both languages, with their links working", () => {
+  for (const name of AVO_PAGES) {
+    const source = JSON.parse(readFileSync(path.join(SRC, 'avo', `${name}.json`), 'utf8'));
+    const shape = (policy) => policy.sections.map((section) => section.body.map((block) => (Array.isArray(block) ? block.length : 's')).join(',')).join('|');
+    assert.equal(shape(source.id), shape(source.en), name);
+    for (const lang of ['en', 'id']) {
+      const page = lang === 'en' ? `${name}/index.html` : `id/${name}/index.html`;
+      const html = read(page);
+      const sections = [...html.matchAll(/<section class="legal-section" id="section-(\d+)"/g)];
+      assert.equal(sections.length, source[lang].sections.length, page);
+      assert.equal((html.match(/<li><a href="#section-\d+">/g) || []).length, sections.length, page);
+      const body = text(html.slice(html.indexOf('<div class="legal-body">'), html.indexOf('<p class="legal-pages-about">')));
+      const words = (line) => line.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/\{\w+\}/g, ' ').split(/\s+/).filter((w) => w.length > 3);
+      for (const section of source[lang].sections) {
+        for (const word of words(section.heading)) assert.ok(body.includes(word), `${page}: ${word}`);
+        for (const block of section.body) for (const line of [block].flat()) for (const word of words(line)) assert.ok(body.includes(word), `${page}: ${word}`);
+      }
+      assert.doesNotMatch(html.replace(/<script[\s\S]*?<\/script>/g, ''), /\{[a-zA-Z]+\}/, page);
+      // The licence, the notice, the issues, a private way to report security problems, Avo Hub's own policy.
+      assert.match(html, /<a href="https:\/\/github\.com\/nizwar\/avo\/security\/advisories\/new" rel="noopener">GitHub<\/a>/, page);
+      assert.match(html, new RegExp(`<a href="(\\.\\./)+(id/)?hub/${name}/">`), `${page}: Avo Hub's ${name}`);
+    }
+  }
+  const terms = read('terms/index.html');
+  assert.match(terms, /<a href="https:\/\/github\.com\/nizwar\/avo\/blob\/main\/LICENSE" rel="noopener">Apache License 2\.0<\/a>/);
+  assert.match(terms, /<a href="https:\/\/github\.com\/nizwar\/avo\/blob\/main\/NOTICE" rel="noopener">NOTICE<\/a>/);
+  assert.match(terms, /provided “as is”, without warranties of any kind/);
+  assert.match(terms, /Android is a trademark of Google LLC\. Mac and macOS are trademarks of Apple Inc\./);
+  assert.match(terms, /<a href="\.\.\/#support">support the developer<\/a>/);
+  assert.match(read('id/terms/index.html'), /<a href="\.\.\/\.\.\/id\/#support">mendukung pengembangnya<\/a>/);
+  const privacy = read('privacy/index.html');
+  assert.match(privacy, /<a href="\.\.\/terms\/" aria-current="page"|<a href="\.\.\/terms\/" data-avo-tab="terms">/);
+  assert.match(privacy, /GitHub logs each visitor’s IP address/);
+  assert.match(privacy, /Avo sends no analytics and no crash reports\./);
+  // Avo is free: no refund page of its own, no prices.
+  assert.ok(!existsSync(path.join(out, 'refunds/index.html')));
+  assert.doesNotMatch(text(terms), /\$\d/);
+});
+
+test("the home page leads to Avo's privacy policy from its question about privacy, and llms.txt to both", () => {
+  for (const [page, href] of [['index.html', 'privacy/'], ['id/index.html', '../id/privacy/']]) {
+    const html = read(page);
+    const answer = html.match(/<details class="faq-item"[^>]*><summary>(Is it safe and private\?|Apakah aman dan menjaga privasi\?)[\s\S]*?<\/details>/)[0];
+    assert.ok(answer.includes(`href="${href}"`), page);
+    // The same link in the structured data, as a full address.
+    const faq = ofType(jsonLd(html), 'FAQPage')[0].mainEntity.find((q) => /privat|privasi/i.test(q.name));
+    assert.match(faq.acceptedAnswer.text, page === 'index.html' ? /href="https:\/\/avodroid\.com\/privacy\/"/ : /href="https:\/\/avodroid\.com\/id\/privacy\/"/, page);
+  }
+  const llms = read('llms.txt');
+  assert.ok(llms.includes('[Terms of Use](https://avodroid.com/terms/)'));
+  assert.ok(llms.includes('[Privacy Policy](https://avodroid.com/privacy/)'));
+});
+
 // ------------------------------------------- Avo Hub's pricing and policies
 
 const POLICIES = { terms: ['Terms of Service', 'Ketentuan Layanan'], privacy: ['Privacy Policy', 'Kebijakan Privasi'], refunds: ['Refund Policy', 'Kebijakan Pengembalian Dana'] };
@@ -522,6 +623,17 @@ test('every page leads to them: the footer and the Avo Hub page', () => {
   for (const page of PAGES) {
     const footer = read(page).slice(read(page).indexOf('<footer'));
     for (const name of HUB_PAGES) assert.match(footer, new RegExp(`<li><a href="[^"]*hub/${name}/">`), `${page}: ${name}`);
+    // Each app's policies in a group of their own: Avo's, then Avo Hub's.
+    const policies = footer.match(/<nav class="footer-policies"[\s\S]*?<\/nav>/)?.[0];
+    assert.ok(policies, `${page}: the footer's policies`);
+    const group = (name) => policies.match(new RegExp(`<div class="footer-policy" data-policies="${name}">([\\s\\S]*?)</div>`))[1];
+    const hrefs = (html) => [...html.matchAll(/<li><a href="([^"]+)">/g)].map(([, href]) => href);
+    assert.deepEqual(hrefs(group('avo')).map((href) => href.replace(/^(\.\.\/|\/)+/, '').replace(/^id\//, '')), ['terms/', 'privacy/'], page);
+    assert.deepEqual(hrefs(group('hub')).map((href) => href.replace(/^.*hub\//, '')), HUB_PAGES.map((name) => `${name}/`), page);
+    assert.match(group('avo'), langOf(page) === 'en' ? /<h2 class="footer-title">Avo’s policies<\/h2>/ : /<h2 class="footer-title">Kebijakan Avo<\/h2>/, page);
+    assert.match(group('hub'), langOf(page) === 'en' ? /<h2 class="footer-title">Avo Hub’s pricing and policies<\/h2>/ : /<h2 class="footer-title">Harga dan kebijakan Avo Hub<\/h2>/, page);
+    // In the page's language.
+    if (page !== '404.html') for (const href of hrefs(policies)) assert.equal(href.includes('id/'), langOf(page) === 'id', `${page}: ${href}`);
   }
   for (const page of ['hub/index.html', 'id/hub/index.html']) {
     const main = read(page).slice(read(page).indexOf('<main'), read(page).indexOf('</main>'));
@@ -661,4 +773,5 @@ test('a policy whose languages differ in shape stops the build', async () => {
   assert.equal(inlineHtml('[PayPal](https://www.paypal.com/x)'), '<a href="https://www.paypal.com/x" rel="noopener">PayPal</a>');
   await assert.rejects(build({ outDir: path.join(tmpdir(), 'avo-never'), quiet: true, overrides: { hub: { accountUrl: 'https://auth.avodroid.com/pricing' } } }), /hub\.accountUrl must be the account's address itself/);
   await assert.rejects(build({ outDir: path.join(tmpdir(), 'avo-never'), quiet: true, overrides: { hub: { legal: { email: 'nobody' } } } }), /hub\.legal\.email/);
+  await assert.rejects(build({ outDir: path.join(tmpdir(), 'avo-never'), quiet: true, overrides: { legal: { updated: 'soon' } } }), /legal\.updated must be a date/);
 });
