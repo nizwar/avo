@@ -45,18 +45,44 @@ test('every page exists in both languages with the right lang and alternates', (
   }
 });
 
-test('the slogan leads both pages, in both languages', () => {
+const SLOGAN = { en: 'Android in your ecosystem.', id: 'Android di ekosistemmu.' };
+const langOf = (page) => (page.startsWith('id/') ? 'id' : 'en');
+
+test('the slogan opens both pages and closes every page, in both languages', () => {
+  for (const page of INDEXED) {
+    const html = read(page);
+    const slogan = SLOGAN[langOf(page)];
+    // Over the headline, never inside it: the headline says what the app is.
+    assert.equal(text(html.match(/<p class="hero-eyebrow">([\s\S]*?)<\/p>\s*<h1 /)?.[1] ?? ''), slogan, page);
+    assert.ok(html.match(/<title>([^<]+)<\/title>/)[1].endsWith(` · ${slogan.slice(0, -1)}`), `${page}: the title ends with the slogan`);
+    assert.ok(meta(html, 'property', 'og:title').endsWith(slogan), `${page}: share card`);
+    assert.equal(ofType(jsonLd(html), 'SoftwareApplication')[0].slogan, slogan, page);
+    assert.doesNotMatch(html, /Android at heart|Jiwa Android/, `${page}: the old slogan is gone`);
+  }
+  for (const page of PAGES) assert.match(read(page), new RegExp(`<p class="footer-slogan" lang="(en|id)">(${SLOGAN.en}|${SLOGAN.id})</p>`.replace(/\./g, '\\.')), page);
+  // Never Apple's name in the slogan, nor a claim to be part of Apple's own.
+  for (const slogan of Object.values(SLOGAN)) assert.doesNotMatch(slogan, /Apple/);
+});
+
+test('each page leads with what people search for: title, description and headline', () => {
   const h1 = (page) => text(read(page).match(/<h1 id="hero-title" class="hero-title">([\s\S]*?)<\/h1>/)[1]);
-  assert.equal(h1('index.html'), 'Android at heart. Mac to the core.');
-  assert.equal(h1('id/index.html'), 'Jiwa Android, rasa Mac.');
-  assert.equal(h1('hub/index.html'), 'Your Android, on your Mac.');
-  assert.equal(h1('id/hub/index.html'), 'Android kamu, langsung di Mac.');
-  // In the title and description search engines show, and in the footer's close.
-  assert.match(read('index.html'), /<title>Avo: Android apps on your Mac · Android at heart, Mac to the core<\/title>/);
-  assert.match(meta(read('index.html'), 'name', 'description'), /^Android at heart, Mac to the core: /);
-  assert.match(meta(read('id/index.html'), 'name', 'description'), /^Jiwa Android, rasa Mac: /);
-  assert.match(meta(read('hub/index.html'), 'name', 'description'), /Android at heart, Mac to the core\.$/);
-  for (const page of PAGES) assert.match(read(page), /<p class="footer-slogan" lang="(en|id)">(Android at heart\. Mac to the core\.|Jiwa Android, rasa Mac\.)<\/p>/, page);
+  const title = (page) => read(page).match(/<title>([^<]+)<\/title>/)[1];
+  const description = (page) => meta(read(page), 'name', 'description');
+  assert.equal(h1('index.html'), 'Android emulator for your Mac.');
+  assert.equal(h1('id/index.html'), 'Emulator Android untuk Mac.');
+  assert.equal(h1('hub/index.html'), 'Your Android phone, on your Mac.');
+  assert.equal(h1('id/hub/index.html'), 'Ponsel Android kamu, langsung di Mac.');
+  assert.match(title('index.html'), /^Android Emulator for Mac \| Avo · /);
+  assert.match(title('id/index.html'), /^Emulator Android untuk Mac \| Avo · /);
+  assert.match(title('hub/index.html'), /^Mirror Android to Mac \| Avo Hub · /);
+  assert.match(title('id/hub/index.html'), /^Mirror HP Android ke Mac \| Avo Hub · /);
+  assert.match(description('index.html'), /^Android emulator for Mac with Apple silicon, M1 to M4/);
+  assert.match(description('id/index.html'), /^Emulator Android untuk Mac dengan chip Apple, M1 sampai M4/);
+  assert.match(description('hub/index.html'), /^Mirror your Android phone to your Mac and control it/);
+  assert.match(description('id/hub/index.html'), /^Mirror dan kendalikan HP Android dari Mac/);
+  // The pages link to each other with words that say where they lead.
+  assert.match(read('index.html'), /<a class="btn btn-secondary" href="hub\/">Mirror your phone with Avo Hub/);
+  assert.match(read('hub/index.html'), /<a class="btn btn-secondary" href="\.\.\/">Get Avo, the free Android emulator/);
 });
 
 test('every page has its own title, description and share card', () => {
@@ -66,8 +92,9 @@ test('every page has its own title, description and share card', () => {
     const html = read(page);
     const title = html.match(/<title>([^<]+)<\/title>/)[1];
     const description = meta(html, 'name', 'description');
-    assert.ok(title.length >= 30 && title.length <= 70, `${page}: title of ${title.length} characters`);
-    assert.ok(description.length >= 110 && description.length <= 170, `${page}: description of ${description.length} characters`);
+    // What a results page shows without cutting it short.
+    assert.ok(title.length >= 30 && title.length <= 60, `${page}: title of ${title.length} characters`);
+    assert.ok([...description].length >= 120 && [...description].length <= 160, `${page}: description of ${[...description].length} characters`);
     titles.add(title);
     descriptions.add(description);
     assert.equal(meta(html, 'name', 'robots'), 'index, follow, max-image-preview:large', page);
@@ -101,19 +128,41 @@ test('structured data: the organisation, the site, each app, its questions and t
   // The questions in the data are the questions on the page.
   const faq = ofType(home, 'FAQPage')[0];
   const summaries = [...read('index.html').matchAll(/<summary>([\s\S]*?)<span class="faq-sign"/g)].map(([, q]) => text(q));
-  assert.equal(faq.mainEntity.length, 8);
+  assert.equal(faq.mainEntity.length, 10);
   assert.deepEqual(faq.mainEntity.map((q) => q.name), summaries);
+  assert.ok(ofType(home, 'Organization')[0].slogan);
+  assert.ok(avo.featureList.length >= 5);
 
   for (const page of ['hub/index.html', 'id/hub/index.html']) {
     const hub = jsonLd(read(page));
     const [app] = ofType(hub, 'SoftwareApplication');
     assert.equal(app.name, 'Avo Hub', page);
     assert.match(app.operatingSystem, /Android 11/, page);
-    assert.deepEqual(app.offers.map((o) => [o.name, o.price, o.priceCurrency]), [['Free', '0', 'USD'], ['Pro', '2', 'USD']], page);
-    assert.equal(app.offers[1].priceSpecification.billingDuration, 'P1M', page);
+    // Free, then Pro at the launch price until its last day and the standard price after.
+    assert.deepEqual(
+      app.offers.map((o) => [o.name, o.price, o.priceCurrency, o.priceValidUntil ?? o.validFrom ?? null]),
+      [
+        ['Free', '0', 'USD', null],
+        ['Pro, monthly (launch price)', '2', 'USD', '2027-01-01'],
+        ['Pro, yearly (launch price)', '20', 'USD', '2027-01-01'],
+        ['Pro, monthly', '5', 'USD', '2027-01-02'],
+        ['Pro, yearly', '50', 'USD', '2027-01-02'],
+      ],
+      page,
+    );
+    assert.deepEqual(app.offers.slice(1).map((o) => o.priceSpecification.map((p) => [p.price, p.billingDuration])), [
+      [['2', 'P1M'], ['1', 'P1M']],
+      [['20', 'P1Y'], ['10', 'P1Y']],
+      [['5', 'P1M'], ['3', 'P1M']],
+      [['50', 'P1Y'], ['30', 'P1Y']],
+    ], page);
+    assert.ok(app.featureList.length >= 5, page);
     const crumbs = ofType(hub, 'BreadcrumbList')[0].itemListElement;
     assert.deepEqual(crumbs.map((c) => c.name), ['Avo', 'Avo Hub'], page);
-    assert.ok(ofType(hub, 'FAQPage')[0].mainEntity.length >= 8, page);
+    // The questions in the data are the questions on the page.
+    const summaries = [...read(page).matchAll(/<summary>([\s\S]*?)<span class="faq-sign"/g)].map(([, q]) => text(q));
+    assert.deepEqual(ofType(hub, 'FAQPage')[0].mainEntity.map((q) => q.name), summaries, page);
+    assert.ok(summaries.length >= 10, page);
   }
   assert.equal(ofType(jsonLd(read('id/hub/index.html')), 'BreadcrumbList')[0].itemListElement[1].item, 'https://avodroid.com/id/hub/');
 });
@@ -123,6 +172,7 @@ test('the sitemap lists every page with its languages and screenshots; robots po
   const urls = [...sitemap.matchAll(/<url>([\s\S]*?)<\/url>/g)].map(([, body]) => body);
   assert.equal(urls.length, 4);
   for (const body of urls) {
+    assert.match(body, /<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/);
     assert.match(body, /hreflang="en"/);
     assert.match(body, /hreflang="id"/);
     assert.match(body, /hreflang="x-default"/);
@@ -130,6 +180,15 @@ test('the sitemap lists every page with its languages and screenshots; robots po
   }
   for (const loc of sitemap.matchAll(/<image:loc>https:\/\/avodroid\.com\/([^<]+)<\/image:loc>/g)) assert.ok(existsSync(path.join(out, loc[1])), loc[1]);
   assert.match(read('robots.txt'), /^Sitemap: https:\/\/avodroid\.com\/sitemap\.xml$/m);
+});
+
+test('llms.txt describes both apps plainly, with their pages and prices', () => {
+  const llms = read('llms.txt');
+  assert.match(llms, /^# Avo\n\n> Android in your ecosystem\. /);
+  for (const url of ['https://avodroid.com/', 'https://avodroid.com/id/', 'https://avodroid.com/hub/', 'https://avodroid.com/id/hub/']) assert.ok(llms.includes(`(${url})`), url);
+  assert.match(llms, /launch price until January 1, 2027, \$2 a month for the first device and \$1 for each one after/);
+  assert.match(llms, /after that \$5 and \$3 a month, or \$50 and \$30 a year/);
+  assert.doesNotMatch(llms, /<[a-z]/i, "plain text, no markup");
 });
 
 test('the first screen loads first: hero picture preloaded and not lazy, fonts preloaded', () => {
@@ -156,14 +215,21 @@ test('Avo Hub has its page in both languages, in the menu, honest about its rele
   // Every page's menu leads to it, and on its own page the link says so.
   for (const page of PAGES) assert.match(read(page), /<li><a href="[^"]*hub\/"( aria-current="page")?>Avo Hub<\/a><\/li>/, page);
   assert.match(en, /<a href="\.\.\/hub\/" aria-current="page">Avo Hub<\/a>/);
-  assert.match(read('index.html'), /<a class="btn btn-secondary" href="hub\/">Meet Avo Hub/);
 
   // Its plans and policies, in the page's language.
   for (const name of ['pricing', 'terms', 'privacy', 'refund']) {
     assert.ok(en.includes(`href="https://auth.avodroid.com/${name}?lang=en"`), `en: ${name}`);
     assert.ok(id.includes(`href="https://auth.avodroid.com/${name}?lang=id"`), `id: ${name}`);
   }
-  assert.match(en, /\$2 <\/span> ?<span class="plan-per">a month for the first device<\/span>|<span class="plan-figure">\$2<\/span> <span class="plan-per">a month for the first device<\/span>/);
+  assert.match(en, /<span class="plan-figure">\$2<\/span> <span class="plan-per">a month for the first device<\/span>/);
+  // The launch price, said as the price it is, then what comes after: no
+  // crossed-out price that was never charged.
+  assert.match(en, /<p class="plan-launch">Launch price until January 1, 2027<\/p>/);
+  assert.match(id, /<p class="plan-launch">Harga peluncuran sampai 1 Januari 2027<\/p>/);
+  assert.match(en, /\$1 a month for each one after, or \$20 and \$10 a year\./);
+  assert.match(en, /After that, Pro is \$5 and \$3 a month, or \$50 and \$30 a year\. Subscribe at the launch price and you keep it for as long as you stay subscribed/);
+  for (const html of [en, id]) assert.doesNotMatch(html, /<(s|del|strike)\b|line-through/);
+  assert.doesNotMatch(read('assets/css/site.css'), /line-through/);
 
   // Not released, its repository private: no download, and no link to a
   // repository visitors would find empty, nor an open-source claim.

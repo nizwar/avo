@@ -32,6 +32,9 @@ jobs:
         working-directory: website
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The whole history, so the sitemap dates each page by its last change.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22

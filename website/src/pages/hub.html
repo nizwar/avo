@@ -8,11 +8,12 @@
 {{> header}}
 <main id="main">
 
-  <!-- The same split as the home page: the phone's name on the left, the Mac
-       on the right, and Avo Hub's real window between them, its menu bar
-       panel open over the corner. -->
+  <!-- The same split as the home page, under the slogan: the phone's name on
+       the left, the Mac on the right, and Avo Hub's real window between
+       them, its menu bar panel open over the corner. -->
   <section class="hero" aria-labelledby="hero-title">
     <div class="wrap hero-grid">
+      <p class="hero-eyebrow">{{t:meta.slogan}}</p>
       <h1 id="hero-title" class="hero-title">
         <span class="hero-half hero-half-a">{{t:hub.hero.titleA}}</span>
         <span class="hero-half hero-half-b">{{t:hub.hero.titleB}}</span>
@@ -172,6 +173,7 @@
       </div>
       <div class="plan plan-pro">
         <h3 class="plan-name">{{t:hub.pricing.proName}}</h3>
+        <p class="plan-launch">{{t:hub.pricing.launch}}</p>
         <p class="plan-price"><span class="plan-figure">{{t:hub.pricing.proPrice}}</span> <span class="plan-per">{{t:hub.pricing.proPer}}</span></p>
         <p>{{t:hub.pricing.proExtra}}</p>
         <ul class="plan-list">
@@ -181,6 +183,7 @@
           <li>{{t:hub.pricing.pro4}}</li>
         </ul>
         <p class="plan-trial">{{t:hub.pricing.proTrial}}</p>
+        <p class="plan-later">{{t:hub.pricing.proLater}}</p>
       </div>
       <div class="pricing-foot">
         <p class="link-row">

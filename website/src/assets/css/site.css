@@ -525,9 +525,10 @@ p {
 
 /* ---------------------------------------------------------------- Hero */
 
-/* The slogan's two halves sit on one line, left and right, with the
-   product's windows between them; the sentence and the action hang under
-   the first half, the facts under the second. */
+/* The slogan sits over the headline's first half; the headline's two
+   halves sit on one line, left and right, with the product's windows
+   between them; the sentence and the action hang under the first half, the
+   facts under the second. */
 .hero {
   display: grid;
   align-content: center;
@@ -540,6 +541,21 @@ p {
   grid-template-columns: minmax(0, 1fr) min(47vw, 860px) minmax(0, 1fr);
   grid-template-rows: 1fr auto auto 1fr auto;
   column-gap: clamp(24px, 2.8vw, 48px);
+}
+
+.hero-eyebrow {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: end;
+  margin-bottom: clamp(14px, 1.4vw, 22px);
+  font-family: var(--font-display);
+  font-size: var(--fs-lead);
+  font-weight: 650;
+  font-stretch: var(--display-stretch);
+  letter-spacing: -0.005em;
+  line-height: 1.25;
+  color: var(--accent);
+  text-wrap: balance;
 }
 
 .hero-title {
@@ -1659,12 +1675,16 @@ p {
 @media (min-width: 1100px) {
   .page-hub .hero-grid {
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    grid-template-rows: auto auto 1fr;
+    grid-template-rows: auto auto auto 1fr;
     column-gap: clamp(20px, 2vw, 32px);
   }
 
+  .page-hub .hero-eyebrow {
+    grid-column: 1 / -1;
+  }
+
   .page-hub .hero-title {
-    grid-row: 1;
+    grid-row: 2;
     align-items: baseline;
     margin-bottom: clamp(24px, 3vw, 44px);
   }
@@ -1679,19 +1699,19 @@ p {
 
   .page-hub .hero-stage {
     grid-column: 5 / -1;
-    grid-row: 2 / 4;
+    grid-row: 3 / 5;
     align-self: start;
   }
 
   .page-hub .hero-copy {
     grid-column: 1 / 5;
-    grid-row: 2;
+    grid-row: 3;
     margin-top: 0;
   }
 
   .page-hub .hero-facts {
     grid-column: 1 / 5;
-    grid-row: 3;
+    grid-row: 4;
     justify-items: start;
     text-align: left;
   }
@@ -2323,6 +2343,28 @@ p {
   color: var(--flesh);
 }
 
+/* The launch price is the price; what comes after it is said plainly,
+   never crossed out. */
+.plan-pro .plan-launch {
+  justify-self: start;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--deep);
+  color: var(--flesh);
+  font-size: var(--fs-small);
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.plan-pro .plan-later {
+  max-width: 36em;
+  padding-top: 16px;
+  border-top: 1px solid rgba(216, 232, 167, 0.18);
+  color: var(--ink-2);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+}
+
 .pricing-foot {
   grid-area: foot;
   display: grid;
@@ -2599,6 +2641,7 @@ html.has-lightbox {
 
   /* The first screen, without waiting for the script: the two halves of
      the slogan meet the windows, which settle in place. */
+  .hero-eyebrow,
   .hero-half-a,
   .hero-half-b,
   .hero-copy,
@@ -2679,12 +2722,17 @@ html.has-lightbox {
 @media (max-width: 1099px) {
   .hero-grid {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto auto auto;
+    grid-template-rows: auto auto auto auto auto auto;
+  }
+
+  .hero-eyebrow {
+    grid-column: 1;
+    grid-row: 1;
   }
 
   .hero-title {
     grid-column: 1;
-    grid-row: 1 / 4;
+    grid-row: 2 / 5;
     grid-template-columns: none;
     grid-template-rows: subgrid;
     align-items: stretch;
@@ -2712,13 +2760,13 @@ html.has-lightbox {
   }
 
   .hero-copy {
-    grid-row: 4;
+    grid-row: 5;
     margin-top: 28px;
   }
 
   .hero-facts {
     grid-column: 1;
-    grid-row: 5;
+    grid-row: 6;
     justify-items: start;
     text-align: left;
     margin-top: 24px;

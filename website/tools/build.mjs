@@ -17,6 +17,7 @@
 //               picture: high priority, not lazy) or decor (empty alt)
 //   {{> name}}  a partial from src/partials
 
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -53,6 +54,16 @@ const PAGES = [
   { id: '404', template: '404.html', paths: { en: '404.html' }, title: 'meta.notFoundTitle', description: 'meta.homeDescription',
     og: 'og', ogAlt: 'meta.ogAlt' },
 ];
+
+// The day a page last changed, for the sitemap: the newest commit touching
+// what the page is built from (git's committer date), or today outside git.
+function lastChanged(files) {
+  try {
+    const date = execFileSync('git', ['log', '-1', '--format=%cs', '--', ...files], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+  } catch {}
+  return new Date().toISOString().slice(0, 10);
+}
 
 // Screenshots in src/assets/img/screens/<file>-<width>.{avif,webp,jpg}: Avo's
 // own windows, Avo Hub's (rendered by its snapshot tests, with sample data),
@@ -100,6 +111,9 @@ const stripTags = (html) => String(html).replace(/<[^>]*>/g, '');
 
 /** JSON that is safe inside a <script type="application/json"> element. */
 const scriptJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+
+/** The day after an ISO date (2027-01-01 -> 2027-01-02). */
+const nextDay = (date) => new Date(Date.parse(`${date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
 
 const hash = (text) => createHash('sha256').update(text).digest('hex').slice(0, 10);
 
@@ -166,6 +180,14 @@ function checkConfig(config) {
   url(config.hub?.release?.downloadUrl, 'hub.release.downloadUrl', { optional: true });
   for (const key of ['pricingUrl', 'termsUrl', 'privacyUrl', 'refundUrl']) url(config.hub?.[key], `hub.${key}`);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(config.contact?.email || '')) errors.push('contact.email is not an email address');
+  const pricing = config.hub?.pricing;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(pricing?.launchEnds || '')) errors.push('hub.pricing.launchEnds must be a date like 2027-01-01');
+  for (const tier of ['launch', 'standard']) {
+    for (const period of ['month', 'year']) {
+      const pair = pricing?.[tier]?.[period];
+      if (!Array.isArray(pair) || pair.length !== 2 || !pair.every((n) => Number.isFinite(n) && n > 0)) errors.push(`hub.pricing.${tier}.${period} must be [first device, each one after], in US dollars`);
+    }
+  }
   try {
     fontSetName(config.fonts);
   } catch (error) {
@@ -244,6 +266,47 @@ function channelList(channels, t) {
       : `<li><div class="channel">${inner}</div></li>`;
   });
   return `<ul class="channels">\n${items.join('\n')}\n</ul>`;
+}
+
+// A plain summary of both apps for language models and other readers
+// (llmstxt.org), in English, from the same facts as the pages.
+function llmsText({ config, siteUrl, githubUrl, dict }) {
+  const say = (key) => stripTags(lookup(dict, key, 'en')).replace(/&amp;/g, '&');
+  const p = config.hub.pricing;
+  const ends = new Intl.DateTimeFormat('en-US', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${p.launchEnds}T00:00:00Z`));
+  const release = config.release || {};
+  return [
+    '# Avo',
+    '',
+    `> ${say('meta.slogan')} Avo is a free, open-source Android emulator for Macs with Apple silicon: it runs Android apps and games on the Mac, each in its own window. Avo Hub, its sibling app, mirrors an Android phone of any brand to the Mac and controls it, with its notifications, messages, calls and files.`,
+    '',
+    '## Avo: Android apps and games on the Mac',
+    '',
+    `- [Avo](${siteUrl}/): ${say('meta.homeDescription')}`,
+    `- [Avo in Indonesian](${siteUrl}/id/)`,
+    `- Requirements: a Mac with Apple silicon (M1, M2, M3, M4 or newer), macOS 15 Sequoia or newer, 10 GB of free space. Intel Macs are not supported.`,
+    `- Price: free, with no ads and no account. Open source under the Apache License 2.0.`,
+    '- Features:',
+    ...say('meta.avoFeatureList').split('; ').map((feature) => `  - ${feature}`),
+    ...(release.available ? [`- Download: [Avo ${release.version}](${release.downloadUrl}) (disk image)`] : []),
+    `- [Source code and documentation](${githubUrl})`,
+    '',
+    '## Avo Hub: your Android phone on your Mac',
+    '',
+    `- [Avo Hub](${siteUrl}/hub/): ${say('meta.hubDescription')}`,
+    `- [Avo Hub in Indonesian](${siteUrl}/id/hub/)`,
+    `- Requirements: a Mac with Apple silicon (M1 or newer) on macOS 15 Sequoia or newer; an Android phone or tablet of any brand on Android 11 or newer.`,
+    '- Features:',
+    ...say('meta.hubFeatureList').split('; ').map((feature) => `  - ${feature}`),
+    `- Status: ${config.hub.release?.available ? `version ${config.hub.release.version} is out` : 'in development; no build is published yet'}.`,
+    `- Price: free over a USB cable and the same Wi-Fi, with or without an account. Pro, for internet use without a monthly allowance and extras: launch price until ${ends}, $${p.launch.month[0]} a month for the first device and $${p.launch.month[1]} for each one after, or $${p.launch.year[0]} and $${p.launch.year[1]} a year; after that $${p.standard.month[0]} and $${p.standard.month[1]} a month, or $${p.standard.year[0]} and $${p.standard.year[1]} a year. Launch subscribers keep their price while they stay subscribed.`,
+    `- [Pricing](${config.hub.pricingUrl}), [Terms](${config.hub.termsUrl}), [Privacy](${config.hub.privacyUrl}), [Refunds](${config.hub.refundUrl})`,
+    '',
+    '## Contact',
+    '',
+    `- ${config.contact.email}`,
+    '',
+  ].join('\n');
 }
 
 // -------------------------------------------------------------------- build
@@ -343,7 +406,18 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
         privacy: hubLink(config.hub.privacyUrl),
         refund: hubLink(config.hub.refundUrl),
       };
-      const tokens = { github: githubUrl, blob: blobUrl, contactEmail: config.contact.email, hubGithub: hubGithubUrl, hubPricing: hubLinks.pricing };
+      // Pro's prices and the launch price's last day, as the page writes them.
+      const prices = config.hub.pricing;
+      const priceTokens = Object.fromEntries(
+        ['launch', 'standard'].flatMap((tier) =>
+          ['month', 'year'].flatMap((period) => {
+            const Period = period === 'month' ? 'Month' : 'Year';
+            return [[`${tier}First${Period}`, `$${prices[tier][period][0]}`], [`${tier}Extra${Period}`, `$${prices[tier][period][1]}`]];
+          }),
+        ),
+      );
+      const launchEnds = new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'id-ID', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${prices.launchEnds}T00:00:00Z`));
+      const tokens = { github: githubUrl, blob: blobUrl, contactEmail: config.contact.email, hubGithub: hubGithubUrl, hubPricing: hubLinks.pricing, launchEnds, ...priceTokens };
       const text = (key, extra = {}) => lookup(dict, key, lang).replace(/\{(\w+)\}/g, (m, name) => (name in extra ? extra[name] : name in tokens ? escapeHtml(tokens[name]) : m));
       const t = (key, extra) => text(key, extra);
       const counterpart = page.paths[other] ?? null;
@@ -480,6 +554,7 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
         logo: { '@type': 'ImageObject', url: `${siteUrl}/assets/img/favicon-512.png`, width: 512, height: 512 },
         email: config.contact.email,
         description: stripTags(t('meta.orgDescription')),
+        slogan: stripTags(t('meta.slogan')),
         sameAs: [githubUrl],
       };
       const website = {
@@ -507,6 +582,7 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
         ...(release.available ? { softwareVersion: release.version, downloadUrl, ...(release.size ? { fileSize: release.size.replace(/\s+/g, '') } : {}) } : {}),
         isAccessibleForFree: true,
         license: 'https://www.apache.org/licenses/LICENSE-2.0',
+        featureList: stripTags(t('meta.avoFeatureList')).split('; '),
         image: shotUrl('library'),
         screenshot: ['library', 'game-play', 'game-keys', 'settings-graphics'].map(shotUrl),
         offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', ...(release.available ? { availability: 'https://schema.org/InStock' } : {}) },
@@ -527,16 +603,27 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
         ...(hubOpen ? { license: 'https://www.apache.org/licenses/LICENSE-2.0' } : {}),
         image: shotUrl('hub-overview'),
         screenshot: ['hub-overview', 'hub-notifications', 'hub-messages', 'hub-calls', 'hub-files', 'hub-readiness'].map(shotUrl),
+        featureList: stripTags(t('meta.hubFeatureList')).split('; '),
+        // Free, then Pro by the month and by the year: the launch price for
+        // subscriptions started up to its last day, the standard one after.
         offers: [
           { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'USD', url: hubLinks.pricing },
-          {
-            '@type': 'Offer',
-            name: 'Pro',
-            price: '2',
-            priceCurrency: 'USD',
-            url: hubLinks.pricing,
-            priceSpecification: { '@type': 'UnitPriceSpecification', price: '2', priceCurrency: 'USD', billingDuration: 'P1M', referenceQuantity: { '@type': 'QuantitativeValue', value: 1, unitText: 'device' } },
-          },
+          ...['launch', 'standard'].flatMap((tier) =>
+            ['month', 'year'].map((period) => {
+              const [first, extra] = prices[tier][period];
+              const billingDuration = period === 'month' ? 'P1M' : 'P1Y';
+              const unit = (price, unitText) => ({ '@type': 'UnitPriceSpecification', price: String(price), priceCurrency: 'USD', billingDuration, referenceQuantity: { '@type': 'QuantitativeValue', value: 1, unitText } });
+              return {
+                '@type': 'Offer',
+                name: `Pro, ${period === 'month' ? 'monthly' : 'yearly'}${tier === 'launch' ? ' (launch price)' : ''}`,
+                price: String(first),
+                priceCurrency: 'USD',
+                url: hubLinks.pricing,
+                ...(tier === 'launch' ? { priceValidUntil: prices.launchEnds } : { validFrom: nextDay(prices.launchEnds) }),
+                priceSpecification: [unit(first, 'first device'), unit(extra, 'each further device')],
+              };
+            }),
+          ),
         ],
         isRelatedTo: { '@id': avoId },
         publisher: { '@id': orgId },
@@ -668,22 +755,25 @@ export async function build({ outDir = path.join(ROOT, 'dist'), strict = false, 
   const sitemap = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
-    ...urls.flatMap((p) =>
-      LANGS.map((lang) =>
+    ...urls.flatMap((p) => {
+      const lastmod = lastChanged([`src/pages/${p.template}`, 'src/i18n', 'src/partials', 'site.config.mjs']);
+      return LANGS.map((lang) =>
         [
           '  <url>',
           `    <loc>${escapeHtml(`${siteUrl}/${p.paths[lang]}`)}</loc>`,
+          `    <lastmod>${lastmod}</lastmod>`,
           ...LANGS.map((alt) => `    <xhtml:link rel="alternate" hreflang="${alt}" href="${escapeHtml(`${siteUrl}/${p.paths[alt]}`)}"/>`),
           `    <xhtml:link rel="alternate" hreflang="x-default" href="${escapeHtml(`${siteUrl}/${p.paths.en}`)}"/>`,
           ...(imageEntries[`${p.id}:${lang}`] || []).map((img) => `    <image:image><image:loc>${escapeHtml(img.loc)}</image:loc></image:image>`),
           '  </url>',
         ].join('\n'),
-      ),
-    ),
+      );
+    }),
     '</urlset>',
     '',
   ].join('\n');
   await writeFile(path.join(outDir, 'sitemap.xml'), sitemap);
+  await writeFile(path.join(outDir, 'llms.txt'), llmsText({ config, siteUrl, githubUrl, dict: dicts.en }));
   await writeFile(path.join(outDir, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: /404.html\n\nSitemap: ${siteUrl}/sitemap.xml\n`);
   await writeFile(
     path.join(outDir, 'site.webmanifest'),

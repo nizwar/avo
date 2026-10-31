@@ -47,6 +47,16 @@ export default {
     termsUrl: 'https://auth.avodroid.com/terms',
     privacyUrl: 'https://auth.avodroid.com/privacy',
     refundUrl: 'https://auth.avodroid.com/refund',
+    // Pro's prices in US dollars, per device: [first device, each one after]
+    // (Avo Hub's docs/decisions.md D-17). The launch price is for
+    // subscriptions started up to and including `launchEnds`, and stays with
+    // them for as long as they last; the standard price is for those started
+    // later. The page's wording and its structured data both read these.
+    pricing: {
+      launchEnds: '2027-01-01',
+      launch: { month: [2, 1], year: [20, 10] },
+      standard: { month: [5, 3], year: [50, 30] },
+    },
   },
 
   // Typefaces, one switch for the whole site (only the chosen set is published):
