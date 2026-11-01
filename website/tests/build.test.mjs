@@ -676,8 +676,10 @@ test('the policies say all of their text, in both languages, with their links wo
   assert.match(read('hub/refunds/index.html'), /Full refund within 14 days/);
   assert.match(read('hub/privacy/index.html'), /up to 30 days after you close it/);
   // Their structured data: when they last changed.
-  assert.equal(ofType(jsonLd(terms), 'WebPage')[0].dateModified, '2026-10-31');
+  assert.equal(ofType(jsonLd(terms), 'WebPage')[0].dateModified, '2026-11-01');
   assert.equal(ofType(jsonLd(terms), 'SoftwareApplication').length, 0);
+  // One name for the web app that reaches the Mac, as Avo Hub's own pages say it.
+  assert.doesNotMatch(terms, /Avo Remote Web/);
 });
 
 test('the pricing page: Free and Pro per device, the launch price until it ends, and Get Pro at the account', async () => {
@@ -686,6 +688,12 @@ test('the pricing page: Free and Pro per device, the launch price until it ends,
   // Built before the launch price ends: it shows, the standard price waits hidden for the visitor's clock.
   assert.equal(text(visibleText(en).match(/Free over a cable and Wi‑Fi\. Pro from \$\d+ a month\./)[0]), 'Free over a cable and Wi‑Fi. Pro from $2 a month.');
   assert.match(visibleText(id), /Gratis lewat kabel dan Wi‑Fi\. Pro mulai \$2 per bulan\./);
+  // Browsers never count, so the page never counts them (judge A K4).
+  for (const page of [en, id]) assert.doesNotMatch(visibleText(page), /linked browsers|browser tertaut/);
+  assert.match(visibleText(en), /Avo Hub Web and Avo Remote in any browser/);
+  // Indonesian: the site's own voice (kamu) on the pricing page, as on /id/hub/ and the footer (judge A K11).
+  assert.doesNotMatch(visibleText(id), /\bAnda\b/);
+  assert.match(id, />Pengembalian Dana</);
   assert.match(en, /<body class="page page-hub-pages page-hub-pricing" data-account="https:\/\/auth\.avodroid\.com\/" data-launch-ends="2027-01-02T12:00:00Z">/);
   // The date kept whole (no-break spaces) where the line wraps.
   assert.match(en, /<p class="hub-plan-launch" data-price-list="launch">Launch price until January\u00a01,\u00a02027<\/p>/);

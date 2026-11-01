@@ -23,16 +23,19 @@
       <div class="hub-plan hub-plan-free">
         <h3 class="hub-plan-name">{{t:hubPricing.freeName}}</h3>
         <p class="hub-plan-price"><span class="hub-plan-figure">{{t:hubPricing.freePrice}}</span> <span class="hub-plan-per">{{t:hubPricing.freePer}}</span></p>
-        <p class="hub-plan-sub">{{t:hubPricing.freeNote}}</p>
-        <p class="hub-plan-cta"><a class="btn btn-secondary" href="{{v:accountUrl}}">{{t:hubPricing.freeCta}}</a></p>
-        <p class="hub-plan-fine">{{t:hubPricing.optional}}</p>
+        <!-- Free's button right under its note: the room Pro's longer prices
+             take falls below it, not above it. -->
+        <div class="hub-plan-sub">
+          <p>{{t:hubPricing.freeNote}}</p>
+          <p class="hub-plan-cta"><a class="btn btn-secondary" href="{{v:accountUrl}}">{{t:hubPricing.freeCta}}</a></p>
+          <p class="hub-plan-fine">{{t:hubPricing.optional}}</p>
+        </div>
         <ul class="plan-list hub-plan-list">
           <li>{{t:hubPricing.free1}}</li>
           <li>{{t:hubPricing.free2}}</li>
           <li>{{t:hubPricing.free3}}</li>
           <li>{{t:hubPricing.free4}}</li>
           <li>{{t:hubPricing.free5}}</li>
-          <li>{{t:hubPricing.free6}}</li>
         </ul>
       </div>
       <div class="hub-plan hub-plan-pro">
@@ -52,7 +55,6 @@
           <li>{{t:hubPricing.pro3}}</li>
           <li>{{t:hubPricing.pro4}}</li>
           <li>{{t:hubPricing.pro5}}</li>
-          <li>{{t:hubPricing.pro6}}</li>
           <li>{{t:hubPricing.pro7}}</li>
         </ul>
       </div>

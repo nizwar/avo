@@ -61,13 +61,11 @@ export default {
       // Billing, privacy and refund questions.
       email: 'support@avodroid.com',
       // When the policies last changed (shown on each page).
-      updated: '2026-10-31',
+      updated: '2026-11-01',
       plan: {
         trialDays: 14,
         trialDevices: 5,
         freeDevices: 2,
-        freeBrowsers: 2,
-        proBrowsers: 10,
         refundDays: 14,
         graceDays: 7,
         passDays: 7,

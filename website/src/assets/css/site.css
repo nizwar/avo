@@ -2748,6 +2748,20 @@ p {
   border-top: 1px solid var(--tone-2);
 }
 
+/* Free's note, button and fine print share the rows of Pro's prices, button
+   and fine print, so its button sits under its note. */
+.hub-plan-free .hub-plan-sub {
+  grid-row: span 3;
+}
+
+.hub-plan-free .hub-plan-sub .hub-plan-cta {
+  margin-top: 18px;
+}
+
+.hub-plan-free .hub-plan-sub .hub-plan-fine {
+  margin-top: 4px;
+}
+
 .hub-plan-pro .hub-plan-list {
   border-top-color: rgba(216, 232, 167, 0.18);
 }
@@ -2839,6 +2853,10 @@ p {
   .hub-plan {
     grid-row: auto;
     grid-template-rows: none;
+  }
+
+  .hub-plan-free .hub-plan-sub {
+    grid-row: auto;
   }
 
   .hub-notes {
