@@ -67,7 +67,6 @@
 		79569C517CFA4575CA0927F8 /* IconPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = E37F0548829F26D1E6A7E140 /* IconPalette.swift */; };
 		7A075CAF7513581AA30E117D /* MetalFX.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 955B641751C45E99B315D024 /* MetalFX.framework */; };
 		7BAC06A4BDFE31BABDFF838D /* RendererViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA3880E6FB2FA9A24EC952B /* RendererViews.swift */; };
-		7CCD306BE7B72985D604F70C /* profiles in Resources */ = {isa = PBXBuildFile; fileRef = EC8AC61C7E68928CCD0F2D49 /* profiles */; };
 		7E57825E3D6A11593F1C53C1 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = F4F9010B156E6BEDCE8E4756 /* AppIcon.icon */; };
 		802CBDCDB31C11D8E7A50856 /* GraphicsResultCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D64F1BB56C1F298D38C26FE /* GraphicsResultCard.swift */; };
 		80F7B035228CE63F63182E75 /* PermissionNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27670785BC1057938A994E09 /* PermissionNames.swift */; };
@@ -114,6 +113,7 @@
 		D1A16D2DF31D16D8E046BA4C /* MetalShaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = C053250AD3795D366BC07270 /* MetalShaders.swift */; };
 		D2131F5B4D766155448D1B8D /* hubot-sans.woff2 in Resources */ = {isa = PBXBuildFile; fileRef = E5990156EBF343F953E52769 /* hubot-sans.woff2 */; };
 		D274969A8BFA690ADC2E7160 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0618B7045A2A842D4AD57B6E /* MenuBarController.swift */; };
+		D535237D658E53A31CF2FE9F /* profiles in Resources */ = {isa = PBXBuildFile; fileRef = 01DE9A3E8C4D5762AC330531 /* profiles */; };
 		D544BACD0B83BA0AEB67C3DF /* SettingsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47F3C42CCBD7A219B9BB4E75 /* SettingsWindow.swift */; };
 		D57AB7EFF17AF669B7653199 /* AndroidImageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3160137FB918D2EBB43F9C29 /* AndroidImageManager.swift */; };
 		DE1E76ECF99037937ED9C0E5 /* GamepadForwarder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BF3A0AB3B94D90F3F547F51 /* GamepadForwarder.swift */; };
@@ -231,6 +231,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		01DE9A3E8C4D5762AC330531 /* profiles */ = {isa = PBXFileReference; lastKnownFileType = folder; name = profiles; path = ../profiles; sourceTree = SOURCE_ROOT; };
 		0618B7045A2A842D4AD57B6E /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		08BF662568EB77466F4A1FEA /* MacSystemState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSystemState.swift; sourceTree = "<group>"; };
 		0A09687C574C3E6A5682388E /* ScreenTranslationOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTranslationOverlay.swift; sourceTree = "<group>"; };
@@ -336,7 +337,6 @@
 		E6B98E4EAC479449B37A4DA1 /* AndroidWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AndroidWindowController.swift; sourceTree = "<group>"; };
 		EADFC800FDCF147039B429D8 /* CaptureFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureFiles.swift; sourceTree = "<group>"; };
 		EB753E2158DC17A4E034C9B1 /* GraphicsMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphicsMenu.swift; sourceTree = "<group>"; };
-		EC8AC61C7E68928CCD0F2D49 /* profiles */ = {isa = PBXFileReference; lastKnownFileType = folder; name = profiles; path = ../profiles; sourceTree = SOURCE_ROOT; };
 		EF7F1029C48A58A05962B422 /* RecordingAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingAudio.swift; sourceTree = "<group>"; };
 		EF84B0D93E7B26F1EBC816E3 /* DisplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayView.swift; sourceTree = "<group>"; };
 		F11C20BD16E21123B21D88FB /* StatusViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusViews.swift; sourceTree = "<group>"; };
@@ -395,6 +395,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		1172DD0AD31DDF8DA29C477A /* avo */ = {
+			isa = PBXGroup;
+			children = (
+				01DE9A3E8C4D5762AC330531 /* profiles */,
+			);
+			name = avo;
+			path = ..;
+			sourceTree = "<group>";
+		};
 		2A506A8BDC686CDD7C2443EE /* AvoShim */ = {
 			isa = PBXGroup;
 			children = (
@@ -410,12 +419,12 @@
 			isa = PBXGroup;
 			children = (
 				8884137A2D8A72EA20FE6F28 /* Avo */,
+				1172DD0AD31DDF8DA29C477A /* avo */,
 				A7476617DA7B529836987A10 /* avoctl */,
 				D47E8630A3C1286789D7F14B /* AvoDaemon */,
 				2A506A8BDC686CDD7C2443EE /* AvoShim */,
 				DB845F15F9A2152809A95F7E /* AvoWindowHost */,
 				FBA6D5D52CAF2627DF55D613 /* Config */,
-				A7501D042251545BCDF0BDA1 /* dreamy-pike-5abbcc */,
 				8BCA2D8D97B264CE7B2B7C56 /* Packages */,
 				A3CD55D0A94D59B727EFEEB2 /* Frameworks */,
 				3C132BBC38FF08956F3BFE6A /* Products */,
@@ -538,15 +547,6 @@
 				96ED77A3C55350AFFABBD5A8 /* main.swift */,
 			);
 			path = avoctl;
-			sourceTree = "<group>";
-		};
-		A7501D042251545BCDF0BDA1 /* dreamy-pike-5abbcc */ = {
-			isa = PBXGroup;
-			children = (
-				EC8AC61C7E68928CCD0F2D49 /* profiles */,
-			);
-			name = "dreamy-pike-5abbcc";
-			path = ..;
 			sourceTree = "<group>";
 		};
 		D47E8630A3C1286789D7F14B /* AvoDaemon */ = {
@@ -812,7 +812,7 @@
 				9927CA7D5EE28CAC9BBFC966 /* OFL-MonaSans.txt in Resources */,
 				D2131F5B4D766155448D1B8D /* hubot-sans.woff2 in Resources */,
 				55582661F414850A21ED9F4A /* mona-sans.woff2 in Resources */,
-				7CCD306BE7B72985D604F70C /* profiles in Resources */,
+				D535237D658E53A31CF2FE9F /* profiles in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
