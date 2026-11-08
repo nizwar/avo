@@ -8,6 +8,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { AVO_PAGES, build, HUB_PAGES } from '../tools/build.mjs';
+import site from '../site.config.mjs';
 import { isAppSignIn, keepBack, languageMove, priceList, wayBack } from '../src/assets/js/hub-pages.js';
 
 let out;
@@ -365,7 +366,7 @@ test('the unreleased state is honest; a release shows the download', async () =>
   const home = read('index.html');
   assert.match(home, /Download for Mac/);
   assert.match(home, /href="https:\/\/github\.com\/nizwar\/avo\/releases\/download\/v[^"]+\.dmg"/);
-  assert.match(home, /Avo 1\.0\.0 · 26 MB · free/);
+  assert.ok(home.includes(`Avo ${site.release.version} · ${site.release.size} · free`), 'the release line names the configured version and size');
 
   const unreleased = await mkdtemp(path.join(tmpdir(), 'avo-site-'));
   try {
