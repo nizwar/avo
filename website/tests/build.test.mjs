@@ -691,7 +691,13 @@ test('the pricing page: Free and Pro per device, the launch price until it ends,
   assert.match(visibleText(id), /Gratis lewat kabel dan Wi‑Fi\. Pro mulai \$2 per bulan\./);
   // Browsers never count, so the page never counts them (judge A K4).
   for (const page of [en, id]) assert.doesNotMatch(visibleText(page), /linked browsers|browser tertaut/);
-  assert.match(visibleText(en), /Avo Hub Web and Avo Remote in any browser/);
+  // The web apps are for subscribers (Avo Hub Tambahan 80): listed under Pro, never under Free.
+  for (const [page, web] of [[en, 'Avo Hub Web and Avo Remote in any browser'], [id, 'Avo Hub Web dan Avo Remote di browser apa pun']]) {
+    const plans = page.split('hub-plan-pro');
+    assert.ok(plans.length > 1, 'the Pro plan is on the page');
+    assert.doesNotMatch(visibleText(plans[0]), new RegExp(web), 'the web apps are not in Free');
+    assert.match(visibleText(plans.slice(1).join('')), new RegExp(web), 'the web apps are in Pro');
+  }
   // Indonesian: the site's own voice (kamu) on the pricing page, as on /id/hub/ and the footer (judge A K11).
   assert.doesNotMatch(visibleText(id), /\bAnda\b/);
   assert.match(id, />Pengembalian Dana</);
