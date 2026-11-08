@@ -6,7 +6,7 @@ number (`CFBundleVersion`) that only goes up; see
 [docs/versioning.md](docs/versioning.md). Releases up to build 113 were
 named "Preview N".
 
-## Unreleased
+## 1.1.0 (build 126)
 
 ### New
 
@@ -15,6 +15,11 @@ named "Preview N".
   a code (Just Works), and the bond holds across restarts. The device
   pairs with the Mac itself when it asks for that. Until now every pairing
   was refused, which left those apps waiting or failing (#15).
+- **Touches feel like a finger.** Touches from the mouse and from key
+  mapping now carry a finger's own pressure, size and touch area, come
+  from the screen's touchscreen, and keep exact timing. A key-mapped tap
+  lands somewhere on its button instead of the same pixel every time, and
+  the view control touches down on a fresh spot within its area.
 
 ### Fixed
 

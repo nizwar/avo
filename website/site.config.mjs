@@ -19,9 +19,9 @@ export default {
   // not released yet and points to building from source and to GitHub.
   release: {
     available: true,
-    version: '1.0.0',
+    version: '1.1.0',
     // The disk image itself, so the button downloads at once. Update with each release.
-    downloadUrl: 'https://github.com/nizwar/avo/releases/download/v1.0.0/Avo-1.0.0-b123.dmg',
+    downloadUrl: 'https://github.com/nizwar/avo/releases/download/v1.1.0/Avo-1.1.0-b126.dmg',
     // The disk image's size as visitors read it, next to the button. Update with each release.
     size: '26 MB',
   },
