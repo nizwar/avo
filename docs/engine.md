@@ -944,9 +944,13 @@ request to a characteristic that takes only commands is sent as one and
 answered), and writes without response wait for CoreBluetooth's room
 instead of being dropped. CoreBluetooth reports the end of a connection
 Avo cancelled after Android may already have connected again: that report
-is the old link's, not the new one's. Pairing is refused (SMP "pairing
-not supported"; CoreBluetooth pairs with the device itself) and L2CAP
-channels on a PSM are not offered. Classic Bluetooth (headsets, older
+is the old link's, not the new one's. Android pairs with the chip by LE
+legacy Just Works (`BLEPairing`: the chip has no display and no keys), for
+apps that bond before they use a device; a bond gets a long term key
+derived from the chip's address, so it holds across restarts, and a later
+connection is encrypted with it. The device itself pairs with the Mac,
+which CoreBluetooth does when the device asks for it. L2CAP channels on a
+PSM are not offered. Classic Bluetooth (headsets, older
 controllers) has no way through. macOS asks for Bluetooth access the first
 time Android's Bluetooth is on (`NSBluetoothAlwaysUsageDescription`, in
 Avo.app and the daemon). `ProxyChipInNetsim` tests the chip against a real

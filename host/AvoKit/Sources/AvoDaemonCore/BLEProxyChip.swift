@@ -8,8 +8,9 @@ import os
 /// its own (the device's own address is CoreBluetooth's secret). When
 /// Android connects, the Mac connects to the device (`GATTRemote`) and the
 /// chip serves its GATT database over L2CAP's attribute channel
-/// (GATTServer); the device's notifications follow. Pairing is refused
-/// ("pairing not supported"): CoreBluetooth pairs with the device itself.
+/// (GATTServer); the device's notifications follow. Android pairs with the
+/// chip by Just Works (BLEPairing); CoreBluetooth pairs with the device
+/// itself when the device asks for it.
 actor BLEProxyChip {
     nonisolated let address: [UInt8]
     private let chip: HCIChip
@@ -24,6 +25,8 @@ actor BLEProxyChip {
     private var server: GATTServer?
     private var remote: (any GATTRemote)?
     private var notifications: Task<Void, Never>?
+    /// Android's pairing with the chip on this connection.
+    private var pairing: BLEPairing?
     /// The L2CAP frame coming in, across ACL packets.
     private var incoming: [UInt8] = []
 
@@ -160,6 +163,13 @@ actor BLEProxyChip {
             // Legacy advertising stops with a connection: again, for the next
             // one, with what the device advertised meanwhile.
             await readvertise()
+        case .event(0x08, let parameters) where parameters.count >= 4:
+            // Encryption Change: status, handle, on. After pairing, the bond's key goes to Android.
+            guard parameters[0] == 0, parameters[3] != 0, UInt16(parameters[1]) | UInt16(parameters[2]) << 8 == connection,
+                  var pairing else { return }
+            let keys = pairing.encrypted()
+            self.pairing = pairing
+            for pdu in keys { await send(Self.securityChannel, pdu) }
         case .event(0x13, let parameters) where !parameters.isEmpty:
             // Number Of Completed Packets: handle and count per handle.
             for index in 0..<Int(parameters[0]) where 1 + index * 4 + 3 < parameters.count {
@@ -183,13 +193,22 @@ actor BLEProxyChip {
     private func leMeta(_ parameters: [UInt8]) async {
         guard let subevent = parameters.first else { return }
         switch subevent {
-        case 0x01 where parameters.count >= 4 && parameters[1] == 0:
-            // LE Connection Complete: Android connected.
+        case 0x01 where parameters.count >= 12 && parameters[1] == 0:
+            // LE Connection Complete: status, handle, role, Android's address type and address.
             let handle = UInt16(parameters[2]) | UInt16(parameters[3]) << 8
+            pairing = BLEPairing(local: BLEPairing.Address(type: 0x01, bytes: address),
+                                 peer: BLEPairing.Address(type: parameters[5] & 0x01, bytes: Array(parameters[6..<12])),
+                                 key: .derived(for: address))
             await connected(handle)
-        case 0x05 where parameters.count >= 3:
-            // LE Long Term Key Request: there is no key (nothing was paired).
-            _ = try? await chip.command(HCIOpcode.leLongTermKeyRequestNegativeReply, Array(parameters[1...2]))
+        case 0x05 where parameters.count >= 13:
+            // LE Long Term Key Request: handle, Rand, EDIV. Pairing's short-term
+            // key, the bond's key, or none (Android's bond is with another chip).
+            let handle = Array(parameters[1...2])
+            if let key = pairing?.key(rand: Array(parameters[3..<11]), ediv: Array(parameters[11..<13])) {
+                _ = try? await chip.command(HCIOpcode.leLongTermKeyRequestReply, handle + key)
+            } else {
+                _ = try? await chip.command(HCIOpcode.leLongTermKeyRequestNegativeReply, handle)
+            }
         default:
             break
         }
@@ -226,6 +245,7 @@ actor BLEProxyChip {
         server = nil
         notifications?.cancel()
         notifications = nil
+        pairing = nil
         remote?.disconnect()
         remote = nil
         incoming = []
@@ -249,9 +269,11 @@ actor BLEProxyChip {
         case Self.attributeChannel:
             guard let server, let response = await server.handle(payload) else { return }
             await send(Self.attributeChannel, response)
-        case Self.securityChannel where payload.first == 0x01:
-            // Pairing Request: Pairing Failed, pairing not supported.
-            await send(Self.securityChannel, [0x05, 0x05])
+        case Self.securityChannel:
+            guard var pairing else { return }
+            let answer = pairing.received(payload)
+            self.pairing = pairing
+            if let answer { await send(Self.securityChannel, answer) }
         case Self.signalingChannel:
             if let reply = Self.signalingReply(payload) { await send(Self.signalingChannel, reply) }
         default:

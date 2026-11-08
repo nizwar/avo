@@ -173,6 +173,7 @@ enum HCIOpcode {
     static let setEventMask: UInt16 = 0x0C01
     static let reset: UInt16 = 0x0C03
     static let readBufferSize: UInt16 = 0x1005
+    static let readBDAddress: UInt16 = 0x1009
     static let leSetEventMask: UInt16 = 0x2001
     static let leReadBufferSize: UInt16 = 0x2002
     static let leSetRandomAddress: UInt16 = 0x2005
@@ -183,5 +184,7 @@ enum HCIOpcode {
     static let leSetScanParameters: UInt16 = 0x200B
     static let leSetScanEnable: UInt16 = 0x200C
     static let leCreateConnection: UInt16 = 0x200D
+    static let leEnableEncryption: UInt16 = 0x2019
+    static let leLongTermKeyRequestReply: UInt16 = 0x201A
     static let leLongTermKeyRequestNegativeReply: UInt16 = 0x201B
 }

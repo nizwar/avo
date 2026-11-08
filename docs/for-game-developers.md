@@ -243,7 +243,7 @@ A player on Avo is almost always using a keyboard and a mouse or trackpad.
   hardware level EXTERNAL, Motion-JPEG up to 1080p at 30 fps, no flash or
   zoom). Bluetooth turns on when the Android Emulator is installed
   (a virtual controller) and reaches the Bluetooth LE devices the Mac sees
-  (GATT through the Mac; no classic Bluetooth, no pairing yet). GPS reports the Mac's location when the user
+  (GATT through the Mac, and Just Works pairing; no classic Bluetooth). GPS reports the Mac's location when the user
   allows it.
 
 ## What we ask of publishers
