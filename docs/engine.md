@@ -771,7 +771,13 @@ daemon plays it over ADB (vsock 6520, root through `su` on userdebug):
   scrcpy share, and its CNXN then goes to adbd (`ADBAuthGate`). A key that
   only offers itself (adb's "allow USB debugging?" prompt) is refused, as
   nobody inside Android would see the question;
-- once per data disk: Wi-Fi on and joined to VirtWifi, media volume at full
+- every boot: Wi-Fi on and on VirtWifi. A data disk's first boot asks
+  Android to join it; a later boot that does not find Android back on it
+  after 10 s asks too (`cmd wifi connect-network`), again after 15, 30 and
+  then every 60 s for up to 5 minutes (`GuestWiFi`). Android stops joining
+  a saved network by itself once its internet check failed there (blocked
+  or offline), and keeps that across restarts (issue #19);
+- once per data disk: media volume at full
   (the Mac's volume sets how loud), Thread off (no radio to simulate it),
   Bluetooth off only without a controller (below); every boot: UWB off (otherwise Android files a full bug
   report for the missing radio), the audio HAL without the MMAP and offload
