@@ -17,6 +17,15 @@ named "Preview N".
   while the Mac is offline, and remembers that. Avo now checks at every
   start, and when Android is not back on VirtWifi within a few seconds it
   asks it to join, again after a growing wait, until it is on.
+- **Bluetooth:** apps could see the Mac's Bluetooth LE devices but not
+  connect to them, or the connection never got going (#15). A device that
+  sends beacons between its advertisements could show up in Android as one
+  that takes no connections; Android connecting again right after it let
+  go found the new connection cut by the end of the old one; apps were
+  told the connection carries more than the device takes, so long commands
+  never reached it; commands sent in a burst were dropped; and a write the
+  device takes only without an answer was refused. Avo now handles each of
+  these as a phone does.
 
 ## 1.0.0 (build 123)
 

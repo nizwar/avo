@@ -179,6 +179,37 @@ final class FakeRemote: GATTRemote, Sendable {
         #expect(remote.state.withLock { $0.writes.last?.1 } == [1, 2, 3])
         #expect(await server.handle([0x0E, 1, 0, 2, 0]) == [0x01, 0x0E, 1, 0, 0x06], "Read Multiple is not supported")
     }
+
+    /// Android is offered no more than the Mac's connection to the device carries.
+    @Test func theMTUIsTheDevicesOwn() async {
+        let server = GATTServer(database: database, remote: FakeRemote(), deviceMTU: 185)
+        #expect(await server.handle([0x02, 0x05, 0x02]) == [0x03, 185, 0])
+        #expect(await server.mtu == 185)
+        let smaller = GATTServer(database: database, remote: FakeRemote(), deviceMTU: 185)
+        #expect(await smaller.handle([0x02, 100, 0]) == [0x03, 185, 0])
+        #expect(await smaller.mtu == 100)
+        let tiny = GATTServer(database: database, remote: FakeRemote(), deviceMTU: 0)
+        #expect(await tiny.handle([0x02, 0x05, 0x02]) == [0x03, 23, 0])
+    }
+
+    /// A serial-style characteristic that takes only commands (a BMS's or a heater's FFE1).
+    @Test func aRequestToACharacteristicThatTakesOnlyCommandsIsSentAsOne() async {
+        let remote = FakeRemote()
+        let id = GATTAttributeID(raw: 7)
+        let database = ATTDatabase(name: "BMS", services: [
+            GATTService(uuid: BLEUUID(0xFFE0), characteristics: [GATTCharacteristic(id: id, uuid: BLEUUID(0xFFE1), properties: 0x04)]),
+        ])
+        let server = GATTServer(database: database, remote: remote)
+        // GAP 1-5, GATT 6, the service 7, its characteristic's declaration 8 and value 9.
+        #expect(await server.handle([0x12, 9, 0, 0xAA]) == [0x13])
+        #expect(await server.handle([0x52, 9, 0, 0xBB]) == nil)
+        #expect(remote.state.withLock { $0.writes.map { [$0.0.raw, Int($0.1[0]), $0.2 ? 1 : 0] } } == [[7, 0xAA, 0], [7, 0xBB, 0]])
+        // One that takes no writes at all still refuses them.
+        let readOnly = ATTDatabase(name: "X", services: [
+            GATTService(uuid: BLEUUID(0xFFE0), characteristics: [GATTCharacteristic(id: id, uuid: BLEUUID(0xFFE1), properties: 0x12)]),
+        ])
+        #expect(await GATTServer(database: readOnly, remote: remote).handle([0x12, 9, 0, 0xAA]) == [0x01, 0x12, 9, 0, 0x03])
+    }
 }
 
 @Suite struct BLEProxyChipTests {
@@ -188,6 +219,23 @@ final class FakeRemote: GATTRemote, Sendable {
         #expect(address.count == 6 && address[5] & 0xC0 == 0xC0)
         #expect(BLEProxyChip.address(for: id) == address)
         #expect(BLEProxyChip.address(for: UUID()) != address)
+    }
+
+    /// A device that sends beacons between its connectable advertisements
+    /// stays connectable, with what it advertised then.
+    @Test func beaconsBetweenConnectableAdvertisementsAreLeftOut() {
+        var device = BLEAdvertisement()
+        device.name = "JK-BMS"
+        device.serviceUUIDs = [BLEUUID(0xFFE0)]
+        var beacon = BLEAdvertisement()
+        beacon.manufacturerData = [0x4C, 0x00, 0x02, 0x15]
+        beacon.connectable = false
+        #expect(BLEProxyChip.merged(beacon, over: device) == device)
+        #expect(BLEProxyChip.merged(device, over: beacon) == device, "a chip that started from a beacon becomes connectable")
+        #expect(BLEProxyChip.merged(beacon, over: beacon) == beacon, "a beacon alone stays one")
+        var renamed = device
+        renamed.name = "JK-BMS 2"
+        #expect(BLEProxyChip.merged(renamed, over: device) == renamed)
     }
 
     @Test func signalingRequestsAreRefused() {
@@ -264,6 +312,57 @@ struct ProxyChipInNetsim {
         let services = try await request([0x10, 0x01, 0x00, 0xFF, 0xFF, 0x00, 0x28])
         #expect(services.first == 0x11 && services.suffix(2) == [0x0D, 0x18])
         #expect(try await request([0x0A, 12, 0]) == [0x0B, 0x01])
+        await proxy.close()
+        await android.close()
+    }
+
+    /// A chip that first heard a beacon of the device advertises as
+    /// connectable once the device's own advertisement comes, and Android
+    /// connects to it.
+    @Test func aChipStartedFromABeaconBecomesConnectable() async throws {
+        let (netsimd, port) = try startNetsimd()
+        defer { netsimd.terminate() }
+        var chip: HCIChip?
+        for _ in 0..<100 where chip == nil {
+            chip = try? HCIChip.connect(port: port)
+            if chip == nil { try await Task.sleep(for: .milliseconds(100)) }
+        }
+        var beacon = BLEAdvertisement()
+        beacon.manufacturerData = [0x4C, 0x00, 0x02, 0x15] + [UInt8](repeating: 0x11, count: 21)
+        beacon.connectable = false
+        let proxy = BLEProxyChip(chip: try #require(chip), id: UUID(), advertisement: beacon) { FakeRemote() }
+        try await proxy.start()
+        var device = BLEAdvertisement()
+        device.name = "Heater"
+        device.serviceUUIDs = [BLEUUID(0xFFE0)]
+        await proxy.update(device)
+        await proxy.update(beacon)
+
+        let android = try HCIChip.connect(port: port)
+        await android.start()
+        try await android.command(HCIOpcode.reset)
+        try await android.command(HCIOpcode.setEventMask, [0xFF, 0xFF, 0xFB, 0xFF, 0x07, 0xF8, 0xBF, 0x3D])
+        try await android.command(HCIOpcode.leSetEventMask, [0x1F, 0, 0, 0, 0, 0, 0, 0])
+        try await android.command(HCIOpcode.leSetScanParameters, [0x01, 0x10, 0x00, 0x10, 0x00, 0x00, 0x00])
+        try await android.command(HCIOpcode.leSetScanEnable, [0x01, 0x00])
+        var events = android.packets.makeAsyncIterator()
+        var kind: UInt8?
+        while kind == nil, let packet = await events.next() {
+            // LE Advertising Report: subevent, count, event type (0 ADV_IND, 2 ADV_SCAN_IND, 4 SCAN_RSP), address type, address.
+            if case .event(0x3E, let p) = packet, p.first == 0x02, p.count > 11, Array(p[4..<10]) == proxy.address, p[2] != 0x04 {
+                kind = p[2]
+            }
+        }
+        #expect(kind == 0x00, "connectable, undirected")
+        try await android.command(HCIOpcode.leSetScanEnable, [0x00, 0x00])
+        try await android.command(HCIOpcode.leCreateConnection,
+                                  le16(0x0010) + le16(0x0010) + [0x00, 0x01] + proxy.address
+                                  + [0x00] + le16(0x0018) + le16(0x0028) + le16(0) + le16(0x0100) + le16(0) + le16(0))
+        var connected = false
+        while !connected, let packet = await events.next() {
+            if case .event(0x3E, let p) = packet, p.first == 0x01 { connected = p[1] == 0 }
+        }
+        #expect(connected)
         await proxy.close()
         await android.close()
     }
