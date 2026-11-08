@@ -101,6 +101,8 @@ actor HostAgent: DisplayResizing {
     /// Settings › Devices: Android's Wi-Fi, the Mac's Bluetooth devices for
     /// it, and whether the modem has a SIM.
     private var wifiWanted = true
+    /// This start's join to VirtWifi (`joinWiFi`).
+    private var wifiJoin: Task<Void, Never>?
     private var shareMacBluetooth = true
     private var cellularWanted = false
     /// The Mac's Bluetooth LE devices in Android's air (MacBluetoothBridge),
@@ -375,6 +377,7 @@ actor HostAgent: DisplayResizing {
         widgetsInstall?.cancel()
         answerWatch?.cancel()
         bluetoothWatch?.cancel()
+        wifiJoin?.cancel()
         await bluetoothBridge?.stop()
         await sharedFolder?.stop()
         let asked = await adb?.isOpen == true
@@ -1044,19 +1047,19 @@ actor HostAgent: DisplayResizing {
     }
 
     /// The engine's network is Android's Wi-Fi: the "VirtWifi" access point
-    /// (virt_wifi over eth2, engine/hvf/vmm/src/net.rs). Android joins it
-    /// once per data disk; after that Wi-Fi is whatever the user makes it in
-    /// Android's settings.
-    /// Settings › Devices: on (joined to VirtWifi once per data disk) or off
+    /// (virt_wifi over eth2, engine/hvf/vmm/src/net.rs).
+    /// Settings › Devices: on (joined to VirtWifi, GuestWiFi) or off
     /// (Android is offline), at every start (Android keeps its own switch
     /// too) and when the setting changes.
     private func applyWiFi() async {
+        wifiJoin?.cancel()
+        wifiJoin = nil
         guard wifiWanted else {
             _ = try? await shell("cmd wifi set-wifi-enabled disabled")
             return
         }
         _ = try? await shell("cmd wifi set-wifi-enabled enabled")
-        await joinWiFi()
+        wifiJoin = Task { [weak self] in await self?.joinWiFi() }
     }
 
     /// Settings › Devices changed (or a start begins): applied at once when Android is up.
@@ -1098,23 +1101,33 @@ actor HostAgent: DisplayResizing {
         logger.notice("mobile network: the SIM was not loaded after a minute; LTE stays \"LTE\" in the status bar")
     }
 
+    /// Android on VirtWifi: asked for on a data disk's first start, and at
+    /// every later start that does not find Android back on it by itself
+    /// (GuestWiFi, issue #19).
     private func joinWiFi() async {
-        guard (try? await shell("settings get global avo_wifi_joined"))?.trimmed != "1" else { return }
-        _ = try? await shell("cmd wifi set-wifi-enabled enabled")
-        var asked = false
-        for _ in 0..<30 {
-            if (try? await shell("cmd wifi status"))?.contains("Wifi is connected") == true {
-                _ = try? await shell("settings put global avo_wifi_joined 1")
-                logger.notice("Android is on Wi-Fi")
-                return
-            }
-            if !asked, (try? await shell("cmd wifi list-scan-results"))?.contains("VirtWifi") == true {
-                _ = try? await shell("cmd wifi connect-network VirtWifi open")
-                asked = true
-            }
-            try? await Task.sleep(for: .seconds(1))
+        let firstTime = (try? await shell("settings get global avo_wifi_joined"))?.trimmed != "1"
+        let outcome = await GuestWiFi.join(firstTime: firstTime) { command in
+            try? await self.shell(command)
+        } sleep: { duration in
+            await self.whilePaused()
+            try? await Task.sleep(for: duration)
+            return !Task.isCancelled
         }
-        logger.error("Android did not join Wi-Fi; it tries again next boot")
+        switch outcome {
+        case .joined(let asks):
+            if firstTime { _ = try? await shell("settings put global avo_wifi_joined 1") }
+            if asks == 0 {
+                logger.notice("Android is on Wi-Fi")
+            } else {
+                logger.notice("Android is on Wi-Fi after Avo asked it to join VirtWifi (\(asks, privacy: .public)x)")
+            }
+        case .turnedOff:
+            logger.notice("Wi-Fi was turned off in Android; Avo leaves it off until the next start")
+        case .gaveUp:
+            logger.error("Android did not join Wi-Fi; it tries again next start")
+        case .cancelled:
+            break
+        }
     }
 
     // MARK: Control channel

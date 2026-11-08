@@ -6,6 +6,18 @@ number (`CFBundleVersion`) that only goes up; see
 [docs/versioning.md](docs/versioning.md). Releases up to build 113 were
 named "Preview N".
 
+## Unreleased
+
+### Fixed
+
+- After a restart Android could stay off the internet, with Wi-Fi on but
+  not connected to VirtWifi, until it was picked again by hand (#19).
+  Android stops joining a network by itself once its check for internet
+  access failed there, which happens where Google's check is blocked or
+  while the Mac is offline, and remembers that. Avo now checks at every
+  start, and when Android is not back on VirtWifi within a few seconds it
+  asks it to join, again after a growing wait, until it is on.
+
 ## 1.0.0 (build 123)
 
 Avo 1.0: the first release with a plain version number, and the first that
