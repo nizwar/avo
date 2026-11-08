@@ -8,6 +8,14 @@ named "Preview N".
 
 ## Unreleased
 
+### New
+
+- **Bluetooth pairing.** Apps that pair with a Bluetooth LE device before
+  using it can now do so: Android pairs with the device's stand-in without
+  a code (Just Works), and the bond holds across restarts. The device
+  pairs with the Mac itself when it asks for that. Until now every pairing
+  was refused, which left those apps waiting or failing (#15).
+
 ### Fixed
 
 - After a restart Android could stay off the internet, with Wi-Fi on but

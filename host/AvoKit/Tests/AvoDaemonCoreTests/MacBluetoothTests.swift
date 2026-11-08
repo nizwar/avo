@@ -367,6 +367,98 @@ struct ProxyChipInNetsim {
         await android.close()
     }
 
+    /// Android bonds with the chip (Just Works), the link is encrypted with
+    /// the short-term key, the chip hands its key, and the next connection
+    /// is encrypted with that key.
+    @Test func androidBondsAndEncryptsAgainLater() async throws {
+        let (netsimd, port) = try startNetsimd()
+        defer { netsimd.terminate() }
+        var chip: HCIChip?
+        for _ in 0..<100 where chip == nil {
+            chip = try? HCIChip.connect(port: port)
+            if chip == nil { try await Task.sleep(for: .milliseconds(100)) }
+        }
+        var advertisement = BLEAdvertisement()
+        advertisement.name = "Leveler"
+        let proxy = BLEProxyChip(chip: try #require(chip), id: UUID(), advertisement: advertisement) { FakeRemote() }
+        try await proxy.start()
+
+        let android = try HCIChip.connect(port: port)
+        await android.start()
+        try await android.command(HCIOpcode.reset)
+        try await android.command(HCIOpcode.setEventMask, [0xFF, 0xFF, 0xFB, 0xFF, 0x07, 0xF8, 0xBF, 0x3D])
+        try await android.command(HCIOpcode.leSetEventMask, [0x1F, 0, 0, 0, 0, 0, 0, 0])
+        let own = try await android.command(HCIOpcode.readBDAddress)
+        let androidAddress = BLEPairing.Address(type: 0, bytes: Array(own.prefix(6)))
+        let chipAddress = BLEPairing.Address(type: 1, bytes: proxy.address)
+        var events = android.packets.makeAsyncIterator()
+
+        func connect() async throws -> UInt16 {
+            try await android.command(HCIOpcode.leCreateConnection,
+                                      le16(0x0010) + le16(0x0010) + [0x00, 0x01] + proxy.address
+                                      + [0x00] + le16(0x0018) + le16(0x0028) + le16(0) + le16(0x0100) + le16(0) + le16(0))
+            while let packet = await events.next() {
+                if case .event(0x3E, let p) = packet, p.first == 0x01, p[1] == 0 { return UInt16(p[2]) | UInt16(p[3]) << 8 }
+            }
+            throw ATTError.unlikelyError
+        }
+        func smp(_ connection: UInt16, _ pdu: [UInt8]?) async throws -> [UInt8] {
+            if let pdu { try await android.send(acl: connection, boundary: 0b00, le16(UInt16(pdu.count)) + le16(6) + pdu) }
+            while let packet = await events.next() {
+                if case .acl(connection, _, let data) = packet, data.count >= 4, data[2] == 6 { return Array(data[4...]) }
+            }
+            return []
+        }
+        func encrypt(_ connection: UInt16, rand: [UInt8], ediv: [UInt8], key: [UInt8]) async throws -> Bool {
+            try await android.command(HCIOpcode.leEnableEncryption, le16(connection) + rand + ediv + key)
+            while let packet = await events.next() {
+                if case .event(0x08, let p) = packet { return p[0] == 0 && p[3] == 1 }
+            }
+            return false
+        }
+
+        let first = try await connect()
+        let request: [UInt8] = [0x01, 0x03, 0x00, 0x01, 0x10, 0x00, 0x01]
+        let response = try await smp(first, request)
+        #expect(response.first == 0x02)
+        let random = (0..<16).map { _ in UInt8.random(in: .min ... .max) }
+        let confirm = BLEPairing.c1(BLEPairing.zeroKey, random, request: request, response: response,
+                                    initiator: androidAddress, responder: chipAddress)
+        let chipConfirm = try await smp(first, [0x03] + confirm)
+        let chipRandom = try await smp(first, [0x04] + random)
+        #expect(chipRandom.first == 0x04)
+        #expect(Array(chipConfirm.dropFirst()) == BLEPairing.c1(BLEPairing.zeroKey, Array(chipRandom.dropFirst()), request: request,
+                                                                response: response, initiator: androidAddress, responder: chipAddress))
+        let stk = BLEPairing.s1(BLEPairing.zeroKey, Array(chipRandom.dropFirst()), random)
+        #expect(try await encrypt(first, rand: [UInt8](repeating: 0, count: 8), ediv: [0, 0], key: stk))
+        let information = try await smp(first, nil)
+        let identification = try await smp(first, nil)
+        #expect(information.first == 0x06 && information.count == 17)
+        #expect(identification.first == 0x07 && identification.count == 11)
+        try await android.command(HCIOpcode.disconnect, le16(first) + [0x13])
+
+        // The bond: the next connection is encrypted with the chip's key.
+        var reconnected: UInt16?
+        for _ in 0..<20 where reconnected == nil {
+            reconnected = try? await connect()
+            if reconnected == nil { try await Task.sleep(for: .milliseconds(100)) }
+        }
+        let second = try #require(reconnected)
+        #expect(try await encrypt(second, rand: Array(identification[3...]), ediv: Array(identification[1..<3]),
+                                  key: Array(information.dropFirst())))
+        try await android.command(HCIOpcode.disconnect, le16(second) + [0x13])
+        // A key the chip never handed out does not encrypt.
+        var third: UInt16?
+        for _ in 0..<20 where third == nil {
+            third = try? await connect()
+            if third == nil { try await Task.sleep(for: .milliseconds(100)) }
+        }
+        #expect(try await encrypt(try #require(third), rand: Array(identification[3...]), ediv: Array(identification[1..<3]),
+                                  key: [UInt8](repeating: 0x5A, count: 16)) == false)
+        await proxy.close()
+        await android.close()
+    }
+
     /// One AD structure's data from advertising data.
     static func field(_ type: UInt8, in data: [UInt8]) -> [UInt8]? {
         var index = 0
