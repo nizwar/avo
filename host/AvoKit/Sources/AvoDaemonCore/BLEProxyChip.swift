@@ -86,12 +86,29 @@ actor BLEProxyChip {
 
     /// The device advertises something new (its name, its data).
     func update(_ advertisement: BLEAdvertisement) async {
+        let advertisement = Self.merged(advertisement, over: self.advertisement)
         guard advertisement != self.advertisement else { return }
+        let kindChanged = advertisement.connectable != self.advertisement.connectable
         self.advertisement = advertisement
         guard connection == nil else { return }
+        if kindChanged {
+            // The kind of advertising is a parameter, set only while it is off.
+            await readvertise()
+            return
+        }
         let (data, response) = advertisement.payloads()
         _ = try? await chip.command(HCIOpcode.leSetAdvertisingData, Self.padded(data))
         _ = try? await chip.command(HCIOpcode.leSetScanResponseData, Self.padded(response))
+    }
+
+    /// A device that advertised as connectable stays so, with what it
+    /// advertised then: many send beacons (an iBeacon, other non-connectable
+    /// frames) between their connectable advertisements. A chip that took
+    /// on each frame lost the device's name and services whenever a beacon
+    /// came last, and one that started from a beacon could be found but
+    /// never connected to (issue #15).
+    static func merged(_ new: BLEAdvertisement, over old: BLEAdvertisement) -> BLEAdvertisement {
+        old.connectable && !new.connectable ? old : new
     }
 
     var isConnected: Bool { connection != nil }
@@ -104,6 +121,14 @@ actor BLEProxyChip {
     }
 
     // MARK: Advertising
+
+    /// Advertising again from the start, with what the device advertises now.
+    private func readvertise() async {
+        _ = try? await chip.command(HCIOpcode.leSetAdvertisingEnable, [0x00])
+        do { try await advertise() } catch {
+            logger.error("bluetooth: \(self.name, privacy: .public) does not advertise again: \(String(describing: error), privacy: .public)")
+        }
+    }
 
     private func advertise() async throws {
         let (data, response) = advertisement.payloads()
@@ -132,8 +157,9 @@ actor BLEProxyChip {
             // Disconnection Complete: status, handle, reason.
             guard parameters[0] == 0, UInt16(parameters[1]) | UInt16(parameters[2]) << 8 == connection else { return }
             endConnection()
-            // Legacy advertising stops with a connection: again, for the next one.
-            _ = try? await chip.command(HCIOpcode.leSetAdvertisingEnable, [0x01])
+            // Legacy advertising stops with a connection: again, for the next
+            // one, with what the device advertised meanwhile.
+            await readvertise()
         case .event(0x13, let parameters) where !parameters.isEmpty:
             // Number Of Completed Packets: handle and count per handle.
             for index in 0..<Int(parameters[0]) where 1 + index * 4 + 3 < parameters.count {
@@ -179,7 +205,7 @@ actor BLEProxyChip {
         do {
             let services = try await remote.discover()
             guard connection == handle else { return }
-            let server = GATTServer(database: ATTDatabase(name: name, services: services), remote: remote)
+            let server = GATTServer(database: ATTDatabase(name: name, services: services), remote: remote, deviceMTU: remote.mtu)
             self.server = server
             notifications = Task { [weak self] in
                 for await (characteristic, value) in remote.notifications {

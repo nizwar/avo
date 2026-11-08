@@ -929,11 +929,22 @@ its own on the port (`BLEProxyChip`, driven as its host by `HCIChip`; at
 most 12, not Apple's Continuity chatter, gone 30 s after the Mac last heard
 it). The chip advertises what the device advertises (rebuilt from
 CoreBluetooth's dictionary, `BLEAdvertisement`) from a random static
-address derived from the device's CoreBluetooth identifier. When Android
+address derived from the device's CoreBluetooth identifier. A device that
+advertised as connectable stays connectable, with that advertisement:
+beacons it sends in between (an iBeacon) are left out, as a chip that took
+them on was found but could not be connected to (`BLEProxyChip.merged`;
+the kind of advertising changes with advertising off). When Android
 connects, the Mac connects to the device and the chip serves its GATT
 database (`GATTServer`: GAP and GATT of its own, then the device's
 services; reads, writes, long writes, notifications and indications go to
-the device through `MacBluetoothLink`). Pairing is refused (SMP "pairing
+the device through `MacBluetoothLink`). Android is offered the ATT MTU of
+the Mac's own connection to the device, so an app never writes more than
+the device takes; each write goes as the kind its characteristic takes (a
+request to a characteristic that takes only commands is sent as one and
+answered), and writes without response wait for CoreBluetooth's room
+instead of being dropped. CoreBluetooth reports the end of a connection
+Avo cancelled after Android may already have connected again: that report
+is the old link's, not the new one's. Pairing is refused (SMP "pairing
 not supported"; CoreBluetooth pairs with the device itself) and L2CAP
 channels on a PSM are not offered. Classic Bluetooth (headsets, older
 controllers) has no way through. macOS asks for Bluetooth access the first

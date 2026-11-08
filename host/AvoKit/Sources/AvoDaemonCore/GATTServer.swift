@@ -58,7 +58,13 @@ protocol GATTRemote: AnyObject, Sendable {
     /// Values the device notifies or indicates. It finishes when the device
     /// disconnects.
     var notifications: AsyncStream<(GATTAttributeID, [UInt8])> { get }
+    /// The ATT MTU of the Mac's connection to the device (after `discover`).
+    var mtu: Int { get }
     func disconnect()
+}
+
+extension GATTRemote {
+    var mtu: Int { GATTServer.serverMTU }
 }
 
 /// The attributes Android sees, numbered from 1: GAP (with the device's
@@ -166,15 +172,21 @@ actor GATTServer {
     /// The connection's ATT MTU (23 until Android exchanges it).
     private(set) var mtu = 23
     static let serverMTU = 517
+    /// What Android is offered: no more than the Mac's own connection to the
+    /// device carries. An app told 517 writes commands of up to 514 bytes,
+    /// which a device on a smaller MTU never gets (CoreBluetooth drops a
+    /// write without response that does not fit).
+    let offeredMTU: Int
     /// Client configuration per characteristic (bit 0 notify, bit 1 indicate).
     private var configuration: [GATTAttributeID: UInt16] = [:]
     /// The whole value of each attribute last read, for Read Blob.
     private var lastRead: [UInt16: [UInt8]] = [:]
     private var prepared: [(handle: UInt16, offset: Int, value: [UInt8])] = []
 
-    init(database: ATTDatabase, remote: any GATTRemote) {
+    init(database: ATTDatabase, remote: any GATTRemote, deviceMTU: Int = GATTServer.serverMTU) {
         self.database = database
         self.remote = remote
+        offeredMTU = max(23, min(deviceMTU, Self.serverMTU))
     }
 
     /// The response to `pdu`, or nil for a command (and a confirmation).
@@ -220,8 +232,8 @@ actor GATTServer {
     // MARK: Requests
 
     private func exchangeMTU(_ body: ArraySlice<UInt8>) -> [UInt8] {
-        if let client = readLE16(body, at: 0) { mtu = max(23, min(Int(client), Self.serverMTU)) }
-        return [0x03] + le16(UInt16(Self.serverMTU))
+        if let client = readLE16(body, at: 0) { mtu = max(23, min(Int(client), offeredMTU)) }
+        return [0x03] + le16(UInt16(offeredMTU))
     }
 
     private func range(_ body: ArraySlice<UInt8>) throws -> (UInt16, UInt16) {
@@ -338,9 +350,14 @@ actor GATTServer {
         switch attribute.value {
         case .fixed: throw ATTError.writeNotPermitted
         case .characteristic(let id, let properties):
-            guard properties & (withResponse ? 0x08 : 0x0C) != 0 else { throw ATTError.writeNotPermitted }
-            // A command to a characteristic that only takes requests is one (the device refuses the other kind).
-            try await remote.write(id, value, withResponse: withResponse || properties & 0x04 == 0)
+            guard properties & 0x0C != 0 else { throw ATTError.writeNotPermitted }
+            // Each kind of write goes as the kind the characteristic takes: a
+            // command to one that only takes requests is a request, and a
+            // request to one that only takes commands is a command, answered
+            // once sent (CoreBluetooth refuses the other kind; the devices'
+            // own stacks mostly take either, and apps rely on it).
+            let request = properties & 0x08 != 0 && (withResponse || properties & 0x04 == 0)
+            try await remote.write(id, value, withResponse: request)
         case .descriptor(let id):
             try await remote.write(id, value, withResponse: true)
         case .configuration(let id):

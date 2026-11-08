@@ -14,6 +14,10 @@ final class MacBluetooth: NSObject, CBCentralManagerDelegate, @unchecked Sendabl
     private var wantsScan = false
     private var peripherals: [UUID: CBPeripheral] = [:]
     private var links: [UUID: MacBluetoothLink] = [:]
+    /// Connections Avo cancelled whose end CoreBluetooth has not reported
+    /// yet, per device: that report belongs to the old link, not to one
+    /// Android's next connection already started (`didDisconnectPeripheral`).
+    private var cancelling: [UUID: Int] = [:]
     /// What went to the bridge last per device, and when: the same again
     /// goes at most once a second (scanning reports every advertisement).
     private var forwarded: [UUID: (advertisement: BLEAdvertisement, at: ContinuousClock.Instant)] = [:]
@@ -56,8 +60,11 @@ final class MacBluetooth: NSObject, CBCentralManagerDelegate, @unchecked Sendabl
     }
 
     func disconnect(_ link: MacBluetoothLink, _ peripheral: CBPeripheral) {
-        if links[link.id] === link { links[link.id] = nil }
-        central?.cancelPeripheralConnection(peripheral)
+        guard links[link.id] === link else { return }
+        links[link.id] = nil
+        guard let central else { return }
+        if peripheral.state != .disconnected { cancelling[link.id, default: 0] += 1 }
+        central.cancelPeripheralConnection(peripheral)
     }
 
     // MARK: CBCentralManagerDelegate
@@ -95,11 +102,25 @@ final class MacBluetooth: NSObject, CBCentralManagerDelegate, @unchecked Sendabl
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: (any Error)?) {
-        links[peripheral.identifier]?.ended(error ?? ATTError.unlikelyError)
+        if endsCancelled(peripheral.identifier) { return }
+        links.removeValue(forKey: peripheral.identifier)?.ended(error ?? ATTError.unlikelyError)
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: (any Error)?) {
+        if endsCancelled(peripheral.identifier) { return }
         links.removeValue(forKey: peripheral.identifier)?.ended(error ?? ATTError.unlikelyError)
+    }
+
+    /// The end of a connection Avo cancelled. When Android connects again
+    /// right after it let go (an app that retries, or connects once to look
+    /// and again to use the device), the new link is already waiting for
+    /// CoreBluetooth when the old connection's end comes in; taken as the
+    /// new one's, it failed that connection too.
+    private func endsCancelled(_ id: UUID) -> Bool {
+        guard let count = cancelling[id], count > 0 else { return false }
+        cancelling[id] = count == 1 ? nil : count - 1
+        // A link that is already connected is not the one cancelled.
+        return links[id]?.isConnected != true
     }
 
     /// CoreBluetooth's advertisement dictionary as BLEAdvertisement.
@@ -141,7 +162,13 @@ final class MacBluetoothLink: NSObject, GATTRemote, CBPeripheralDelegate, @unche
     private var reads: [ObjectIdentifier: [CheckedContinuation<[UInt8], any Error>]] = [:]
     private var writes: [ObjectIdentifier: [CheckedContinuation<Void, any Error>]] = [:]
     private var notifyChanges: [ObjectIdentifier: [CheckedContinuation<Void, any Error>]] = [:]
+    /// Writes without response waiting for room (`canSendWriteWithoutResponse`).
+    private var unsent: [(CBCharacteristic, Data)] = []
     private var done = false
+    /// Connected to the device (on `queue`).
+    private(set) var isConnected = false
+    /// At most this many writes wait for room; more are dropped, as CoreBluetooth would.
+    static let unsentLimit = 256
 
     let notifications: AsyncStream<(GATTAttributeID, [UInt8])>
     private let notificationSink: AsyncStream<(GATTAttributeID, [UInt8])>.Continuation
@@ -184,6 +211,15 @@ final class MacBluetoothLink: NSObject, GATTRemote, CBPeripheralDelegate, @unche
         return queue.sync { database() }
     }
 
+    /// What CoreBluetooth exchanged with the device: read after discovery,
+    /// as macOS exchanges the MTU only once connected.
+    var mtu: Int {
+        queue.sync {
+            guard let peripheral, isConnected else { return 23 }
+            return max(23, min(peripheral.maximumWriteValueLength(for: .withoutResponse) + 3, GATTServer.serverMTU))
+        }
+    }
+
     func read(_ attribute: GATTAttributeID) async throws -> [UInt8] {
         try await withCheckedThrowingContinuation { continuation in
             queue.async { [self] in
@@ -211,7 +247,9 @@ final class MacBluetoothLink: NSObject, GATTRemote, CBPeripheralDelegate, @unche
                 switch targets[attribute.raw] {
                 case .characteristic(let characteristic):
                     guard withResponse else {
-                        peripheral.writeValue(Data(value), for: characteristic, type: .withoutResponse)
+                        // CoreBluetooth drops a write without response while it has no room.
+                        if unsent.count < Self.unsentLimit { unsent.append((characteristic, Data(value))) }
+                        sendUnsent()
                         return continuation.resume()
                     }
                     writes[ObjectIdentifier(characteristic), default: []].append(continuation)
@@ -247,14 +285,25 @@ final class MacBluetoothLink: NSObject, GATTRemote, CBPeripheralDelegate, @unche
     // MARK: On `queue`
 
     func didConnect() {
+        isConnected = true
         connecting?.resume()
         connecting = nil
+    }
+
+    private func sendUnsent() {
+        guard let peripheral else { return }
+        while !unsent.isEmpty, peripheral.canSendWriteWithoutResponse {
+            let (characteristic, value) = unsent.removeFirst()
+            peripheral.writeValue(value, for: characteristic, type: .withoutResponse)
+        }
     }
 
     /// The connection ended (or failed, or timed out): everything waiting fails.
     func ended(_ error: any Error) {
         guard !done else { return }
         done = true
+        isConnected = false
+        unsent = []
         let failure = (error as? CBATTError).map { ATTError(code: UInt8(clamping: $0.code.rawValue)) } ?? ATTError.unlikelyError
         connecting?.resume(throwing: failure)
         connecting = nil
@@ -312,6 +361,10 @@ final class MacBluetoothLink: NSObject, GATTRemote, CBPeripheralDelegate, @unche
     }
 
     // MARK: CBPeripheralDelegate
+
+    func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral) {
+        sendUnsent()
+    }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: (any Error)?) {
         let services = peripheral.services ?? []
