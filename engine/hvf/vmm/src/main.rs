@@ -105,6 +105,7 @@ mod machine;
 mod memory;
 mod modem;
 mod net;
+mod oemlock;
 mod pause;
 mod pci;
 mod sensors;

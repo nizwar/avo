@@ -5,6 +5,7 @@ use crate::bluetooth::Bluetooth;
 use crate::camera;
 use crate::cpu;
 use crate::gnss::Gnss;
+use crate::oemlock::OemLock;
 use crate::android;
 use crate::control::{self, Controls, TOUCH_RANGE};
 use crate::disk::{CompositeDisk, PartitionSpec};
@@ -827,6 +828,8 @@ fn boot(options: &Options, renderer: Option<&RenderHost>, bluetooth: Option<&Arc
     let mut sensor_ports = Vec::new();
     // /dev/gnss1 (hvc7): the GNSS HAL asks for the Mac's location here.
     let gnss = Gnss::new();
+    // /dev/hvc10: the OEM lock HAL, which Settings › Developer options waits on.
+    let oemlock = OemLock::new(Some(options.instance.join("oemlock_state")));
     let mut consoles: Vec<Box<dyn VirtioDevice>> = Vec::new();
     for index in 0..20 {
         let sink: Option<Sink> = match index {
@@ -836,6 +839,7 @@ fn boot(options: &Options, renderer: Option<&RenderHost>, bluetooth: Option<&Arc
             // /dev/hvc5: the Bluetooth HAL's H4 (bluetooth.rs).
             5 => bluetooth.map(|bluetooth| bluetooth.sink()),
             7 => Some(gnss.sink()),
+            10 => Some(oemlock.sink()),
             18 => Some(sensors.control_sink()),
             _ => None,
         };
@@ -849,6 +853,7 @@ fn boot(options: &Options, renderer: Option<&RenderHost>, bluetooth: Option<&Arc
                 if let Some(bluetooth) = bluetooth { bluetooth.connect(console.input()) }
             }
             7 => gnss.connect(console.input()),
+            10 => oemlock.connect(console.input()),
             18 | 19 => sensor_ports.push(console.input()),
             _ => {}
         }
