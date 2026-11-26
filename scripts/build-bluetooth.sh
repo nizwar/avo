@@ -23,6 +23,7 @@
 #                                   only, not the network
 #   0003-exit-with-parent           it ends with avo-vmm, however avo-vmm
 #                                   ends
+#   0004-rust-toolchain             Rust 1.88 for the resolved build dependencies
 #
 # Rust is built unstripped: macOS 27's dyld refuses the proc-macro libraries
 # rustc's own stripping leaves ("mis-aligned LINKEDIT string pool"); the
@@ -50,7 +51,7 @@ ROOTCANAL_COMMIT=574dc62546e0adcfacb6d6df4776f9d4f24d32d8
 # The Bazel its MODULE.bazel was made with (rules_rust 0.68, protobuf 33).
 BAZEL_VERSION=8.8.2
 # Bump with any change above.
-REVISION=avo.1
+REVISION=avo.2
 
 PATCH_SUM="$(cat "$PATCHES"/*.patch | shasum -a 256 | cut -c 1-12)"
 STAMP="$REVISION $ROOTCANAL_COMMIT $BAZEL_VERSION $MACOS_MINIMUM $PATCH_SUM"

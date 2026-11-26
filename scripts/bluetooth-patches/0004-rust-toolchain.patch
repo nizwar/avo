@@ -1,0 +1,10 @@
+Build with Rust 1.88. The resolved ar_archive_writer 0.5.5 uses let
+chains, which Root Canal's pinned Rust 1.87 rejects with E0658.
+
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -53,3 +53,3 @@
+ rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+-rust.toolchain(edition = "2024", versions = ["1.87.0"])
++rust.toolchain(edition = "2024", versions = ["1.88.0"])
+ use_repo(rust, "rust_toolchains")
