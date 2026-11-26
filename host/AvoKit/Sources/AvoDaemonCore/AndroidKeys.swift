@@ -23,6 +23,9 @@ enum AndroidKeys {
     }()
 
     static let leftShift: UInt16 = 42
+    /// KeyEvent.KEYCODE_V and META_CTRL_ON: Ctrl+V, Android's paste.
+    static let v: UInt32 = 50
+    static let metaCtrlOn: UInt32 = 0x1000
     /// KeyEvent.KEYCODE_BACK.
     static let back: UInt32 = 4
 
@@ -36,6 +39,21 @@ enum AndroidKeys {
             (0x10000, 117, 125), // META_META_ON
         ]
         return table.filter { metaState & $0.meta != 0 }.map { ($0.android, $0.linux) }
+    }
+
+    /// `text` in runs that are typed as keys (`strokes`) and runs that are
+    /// not (anything a US keyboard has no key for), in order.
+    static func textRuns(_ text: String) -> [(typed: Bool, text: String)] {
+        var runs: [(typed: Bool, text: String)] = []
+        for character in text {
+            let typed = strokes(for: character) != nil
+            if let last = runs.last, last.typed == typed {
+                runs[runs.count - 1].text.append(character)
+            } else {
+                runs.append((typed, String(character)))
+            }
+        }
+        return runs
     }
 
     /// Key strokes that type `character` on a US layout: (evdev code, shift).

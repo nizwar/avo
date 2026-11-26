@@ -149,6 +149,13 @@ actor HostAgent: DisplayResizing {
     private var clipboardWatch: Task<Void, Never>?
     /// The last text the Mac put on Android's clipboard (not echoed back).
     private var clipboardFromHost: String?
+    /// Input-method text put on Android's clipboard to be pasted (`paste`):
+    /// never echoed back to the Mac.
+    private var typedClips: Set<String> = []
+    /// What Android's clipboard held before a run of pasted text, put back
+    /// once the typing stops; nil when nothing is to be put back.
+    private var clipboardBeforeTyping: String?
+    private var clipboardRestore: Task<Void, Never>?
     /// Notifications passed to the Mac: key → when it was posted.
     private var shownNotifications: [String: Int64] = [:]
     /// When each notification Android lists was last read in full, and
@@ -1216,6 +1223,8 @@ actor HostAgent: DisplayResizing {
             case .setClipboard(let request)?:
                 // Remembered so the watcher does not hand it back to the Mac.
                 clipboardFromHost = request.text
+                // Copied on the Mac while text is being pasted: that is what to put back.
+                if clipboardBeforeTyping != nil { clipboardBeforeTyping = request.text }
                 let encoded = Data(request.text.utf8).base64EncodedString()
                 if encoded.count <= 96 * 1024 {
                     _ = try await shell(Self.clipboardCommand("set " + encoded))
@@ -1695,6 +1704,9 @@ actor HostAgent: DisplayResizing {
                     buffer.removeSubrange(buffer.startIndex...newline)
                     guard line.hasPrefix("clip "), let data = Data(base64Encoded: String(line.dropFirst(5))) else { continue }
                     let text = String(decoding: data, as: UTF8.self)
+                    guard !typedClips.contains(text) else { continue }
+                    // Copied in Android while text is being pasted: that is what to put back.
+                    if clipboardBeforeTyping != nil { clipboardBeforeTyping = text }
                     guard text != clipboardFromHost else { continue }
                     var changed = Avo_V1_ClipboardChanged()
                     changed.text = text
@@ -2867,37 +2879,13 @@ actor HostAgent: DisplayResizing {
             touches[event.displayID] = down
             await sendTouches(down, to: display)
         case .key(let event):
-            // Back on an app's first screen closes it: notice that quickly.
-            if event.keyCode == AndroidKeys.back, event.action == .up { checkTasksSoon() }
-            if let androidID = unfocusedTarget(event.displayID) {
-                // `input` sends the press and release itself, modifiers first.
-                guard event.action == .down else { return }
-                let modifiers = AndroidKeys.modifiers(in: event.metaState).map(\.android)
-                let command = modifiers.isEmpty ? "keyevent \(event.keyCode)"
-                    : "keycombination " + (modifiers + [event.keyCode]).map(String.init).joined(separator: " ")
-                _ = try? await shell("input -d \(androidID) " + command)
-                return
-            }
-            guard let code = AndroidKeys.linux[event.keyCode] else { return }
-            // The keyboard holds the event's modifiers around the key (Ctrl+C,
-            // Shift+arrow) and lets go of them when it is released.
-            if event.action == .down { await holdModifiers(event.metaState) }
-            try? await engine.send("key \(code) \(event.action == .down ? 1 : 0)")
-            if event.action == .up { await holdModifiers(0) }
+            await press(event)
         case .text(let displayID, let text):
-            if let androidID = unfocusedTarget(displayID) {
-                _ = try? await shell("input -d \(androidID) text " + Self.quote(text))
-                return
-            }
-            await holdModifiers(0)
-            for character in text {
-                if let (code, shift) = AndroidKeys.strokes(for: character) {
-                    if shift { try? await engine.send("key \(AndroidKeys.leftShift) 1") }
-                    try? await engine.send("key \(code) 1")
-                    try? await engine.send("key \(code) 0")
-                    if shift { try? await engine.send("key \(AndroidKeys.leftShift) 0") }
+            for run in AndroidKeys.textRuns(text) {
+                if run.typed {
+                    await type(run.text, on: displayID)
                 } else {
-                    _ = try? await shell("input text " + Self.quote(String(character)))
+                    await paste(run.text, on: displayID)
                 }
             }
         case .gamepad(let state):
@@ -2962,6 +2950,80 @@ actor HostAgent: DisplayResizing {
 
     /// The Android display for keys meant for a window whose display is not
     /// the focused one (the engine's keyboard would type into another app).
+    private func press(_ event: KeyEvent) async {
+        // Back on an app's first screen closes it: notice that quickly.
+        if event.keyCode == AndroidKeys.back, event.action == .up { checkTasksSoon() }
+        if let androidID = unfocusedTarget(event.displayID) {
+            // `input` sends the press and release itself, modifiers first.
+            guard event.action == .down else { return }
+            let modifiers = AndroidKeys.modifiers(in: event.metaState).map(\.android)
+            let command = modifiers.isEmpty ? "keyevent \(event.keyCode)"
+                : "keycombination " + (modifiers + [event.keyCode]).map(String.init).joined(separator: " ")
+            _ = try? await shell("input -d \(androidID) " + command)
+            return
+        }
+        guard let code = AndroidKeys.linux[event.keyCode] else { return }
+        // The keyboard holds the event's modifiers around the key (Ctrl+C,
+        // Shift+arrow) and lets go of them when it is released.
+        if event.action == .down { await holdModifiers(event.metaState) }
+        try? await engine.send("key \(code) \(event.action == .down ? 1 : 0)")
+        if event.action == .up { await holdModifiers(0) }
+    }
+
+    /// Text a US keyboard types (`AndroidKeys.strokes`), as key presses.
+    private func type(_ text: String, on displayID: UInt32) async {
+        if let androidID = unfocusedTarget(displayID) {
+            _ = try? await shell("input -d \(androidID) text " + Self.quote(text))
+            return
+        }
+        await holdModifiers(0)
+        for character in text {
+            guard let (code, shift) = AndroidKeys.strokes(for: character) else { continue }
+            if shift { try? await engine.send("key \(AndroidKeys.leftShift) 1") }
+            try? await engine.send("key \(code) 1")
+            try? await engine.send("key \(code) 0")
+            if shift { try? await engine.send("key \(AndroidKeys.leftShift) 0") }
+        }
+    }
+
+    /// Text no key types (Chinese, Japanese, Korean, accented letters,
+    /// emoji): Android's keyboards and `input text` only press keys, so it
+    /// goes on Android's clipboard and is pasted with Ctrl+V, as ⌘V pastes.
+    /// What the clipboard held comes back once the typing stops.
+    private func paste(_ text: String, on displayID: UInt32) async {
+        let encoded = Data(text.utf8).base64EncodedString()
+        guard encoded.count <= 96 * 1024 else { return }
+        // A restore under way finishes first: it must not land after this text.
+        clipboardRestore?.cancel()
+        await clipboardRestore?.value
+        clipboardRestore = nil
+        if clipboardBeforeTyping == nil {
+            guard let current = try? await shell(Self.clipboardCommand("get")) else { return }
+            let data = Data(base64Encoded: current.trimmed) ?? Data()
+            clipboardBeforeTyping = String(decoding: data, as: UTF8.self)
+        }
+        typedClips.insert(text)
+        guard (try? await shell(Self.clipboardCommand("set " + encoded))) != nil else { return }
+        await press(KeyEvent(displayID: displayID, action: .down, keyCode: AndroidKeys.v, metaState: AndroidKeys.metaCtrlOn))
+        await press(KeyEvent(displayID: displayID, action: .up, keyCode: AndroidKeys.v, metaState: AndroidKeys.metaCtrlOn))
+        clipboardRestore = Task { [weak self] in
+            // Long enough for the app to read the clipboard; more text in the
+            // meantime (the next word) starts the wait again.
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            await self?.restoreClipboard()
+        }
+    }
+
+    private func restoreClipboard() async {
+        defer { typedClips.removeAll() }
+        guard let previous = clipboardBeforeTyping else { return }
+        clipboardBeforeTyping = nil
+        // An empty clipboard has no `set`: the pasted text stays.
+        guard !previous.isEmpty else { return }
+        _ = try? await shell(Self.clipboardCommand("set " + Data(previous.utf8).base64EncodedString()))
+    }
+
     private func unfocusedTarget(_ displayID: UInt32) -> Int? {
         guard displayID != focusedDisplay, let display = displays[displayID] else { return nil }
         return display.androidID
