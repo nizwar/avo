@@ -6,6 +6,20 @@ number (`CFBundleVersion`) that only goes up; see
 [docs/versioning.md](docs/versioning.md). Releases up to build 113 were
 named "Preview N".
 
+## 1.1.1 (build 127)
+
+### Fixed
+
+- Settings › Developer options froze on opening and Android offered to
+  close Settings after a while (#20). Android's OEM lock asks the Mac
+  whether OEM unlocking is allowed, and nothing answered; Avo now does, as
+  Android's own emulator does: allowed, kept with Android's data.
+- Text from a Mac input method that a US keyboard has no key for (Chinese,
+  Japanese and Korean input methods, accented letters, emoji) never reached
+  Android (#22). Avo now pastes it into the app, as ⌘V does, and puts
+  back what Android's clipboard held a second after the typing stops; the
+  Mac's clipboard is not touched.
+
 ## 1.1.0 (build 126)
 
 ### New
