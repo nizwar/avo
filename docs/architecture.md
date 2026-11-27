@@ -392,7 +392,10 @@ Input from a window, in order of precedence:
    cursor; Esc and a two-finger swipe left are Back; Cmd+C/V/X/A/Z map to
    Android's Ctrl shortcuts; editing keys (Return, Delete, arrows, …) are key
    events and everything printable goes through the macOS input method and
-   arrives as committed text, so every keyboard layout and IME types correctly.
+   arrives as committed text. On a stock Android image, text a US keyboard can
+   type is sent as keys, so an Android input method can compose it. If a text
+   record contains a character those keys cannot type, Avo pastes the whole
+   record. A Mac candidate such as `AI助手` reaches the editor in one paste.
 
 The guest focuses each display separately (`config_perDisplayFocusEnabled`),
 so typing goes to the app in the window you are typing in. With the GPU

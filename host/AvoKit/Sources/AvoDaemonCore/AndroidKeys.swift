@@ -41,19 +41,10 @@ enum AndroidKeys {
         return table.filter { metaState & $0.meta != 0 }.map { ($0.android, $0.linux) }
     }
 
-    /// `text` in runs that are typed as keys (`strokes`) and runs that are
-    /// not (anything a US keyboard has no key for), in order.
-    static func textRuns(_ text: String) -> [(typed: Bool, text: String)] {
-        var runs: [(typed: Bool, text: String)] = []
-        for character in text {
-            let typed = strokes(for: character) != nil
-            if let last = runs.last, last.typed == typed {
-                runs[runs.count - 1].text.append(character)
-            } else {
-                runs.append((typed, String(character)))
-            }
-        }
-        return runs
+    /// A Mac candidate can contain both Han characters and Latin letters. Pasting it
+    /// whole keeps Android's active input method from composing the letters again.
+    static func canTypeAsKeys(_ text: String) -> Bool {
+        text.allSatisfy { strokes(for: $0) != nil }
     }
 
     /// Key strokes that type `character` on a US layout: (evdev code, shift).

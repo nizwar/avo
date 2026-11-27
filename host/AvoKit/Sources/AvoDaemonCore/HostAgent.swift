@@ -2881,12 +2881,11 @@ actor HostAgent: DisplayResizing {
         case .key(let event):
             await press(event)
         case .text(let displayID, let text):
-            for run in AndroidKeys.textRuns(text) {
-                if run.typed {
-                    await type(run.text, on: displayID)
-                } else {
-                    await paste(run.text, on: displayID)
-                }
+            guard !text.isEmpty else { return }
+            if AndroidKeys.canTypeAsKeys(text) {
+                await type(text, on: displayID)
+            } else {
+                await paste(text, on: displayID)
             }
         case .gamepad(let state):
             await drive(gamepad: state)
@@ -2986,9 +2985,8 @@ actor HostAgent: DisplayResizing {
         }
     }
 
-    /// Text no key types (Chinese, Japanese, Korean, accented letters,
-    /// emoji): Android's keyboards and `input text` only press keys, so it
-    /// goes on Android's clipboard and is pasted with Ctrl+V, as ⌘V pastes.
+    /// A text commit containing characters a keyboard cannot type goes on
+    /// Android's clipboard and is pasted with Ctrl+V, as ⌘V pastes.
     /// What the clipboard held comes back once the typing stops.
     private func paste(_ text: String, on displayID: UInt32) async {
         let encoded = Data(text.utf8).base64EncodedString()
