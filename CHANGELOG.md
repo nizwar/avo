@@ -6,6 +6,24 @@ number (`CFBundleVersion`) that only goes up; see
 [docs/versioning.md](docs/versioning.md). Releases up to build 113 were
 named "Preview N".
 
+## 1.1.2 (build 128)
+
+### Fixed
+
+- A Mac input method's commit that mixed scripts — Han characters together
+  with Latin letters and spaces, such as `AI助手 nihao 测试` — could reach
+  the app double-converted (`AI助手 你好测试`) when an Android input method
+  was handling the hardware keyboard, because Avo sent the Latin runs back
+  through that input method. Avo now delivers each committed text as one
+  piece, pasting the whole record whenever any character needs it, so a
+  mixed Mac commit arrives exactly as typed (#24).
+
+### Changed
+
+- Clean Bluetooth builds from source use Rust 1.88, which the resolved build
+  dependencies now require; the bundled controller is rebuilt as `avo.2`
+  (#23).
+
 ## 1.1.1 (build 127)
 
 ### Fixed
