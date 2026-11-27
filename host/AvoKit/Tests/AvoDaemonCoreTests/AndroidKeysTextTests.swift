@@ -1,32 +1,15 @@
 import Testing
 @testable import AvoDaemonCore
 
-/// How input-method text is split between key presses and a paste (issue #22).
+/// Delivery of each committed TEXT record while an Android input method is active.
 struct AndroidKeysTextTests {
-    private func runs(_ text: String) -> [String] {
-        AndroidKeys.textRuns(text).map { ($0.typed ? "keys:" : "paste:") + $0.text }
+    @Test(arguments: ["n", "i", " ", "1", "Hello, world! 42"])
+    func ordinaryTypingReachesTheAndroidKeyboard(_ text: String) {
+        #expect(AndroidKeys.canTypeAsKeys(text))
     }
 
-    @Test func plainTextIsTyped() {
-        #expect(runs("Hello, world! 42") == ["keys:Hello, world! 42"])
-    }
-
-    @Test func chineseIsPasted() {
-        #expect(runs("你好") == ["paste:你好"])
-    }
-
-    @Test func mixedTextKeepsItsOrder() {
-        #expect(runs("ok 你好 ok") == ["keys:ok ", "paste:你好", "keys: ok"])
-    }
-
-    @Test func accentsKanaHangulAndEmojiArePasted() {
-        #expect(runs("é") == ["paste:é"])
-        #expect(runs("こんにちは") == ["paste:こんにちは"])
-        #expect(runs("안녕") == ["paste:안녕"])
-        #expect(runs("a🥑b") == ["keys:a", "paste:🥑", "keys:b"])
-    }
-
-    @Test func emptyTextHasNoRuns() {
-        #expect(AndroidKeys.textRuns("").isEmpty)
+    @Test(arguments: ["你好", "AI助手 2.0", "你OK好", "é", "こんにちは", "안녕", "a🥑b"])
+    func macCandidateIsPastedInOnePiece(_ text: String) {
+        #expect(!AndroidKeys.canTypeAsKeys(text))
     }
 }
