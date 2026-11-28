@@ -18,6 +18,7 @@ import java.util.UUID;
 
 /** Forwards host composition to the active Android editor through its InputConnection. */
 public final class AvoInputService extends InputMethodService {
+    private static final int MAX_CONTEXT_LENGTH = 2048;
     private static AvoInputService active;
     private final HandlerThread contextThread = new HandlerThread("Avo Input editor context");
     private Handler contextReader;
@@ -216,12 +217,16 @@ public final class AvoInputService extends InputMethodService {
         AvoInputProvider.publish(state());
         EditorInfo info = getCurrentInputEditorInfo();
         InputConnection connection = getCurrentInputConnection();
-        if (connection == null || info == null || privateEditor(info)) return;
-        // An editor may be busy. Fetch reconversion context off the IME thread and discard late replies.
         contextReader.removeCallbacksAndMessages(null);
+        if (connection == null || info == null || privateEditor(info)) return;
+        // Android includes the entire selection in addition to the text requested on each side.
+        int selected = start >= 0 && end >= 0 ? Math.abs(end - start) : 0;
+        if (selected > MAX_CONTEXT_LENGTH) return;
+        int side = Math.min(512, (MAX_CONTEXT_LENGTH - selected) / 2);
+        // An editor may be busy. Fetch reconversion context off the IME thread and discard late replies.
         contextReader.post(() -> {
-            SurroundingText context = connection.getSurroundingText(512, 512, 0);
-            if (context == null || context.getOffset() < 0 || context.getText().length() > 2048) return;
+            SurroundingText context = connection.getSurroundingText(side, side, 0);
+            if (context == null || context.getOffset() < 0 || context.getText().length() > MAX_CONTEXT_LENGTH) return;
             AvoInputProvider.main.post(() -> {
                 if (!attached || active != this || revision != version) return;
                 // Some editors provide their first absolute selection with the surrounding text.

@@ -87,6 +87,11 @@ class AvoInputClient:
             if msg.get("session") == self.session and msg.get("ack") == self.sequence:
                 return msg
 
+    def context(self, state):
+        while state.get("session") != self.session or state.get("ack") != self.sequence or "text" not in state:
+            state = self.read()
+        return state
+
 
 @contextlib.contextmanager
 def connection():
@@ -132,14 +137,24 @@ with connection() as keyboard:
         keyboard.edit("cancel")
         expect("Aに", "SEED")
         editor(unknown_selection=True)
-        state = keyboard.attach()
-        while state.get("session") != keyboard.session or "text" not in state:
-            state = keyboard.read()
+        state = keyboard.context(keyboard.attach())
         assert state["start"] == state["end"] == 0
         keyboard.edit("mark", text="甲🙂乙", caretStart=1, caretEnd=3)
         keyboard.edit("finish")
         keyboard.edit("commit", text="中")
         expect("甲中乙", "SEED")
+        editor()
+        keyboard.attach()
+        keyboard.edit("commit", text="L" * 512 + "R" * 512)
+        selected_text = "界" * 1536
+        state = keyboard.edit("mark", text=selected_text, caretStart=0, caretEnd=utf16(selected_text),
+                              **{"from": 512, "to": 512})
+        state = keyboard.context(state)
+        assert (state["start"], state["end"]) == (512, 512 + utf16(selected_text))
+        assert selected_text in state["text"] and utf16(state["text"]) <= 2048
+        keyboard.edit("mark", text=selected_text * 2, caretStart=0, caretEnd=utf16(selected_text) * 2)
+        keyboard.edit("commit", text="完")
+        expect("L" * 512 + "完" + "R" * 512, "SEED")
         previous = None
         for web in (False, True):
             editor(web, "uri")
