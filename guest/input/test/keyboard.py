@@ -31,7 +31,7 @@ def wait_file(name):
 
 
 def editor(web=False, clip="text", password=False):
-    shell(f"am force-stop {package}; run-as {package} rm -f files/ready files/page files/result files/busy")
+    shell(f"am force-stop {package}; run-as {package} rm -f files/ready files/page files/result")
     shell(f"am start -W --display {options.display} -n {package}/.Editor --ez web {str(web).lower()} "
           f"--es clip {clip} --ez password {str(password).lower()}")
     wait_file("ready")
@@ -68,9 +68,10 @@ class AvoInputClient:
 
     def attach(self):
         self.session = None
+        pid = int(shell(f"pidof -s {package}"))
         while True:
             msg = self.read()
-            if msg["kind"] == "focus" and msg.get("package") == package:
+            if msg["kind"] == "focus" and msg.get("pid") == pid:
                 self.session = msg["session"]
                 self.sequence = 0
                 self.send(action="attach")

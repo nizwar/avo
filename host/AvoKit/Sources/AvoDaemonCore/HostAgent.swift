@@ -1363,8 +1363,7 @@ actor HostAgent: DisplayResizing {
         ready.displayID = launch.displayID
         ready.package = launch.package
         await send(Avo_V1_Envelope(.displayReady(ready)))
-        avoInputEditorSink?(launch.displayID, nil)
-        publishAvoInputEditor()
+        avoInputEditorSink?(launch.displayID, avoInputDisplay == launch.displayID ? avoInputEditor : nil)
         startedAt[launch.displayID] = .now
         watchTasks()
         Task { [weak self] in await self?.noticeGPUDebugLayers(launching: launch.package) }

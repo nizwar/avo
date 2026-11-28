@@ -5,7 +5,6 @@ import android.content.*;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.SystemClock;
 import android.view.KeyEvent;
 import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodManager;
@@ -18,7 +17,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import org.json.JSONTokener;
 
-/** A busy native or web editor that records paste keys and clipboard changes during input. */
+/** A native or web editor that records paste keys and clipboard changes during input. */
 public final class Editor extends Activity {
     private ClipboardManager clipboard;
     private EditText field;
@@ -57,9 +56,7 @@ public final class Editor extends Activity {
             setContentView(field);
             field.requestFocus();
         }
-        IntentFilter commands = new IntentFilter(getPackageName() + ".BUSY");
-        commands.addAction(getPackageName() + ".READ");
-        registerReceiver(receiver, commands, Context.RECEIVER_EXPORTED);
+        registerReceiver(receiver, new IntentFilter(getPackageName() + ".READ"), Context.RECEIVER_EXPORTED);
     }
 
     private void checkKeyboardSubtype() {
@@ -105,11 +102,6 @@ public final class Editor extends Activity {
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
-            if (intent.getAction().endsWith(".BUSY")) {
-                write("busy", "busy");
-                SystemClock.sleep(650);
-                return;
-            }
             ClipData clip = clipboard.getPrimaryClip();
             String before = "empty";
             if (clip != null) {

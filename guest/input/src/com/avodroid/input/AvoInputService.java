@@ -79,7 +79,7 @@ public final class AvoInputService extends InputMethodService {
             AvoInputProvider.publish(object("kind", "focus"));
             return;
         }
-        AvoInputProvider.publish(object("kind", "focus", "session", session, "pid", binding.getPid(), "package", info.packageName));
+        AvoInputProvider.publish(object("kind", "focus", "session", session, "pid", binding.getPid()));
     }
 
     static void receive(JSONObject edit) {
