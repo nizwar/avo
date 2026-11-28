@@ -162,6 +162,12 @@ with connection() as keyboard:
             keyboard.edit("commit", text="甲")
             adb("shell", "input", "-d", str(options.display), "keycombination", "KEYCODE_CTRL_LEFT", "KEYCODE_V")
             expect("甲SEED", "SEED", pastes=1)
+            shell(f"run-as {package} rm -f files/busy; am broadcast --async -a {package}.BUSY -p {package}")
+            wait_file("busy")
+            keyboard.edit("keyDown", keyCode=21)  # KEYCODE_DPAD_LEFT
+            keyboard.edit("keyUp", keyCode=21)
+            keyboard.edit("commit", text="汉")
+            expect("甲SEE汉D", "SEED", pastes=1)
         editor(clip="empty", password=True)
         assert keyboard.attach()["privateEditor"]
         state = keyboard.edit("commit", text="secret")

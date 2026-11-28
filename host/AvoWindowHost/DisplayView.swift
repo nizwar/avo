@@ -291,6 +291,12 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
         .home, .end, .pageUp, .pageDown, .f1, .f2, .f3, .f4, .f5, .f6, .f7, .f8, .f9, .f10, .f11, .f12,
     ]
 
+    /// Keep edits and the keys that change an editor's contents or selection in order.
+    private static let editorKeyCodes = Set([
+        KeyName.left, .right, .up, .down, .home, .end, .pageUp, .pageDown,
+        .delete, .forwardDelete, .returnKey, .tab, .a, .c, .v, .x, .y, .z,
+    ].compactMap { KeyboardMapping.androidKeyCode(for: $0) })
+
     /// The Android presses for a Mac shortcut in this event (⌘C, ⌥←, ⌘⌫, …).
     private func shortcut(_ key: KeyName, _ flags: NSEvent.ModifierFlags) -> [MacShortcuts.Press]? {
         MacShortcuts.presses(for: key, command: flags.contains(.command), option: flags.contains(.option),
@@ -420,6 +426,11 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     }
 
     private func sendKey(_ code: UInt32, down: Bool, meta: UInt32, repeatCount: UInt32, scan: UInt32 = 0) {
+        if scan == 0, let sendEdit, Self.editorKeyCodes.contains(code),
+           let edit = editor.key(code, down: down, meta: meta, repeatCount: repeatCount) {
+            sendEdit(edit)
+            return
+        }
         send?(.key(KeyEvent(displayID: displayID, action: down ? .down : .up, keyCode: code, metaState: meta, repeatCount: repeatCount, scanCode: scan)))
     }
 

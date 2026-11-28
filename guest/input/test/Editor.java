@@ -76,7 +76,9 @@ public final class Editor extends Activity {
             setContentView(field);
             field.requestFocus();
         }
-        registerReceiver(receiver, new IntentFilter(getPackageName() + ".READ"), Context.RECEIVER_EXPORTED);
+        IntentFilter filter = new IntentFilter(getPackageName() + ".READ");
+        filter.addAction(getPackageName() + ".BUSY");
+        registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
     }
 
     private void checkKeyboardSubtype() {
@@ -122,6 +124,11 @@ public final class Editor extends Activity {
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
+            if ((getPackageName() + ".BUSY").equals(intent.getAction())) {
+                write("busy", "ready");
+                android.os.SystemClock.sleep(500);
+                return;
+            }
             ClipData clip = clipboard.getPrimaryClip();
             String before = "empty";
             if (clip != null) {

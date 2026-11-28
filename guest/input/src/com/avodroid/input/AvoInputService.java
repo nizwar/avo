@@ -3,7 +3,11 @@ package com.avodroid.input;
 import android.inputmethodservice.InputMethodService;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.SystemClock;
 import android.text.InputType;
+import android.util.SparseLongArray;
+import android.view.KeyCharacterMap;
+import android.view.KeyEvent;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputBinding;
 import android.view.inputmethod.InputConnection;
@@ -20,6 +24,8 @@ public final class AvoInputService extends InputMethodService {
     private String session;
     private boolean attached;
     private boolean composing;
+    private boolean keyPending;
+    private final SparseLongArray keyDownTimes = new SparseLongArray();
     private int start, end, markStart, markEnd;
     private long ack, revision;
 
@@ -73,6 +79,8 @@ public final class AvoInputService extends InputMethodService {
 
     private void newSession() {
         attached = false;
+        keyPending = false;
+        keyDownTimes.clear();
         ack = 0;
         revision++;
         session = UUID.randomUUID().toString();
@@ -93,14 +101,19 @@ public final class AvoInputService extends InputMethodService {
         if (ime == null || !edit.optString("session").equals(ime.session)) return;
         InputConnection connection = ime.getCurrentInputConnection();
         if (connection == null) return;
-        if ("attach".equals(edit.optString("action"))) {
+        String action = edit.optString("action");
+        if ("attach".equals(action)) {
             ime.attached = true;
             ime.publish();
             return;
         }
         long sequence = edit.optLong("sequence", -1);
-        if (!ime.attached || sequence != ime.ack + 1) return;
+        if (!ime.attached || ime.keyPending || sequence != ime.ack + 1) return;
         ime.ack = sequence;
+        if ("keyDown".equals(action) || "keyUp".equals(action)) {
+            ime.sendKey(connection, edit, "keyDown".equals(action));
+            return;
+        }
         connection.beginBatchEdit();
         try {
             ime.apply(connection, edit);
@@ -108,6 +121,36 @@ public final class AvoInputService extends InputMethodService {
             connection.endBatchEdit();
         }
         ime.publish();
+    }
+
+    private void sendKey(InputConnection connection, JSONObject edit, boolean down) {
+        int code = edit.optInt("keyCode", KeyEvent.KEYCODE_UNKNOWN);
+        if (code <= KeyEvent.KEYCODE_UNKNOWN || code > KeyEvent.getMaxKeyCode()) {
+            publish();
+            return;
+        }
+        int repeat = edit.optInt("repeatCount", 0);
+        long now = SystemClock.uptimeMillis();
+        long pressed = down && repeat == 0 ? now : keyDownTimes.get(code, now);
+        if (down) keyDownTimes.put(code, pressed); else keyDownTimes.delete(code);
+        connection.sendKeyEvent(new KeyEvent(pressed, now, down ? KeyEvent.ACTION_DOWN : KeyEvent.ACTION_UP,
+                code, repeat, edit.optInt("metaState"), KeyCharacterMap.VIRTUAL_KEYBOARD, 0,
+                KeyEvent.FLAG_SOFT_KEYBOARD | KeyEvent.FLAG_KEEP_TOUCH_MODE));
+        // sendKeyEvent only queues the key. Wait for the editor to handle a cursor request
+        // on the same connection before acknowledging it, even when its UI thread is busy.
+        String current = session;
+        keyPending = true;
+        revision++;
+        contextReader.removeCallbacksAndMessages(null);
+        contextReader.post(() -> {
+            connection.requestCursorUpdates(InputConnection.CURSOR_UPDATE_IMMEDIATE,
+                    InputConnection.CURSOR_UPDATE_FILTER_INSERTION_MARKER);
+            AvoInputProvider.main.post(() -> {
+                if (!attached || !current.equals(session)) return;
+                keyPending = false;
+                publish();
+            });
+        });
     }
 
     private void apply(InputConnection c, JSONObject edit) {
@@ -168,6 +211,7 @@ public final class AvoInputService extends InputMethodService {
     }
 
     private void publish() {
+        if (keyPending) return;
         long version = ++revision;
         AvoInputProvider.publish(state());
         EditorInfo info = getCurrentInputEditorInfo();

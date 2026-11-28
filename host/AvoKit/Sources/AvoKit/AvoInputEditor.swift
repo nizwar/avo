@@ -14,7 +14,7 @@ public struct AvoInputEditorState: Codable, Equatable, Sendable {
 }
 
 public struct AvoInputEdit: Codable, Sendable {
-    public enum Action: String, Codable, Sendable { case mark, commit, finish, cancel }
+    public enum Action: String, Codable, Sendable { case mark, commit, finish, cancel, keyDown, keyUp }
     public static let maximumMessageBytes = 8 * 1024 * 1024
     public var session: String
     public var sequence: Int
@@ -24,6 +24,9 @@ public struct AvoInputEdit: Codable, Sendable {
     public var to: Int?
     public var caretStart: Int?
     public var caretEnd: Int?
+    public var keyCode: UInt32?
+    public var metaState: UInt32?
+    public var repeatCount: UInt32?
 }
 
 /// AppKit asks synchronously, including between two edits in the same key event. Keep an
@@ -61,6 +64,15 @@ public struct AvoInputTextBuffer {
         let shared = NSIntersectionRange(range, NSRange(location: offset, length: text.length))
         guard shared.length > 0 else { return nil }
         return (text.substring(with: NSRange(location: shared.location - offset, length: shared.length)), shared)
+    }
+
+    /// The editor decides where a navigation key moves its selection.
+    public mutating func key(_ code: UInt32, down: Bool, meta: UInt32, repeatCount: UInt32) -> AvoInputEdit? {
+        guard var state else { return nil }
+        state.ack += 1
+        self.state = state
+        return AvoInputEdit(session: state.session, sequence: state.ack, action: down ? .keyDown : .keyUp,
+                            keyCode: code, metaState: meta, repeatCount: repeatCount)
     }
 
     public mutating func edit(_ action: AvoInputEdit.Action, text: String? = nil,

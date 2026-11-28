@@ -44,6 +44,19 @@ struct AvoInputTextBufferTests {
         #expect(buffer.state?.text == "אבג")
     }
 
+    @Test func editingKeysShareTheTextSequenceWithoutPredictingTheSelection() {
+        var buffer = AvoInputTextBuffer()
+        buffer.update(snapshot("AB"))
+        let down = buffer.key(21, down: true, meta: 0x41, repeatCount: 1)
+        let up = buffer.key(21, down: false, meta: 0, repeatCount: 0)
+        #expect(down?.sequence == 1 && down?.action == .keyDown && down?.keyCode == 21)
+        #expect(down?.metaState == 0x41 && down?.repeatCount == 1)
+        #expect(up?.sequence == 2 && up?.action == .keyUp)
+        #expect(buffer.state?.text == "AB" && buffer.selection == NSRange(location: 2, length: 0))
+        let commit = buffer.edit(.commit, text: "汉")
+        #expect(commit?.sequence == 3 && commit?.from == nil && commit?.to == nil)
+    }
+
     @Test func privateEditorsDropCachedAndOptimisticContext() {
         var buffer = AvoInputTextBuffer()
         var field = snapshot("existing")
