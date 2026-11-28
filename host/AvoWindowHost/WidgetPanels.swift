@@ -429,6 +429,10 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
         panel.setFrame(frame, display: true, animate: animate)
     }
 
+    func windowDidResignKey(_ notification: Notification) {
+        displayView.releaseAll()
+    }
+
     func windowDidEndLiveResize(_ notification: Notification) {
         guard !settingUp else { return }
         UserDefaults.standard.set(true, forKey: resizedKey)
@@ -689,6 +693,7 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
     /// Android ended the widget's display: the widget went away (its app was
     /// removed), or Android stopped.
     func displayClosed() {
+        displayView.releaseAll()
         if let displayID { frames.unregister(displayID) }
         displayID = nil
         sentMode = nil
@@ -700,10 +705,11 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
     private func detach() {
         opening = false
         guard let displayID else { return }
+        displayView.releaseAll()
         frames.unregister(displayID)
         self.displayID = nil
         sentMode = nil
-        Task { [backend] in await backend.closeDisplay(displayID) }
+        enqueueInput { [backend] in await backend.closeDisplay(displayID) }
     }
 
     private func say(_ text: String) {
