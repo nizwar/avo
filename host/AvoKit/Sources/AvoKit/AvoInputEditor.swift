@@ -32,6 +32,7 @@ public struct AvoInputEdit: Codable, Sendable {
 /// AppKit asks synchronously, including between two edits in the same key event. Keep an
 /// optimistic view until the same Android editor acknowledges those edits.
 public struct AvoInputTextBuffer {
+    private static let maximumContextLength = 2048
     public init() {}
     public private(set) var state: AvoInputEditorState?
 
@@ -64,6 +65,19 @@ public struct AvoInputTextBuffer {
         let shared = NSIntersectionRange(range, NSRange(location: offset, length: text.length))
         guard shared.length > 0 else { return nil }
         return (text.substring(with: NSRange(location: shared.location - offset, length: shared.length)), shared)
+    }
+
+    private static func contextRange(in text: NSString, around selection: NSRange) -> NSRange? {
+        // Keep the selected text when it fits. For a larger selection, keep context at its start.
+        let length = selection.length <= maximumContextLength ? selection.length : 0
+        let padding = min(512, (maximumContextLength - length) / 2)
+        let lower = max(0, selection.location - padding)
+        let upper = min(text.length, selection.location + length + padding)
+        var slice = text.rangeOfComposedCharacterSequences(for: NSRange(location: lower, length: upper - lower))
+        if slice.length > maximumContextLength, length > 0 {
+            slice = text.rangeOfComposedCharacterSequences(for: selection)
+        }
+        return slice.length <= maximumContextLength ? slice : nil
     }
 
     /// The editor decides where a navigation key moves its selection.
@@ -113,12 +127,11 @@ public struct AvoInputTextBuffer {
             }
             state.start = range.location + (cursor?.location ?? length)
             state.end = range.location + (cursor.map(NSMaxRange) ?? length)
-            if let context = state.text as NSString?, let offset = state.offset, context.length > 2048 {
-                let cursor = min(context.length, max(0, state.start - offset))
-                let lower = max(0, cursor - 512), upper = min(context.length, cursor + 512)
-                let slice = context.rangeOfComposedCharacterSequences(for: NSRange(location: lower, length: upper - lower))
-                state.text = slice.length <= 2048 ? context.substring(with: slice) : nil
-                state.offset = state.text != nil ? offset + slice.location : nil
+            if let context = state.text as NSString?, let offset = state.offset, context.length > Self.maximumContextLength {
+                let selection = NSRange(location: state.start - offset, length: state.end - state.start)
+                let slice = Self.contextRange(in: context, around: selection)
+                state.text = slice.map { context.substring(with: $0) }
+                state.offset = slice.map { offset + $0.location }
             }
             if action == .mark, length > 0 {
                 state.markStart = range.location

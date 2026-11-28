@@ -71,6 +71,25 @@ struct AvoInputTextBufferTests {
         #expect(buffer.marked == NSRange(location: 8, length: 2))
     }
 
+    @Test(arguments: ["LL", "e\u{301}"])
+    func aLongMarkedSelectionIsReadableBeforeTheEditorAcknowledgesIt(paddingBoundary: String) throws {
+        var buffer = AvoInputTextBuffer()
+        let left = String(repeating: "L", count: 255) + paddingBoundary + String(repeating: "L", count: 255)
+        buffer.update(snapshot(left + String(repeating: "R", count: 512)))
+        let text = String(repeating: "🙂", count: 768)
+        let entireMark = NSRange(location: 0, length: text.utf16.count)
+        let range = NSRange(location: 512, length: text.utf16.count)
+        let mark = buffer.edit(.mark, text: text, selection: entireMark,
+                               replacement: NSRange(location: range.location, length: 0))
+        _ = try #require(mark)
+        #expect(buffer.selection == range)
+        let (selected, actual) = try #require(buffer.substring(range))
+        try #require(actual == range)
+        #expect(selected == text)
+        let context = try #require(buffer.state?.text)
+        #expect(context.utf16.count <= 2048)
+    }
+
     @Test func longCommitsKeepTheirContentsAndBoundTheContext() throws {
         var buffer = AvoInputTextBuffer()
         buffer.update(snapshot(""))
