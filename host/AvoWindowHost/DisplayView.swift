@@ -303,12 +303,22 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
                              shift: flags.contains(.shift), control: flags.contains(.control))
     }
 
-    /// Sends a shortcut's presses (each pressed and released).
-    func send(_ presses: [MacShortcuts.Press]) {
+    @discardableResult
+    private func sendShortcut(_ key: KeyName, flags: NSEvent.ModifierFlags = .command) -> Bool {
+        guard let presses = shortcut(key, flags) else { return false }
+        let keepsComposition = key == .c || (key == .x && selectedRange().length == 0)
+        if usesStockInputRouting, hasMarkedText(), !keepsComposition {
+            // Paste follows the marked text even when the input method has selected a candidate.
+            // Other editing commands, including Cut, operate on the current selection.
+            if key == .v, let marked { sendEditor(.commit, text: marked.string) }
+            else { sendEditor(.finish) }
+            resetMacComposition()
+        }
         for press in presses {
             sendKey(press.keyCode, down: true, meta: press.metaState, repeatCount: 0)
             sendKey(press.keyCode, down: false, meta: press.metaState, repeatCount: 0)
         }
+        return true
     }
 
     func avoInputEditorChanged(_ state: AvoInputEditorState?) {
@@ -349,11 +359,8 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
             if !event.isARepeat { sendBack() }
             return
         }
-        if let key, !hasMarkedText(), (!physicalKeyboard || flags.contains(.command)),
-           let presses = shortcut(key, flags) {
-            send(presses)
-            return
-        }
+        let forwardsShortcut = (usesStockInputRouting && flags.contains(.command)) || (!physicalKeyboard && !hasMarkedText())
+        if let key, forwardsShortcut, sendShortcut(key, flags: flags) { return }
         // Any other ⌘ combination belongs to the window (or to nothing).
         if flags.contains(.command) { return }
         if physicalKeyboard {
@@ -414,16 +421,12 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     // MARK: Edit menu
 
     @objc func undo(_ sender: Any?) { sendShortcut(.z) }
-    @objc func redo(_ sender: Any?) { sendShortcut(.z, shift: true) }
+    @objc func redo(_ sender: Any?) { sendShortcut(.z, flags: [.command, .shift]) }
     @objc func cut(_ sender: Any?) { sendShortcut(.x) }
     @objc func copy(_ sender: Any?) { sendShortcut(.c) }
     @objc func paste(_ sender: Any?) { sendShortcut(.v) }
     @objc override func selectAll(_ sender: Any?) { sendShortcut(.a) }
     @objc func performFindPanelAction(_ sender: Any?) { sendShortcut(.f) }
-
-    private func sendShortcut(_ key: KeyName, shift: Bool = false) {
-        if let presses = MacShortcuts.presses(for: key, command: true, option: false, shift: shift, control: false) { send(presses) }
-    }
 
     private func sendKey(_ code: UInt32, down: Bool, meta: UInt32, repeatCount: UInt32, scan: UInt32 = 0) {
         if scan == 0, let sendEdit, Self.editorKeyCodes.contains(code),
