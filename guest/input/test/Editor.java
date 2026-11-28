@@ -5,7 +5,13 @@ import android.content.*;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.InputType;
+import android.text.Selection;
 import android.view.KeyEvent;
+import android.view.inputmethod.BaseInputConnection;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.view.inputmethod.InputMethodSubtype;
@@ -21,6 +27,7 @@ import org.json.JSONTokener;
 public final class Editor extends Activity {
     private ClipboardManager clipboard;
     private EditText field;
+    private Editable unreportedText;
     private WebView web;
     private boolean initialized;
     private int pasteKeys;
@@ -47,7 +54,20 @@ public final class Editor extends Activity {
             web.loadDataWithBaseURL(null, "<meta name='viewport' content='width=device-width'>"
                     + "<input autofocus style='position:fixed;inset:0;width:100%;height:100%'>", "text/html", "UTF-8", null);
         } else {
-            field = new EditText(this);
+            if (getIntent().getBooleanExtra("unknownSelection", false)) {
+                unreportedText = Editable.Factory.getInstance().newEditable("");
+                Selection.setSelection(unreportedText, 0);
+            }
+            field = new EditText(this) {
+                @Override public InputConnection onCreateInputConnection(EditorInfo info) {
+                    if (unreportedText == null) return super.onCreateInputConnection(info);
+                    info.inputType = InputType.TYPE_CLASS_TEXT;
+                    info.imeOptions = EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING;
+                    return new BaseInputConnection(this, true) {
+                        @Override public Editable getEditable() { return unreportedText; }
+                    };
+                }
+            };
             field.setSingleLine(true);
             if (getIntent().getBooleanExtra("password", false)) {
                 field.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
@@ -109,7 +129,8 @@ public final class Editor extends Activity {
                 before = item.getUri() != null ? item.getUri().toString() : item.getText().toString();
             }
             final String suffix = "|" + before + "|" + pasteKeys + "|" + clipboardChanged;
-            if (web == null) write("result", field.getText() + suffix);
+            if (unreportedText != null) write("result", unreportedText + suffix);
+            else if (web == null) write("result", field.getText() + suffix);
             else web.evaluateJavascript("document.querySelector('input').value", value -> {
                 try { write("result", new JSONTokener(value).nextValue() + suffix); }
                 catch (org.json.JSONException error) { throw new IllegalStateException(error); }

@@ -143,7 +143,7 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
             sendKey(key.code, down: false, meta: 0, repeatCount: 0, scan: key.scan)
         }
         if usesStockInputRouting {
-            if editor.marked != nil { sendEditor(.cancel) }
+            if hasMarkedText() { sendEditor(.cancel) }
             resetMacComposition()
         }
         keysDown.removeAll()
@@ -483,12 +483,13 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     }
 
     func unmarkText() {
-        if editor.marked != nil { sendEditor(.finish) }
+        if usesStockInputRouting && hasMarkedText() { sendEditor(.finish) }
         marked = nil
     }
     func selectedRange() -> NSRange { editor.selection ?? NSRange(location: NSNotFound, length: 0) }
     func markedRange() -> NSRange {
-        editor.marked ?? marked.map { NSRange(location: 0, length: $0.length) } ?? NSRange(location: NSNotFound, length: 0)
+        if !usesStockInputRouting, let marked { return NSRange(location: 0, length: marked.length) }
+        return editor.marked ?? NSRange(location: NSNotFound, length: 0)
     }
     func hasMarkedText() -> Bool { marked != nil || editor.marked != nil }
     func attributedSubstring(forProposedRange range: NSRange, actualRange: NSRangePointer?) -> NSAttributedString? {

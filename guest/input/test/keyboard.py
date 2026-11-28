@@ -30,10 +30,10 @@ def wait_file(name):
     shell(f"for i in $(seq 1 100); do run-as {package} test -f files/{name} && exit 0; sleep .05; done; exit 1")
 
 
-def editor(web=False, clip="text", password=False):
+def editor(web=False, clip="text", password=False, unknown_selection=False):
     shell(f"am force-stop {package}; run-as {package} rm -f files/ready files/page files/result")
     shell(f"am start -W --display {options.display} -n {package}/.Editor --ez web {str(web).lower()} "
-          f"--es clip {clip} --ez password {str(password).lower()}")
+          f"--es clip {clip} --ez password {str(password).lower()} --ez unknownSelection {str(unknown_selection).lower()}")
     wait_file("ready")
     if web:
         wait_file("page")
@@ -118,6 +118,18 @@ with connection() as keyboard:
         shell(f"input -d {options.display} keyevent KEYCODE_A")
         expect("a", "SEED")
     else:
+        editor(unknown_selection=True)
+        initial = keyboard.attach()
+        assert initial["start"] == initial["end"] == -1
+        keyboard.edit("commit", text="A")
+        keyboard.edit("mark", text="かな")
+        expect("Aかな", "SEED")
+        keyboard.edit("cancel")
+        expect("A", "SEED")
+        keyboard.edit("mark", text="に")
+        keyboard.edit("finish")
+        keyboard.edit("cancel")
+        expect("Aに", "SEED")
         previous = None
         for web in (False, True):
             editor(web, "uri")

@@ -19,6 +19,7 @@ public final class AvoInputService extends InputMethodService {
     private Handler contextReader;
     private String session;
     private boolean attached;
+    private boolean composing;
     private int start, end, markStart, markEnd;
     private long ack, revision;
 
@@ -36,6 +37,7 @@ public final class AvoInputService extends InputMethodService {
         active = this;
         start = info.initialSelStart;
         end = info.initialSelEnd;
+        composing = false;
         markStart = markEnd = -1;
         newSession();
     }
@@ -64,6 +66,7 @@ public final class AvoInputService extends InputMethodService {
             active.attached = false;
             InputConnection connection = active.getCurrentInputConnection();
             if (connection != null) connection.finishComposingText();
+            active.composing = false;
             active.markStart = active.markEnd = -1;
         }
     }
@@ -111,12 +114,14 @@ public final class AvoInputService extends InputMethodService {
         String action = edit.optString("action");
         if ("finish".equals(action)) {
             c.finishComposingText();
+            composing = false;
             markStart = markEnd = -1;
             return;
         }
         if ("cancel".equals(action)) {
-            if (markStart >= 0) { c.setComposingText("", 1); start = end = markStart; }
+            if (composing && c.setComposingText("", 1)) start = end = markStart;
             c.finishComposingText();
+            composing = false;
             markStart = markEnd = -1;
             return;
         }
@@ -125,13 +130,20 @@ public final class AvoInputService extends InputMethodService {
         int from = edit.optInt("from", -1), to = edit.optInt("to", -1);
         int anchor = markStart >= 0 ? markStart : Math.min(start, end);
         if (from >= 0) {
-            if (to < from || !c.finishComposingText() || !c.setSelection(from, to)) return;
+            if (to < from || !c.finishComposingText()) return;
+            composing = false;
+            markStart = markEnd = -1;
+            if (!c.setSelection(from, to)) return;
             anchor = from;
         }
         if ("commit".equals(action)) {
-            if (c.commitText(text, 1) && anchor >= 0) start = end = anchor + text.length();
+            if (!c.commitText(text, 1)) return;
+            if (anchor >= 0) start = end = anchor + text.length();
+            composing = false;
             markStart = markEnd = -1;
         } else if (c.setComposingText(text, 1)) {
+            // A custom editor may accept composing text without reporting its selection.
+            composing = !text.isEmpty();
             if (text.isEmpty()) { c.finishComposingText(); markStart = markEnd = -1; }
             else if (anchor >= 0) { markStart = anchor; markEnd = anchor + text.length(); }
             if (anchor < 0) return;
@@ -146,6 +158,7 @@ public final class AvoInputService extends InputMethodService {
         super.onUpdateSelection(oldStart, oldEnd, newStart, newEnd, candidatesStart, candidatesEnd);
         if (start == newStart && end == newEnd && markStart == candidatesStart && markEnd == candidatesEnd) return;
         start = newStart; end = newEnd; markStart = candidatesStart; markEnd = candidatesEnd;
+        composing = candidatesStart >= 0;
         if (attached) publish();
     }
 
