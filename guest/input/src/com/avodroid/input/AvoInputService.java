@@ -171,7 +171,7 @@ public final class AvoInputService extends InputMethodService {
         if (!"commit".equals(action) && !"mark".equals(action)) return;
         String text = edit.optString("text");
         int from = edit.optInt("from", -1), to = edit.optInt("to", -1);
-        int anchor = markStart >= 0 ? markStart : Math.min(start, end);
+        int anchor = composing ? markStart : Math.min(start, end);
         if (from >= 0) {
             if (to < from || !c.finishComposingText()) return;
             composing = false;
@@ -224,12 +224,13 @@ public final class AvoInputService extends InputMethodService {
             if (context == null || context.getOffset() < 0 || context.getText().length() > 2048) return;
             AvoInputProvider.main.post(() -> {
                 if (!attached || active != this || revision != version) return;
+                // Some editors provide their first absolute selection with the surrounding text.
+                start = context.getOffset() + context.getSelectionStart();
+                end = context.getOffset() + context.getSelectionEnd();
                 JSONObject snapshot = state();
                 try {
                     snapshot.put("text", context.getText().toString());
                     snapshot.put("offset", context.getOffset());
-                    snapshot.put("start", context.getOffset() + context.getSelectionStart());
-                    snapshot.put("end", context.getOffset() + context.getSelectionEnd());
                 } catch (JSONException impossible) { throw new AssertionError(impossible); }
                 AvoInputProvider.publish(snapshot);
             });

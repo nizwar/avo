@@ -30,10 +30,11 @@ def wait_file(name):
     shell(f"for i in $(seq 1 100); do run-as {package} test -f files/{name} && exit 0; sleep .05; done; exit 1")
 
 
-def editor(web=False, clip="text", password=False, unknown_selection=False):
+def editor(web=False, clip="text", password=False, unknown_selection=False, no_learning=False):
     shell(f"am force-stop {package}; run-as {package} rm -f files/ready files/page files/result")
     shell(f"am start -W --display {options.display} -n {package}/.Editor --ez web {str(web).lower()} "
-          f"--es clip {clip} --ez password {str(password).lower()} --ez unknownSelection {str(unknown_selection).lower()}")
+          f"--es clip {clip} --ez password {str(password).lower()} --ez unknownSelection {str(unknown_selection).lower()} "
+          f"--ez noLearning {str(no_learning).lower()}")
     wait_file("ready")
     if web:
         wait_file("page")
@@ -118,7 +119,7 @@ with connection() as keyboard:
         shell(f"input -d {options.display} keyevent KEYCODE_A")
         expect("a", "SEED")
     else:
-        editor(unknown_selection=True)
+        editor(unknown_selection=True, no_learning=True)
         initial = keyboard.attach()
         assert initial["start"] == initial["end"] == -1
         keyboard.edit("commit", text="A")
@@ -130,6 +131,15 @@ with connection() as keyboard:
         keyboard.edit("finish")
         keyboard.edit("cancel")
         expect("Aに", "SEED")
+        editor(unknown_selection=True)
+        state = keyboard.attach()
+        while state.get("session") != keyboard.session or "text" not in state:
+            state = keyboard.read()
+        assert state["start"] == state["end"] == 0
+        keyboard.edit("mark", text="甲🙂乙", caretStart=1, caretEnd=3)
+        keyboard.edit("finish")
+        keyboard.edit("commit", text="中")
+        expect("甲中乙", "SEED")
         previous = None
         for web in (False, True):
             editor(web, "uri")

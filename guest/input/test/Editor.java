@@ -62,7 +62,9 @@ public final class Editor extends Activity {
                 @Override public InputConnection onCreateInputConnection(EditorInfo info) {
                     if (unreportedText == null) return super.onCreateInputConnection(info);
                     info.inputType = InputType.TYPE_CLASS_TEXT;
-                    info.imeOptions = EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING;
+                    if (getIntent().getBooleanExtra("noLearning", false)) {
+                        info.imeOptions = EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING;
+                    }
                     return new BaseInputConnection(this, true) {
                         @Override public Editable getEditable() { return unreportedText; }
                     };
