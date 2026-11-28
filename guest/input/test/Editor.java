@@ -6,6 +6,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
+import android.text.InputFilter;
 import android.text.InputType;
 import android.text.Selection;
 import android.view.KeyEvent;
@@ -71,6 +72,8 @@ public final class Editor extends Activity {
                 }
             };
             field.setSingleLine(true);
+            int maxLength = getIntent().getIntExtra("maxLength", 0);
+            if (maxLength > 0) field.setFilters(new InputFilter[]{new InputFilter.LengthFilter(maxLength)});
             if (getIntent().getBooleanExtra("password", false)) {
                 field.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
             }
@@ -80,6 +83,7 @@ public final class Editor extends Activity {
         }
         IntentFilter filter = new IntentFilter(getPackageName() + ".READ");
         filter.addAction(getPackageName() + ".BUSY");
+        filter.addAction(getPackageName() + ".RESTART");
         registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
     }
 
@@ -126,6 +130,10 @@ public final class Editor extends Activity {
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
+            if ((getPackageName() + ".RESTART").equals(intent.getAction())) {
+                getSystemService(InputMethodManager.class).restartInput(field);
+                return;
+            }
             if ((getPackageName() + ".BUSY").equals(intent.getAction())) {
                 write("busy", "ready");
                 android.os.SystemClock.sleep(500);

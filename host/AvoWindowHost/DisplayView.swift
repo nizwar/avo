@@ -322,10 +322,11 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     }
 
     func avoInputEditorChanged(_ state: AvoInputEditorState?) {
-        let changedSession = editor.state?.session != state?.session || !usesStockInputRouting
-        let hadMark = editor.marked != nil
+        let previous = editor.state
         editor.update(state)
-        if changedSession || hadMark && editor.marked == nil && marked != nil {
+        let lostMark = previous?.markSequence != nil && previous?.markSequence != editor.state?.markSequence
+        if !usesStockInputRouting || previous?.session != editor.state?.session
+            || previous?.generation != editor.state?.generation || lostMark && marked != nil {
             resetMacComposition()
         }
         usesStockInputRouting = true

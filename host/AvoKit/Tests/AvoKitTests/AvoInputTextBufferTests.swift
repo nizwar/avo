@@ -69,6 +69,61 @@ struct AvoInputTextBufferTests {
         _ = buffer.edit(.mark, text: "秘密")
         #expect(buffer.state?.text == nil && buffer.state?.offset == nil)
         #expect(buffer.marked == NSRange(location: 8, length: 2))
+        let candidate = buffer.edit(.commit, text: "x", replacement: NSRange(location: 8, length: 2))
+        #expect(candidate?.afterMark == 1 && candidate?.from == nil && candidate?.basis == nil)
+    }
+
+    @Test func anAbsoluteReplacementCarriesTheViewFromWhichAppKitChoseIt() throws {
+        var buffer = AvoInputTextBuffer()
+        var field = snapshot("AB")
+        field.start = 1
+        field.end = 1
+        buffer.update(field)
+        let firstEdit = buffer.edit(.commit, text: "xy")
+        let first = try #require(firstEdit)
+        #expect(first.basis == nil && buffer.state?.ack == 0)
+        var receipt = field
+        receipt.ack = 1
+        receipt.start = 3
+        receipt.end = 3
+        receipt.text = nil
+        receipt.offset = nil
+        receipt.contextPending = true
+        buffer.update(receipt)
+        let replacement = buffer.edit(.commit, text: "中", replacement: NSRange(location: 2, length: 1))
+        let next = try #require(replacement)
+        let basis = try #require(next.basis)
+        #expect(basis.text == "AxyB" && basis.offset == 0 && basis.start == 3 && basis.end == 3)
+        #expect(next.sequence == 2 && next.from == 2 && next.to == 3)
+        field.ack = 2
+        field.text = "AxB"
+        field.start = 2
+        field.end = 2
+        buffer.update(field)
+        #expect(buffer.substring(NSRange(location: 0, length: 3))?.0 == "AxB")
+        field.text = nil
+        field.offset = nil
+        buffer.update(field)
+        let unidentified = buffer.edit(.mark, text: "a", replacement: NSRange(location: 1, length: 1))
+        #expect(unidentified?.from == 1 && unidentified?.basis == nil)
+        let candidate = buffer.edit(.commit, text: "界")
+        #expect(candidate?.sequence == 4 && candidate?.afterMark == unidentified?.sequence)
+    }
+
+    @Test func aRestartDropsOldContextAndKeepsPendingEditsInSequence() {
+        var buffer = AvoInputTextBuffer()
+        let original = snapshot("AB")
+        buffer.update(original)
+        _ = buffer.edit(.mark, text: "xy")
+        var restarted = snapshot("new")
+        restarted.generation = 1
+        buffer.update(restarted)
+        #expect(buffer.marked == nil && buffer.state?.text == "new")
+        var late = original
+        late.ack = 1
+        buffer.update(late)
+        let edit = buffer.edit(.commit, text: "界", replacement: NSRange(location: 0, length: 1))
+        #expect(edit?.session == original.session && edit?.sequence == 2 && edit?.basis?.generation == 1)
     }
 
     @Test(arguments: ["LL", "e\u{301}"])

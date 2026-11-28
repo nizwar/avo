@@ -30,11 +30,11 @@ def wait_file(name):
     shell(f"for i in $(seq 1 100); do run-as {package} test -f files/{name} && exit 0; sleep .05; done; exit 1")
 
 
-def editor(web=False, clip="text", password=False, unknown_selection=False, no_learning=False):
+def editor(web=False, clip="text", password=False, unknown_selection=False, no_learning=False, max_length=0):
     shell(f"am force-stop {package}; run-as {package} rm -f files/ready files/page files/result")
     shell(f"am start -W --display {options.display} -n {package}/.Editor --ez web {str(web).lower()} "
           f"--es clip {clip} --ez password {str(password).lower()} --ez unknownSelection {str(unknown_selection).lower()} "
-          f"--ez noLearning {str(no_learning).lower()}")
+          f"--ez noLearning {str(no_learning).lower()} --ei maxLength {max_length}")
     wait_file("ready")
     if web:
         wait_file("page")
@@ -60,7 +60,10 @@ class AvoInputClient:
 
     def read(self):
         length, = struct.unpack(">I", self.stream.read(4))
-        return json.loads(self.stream.read(length))
+        msg = json.loads(self.stream.read(length))
+        if msg["kind"] == "state" and msg["session"] == self.session:
+            self.state = msg
+        return msg
 
     def send(self, **values):
         body = json.dumps(dict(session=self.session, **values), ensure_ascii=False).encode()
@@ -80,6 +83,9 @@ class AvoInputClient:
                 return msg
 
     def edit(self, action, **args):
+        if "from" in args and "basis" not in args:
+            state = self.context(self.state)
+            args["basis"] = {key: state[key] for key in ("generation", "start", "end", "text", "offset")}
         self.sequence += 1
         self.send(action=action, sequence=self.sequence, **args)
         while True:
@@ -124,6 +130,58 @@ with connection() as keyboard:
         shell(f"input -d {options.display} keyevent KEYCODE_A")
         expect("a", "SEED")
     else:
+        editor(max_length=3)
+        keyboard.attach()
+        keyboard.edit("commit", text="AB")
+        keyboard.edit("keyDown", keyCode=21)
+        keyboard.edit("keyUp", keyCode=21)
+        keyboard.edit("commit", text="xy")
+        predicted = {"generation": keyboard.state.get("generation", 0), "offset": 0, "text": "AxyB", "start": 3, "end": 3}
+        state = keyboard.edit("commit", text="中", **{"from": 2, "to": 3, "basis": predicted})
+        expect("AxB", "SEED")
+        actual = keyboard.context(state)
+        assert actual["text"] == "AxB" and actual["start"] == actual["end"] == 2
+        same_caret = {**predicted, "text": "AyB", "start": 2, "end": 2}
+        keyboard.edit("commit", text="中", **{"from": 1, "to": 2, "basis": same_caret})
+        expect("AxB", "SEED")
+        keyboard.edit("commit", text="中", **{"from": 1, "to": 2})
+        expect("A中B", "SEED")
+
+        # An IME can issue its candidate callback before it learns that the preceding mark failed.
+        keyboard.edit("keyDown", keyCode=29, metaState=0x1000)  # Ctrl+A
+        keyboard.edit("keyUp", keyCode=29, metaState=0x1000)
+        caret = {"generation": actual["generation"], "start": 2, "end": 2}
+        keyboard.edit("commit", text="x", **{"from": 2, "to": 2, "basis": caret})
+        expect("A中B", "SEED")
+        keyboard.edit("mark", text="ni", **{"from": 0, "to": 3, "basis": predicted})
+        keyboard.edit("commit", text="你", afterMark=keyboard.sequence)
+        expect("A中B", "SEED")
+
+        editor(max_length=3)
+        keyboard.attach()
+        keyboard.edit("commit", text="AB")
+        keyboard.edit("keyDown", keyCode=21)
+        keyboard.edit("keyUp", keyCode=21)
+        state = keyboard.context(keyboard.edit("mark", text="xy", caretStart=0, caretEnd=2))
+        assert state["text"] == "AxB" and 1 <= state["start"] <= state["end"] <= 2, state
+        keyboard.edit("finish")
+        keyboard.edit("commit", text="中")
+        expect("A中B" if state["start"] != state["end"] else "AxB", "SEED")
+
+        editor()
+        keyboard.attach()
+        original = keyboard.context(keyboard.edit("commit", text="a"))
+        shell(f"am broadcast --receiver-foreground -a {package}.RESTART -p {package}")
+        # A restart in this field must retain its authenticated session and edit sequence.
+        current = keyboard.context(keyboard.edit("commit", text="界"))
+        expect("a界", "SEED")
+        while current["generation"] == original["generation"]:
+            current = keyboard.context(keyboard.read())
+        assert current["session"] == original["session"] and current["generation"] > original["generation"]
+        old_generation = {**current, "generation": original["generation"]}
+        keyboard.edit("commit", text="old", **{"from": 0, "to": 2, "basis": old_generation})
+        expect("a界", "SEED")
+
         editor(unknown_selection=True, no_learning=True)
         initial = keyboard.attach()
         assert initial["start"] == initial["end"] == -1
@@ -194,8 +252,12 @@ with connection() as keyboard:
             keyboard.edit("commit", text="汉")
             expect("甲SEE汉D", "SEED", pastes=1)
         editor(clip="empty", password=True)
-        assert keyboard.attach()["privateEditor"]
-        state = keyboard.edit("commit", text="secret")
+        private = keyboard.attach()
+        assert private["privateEditor"]
+        caret = {key: private[key] for key in ("generation", "start", "end")}
+        state = keyboard.edit("commit", text="sec", **{"from": 0, "to": 0, "basis": caret})
+        assert "text" not in state
+        state = keyboard.edit("commit", text="ret")
         assert "text" not in state
         expect("secret", "empty")
         editor()

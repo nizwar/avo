@@ -237,7 +237,7 @@ struct Harness {
 
         // Only the owning shim can receive its editor context.
         let (_, otherEvents) = await harness.connect(.shim(package: "com.example.notes"))
-        let state = try AvoXPC.decode(AvoInputEditorState.self, from: Data(#"{"session":"field","ack":0,"start":1,"end":1,"markStart":-1,"markEnd":-1,"text":"x","offset":0}"#.utf8))
+        let state = try AvoXPC.decode(AvoInputEditorState.self, from: Data(#"{"session":"field","generation":0,"ack":0,"start":1,"end":1,"markStart":-1,"markEnd":-1,"text":"x","offset":0}"#.utf8))
         await harness.core.avoInputEditorChanged(display, editor: state)
         let keyboard = DaemonEvent.avoInputEditor(displayID: display, editor: state)
         #expect(await shimEvents.wait { $0 == keyboard } != nil)
