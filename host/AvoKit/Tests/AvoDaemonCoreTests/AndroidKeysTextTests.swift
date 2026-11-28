@@ -9,7 +9,7 @@ struct AndroidKeysTextTests {
     }
 
     @Test(arguments: ["你好", "AI助手 2.0", "你OK好", "é", "こんにちは", "안녕", "a🥑b"])
-    func macCandidateIsPastedInOnePiece(_ text: String) {
+    func macCandidateIsCommittedInOnePiece(_ text: String) {
         #expect(!AndroidKeys.canTypeAsKeys(text))
     }
 }

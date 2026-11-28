@@ -391,11 +391,9 @@ Input from a window, in order of precedence:
    goes by the scroll mode (below); pinch becomes two fingers around the
    cursor; Esc and a two-finger swipe left are Back; Cmd+C/V/X/A/Z map to
    Android's Ctrl shortcuts; editing keys (Return, Delete, arrows, …) are key
-   events and everything printable goes through the macOS input method and
-   arrives as committed text. On a stock Android image, text a US keyboard can
-   type is sent as keys, so an Android input method can compose it. If a text
-   record contains a character those keys cannot type, Avo pastes the whole
-   record. A Mac candidate such as `AI助手` reaches the editor in one paste.
+   events. On stock images, Avo Input (the default on a fresh data disk) sends
+   marked and committed text from macOS to the focused editor’s `InputConnection`.
+   With another keyboard selected, Avo forwards physical key events to Android.
 
 The guest focuses each display separately (`config_perDisplayFocusEnabled`),
 so typing goes to the app in the window you are typing in. With the GPU

@@ -513,6 +513,10 @@ public final class DaemonClient: @unchecked Sendable {
         proxy()?.sendInput(record)
     }
 
+    public func editText(_ displayID: UInt32, _ edit: AvoInputEdit) {
+        proxy()?.editText(displayID, edit: AvoXPC.encode(edit))
+    }
+
     // MARK: Plumbing
 
     private func proxy() -> AvoDaemonXPC? {

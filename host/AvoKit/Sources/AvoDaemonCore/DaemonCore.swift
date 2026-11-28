@@ -276,6 +276,12 @@ public actor DaemonCore {
                 await fingerprints.androidPaused(status.isPaused)
             }
         }
+        if let engine = deps.engine as? any AvoInputEngine {
+            let updates = engine.avoInputEditorUpdates
+            Task { [weak self] in
+                for await (id, editor) in updates { await self?.avoInputEditorChanged(id, editor: editor) }
+            }
+        }
         if let engine = deps.engine as? any ScreenLockEngine {
             let updates = engine.screenLockUpdates
             Task { [weak self] in
@@ -1915,6 +1921,16 @@ public actor DaemonCore {
         var request = Avo_V1_FocusDisplay()
         request.displayID = id
         _ = try? await vm.controlSession().request(.focusDisplay(request))
+    }
+
+    func avoInputEditorChanged(_ id: UInt32, editor: AvoInputEditorState?) {
+        guard let display = displays[id] else { return }
+        clients[display.owner]?.proxy.send(.avoInputEditor(displayID: id, editor: editor))
+    }
+
+    public func editText(_ edit: AvoInputEdit, display id: UInt32, client: ClientID) async {
+        guard ownedDisplay(id, by: client) != nil, let engine = deps.engine as? any AvoInputEngine else { return }
+        await engine.editText(edit, display: id)
     }
 
     public func sendInput(_ record: Data, client: ClientID) async {

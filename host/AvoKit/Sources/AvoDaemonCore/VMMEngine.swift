@@ -57,6 +57,9 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
     /// "Screen lock"), at every start and as it changes; ScreenLockEngine.
     public let screenLockUpdates: AsyncStream<AndroidScreenLock?>
     private let screenLockSink: AsyncStream<AndroidScreenLock?>.Continuation
+    /// The active Avo Input editor for each stock Android display.
+    public let avoInputEditorUpdates: AsyncStream<(UInt32, AvoInputEditorState?)>
+    private let avoInputEditorSink: AsyncStream<(UInt32, AvoInputEditorState?)>.Continuation
     /// Whether Android itself still answers (HostAgent's "Answers"); ResponsivenessEngine.
     public let responsiveness: AsyncStream<Date?>
     private let responsivenessSink: AsyncStream<Date?>.Continuation
@@ -118,6 +121,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         (links, linkSink) = AsyncStream.makeStream(of: URL.self, bufferingPolicy: .bufferingNewest(16))
         (renderer, rendererSink) = AsyncStream.makeStream(of: RendererStatus.self, bufferingPolicy: .bufferingNewest(4))
         (screenLockUpdates, screenLockSink) = AsyncStream.makeStream(of: AndroidScreenLock?.self, bufferingPolicy: .bufferingNewest(8))
+        (avoInputEditorUpdates, avoInputEditorSink) = AsyncStream.makeStream(of: (UInt32, AvoInputEditorState?).self)
         (responsiveness, responsivenessSink) = AsyncStream.makeStream(of: Date?.self, bufferingPolicy: .bufferingNewest(4))
     }
 
@@ -389,6 +393,8 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         await agent.forwardLinks { linkSink.yield($0) }
         let screenLockSink = self.screenLockSink
         await agent.forwardScreenLock { screenLockSink.yield($0) }
+        let avoInputEditorSink = self.avoInputEditorSink
+        await agent.forwardAvoInputEditor { avoInputEditorSink.yield(($0, $1)) }
         let responsivenessSink = self.responsivenessSink
         await agent.forwardResponsiveness { responsivenessSink.yield($0) }
         await agent.shareFolder(Self.sharedFolderFlags(launch.config).last.map { URL(filePath: $0, directoryHint: .isDirectory) })
@@ -423,7 +429,7 @@ public final class VMMEngine: VMEngine, @unchecked Sendable {
         let preparing = Task { [logger] in
             do {
                 // VMManager gives up first (up to 15 minutes for a first boot).
-                try await agent.prepare(deadline: SuspendingClock.now + .seconds(960))
+                try await agent.prepare(deadline: SuspendingClock.now + .seconds(960), firstBoot: launch.firstBoot)
             } catch {
                 logger.error("Android did not get ready: \(String(describing: error), privacy: .public)")
             }
@@ -868,6 +874,13 @@ extension VMMEngine: GuestStorageEngine {
     public func androidStorage() async -> AndroidStorage? {
         guard let agent = lock.withLock({ self.agent }) else { return nil }
         return await agent.storage()
+    }
+}
+
+extension VMMEngine: AvoInputEngine {
+    public func editText(_ edit: AvoInputEdit, display: UInt32) async {
+        let agent = lock.withLock { self.agent }
+        await agent?.editText(edit, display: display)
     }
 }
 

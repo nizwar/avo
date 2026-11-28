@@ -33,6 +33,7 @@ agent:
 
 helpers:
 	guest/clipboard/build.sh
+	guest/input/build.sh
 	guest/links/build.sh
 	guest/macstate/build.sh
 	guest/fingerprint/build.sh
@@ -51,4 +52,4 @@ icons:
 	python3 -I branding/tools/generate.py
 
 clean:
-	rm -rf $(DERIVED) host/AvoKit/.build guest/bridge-agent/build guest/clipboard/build guest/links/build guest/macstate/build
+	rm -rf $(DERIVED) host/AvoKit/.build guest/bridge-agent/build guest/clipboard/build guest/input/build guest/links/build guest/macstate/build

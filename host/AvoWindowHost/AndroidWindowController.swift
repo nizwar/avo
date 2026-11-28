@@ -711,6 +711,7 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
                         : String(localized: "This app has a key mapping: ⌘G turns on Game Mode.", bundle: .windowHost))
                 }
                 displayView.keymap = keymap
+                displayView.sendEdit = { [weak self] edit in self?.client?.editText(id, edit) }
                 displayView.send = { [weak self] record in self?.sendInput(record) }
                 for button in titlebarActions { button.isEnabled = true }
                 if !filesToShare.isEmpty {
@@ -742,6 +743,10 @@ final class AndroidWindowController: NSWindowController, NSWindowDelegate, NSMen
         guard !filesToShare.isEmpty, let app else { return }
         filesToShare = []
         showNotice(String(localized: "The files were not shared: \(app.label) did not open.", bundle: .windowHost))
+    }
+
+    func avoInputEditorChanged(_ editor: AvoInputEditorState?) {
+        displayView.avoInputEditorChanged(editor)
     }
 
     private func sendInput(_ record: InputRecord) {

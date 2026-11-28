@@ -14,17 +14,20 @@ public struct WidgetPanelsBackend: Sendable {
     public var closeDisplay: @Sendable (UInt32) async -> Void
     /// Input channel records for the panels' displays.
     public var sendInput: @Sendable (Data) async -> Void
+    public var editText: @Sendable (UInt32, AvoInputEdit) async -> Void
     public var removeWidget: @Sendable (String) async throws -> Void
 
     public init(openDisplay: @escaping @Sendable (OpenDisplayRequest) async throws -> UInt32,
                 resizeDisplay: @escaping @Sendable (UInt32, UInt32, UInt32, UInt32) async throws -> Void,
                 closeDisplay: @escaping @Sendable (UInt32) async -> Void,
                 sendInput: @escaping @Sendable (Data) async -> Void,
+                editText: @escaping @Sendable (UInt32, AvoInputEdit) async -> Void,
                 removeWidget: @escaping @Sendable (String) async throws -> Void) {
         self.openDisplay = openDisplay
         self.resizeDisplay = resizeDisplay
         self.closeDisplay = closeDisplay
         self.sendInput = sendInput
+        self.editText = editText
         self.removeWidget = removeWidget
     }
 }
@@ -41,6 +44,7 @@ public final class WidgetPanels {
     private let frames = FrameRouter()
     private var backend: WidgetPanelsBackend?
     private var panels: [String: WidgetPanel] = [:]
+    private var pendingAvoInputUpdates: [UInt32: DaemonEvent] = [:]
     private var widgets: [PlacedWidget] = []
     fileprivate(set) var status = VMStatus.stopped
     /// Avo's appearance for the panels' haze (the daemon's own follows the
@@ -68,16 +72,28 @@ public final class WidgetPanels {
             reconcile()
         case .vmStatus(let status):
             self.status = status
+            if !androidReady { pendingAvoInputUpdates.removeAll() }
             for panel in panels.values { panel.androidChanged() }
+        case let .avoInputEditor(id, editor):
+            if let panel = panels.values.first(where: { $0.displayID == id }) {
+                panel.avoInputEditorChanged(editor)
+            } else if panels.values.contains(where: { $0.opening }) {
+                pendingAvoInputUpdates[id] = event
+            }
         case .displayReady(let id):
             panels.values.first { $0.displayID == id }?.displayReady()
         case .displayClosed(let id):
+            pendingAvoInputUpdates[id] = nil
             panels.values.first { $0.displayID == id }?.displayClosed()
         case .displayTitle(let id, let top):
             panels.values.first { $0.displayID == id }?.showing(top: top)
         default:
             break
         }
+    }
+
+    fileprivate func applyPendingAvoInputUpdate(for id: UInt32) {
+        if let event = pendingAvoInputUpdates.removeValue(forKey: id) { handle(event) }
     }
 
     /// A panel for every widget, none for removed ones.
@@ -165,7 +181,7 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
     /// What the display was last asked to be.
     private var sentMode: WidgetDisplayMode?
     private var resizeGeneration = 0
-    private var opening = false
+    fileprivate private(set) var opening = false
     private var retries = 0
     private let logger = Logger(subsystem: AvoIdentifiers.logSubsystem, category: "Widgets")
 
@@ -314,9 +330,13 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
             setPanelSize(UserDefaults.standard.bool(forKey: resizedKey) ? fitted(panelSize) : Self.contentSize(widget))
         }
         applySizeLimits()
-        displayView.send = { [backend] record in
+        displayView.sendEdit = { [weak self, backend] edit in
+            guard let id = self?.displayID else { return }
+            self?.enqueueInput { await backend.editText(id, edit) }
+        }
+        displayView.send = { [weak self, backend] record in
             guard let bytes = try? InputWire.encode(record) else { return }
-            Task { await backend.sendInput(Data(bytes)) }
+            self?.enqueueInput { await backend.sendInput(Data(bytes)) }
         }
         applyLevel()
     }
@@ -616,6 +636,7 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
                 self.displayID = id
                 self.sentMode = mode
                 self.displayView.displayID = id
+                self.owner?.applyPendingAvoInputUpdate(for: id)
                 self.displayView.setDisplaySize(CGSize(width: Int(request.width), height: Int(request.height)))
                 self.frames.register(self.displayView, for: id)
                 // The widget ends the placeholder: Android's display is empty (all
@@ -646,6 +667,14 @@ final class WidgetPanel: NSObject, NSWindowDelegate {
             MainActor.assumeIsolated { self?.androidChanged() }
         }
     }
+
+    private var pendingInput: Task<Void, Never>?
+    private func enqueueInput(_ action: @escaping @Sendable () async -> Void) {
+        let previous = pendingInput
+        pendingInput = Task { await previous?.value; await action() }
+    }
+
+    func avoInputEditorChanged(_ editor: AvoInputEditorState?) { displayView.avoInputEditorChanged(editor) }
 
     func displayReady() {
         retries = 0

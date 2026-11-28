@@ -5,6 +5,7 @@ import AvoPackages
 import AvoProtocol
 import AvoShimKit
 import CoreGraphics
+import CryptoKit
 import Foundation
 import os
 
@@ -149,13 +150,17 @@ actor HostAgent: DisplayResizing {
     private var clipboardWatch: Task<Void, Never>?
     /// The last text the Mac put on Android's clipboard (not echoed back).
     private var clipboardFromHost: String?
-    /// Input-method text put on Android's clipboard to be pasted (`paste`):
-    /// never echoed back to the Mac.
-    private var typedClips: Set<String> = []
-    /// What Android's clipboard held before a run of pasted text, put back
-    /// once the typing stops; nil when nothing is to be put back.
-    private var clipboardBeforeTyping: String?
-    private var clipboardRestore: Task<Void, Never>?
+    private static let avoInputPackage = "\(AvoIdentifiers.prefix).input"
+    private var avoInputTask: Task<Void, Never>?
+    private var avoInputFocusTask: Task<Void, Never>?
+    private var avoInputSocket: ADBStream?
+    private var avoInputBinding: (session: String, display: Int, owner: UInt32)?
+    private var avoInputEditor: AvoInputEditorState?
+    private var avoInputDisplay: UInt32?
+    private var avoInputEditorSink: (@Sendable (UInt32, AvoInputEditorState?) -> Void)?
+    private var avoInputSequence = 0
+    private var avoInputAcks: [Int: CheckedContinuation<Void, Never>] = [:]
+    private var physicalKeys: [UInt16: UInt32] = [:]
     /// Notifications passed to the Mac: key → when it was posted.
     private var shownNotifications: [String: Int64] = [:]
     /// When each notification Android lists was last read in full, and
@@ -213,7 +218,7 @@ actor HostAgent: DisplayResizing {
     /// Waits for Android, then prepares it for windows. The Control port
     /// "listens" only after this, like the real agent late in boot. The Mac
     /// asleep is no time Android had to boot.
-    func prepare(deadline: SuspendingClock.Instant) async throws {
+    func prepare(deadline: SuspendingClock.Instant, firstBoot: Bool = false) async throws {
         let adb = try await connectADB(deadline: deadline)
         while try await shell("getprop sys.boot_completed").trimmed != "1" {
             guard SuspendingClock.now < deadline else { throw AvoError.timedOut("Android boot") }
@@ -225,6 +230,9 @@ actor HostAgent: DisplayResizing {
         // Before every other root step: they all go through su.
         if hasMagisk { await letShellUseMagisk() }
         try await provision()
+        async let avoInputInstalled = installAvoInput()
+        // Set up a fresh disk before a window can ask for its first editor.
+        if firstBoot, await avoInputInstalled { await selectInitialKeyboard() }
         // Before the Mac hears of Android: a screen lock keeps the windows locked.
         await checkScreenLock(initial: true)
         // A listing that fails leaves `known` empty: the first poll then
@@ -283,6 +291,9 @@ actor HostAgent: DisplayResizing {
             }
         }
         linkWatch = Task { [weak self] in await self?.runLinks() }
+        if await avoInputInstalled {
+            avoInputTask = Task { [weak self] in await self?.watchAvoInput() }
+        }
         widgetsInstall = Task { [weak self] in await self?.installWidgets() ?? false }
         answerWatch = Task { [weak self] in
             while !Task.isCancelled {
@@ -381,6 +392,8 @@ actor HostAgent: DisplayResizing {
         mediaWatch?.cancel()
         await mediaStream?.close()
         linkWatch?.cancel()
+        avoInputTask?.cancel()
+        await avoInputSocket?.close()
         widgetsInstall?.cancel()
         answerWatch?.cancel()
         bluetoothWatch?.cancel()
@@ -1223,11 +1236,10 @@ actor HostAgent: DisplayResizing {
             case .setClipboard(let request)?:
                 // Remembered so the watcher does not hand it back to the Mac.
                 clipboardFromHost = request.text
-                // Copied on the Mac while text is being pasted: that is what to put back.
-                if clipboardBeforeTyping != nil { clipboardBeforeTyping = request.text }
                 let encoded = Data(request.text.utf8).base64EncodedString()
                 if encoded.count <= 96 * 1024 {
-                    _ = try await shell(Self.clipboardCommand("set " + encoded))
+                    let result = try await adbShell(Self.clipboardCommand("set " + Self.quote(encoded)))
+                    if !result.succeeded { throw AvoError.guestUnavailable }
                 } else {
                     // One shell command carries it, and has a length limit.
                     logger.notice("the Mac's clipboard is too long for Android's (\(request.text.utf8.count) bytes): Android keeps what it had")
@@ -1352,6 +1364,8 @@ actor HostAgent: DisplayResizing {
         ready.displayID = launch.displayID
         ready.package = launch.package
         await send(Avo_V1_Envelope(.displayReady(ready)))
+        avoInputEditorSink?(launch.displayID, nil)
+        publishAvoInputEditor()
         startedAt[launch.displayID] = .now
         watchTasks()
         Task { [weak self] in await self?.noticeGPUDebugLayers(launching: launch.package) }
@@ -1704,9 +1718,6 @@ actor HostAgent: DisplayResizing {
                     buffer.removeSubrange(buffer.startIndex...newline)
                     guard line.hasPrefix("clip "), let data = Data(base64Encoded: String(line.dropFirst(5))) else { continue }
                     let text = String(decoding: data, as: UTF8.self)
-                    guard !typedClips.contains(text) else { continue }
-                    // Copied in Android while text is being pasted: that is what to put back.
-                    if clipboardBeforeTyping != nil { clipboardBeforeTyping = text }
                     guard text != clipboardFromHost else { continue }
                     var changed = Avo_V1_ClipboardChanged()
                     changed.text = text
@@ -2228,6 +2239,7 @@ actor HostAgent: DisplayResizing {
         // A resize waiting for the launch or the loop has nothing left to wait for.
         defer { finishResize(id) }
         guard let display = displays.removeValue(forKey: id) else { return }
+        if avoInputBinding?.owner == id { clearAvoInput() }
         widgetTops[id] = nil
         // Before the first await, so no launch takes the scanout meanwhile.
         releasing.insert(display.scanout)
@@ -2236,6 +2248,12 @@ actor HostAgent: DisplayResizing {
         emptyChecks[id] = nil
         if focusedDisplay == id { focusedDisplay = nil }
         frames.assign(scanout: display.scanout, to: nil)
+        // A shim can exit before its key-up events arrive.
+        for scan in physicalKeys.filter({ $0.value == id }).keys where physicalKeys[scan] == id {
+            physicalKeys[scan] = nil
+            heldModifiers.remove(scan)
+            try? await engine.send("key \(scan) 0")
+        }
         // Unplugging the display moves its task to display 0: the app keeps
         // running in the background, as on a phone.
         try? await engine.send("display \(display.scanout) off")
@@ -2882,10 +2900,15 @@ actor HostAgent: DisplayResizing {
             await press(event)
         case .text(let displayID, let text):
             guard !text.isEmpty else { return }
-            if AndroidKeys.canTypeAsKeys(text) {
+            if let editor = avoInputEditor, let id = avoInputDisplay, id == displayID || (displayID == 0 && focusedDisplay == id) {
+                var buffer = AvoInputTextBuffer()
+                buffer.update(editor)
+                if var edit = buffer.edit(.commit, text: text) {
+                    edit.sequence = avoInputSequence + 1
+                    await editText(edit, display: id)
+                }
+            } else if AndroidKeys.canTypeAsKeys(text) {
                 await type(text, on: displayID)
-            } else {
-                await paste(text, on: displayID)
             }
         case .gamepad(let state):
             await drive(gamepad: state)
@@ -2952,6 +2975,28 @@ actor HostAgent: DisplayResizing {
     private func press(_ event: KeyEvent) async {
         // Back on an app's first screen closes it: notice that quickly.
         if event.keyCode == AndroidKeys.back, event.action == .up { checkTasksSoon() }
+        if event.scanCode > 0, event.scanCode <= 0x2ff {
+            let scan = UInt16(event.scanCode)
+            let isModifier = [29, 97, 42, 54, 56, 100, 125, 126].contains(scan)
+            if event.action == .down {
+                if unfocusedTarget(event.displayID) != nil { await focusDisplay(event.displayID) }
+                guard event.displayID == 0 || displays[event.displayID] != nil && focusedDisplay == event.displayID else { return }
+                if !isModifier {
+                    await holdModifiers(event.metaState)
+                    // Modifiers already down as this window took focus have no preceding key-down here.
+                    for modifier in heldModifiers { physicalKeys[modifier] = event.displayID }
+                }
+                physicalKeys[scan] = event.displayID
+            } else {
+                guard physicalKeys[scan] == event.displayID else { return }
+                physicalKeys[scan] = nil
+            }
+            try? await engine.send("key \(scan) \(event.action == .down ? 1 : 0)")
+            if isModifier {
+                if event.action == .down { heldModifiers.insert(scan) } else { heldModifiers.remove(scan) }
+            }
+            return
+        }
         if let androidID = unfocusedTarget(event.displayID) {
             // `input` sends the press and release itself, modifiers first.
             guard event.action == .down else { return }
@@ -2985,41 +3030,22 @@ actor HostAgent: DisplayResizing {
         }
     }
 
-    /// A text commit containing characters a keyboard cannot type goes on
-    /// Android's clipboard and is pasted with Ctrl+V, as ⌘V pastes.
-    /// What the clipboard held comes back once the typing stops.
-    private func paste(_ text: String, on displayID: UInt32) async {
-        let encoded = Data(text.utf8).base64EncodedString()
-        guard encoded.count <= 96 * 1024 else { return }
-        // A restore under way finishes first: it must not land after this text.
-        clipboardRestore?.cancel()
-        await clipboardRestore?.value
-        clipboardRestore = nil
-        if clipboardBeforeTyping == nil {
-            guard let current = try? await shell(Self.clipboardCommand("get")) else { return }
-            let data = Data(base64Encoded: current.trimmed) ?? Data()
-            clipboardBeforeTyping = String(decoding: data, as: UTF8.self)
+    /// Installs the bundled Avo Input APK when its digest changes.
+    private func installAvoInput() async -> Bool {
+        guard let adb = await liveADB(), let data = Data(base64Encoded: AvoInputHelper.apk) else { return false }
+        let pathCommand = "pm path " + Self.avoInputPackage
+        if let path = Self.baseAPKPath(in: (try? await shell(pathCommand)) ?? ""),
+           let installed = Self.sha256(sumOutput: (try? await shell("sha256sum " + Self.quote(path))) ?? ""),
+           installed == SHA256.hash(data: data).map({ String(format: "%02x", $0) }).joined() {
+            return true
         }
-        typedClips.insert(text)
-        guard (try? await shell(Self.clipboardCommand("set " + encoded))) != nil else { return }
-        await press(KeyEvent(displayID: displayID, action: .down, keyCode: AndroidKeys.v, metaState: AndroidKeys.metaCtrlOn))
-        await press(KeyEvent(displayID: displayID, action: .up, keyCode: AndroidKeys.v, metaState: AndroidKeys.metaCtrlOn))
-        clipboardRestore = Task { [weak self] in
-            // Long enough for the app to read the clipboard; more text in the
-            // meantime (the next word) starts the wait again.
-            try? await Task.sleep(for: .seconds(1))
-            guard !Task.isCancelled else { return }
-            await self?.restoreClipboard()
+        do {
+            try await Self.install(data, adb: adb)
+            return true
+        } catch {
+            logger.error("Avo Input could not be installed")
+            return false
         }
-    }
-
-    private func restoreClipboard() async {
-        defer { typedClips.removeAll() }
-        guard let previous = clipboardBeforeTyping else { return }
-        clipboardBeforeTyping = nil
-        // An empty clipboard has no `set`: the pasted text stays.
-        guard !previous.isEmpty else { return }
-        _ = try? await shell(Self.clipboardCommand("set " + Data(previous.utf8).base64EncodedString()))
     }
 
     private func unfocusedTarget(_ displayID: UInt32) -> Int? {
@@ -4134,5 +4160,181 @@ extension HostAgent {
     private func lockScreenHolds() async -> Bool {
         guard let output = try? await shell(GuestScreenLock.stateCommand) else { return true }
         return GuestScreenLock.state(output).keyguardLocked ?? true
+    }
+}
+
+// MARK: - Avo Input (regular Android IME on stock images)
+
+extension HostAgent {
+    func forwardAvoInputEditor(to sink: @escaping @Sendable (UInt32, AvoInputEditorState?) -> Void) {
+        avoInputEditorSink = sink
+    }
+
+    /// Selects Avo Input once, even if a graphics fallback replays the first launch.
+    private func selectInitialKeyboard() async {
+        let command = """
+            set -e
+            configured=$(settings --user 0 get secure avo_input_initialized)
+            [ "$configured" = null ] || exit 0
+            keyboard='\(Self.avoInputPackage)/.AvoInputService'
+            # Package installation can finish before the input service sees the IME.
+            tries=0
+            until ime enable --user 0 "$keyboard"; do
+                tries=$((tries + 1))
+                [ "$tries" -lt 10 ] || exit 1
+                sleep 0.2
+            done
+            ime set --user 0 "$keyboard"
+            [ "$(settings --user 0 get secure default_input_method)" = "$keyboard" ]
+            settings --user 0 put secure avo_input_initialized 1
+            """
+        do {
+            let result = try await adbShell(command)
+            if !result.succeeded {
+                logger.error("Could not set the initial Android keyboard (exit \(result.exitCode)): \(result.errorOutput, privacy: .public)")
+            }
+        } catch {
+            logger.error("Could not set the initial Android keyboard: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func watchAvoInput() async {
+        while !Task.isCancelled {
+            await whilePaused()
+            if let adb = await liveADB() {
+                // The provider binds a fresh, private name before returning it to the shell.
+                let reply = try? await shell("content call --uri content://\(Self.avoInputPackage).editor --method connect")
+                if let reply, let begin = reply.range(of: "socket=avo-input-"),
+                   let uuid = UUID(uuidString: String(reply[begin.upperBound...].prefix(36))),
+                   let socket = try? await adb.open("localabstract:avo-input-" + uuid.uuidString.lowercased()) {
+                    avoInputSocket = socket
+                    await readAvoInput(socket)
+                    await socket.close()
+                    avoInputSocket = nil
+                }
+            }
+            clearAvoInput()
+            if !Task.isCancelled { try? await Task.sleep(for: .seconds(2)) }
+        }
+    }
+
+    private func clearAvoInput() {
+        avoInputFocusTask?.cancel()
+        avoInputFocusTask = nil
+        avoInputBinding = nil
+        avoInputEditor = nil
+        avoInputSequence = 0
+        for waiter in avoInputAcks.values { waiter.resume() }
+        avoInputAcks.removeAll()
+        publishAvoInputEditor()
+    }
+
+    private func publishAvoInputEditor() {
+        let id = avoInputBinding.flatMap { binding in
+            displays[binding.owner]?.androidID == binding.display ? binding.owner : nil
+        }
+        if let old = avoInputDisplay, old != id { avoInputEditorSink?(old, nil) }
+        avoInputDisplay = id
+        if let id { avoInputEditorSink?(id, avoInputEditor) }
+    }
+
+    private struct AvoInputMessage: Decodable {
+        let kind: String
+        let session: String?
+        let pid: Int?
+    }
+
+    private func readAvoInput(_ socket: ADBStream) async {
+        var buffer = Data()
+        do {
+            for try await chunk in socket.incoming {
+                buffer.append(chunk)
+                while buffer.count >= 4 {
+                    let length = buffer.prefix(4).reduce(0) { $0 << 8 | Int($1) }
+                    guard length > 0, length <= 64 * 1024 else { return }
+                    guard buffer.count >= 4 + length else { break }
+                    let data = Data(buffer.dropFirst(4).prefix(length))
+                    buffer.removeFirst(4 + length)
+                    let message = try JSONDecoder().decode(AvoInputMessage.self, from: data)
+                    switch message.kind {
+                    case "focus":
+                        clearAvoInput()
+                        if let session = message.session, let pid = message.pid {
+                            avoInputFocusTask = Task { [weak self] in
+                                await self?.attachAvoInput(session: session, pid: pid, socket: socket)
+                            }
+                        }
+                    case "state":
+                        guard message.session == avoInputBinding?.session else { continue }
+                        let editor = try JSONDecoder().decode(AvoInputEditorState.self, from: data)
+                        avoInputEditor = editor
+                        for sequence in Array(avoInputAcks.keys) where sequence <= editor.ack {
+                            avoInputAcks.removeValue(forKey: sequence)?.resume()
+                        }
+                        publishAvoInputEditor()
+                    default: break
+                    }
+                }
+            }
+        } catch {}
+    }
+
+    /// The client display can differ from the display where Android hosts the IME's window.
+    static func keyboardClientDisplay(_ dump: String, pid: Int) -> Int? {
+        guard dump.contains("mCurClient=ClientState{"), dump.contains("mPid=\(pid) "),
+              let range = dump.range(of: "mSelfReportedDisplayId=") else { return nil }
+        return Int(dump[range.upperBound...].prefix(while: { $0.isNumber }))
+    }
+
+    private func attachAvoInput(session: String, pid: Int, socket: ADBStream) async {
+        // The framework can publish the IME callback before dumpsys sees its new client.
+        // A subsequent focus event cancels this lookup without delaying the socket reader.
+        var delay = 80
+        while !Task.isCancelled && avoInputSocket === socket {
+            let dump = try? await shell("dumpsys input_method | grep -m1 'mCurClient=ClientState'")
+            guard !Task.isCancelled, avoInputSocket === socket else { return }
+            if let dump, let display = Self.keyboardClientDisplay(dump, pid: pid) {
+                guard let owner = displays.values.first(where: { $0.androidID == display })?.id else { return }
+                avoInputBinding = (session, display, owner)
+                do { try await writeAvoInput(["action": "attach", "session": session], to: socket) }
+                catch { await socket.close() }
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(delay))
+            delay = min(delay * 2, 2000)
+        }
+    }
+
+    private func writeAvoInput<T: Encodable>(_ value: T, to socket: ADBStream) async throws {
+        let body = try JSONEncoder().encode(value)
+        guard body.count < AvoInputEdit.maximumMessageBytes else { throw AvoError.guestUnavailable }
+        var size = UInt32(body.count).bigEndian
+        var frame = withUnsafeBytes(of: &size) { Data($0) }
+        frame.append(body)
+        try await socket.write(frame)
+    }
+
+    func editText(_ edit: AvoInputEdit, display: UInt32) async {
+        guard let socket = avoInputSocket, let binding = avoInputBinding,
+              avoInputDisplay == display, displays[display]?.androidID == binding.display,
+              binding.session == edit.session, edit.sequence == avoInputSequence + 1 else { return }
+        avoInputSequence = edit.sequence
+        do { try await writeAvoInput(edit, to: socket) }
+        catch { await socket.close(); return }
+        guard avoInputBinding?.session == edit.session, (avoInputEditor?.ack ?? 0) < edit.sequence else { return }
+        // Keep subsequent physical shortcuts behind the IME's batch, including an immediate Cmd+V.
+        let timeout = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled else { return }
+            await self?.expireAvoInputEdit(edit)
+        }
+        await withCheckedContinuation { avoInputAcks[edit.sequence] = $0 }
+        timeout.cancel()
+    }
+
+    private func expireAvoInputEdit(_ edit: AvoInputEdit) async {
+        guard avoInputBinding?.session == edit.session, avoInputAcks[edit.sequence] != nil else { return }
+        clearAvoInput()
+        await avoInputSocket?.close()
     }
 }

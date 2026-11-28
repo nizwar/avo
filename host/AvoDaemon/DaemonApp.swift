@@ -234,6 +234,7 @@ final class DaemonAppDelegate: NSObject, NSApplicationDelegate {
                 resizeDisplay: { try await core.resizeDisplay($0, width: $1, height: $2, dpi: $3, client: id) },
                 closeDisplay: { await core.closeDisplay($0, client: id) },
                 sendInput: { await core.sendInput($0, client: id) },
+                editText: { await core.editText($1, display: $0, client: id) },
                 removeWidget: { try await core.removeWidget($0, client: id) }))
         }
         let menuBar = MenuBarController(core: core, avoApp: avoApp)

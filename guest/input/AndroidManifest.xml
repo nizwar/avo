@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.avodroid.input" android:versionCode="2" android:versionName="2.0">
+    <uses-sdk android:minSdkVersion="34" android:targetSdkVersion="36" />
+    <application android:label="@string/app_name" android:allowBackup="false">
+        <service android:name=".AvoInputService" android:exported="true"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data android:name="android.view.im" android:resource="@xml/input" />
+        </service>
+        <provider android:name=".AvoInputProvider" android:authorities="com.avodroid.input.editor"
+            android:exported="true" android:permission="android.permission.INJECT_EVENTS" />
+    </application>
+</manifest>

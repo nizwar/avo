@@ -18,7 +18,8 @@ mkdir -p "$OUT"/{classes,dex}
 
 javac --release 17 -nowarn -cp "$JAR" -d "$OUT/classes" $(find "$HERE/src" -name '*.java')
 "$BT/d8" --release --min-api 30 --lib "$JAR" --output "$OUT/dex" $(find "$OUT/classes" -name '*.class')
-(cd "$OUT/dex" && zip -q -X "$OUT/avo-clipboard.jar" classes.dex)
+TZ=UTC touch -t 198101010000 "$OUT/dex/classes.dex"
+(cd "$OUT/dex" && TZ=UTC zip -q -X "$OUT/avo-clipboard.jar" classes.dex)
 
 SWIFT="$ROOT/host/AvoKit/Sources/AvoDaemonCore/ClipboardHelper.swift"
 {

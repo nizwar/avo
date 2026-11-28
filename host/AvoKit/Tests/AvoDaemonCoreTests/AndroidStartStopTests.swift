@@ -260,6 +260,7 @@ import Testing
     @Test func aFactoryResetStartsAndroidDespiteWhatStayed() async throws {
         let harness = try Harness(apps: [])
         defer { harness.cleanUp() }
+        try Self.bootedBefore(harness)
         await harness.core.start()
         let (panel, _) = await harness.connect(.controlPanel)
         try await harness.core.startVM(client: panel)
@@ -272,6 +273,7 @@ import Testing
         harness.engine.exit(AndroidFactoryReset())
         #expect(await eventually { harness.engine.launches.count == launches + 1 })
         #expect(await eventually { await harness.core.status().state == .running })
+        #expect(harness.engine.launches.map(\.firstBoot) == [false, true])
         #expect(FileManager.default.fileExists(atPath: snapshots.path), "it stayed, and only the logs say so")
     }
 }
