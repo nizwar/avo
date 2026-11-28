@@ -2991,7 +2991,12 @@ actor HostAgent: DisplayResizing {
                     // Modifiers already down as this window took focus have no preceding key-down here.
                     for modifier in heldModifiers { physicalKeys[modifier] = event.displayID }
                 }
-                physicalKeys[scan] = event.displayID
+                if let previous = physicalKeys.updateValue(event.displayID, forKey: scan), previous != event.displayID {
+                    // A new window's press can arrive before the old window releases the same key.
+                    // The virtual keyboard needs an up between the two downs.
+                    try? await engine.send("key \(scan) 0")
+                    guard physicalKeys[scan] == event.displayID else { return }
+                }
             } else {
                 guard physicalKeys[scan] == event.displayID else { return }
                 physicalKeys[scan] = nil
