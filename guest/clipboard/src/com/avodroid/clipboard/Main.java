@@ -122,18 +122,17 @@ public final class Main {
         if (command.equals("media")) {
             exitAfter(() -> Media.run(Arrays.copyOfRange(args, 1, args.length)));
         }
+        Main clipboard = new Main();
         switch (command) {
-            case "get":
-                exitAfter(() -> {
-                    String text = new Main().text();
-                    System.out.println(text == null ? "" : encode(text));
-                });
+            case "get": {
+                String text = clipboard.text();
+                System.out.println(text == null ? "" : encode(text));
                 break;
+            }
             case "set":
-                exitAfter(() -> new Main().setText(new String(Base64.getDecoder().decode(args[1]), StandardCharsets.UTF_8)));
+                clipboard.setText(new String(Base64.getDecoder().decode(args[1]), StandardCharsets.UTF_8));
                 break;
             case "watch": {
-                Main clipboard = new Main();
                 String last = clipboard.text();
                 System.out.println("ready");
                 System.out.flush();
