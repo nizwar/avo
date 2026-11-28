@@ -2247,11 +2247,7 @@ actor HostAgent: DisplayResizing {
         if focusedDisplay == id { focusedDisplay = nil }
         frames.assign(scanout: display.scanout, to: nil)
         // A shim can exit before its key-up events arrive.
-        for scan in physicalKeys.filter({ $0.value == id }).keys where physicalKeys[scan] == id {
-            physicalKeys[scan] = nil
-            heldModifiers.remove(scan)
-            try? await engine.send("key \(scan) 0")
-        }
+        await releasePhysicalKeys(for: id)
         // Unplugging the display moves its task to display 0: the app keeps
         // running in the background, as on a phone.
         try? await engine.send("display \(display.scanout) off")
@@ -2857,11 +2853,12 @@ actor HostAgent: DisplayResizing {
         } catch {
             logger.debug("input channel closed: \(String(describing: error), privacy: .public)")
         }
-        // No stuck fingers or modifier keys after the shim goes away.
+        // No stuck fingers or keys if the channel ends before their releases arrive.
         for id in touches.keys {
             if let display = displays[id] { try? await engine.send("touch \(display.scanout)") }
         }
         touches.removeAll()
+        await releasePhysicalKeys()
         await holdModifiers(0)
         // The daemon's one channel carries every shim's records: none drives it now.
         await drive(gamepad: GamepadState(pad: 0, connected: false))
@@ -2959,6 +2956,16 @@ actor HostAgent: DisplayResizing {
 
     /// Modifier keys the engine's keyboard holds down now (evdev codes).
     private var heldModifiers: Set<UInt16> = []
+
+    private func releasePhysicalKeys(for displayID: UInt32? = nil) async {
+        for (scan, owner) in physicalKeys where displayID == nil || owner == displayID {
+            // Another display may have claimed this key while the engine released the previous one.
+            guard physicalKeys[scan] == owner else { continue }
+            physicalKeys[scan] = nil
+            heldModifiers.remove(scan)
+            try? await engine.send("key \(scan) 0")
+        }
+    }
 
     /// Presses and releases modifier keys until exactly those in `metaState` are down.
     private func holdModifiers(_ metaState: UInt32) async {
