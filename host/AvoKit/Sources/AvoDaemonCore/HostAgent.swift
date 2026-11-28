@@ -1238,8 +1238,7 @@ actor HostAgent: DisplayResizing {
                 clipboardFromHost = request.text
                 let encoded = Data(request.text.utf8).base64EncodedString()
                 if encoded.count <= 96 * 1024 {
-                    let result = try await adbShell(Self.clipboardCommand("set " + Self.quote(encoded)))
-                    if !result.succeeded { throw AvoError.guestUnavailable }
+                    _ = try await shell(Self.clipboardCommand("set " + encoded))
                 } else {
                     // One shell command carries it, and has a length limit.
                     logger.notice("the Mac's clipboard is too long for Android's (\(request.text.utf8.count) bytes): Android keeps what it had")

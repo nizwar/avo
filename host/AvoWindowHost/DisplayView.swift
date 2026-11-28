@@ -139,11 +139,13 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     /// nothing stays pressed in Android. The key mapping lets go of its own
     /// (KeymapController.focusLost).
     func releaseAll() {
-        for key in keysDown.values {
+        for (_, key) in keysDown.sorted(by: { $0.key < $1.key }) {
             sendKey(key.code, down: false, meta: 0, repeatCount: 0, scan: key.scan)
         }
-        if editor.marked != nil { sendEditor(.cancel) }
-        resetMacComposition()
+        if usesStockInputRouting {
+            if editor.marked != nil { sendEditor(.cancel) }
+            resetMacComposition()
+        }
         keysDown.removeAll()
         sendTouches(pointer.cancel())
         wheel.interrupt()
@@ -337,7 +339,7 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
         let key = KeyboardMapping.key(forMacKeyCode: event.keyCode)
         let flags = event.modifierFlags
         if let key, keymap?.key(key, down: true, isRepeat: event.isARepeat) == true { return }
-        if key == .escape && !hasMarkedText() {
+        if key == .escape && (!usesStockInputRouting || !hasMarkedText()) {
             if !event.isARepeat { sendBack() }
             return
         }
@@ -346,6 +348,7 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
             send(presses)
             return
         }
+        // Any other ⌘ combination belongs to the window (or to nothing).
         if flags.contains(.command) { return }
         if physicalKeyboard {
             if let extra = PhysicalKeyboard.extra[event.keyCode] {
@@ -355,6 +358,7 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
             }
             return
         }
+        // While an input method is composing, every key belongs to it.
         if let key, !hasMarkedText(), Self.functionalKeys.contains(key) || flags.contains(.control),
            let code = KeyboardMapping.androidKeyCode(for: key) {
             keyDown(event, code: code)
@@ -372,7 +376,10 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     }
 
     override func flagsChanged(with event: NSEvent) {
+        // Modifiers can be keymap triggers (Shift to sprint, Option to toggle the cursor).
         guard let key = KeyboardMapping.key(forMacKeyCode: event.keyCode) else { return }
+        // Read from the event: counting the changes went backwards once another window took one
+        // (⇧⌘K: Shift down here, up in the editor), and Shift to run walked while held.
         let down = KeyboardMapping.isModifierDown(key, flags: event.modifierFlags.rawValue)
         if keymap?.key(key, down: down, isRepeat: false) == true { return }
         if key == .capsLock, physicalKeyboard {
@@ -418,7 +425,7 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
 
     private func meta(_ flags: NSEvent.ModifierFlags) -> UInt32 {
         var value = KeyboardMapping.androidMetaState(shift: flags.contains(.shift), control: flags.contains(.control),
-                                                      option: flags.contains(.option), command: flags.contains(.command),
+                                                      option: flags.contains(.option), command: false,
                                                       capsLock: flags.contains(.capsLock))
         if physicalKeyboard && flags.rawValue & 0x207f != 0 {
             // Android layouts can assign a different character to right Option (AltGr).
@@ -460,7 +467,7 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     }
 
     override func doCommand(by selector: Selector) {
-        if selector == #selector(NSResponder.cancelOperation(_:)), hasMarkedText() {
+        if usesStockInputRouting, selector == #selector(NSResponder.cancelOperation(_:)), hasMarkedText() {
             sendEditor(.cancel)
             marked = nil
         }
