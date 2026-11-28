@@ -198,5 +198,16 @@ with connection() as keyboard:
         state = keyboard.edit("commit", text="secret")
         assert "text" not in state
         expect("secret", "empty")
+        editor()
+        keyboard.attach()
+        keyboard.edit("mark", text="かな")
+        expect("かな", "SEED")
+        with connection() as reconnected:
+            reconnected.attach()
+            assert reconnected.session != keyboard.session
+            # Drain any queued state. Replacing the connection must wake the old reader with EOF.
+            keyboard.stream.read()
+            reconnected.edit("commit", text="新")
+            expect("かな新", "SEED")
 assert shell("settings get secure default_input_method") == selected
 print("Avo Input device tests passed")

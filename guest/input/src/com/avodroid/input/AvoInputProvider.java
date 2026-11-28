@@ -90,7 +90,8 @@ public final class AvoInputProvider extends ContentProvider {
         }
 
         void read() {
-            try (DataInputStream in = new DataInputStream(socket.getInputStream())) {
+            try {
+                DataInputStream in = new DataInputStream(socket.getInputStream());
                 while (!closed) {
                     int length = in.readInt();
                     if (length <= 0 || length > 8 * 1024 * 1024) break;
@@ -105,7 +106,8 @@ public final class AvoInputProvider extends ContentProvider {
         }
 
         void write() {
-            try (DataOutputStream out = new DataOutputStream(socket.getOutputStream())) {
+            try {
+                DataOutputStream out = new DataOutputStream(socket.getOutputStream());
                 while (!closed) {
                     byte[] bytes = outgoing.take().getBytes(StandardCharsets.UTF_8);
                     out.writeInt(bytes.length);
@@ -119,6 +121,9 @@ public final class AvoInputProvider extends ContentProvider {
         synchronized void close() {
             if (closed) return;
             closed = true;
+            // Closing the descriptor alone leaves a blocked read or write holding the socket open.
+            try { socket.shutdownInput(); } catch (IOException ignored) {}
+            try { socket.shutdownOutput(); } catch (IOException ignored) {}
             writer.interrupt();
             try { socket.close(); } catch (IOException ignored) {}
             main.post(() -> {
