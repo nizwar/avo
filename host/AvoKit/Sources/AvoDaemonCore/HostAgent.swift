@@ -4240,6 +4240,7 @@ extension HostAgent {
         let kind: String
         let session: String?
         let pid: Int?
+        let package: String?
     }
 
     private func readAvoInput(_ socket: ADBStream) async {
@@ -4257,9 +4258,9 @@ extension HostAgent {
                     switch message.kind {
                     case "focus":
                         clearAvoInput()
-                        if let session = message.session, let pid = message.pid {
+                        if let session = message.session {
                             avoInputFocusTask = Task { [weak self] in
-                                await self?.attachAvoInput(session: session, pid: pid, socket: socket)
+                                await self?.attachAvoInput(session: session, focus: message, socket: socket)
                             }
                         }
                     case "state":
@@ -4278,20 +4279,34 @@ extension HostAgent {
     }
 
     /// The client display can differ from the display where Android hosts the IME's window.
-    static func keyboardClientDisplay(_ dump: String, pid: Int) -> Int? {
-        guard dump.contains("mCurClient=ClientState{"), dump.contains("mPid=\(pid) "),
-              let range = dump.range(of: "mSelfReportedDisplayId=") else { return nil }
-        return Int(dump[range.upperBound...].prefix(while: { $0.isNumber }))
+    static func keyboardClientDisplay(_ dump: String, pid: Int?, package: String? = nil) -> Int? {
+        let rows = dump.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        guard let client = rows.first(where: { $0.hasPrefix("mCurClient=ClientState{") }),
+              let range = client.range(of: "mSelfReportedDisplayId="),
+              let display = Int(client[range.upperBound...].prefix(while: \.isNumber)) else { return nil }
+        if let pid { return client.contains(" mPid=\(pid) ") ? display : nil }
+        // With no client PID, require Android's latest IME target to match the editor's
+        // package, the currently focused window token and the current client's display.
+        let prefix = "mFocusedWindow="
+        guard let package, !package.isEmpty,
+              let window = rows.last(where: { $0.hasPrefix(prefix) })?.dropFirst(prefix.count),
+              !window.isEmpty, window != "null",
+              let target = rows.last(where: { $0.hasPrefix("targetWin=") }),
+              target.hasPrefix("targetWin=\(window) [\(package)] "),
+              target.split(separator: " ").contains("targetDisplayId=\(display)") else { return nil }
+        return display
     }
 
-    private func attachAvoInput(session: String, pid: Int, socket: ADBStream) async {
+    private func attachAvoInput(session: String, focus: AvoInputMessage, socket: ADBStream) async {
+        guard focus.pid != nil || focus.package != nil else { return }
+        let filter = focus.pid != nil ? "grep -m1 'mCurClient=ClientState'" : "grep -E 'mCurClient=|mFocusedWindow=|targetWin='"
         // The framework can publish the IME callback before dumpsys sees its new client.
         // A subsequent focus event cancels this lookup without delaying the socket reader.
         var delay = 80
         while !Task.isCancelled && avoInputSocket === socket {
-            let dump = try? await shell("dumpsys input_method | grep -m1 'mCurClient=ClientState'")
+            let dump = try? await shell("dumpsys input_method | " + filter)
             guard !Task.isCancelled, avoInputSocket === socket else { return }
-            if let dump, let display = Self.keyboardClientDisplay(dump, pid: pid) {
+            if let dump, let display = Self.keyboardClientDisplay(dump, pid: focus.pid, package: focus.package) {
                 guard let owner = displays.values.first(where: { $0.androidID == display })?.id else { return }
                 avoInputBinding = (session, display, owner)
                 do { try await writeAvoInput(["action": "attach", "session": session], to: socket) }

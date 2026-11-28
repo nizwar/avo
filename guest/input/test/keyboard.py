@@ -71,7 +71,7 @@ class AvoInputClient:
         pid = int(shell(f"pidof -s {package}"))
         while True:
             msg = self.read()
-            if msg["kind"] == "focus" and msg.get("pid") == pid:
+            if msg["kind"] == "focus" and (msg.get("pid") == pid or msg.get("package") == package):
                 self.session = msg["session"]
                 self.sequence = 0
                 self.send(action="attach")

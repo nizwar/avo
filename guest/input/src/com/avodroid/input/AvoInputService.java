@@ -75,11 +75,14 @@ public final class AvoInputService extends InputMethodService {
         session = UUID.randomUUID().toString();
         EditorInfo info = getCurrentInputEditorInfo();
         InputBinding binding = getCurrentInputBinding();
-        if (binding == null || info == null || info.inputType == InputType.TYPE_NULL) {
+        if (info == null || info.inputType == InputType.TYPE_NULL || getCurrentInputConnection() == null) {
             AvoInputProvider.publish(object("kind", "focus"));
             return;
         }
-        AvoInputProvider.publish(object("kind", "focus", "session", session, "pid", binding.getPid()));
+        // Android can start an editor with a live InputConnection and no InputBinding.
+        AvoInputProvider.publish(binding != null
+                ? object("kind", "focus", "session", session, "pid", binding.getPid())
+                : object("kind", "focus", "session", session, "package", info.packageName));
     }
 
     static void receive(JSONObject edit) {
