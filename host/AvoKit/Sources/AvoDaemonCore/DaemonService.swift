@@ -150,7 +150,8 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
     /// sent them. A Task per record could overtake another: a paste waits
     /// for the Mac clipboard, and its key release must not reach Android
     /// first (the key would stay down and repeat).
-    private let input = AsyncStream<Data>.makeStream()
+    private enum Input: Sendable { case record(Data), edit(UInt32, Data) }
+    private let input = AsyncStream<Input>.makeStream()
     /// A connection says hello once: its code requirement is set then (`authorize`).
     private let helloLock = NSLock()
     private var saidHello = false
@@ -168,7 +169,17 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
         self.service = service
         super.init()
         let (records, core, id) = (input.stream, service.core, self.id)
-        Task { for await record in records { await core.sendInput(record, client: id) } }
+        Task {
+            for await input in records {
+                switch input {
+                case .record(let data): await core.sendInput(data, client: id)
+                case let .edit(display, data):
+                    if let edit = try? AvoXPC.decode(AvoInputEdit.self, from: data) {
+                        await core.editText(edit, display: display, client: id)
+                    }
+                }
+            }
+        }
     }
 
     deinit {
@@ -573,7 +584,12 @@ final class ClientConnection: NSObject, AvoDaemonXPC, @unchecked Sendable {
 
     func sendInput(_ record: Data) {
         guard isAdmitted else { return }
-        input.continuation.yield(record)
+        input.continuation.yield(.record(record))
+    }
+
+    func editText(_ displayID: UInt32, edit: Data) {
+        guard isAdmitted, edit.count < AvoInputEdit.maximumMessageBytes else { return }
+        input.continuation.yield(.edit(displayID, edit))
     }
 
     func shareFiles(_ displayID: UInt32, files: [FileHandle], names: [String], reply: @escaping @Sendable (NSError?) -> Void) {

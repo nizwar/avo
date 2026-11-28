@@ -180,7 +180,7 @@ public actor VMManager {
 
     private func boot(_ settings: Settings) async throws {
         update(VMStatus(state: .starting, detail: String(localized: "Starting Android", bundle: .avoKit)))
-        let (launch, firstBoot) = try await prepareLaunch(settings)
+        let launch = try await prepareLaunch(settings)
         // Stopped meanwhile (Stop shows while Android starts): no engine starts.
         // After each wait below likewise, the status stays the stop's, and what
         // this start opened itself closes; the stop ends the engine.
@@ -199,7 +199,7 @@ public actor VMManager {
         if let bootEnded { throw bootEnded }
 
         update(VMStatus(state: .starting, detail: String(localized: "Waiting for Android to boot", bundle: .avoKit)))
-        let session = try await connectControl(timeout: firstBoot ? max(bootTimeout, firstBootTimeout) : bootTimeout)
+        let session = try await connectControl(timeout: launch.firstBoot ? max(bootTimeout, firstBootTimeout) : bootTimeout)
         let hello: Avo_V1_Hello
         do {
             hello = try await session.start()
@@ -235,7 +235,7 @@ public actor VMManager {
     /// What every start of the engine needs, made for this one: Android's
     /// data where Avo keeps it, the image, the data disk, and the BootConfig
     /// disk with the keys adbd lets in. Whether Android never wrote its data.
-    private func prepareLaunch(_ settings: Settings) async throws -> (EngineLaunch, firstBoot: Bool) {
+    private func prepareLaunch(_ settings: Settings) async throws -> EngineLaunch {
         try await preflight()
         let image = try loadImage()
         try paths.createDirectories()
@@ -253,10 +253,11 @@ public actor VMManager {
                                     density: Int(settings.androidScreen.dpi))
         let configDisk = paths.vm.appending(path: "avo_config.img")
         try bootConfig.write(to: configDisk)
-        let launch = EngineLaunch(config: settings.config, paths: paths, image: image, bootConfigDisk: configDisk,
+        var launch = EngineLaunch(config: settings.config, paths: paths, image: image, bootConfigDisk: configDisk,
                                   profile: settings.profile, displayRate: settings.displayRate,
                                   androidScreen: settings.androidScreen)
-        return (launch, firstBoot)
+        launch.firstBoot = firstBoot
+        return launch
     }
 
     /// Retries until the Bridge Agent listens (it starts late in boot). The
@@ -539,7 +540,7 @@ public actor VMManager {
         engineInstance = nil
         rescueEnded = nil
         do {
-            var (launch, _) = try await prepareLaunch(settings)
+            var launch = try await prepareLaunch(settings)
             launch.exitOnReboot = false
             try Task.checkCancellation()
             engineInstance = launch.instance

@@ -19,6 +19,11 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     /// Size of the Android display in pixels.
     private(set) var displaySize = CGSize(width: 1080, height: 2340)
     var send: ((InputRecord) -> Void)?
+    var sendEdit: ((AvoInputEdit) -> Void)?
+    private var editor = AvoInputTextBuffer()
+    private var usesStockInputRouting = false
+    private var physicalKeyboard: Bool { usesStockInputRouting && editor.state == nil }
+    private var discardingMarkedText = false
     var keymap: KeymapController?
     /// Files dragged from Finder onto the window (copied to /sdcard/Download and shared).
     var onDropFiles: (([URL]) -> Void)?
@@ -29,7 +34,7 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     private var pinchTotal = 0.0
     private var marked: NSAttributedString?
     /// Keys whose down event was sent as an Android key event.
-    private var keysDown: Set<UInt16> = []
+    private var keysDown: [UInt16: (code: UInt32, scan: UInt32)] = [:]
     /// The left button went down beside the picture: the press moves the
     /// window, and nothing of it reaches Android.
     private var movingWindow = false
@@ -134,9 +139,12 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     /// nothing stays pressed in Android. The key mapping lets go of its own
     /// (KeymapController.focusLost).
     func releaseAll() {
-        for code in keysDown.sorted() {
-            guard let key = KeyboardMapping.key(forMacKeyCode: code), let android = KeyboardMapping.androidKeyCode(for: key) else { continue }
-            sendKey(android, down: false, meta: 0, repeatCount: 0)
+        for (_, key) in keysDown.sorted(by: { $0.key < $1.key }) {
+            sendKey(key.code, down: false, meta: 0, repeatCount: 0, scan: key.scan)
+        }
+        if usesStockInputRouting {
+            if hasMarkedText() { sendEditor(.cancel) }
+            resetMacComposition()
         }
         keysDown.removeAll()
         sendTouches(pointer.cancel())
@@ -277,13 +285,17 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
 
     // MARK: Keyboard
 
-    /// Keys sent as Android key events; everything printable goes through the
-    /// input method and arrives as committed text, so every Mac keyboard
-    /// layout types the right characters.
+    /// When macOS handles composition, these keys still go to Android as key events.
     private static let functionalKeys: Set<KeyName> = [
         .returnKey, .tab, .delete, .forwardDelete, .escape, .up, .down, .left, .right,
         .home, .end, .pageUp, .pageDown, .f1, .f2, .f3, .f4, .f5, .f6, .f7, .f8, .f9, .f10, .f11, .f12,
     ]
+
+    /// Keep edits and the keys that change an editor's contents or selection in order.
+    private static let editorKeyCodes = Set([
+        KeyName.left, .right, .up, .down, .home, .end, .pageUp, .pageDown,
+        .delete, .forwardDelete, .returnKey, .tab, .a, .c, .v, .x, .y, .z,
+    ].compactMap { KeyboardMapping.androidKeyCode(for: $0) })
 
     /// The Android presses for a Mac shortcut in this event (⌘C, ⌥←, ⌘⌫, …).
     private func shortcut(_ key: KeyName, _ flags: NSEvent.ModifierFlags) -> [MacShortcuts.Press]? {
@@ -291,46 +303,89 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
                              shift: flags.contains(.shift), control: flags.contains(.control))
     }
 
-    /// Sends a shortcut's presses (each pressed and released).
-    func send(_ presses: [MacShortcuts.Press]) {
+    @discardableResult
+    private func sendShortcut(_ key: KeyName, flags: NSEvent.ModifierFlags = .command) -> Bool {
+        guard let presses = shortcut(key, flags) else { return false }
+        let keepsComposition = key == .c || (key == .x && selectedRange().length == 0)
+        if usesStockInputRouting, hasMarkedText(), !keepsComposition {
+            // Paste follows the marked text even when the input method has selected a candidate.
+            // Other editing commands, including Cut, operate on the current selection.
+            if key == .v, let marked { sendEditor(.commit, text: marked.string) }
+            else { sendEditor(.finish) }
+            resetMacComposition()
+        }
         for press in presses {
             sendKey(press.keyCode, down: true, meta: press.metaState, repeatCount: 0)
             sendKey(press.keyCode, down: false, meta: press.metaState, repeatCount: 0)
         }
+        return true
+    }
+
+    func avoInputEditorChanged(_ state: AvoInputEditorState?) {
+        let previous = editor.state
+        editor.update(state)
+        let lostMark = previous?.markSequence != nil && previous?.markSequence != editor.state?.markSequence
+        if !usesStockInputRouting || previous?.session != editor.state?.session
+            || previous?.generation != editor.state?.generation || lostMark && marked != nil {
+            resetMacComposition()
+        }
+        usesStockInputRouting = true
+    }
+
+    private func resetMacComposition() {
+        discardingMarkedText = true
+        marked = nil
+        inputContext?.discardMarkedText()
+        discardingMarkedText = false
+    }
+
+    private func sendEditor(_ action: AvoInputEdit.Action, text: String? = nil,
+                            caret: NSRange? = nil, replacement: NSRange? = nil) {
+        guard !discardingMarkedText,
+              let edit = editor.edit(action, text: text, selection: caret, replacement: replacement) else { return }
+        sendEdit?(edit)
+    }
+
+    private func keyDown(_ event: NSEvent, code: UInt32, scan: UInt32 = 0) {
+        keysDown[event.keyCode] = (code, scan)
+        let repeated = event.type == .keyDown && event.isARepeat
+        sendKey(code, down: true, meta: meta(event.modifierFlags), repeatCount: repeated ? 1 : 0, scan: scan)
     }
 
     override func keyDown(with event: NSEvent) {
-        guard let key = KeyboardMapping.key(forMacKeyCode: event.keyCode) else {
-            interpretKeyEvents([event])
-            return
-        }
-        if keymap?.key(key, down: true, isRepeat: event.isARepeat) == true { return }
+        let key = KeyboardMapping.key(forMacKeyCode: event.keyCode)
         let flags = event.modifierFlags
-        if key == .escape {
+        if let key, keymap?.key(key, down: true, isRepeat: event.isARepeat) == true { return }
+        if key == .escape && (!usesStockInputRouting || !hasMarkedText()) {
             if !event.isARepeat { sendBack() }
             return
         }
-        if marked == nil, let presses = shortcut(key, flags) {
-            send(presses)
-            return
-        }
+        let forwardsShortcut = (usesStockInputRouting && flags.contains(.command)) || (!physicalKeyboard && !hasMarkedText())
+        if let key, forwardsShortcut, sendShortcut(key, flags: flags) { return }
         // Any other ⌘ combination belongs to the window (or to nothing).
         if flags.contains(.command) { return }
+        if physicalKeyboard {
+            if let extra = PhysicalKeyboard.extra[event.keyCode] {
+                keyDown(event, code: extra.code, scan: UInt32(extra.scan))
+            } else if let code = KeyboardMapping.androidKeyCode(forMacKeyCode: event.keyCode), let scan = PhysicalKeyboard.linux[code] {
+                keyDown(event, code: code, scan: UInt32(scan))
+            }
+            return
+        }
         // While an input method is composing, every key belongs to it.
-        if marked == nil, Self.functionalKeys.contains(key) || flags.contains(.control),
+        if let key, !hasMarkedText(), Self.functionalKeys.contains(key) || flags.contains(.control),
            let code = KeyboardMapping.androidKeyCode(for: key) {
-            keysDown.insert(event.keyCode)
-            sendKey(code, down: true, meta: meta(flags), repeatCount: event.isARepeat ? 1 : 0)
+            keyDown(event, code: code)
             return
         }
         interpretKeyEvents([event])
     }
 
     override func keyUp(with event: NSEvent) {
-        guard let key = KeyboardMapping.key(forMacKeyCode: event.keyCode) else { return }
-        if keymap?.key(key, down: false, isRepeat: false) == true { return }
-        if keysDown.remove(event.keyCode) != nil, let code = KeyboardMapping.androidKeyCode(for: key) {
-            sendKey(code, down: false, meta: meta(event.modifierFlags), repeatCount: 0)
+        if let key = KeyboardMapping.key(forMacKeyCode: event.keyCode),
+           keymap?.key(key, down: false, isRepeat: false) == true { return }
+        if let sent = keysDown.removeValue(forKey: event.keyCode) {
+            sendKey(sent.code, down: false, meta: meta(event.modifierFlags), repeatCount: 0, scan: sent.scan)
         }
     }
 
@@ -340,7 +395,17 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
         // Read from the event: counting the changes went backwards once another window took one
         // (⇧⌘K: Shift down here, up in the editor), and Shift to run walked while held.
         let down = KeyboardMapping.isModifierDown(key, flags: event.modifierFlags.rawValue)
-        _ = keymap?.key(key, down: down, isRepeat: false)
+        if keymap?.key(key, down: down, isRepeat: false) == true { return }
+        if key == .capsLock, physicalKeyboard {
+            sendKey(115, down: true, meta: 0, repeatCount: 0, scan: 58)
+            sendKey(115, down: false, meta: 0, repeatCount: 0, scan: 58)
+        } else if !down, let sent = keysDown.removeValue(forKey: event.keyCode) {
+            sendKey(sent.code, down: false, meta: meta(event.modifierFlags), repeatCount: 0, scan: sent.scan)
+        } else if physicalKeyboard, key != .command && key != .rightCommand,
+                  let code = KeyboardMapping.androidKeyCode(for: key), let scan = PhysicalKeyboard.linux[code] {
+            if down { keyDown(event, code: code, scan: UInt32(scan)) }
+            else { sendKey(code, down: false, meta: meta(event.modifierFlags), repeatCount: 0, scan: UInt32(scan)) }
+        }
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
@@ -357,32 +422,52 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     // MARK: Edit menu
 
     @objc func undo(_ sender: Any?) { sendShortcut(.z) }
-    @objc func redo(_ sender: Any?) { sendShortcut(.z, shift: true) }
+    @objc func redo(_ sender: Any?) { sendShortcut(.z, flags: [.command, .shift]) }
     @objc func cut(_ sender: Any?) { sendShortcut(.x) }
     @objc func copy(_ sender: Any?) { sendShortcut(.c) }
     @objc func paste(_ sender: Any?) { sendShortcut(.v) }
     @objc override func selectAll(_ sender: Any?) { sendShortcut(.a) }
     @objc func performFindPanelAction(_ sender: Any?) { sendShortcut(.f) }
 
-    private func sendShortcut(_ key: KeyName, shift: Bool = false) {
-        if let presses = MacShortcuts.presses(for: key, command: true, option: false, shift: shift, control: false) { send(presses) }
-    }
-
-    private func sendKey(_ code: UInt32, down: Bool, meta: UInt32, repeatCount: UInt32) {
-        send?(.key(KeyEvent(displayID: displayID, action: down ? .down : .up, keyCode: code, metaState: meta, repeatCount: repeatCount)))
+    private func sendKey(_ code: UInt32, down: Bool, meta: UInt32, repeatCount: UInt32, scan: UInt32 = 0) {
+        if scan == 0, let sendEdit, Self.editorKeyCodes.contains(code),
+           let edit = editor.key(code, down: down, meta: meta, repeatCount: repeatCount) {
+            sendEdit(edit)
+            return
+        }
+        send?(.key(KeyEvent(displayID: displayID, action: down ? .down : .up, keyCode: code, metaState: meta, repeatCount: repeatCount, scanCode: scan)))
     }
 
     private func meta(_ flags: NSEvent.ModifierFlags) -> UInt32 {
-        KeyboardMapping.androidMetaState(shift: flags.contains(.shift), control: flags.contains(.control),
-                                         option: flags.contains(.option), command: false,
-                                         capsLock: flags.contains(.capsLock))
+        var value = KeyboardMapping.androidMetaState(shift: flags.contains(.shift), control: flags.contains(.control),
+                                                      option: flags.contains(.option), command: false,
+                                                      capsLock: flags.contains(.capsLock))
+        if physicalKeyboard && flags.rawValue & 0x207f != 0 {
+            // Android layouts can assign a different character to right Option (AltGr).
+            // Events without NX device-side bits use the ordinary left modifier.
+            for (left, right, l, r): (KeyName, KeyName, UInt32, UInt32) in [
+                (.shift, .rightShift, 0x40, 0x80), (.option, .rightOption, 0x10, 0x20),
+                (.control, .rightControl, 0x2000, 0x4000),
+            ] {
+                if KeyboardMapping.isModifierDown(right, flags: flags.rawValue) {
+                    value |= r
+                    if !KeyboardMapping.isModifierDown(left, flags: flags.rawValue) { value &= ~l }
+                }
+            }
+        }
+        return value
     }
 
     // MARK: NSTextInputClient (typing, dead keys, IME, emoji)
 
     func insertText(_ string: Any, replacementRange: NSRange) {
+        guard !discardingMarkedText else { return }
         let text = (string as? NSAttributedString)?.string ?? (string as? String) ?? ""
         marked = nil
+        if usesStockInputRouting {
+            sendEditor(.commit, text: text, replacement: replacementRange)
+            return
+        }
         guard !text.isEmpty else { return }
         // Split long input into records the Input channel accepts.
         var chunk = ""
@@ -397,20 +482,36 @@ final class DisplayView: NSView, KeymapDisplay, @preconcurrency NSTextInputClien
     }
 
     override func doCommand(by selector: Selector) {
+        if usesStockInputRouting, selector == #selector(NSResponder.cancelOperation(_:)), hasMarkedText() {
+            sendEditor(.cancel)
+            marked = nil
+        }
         // Editing commands (Return, Delete, arrows) are sent as key events in keyDown;
         // anything else the input method asks for has no Android equivalent.
     }
 
     func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
+        guard !discardingMarkedText else { return }
         marked = (string as? NSAttributedString) ?? NSAttributedString(string: (string as? String) ?? "")
+        sendEditor(.mark, text: marked?.string ?? "", caret: selectedRange, replacement: replacementRange)
         if marked?.length == 0 { marked = nil }
     }
 
-    func unmarkText() { marked = nil }
-    func selectedRange() -> NSRange { NSRange(location: NSNotFound, length: 0) }
-    func markedRange() -> NSRange { marked.map { NSRange(location: 0, length: $0.length) } ?? NSRange(location: NSNotFound, length: 0) }
-    func hasMarkedText() -> Bool { marked != nil }
-    func attributedSubstring(forProposedRange range: NSRange, actualRange: NSRangePointer?) -> NSAttributedString? { nil }
+    func unmarkText() {
+        if usesStockInputRouting && hasMarkedText() { sendEditor(.finish) }
+        marked = nil
+    }
+    func selectedRange() -> NSRange { editor.selection ?? NSRange(location: NSNotFound, length: 0) }
+    func markedRange() -> NSRange {
+        if !usesStockInputRouting, let marked { return NSRange(location: 0, length: marked.length) }
+        return editor.marked ?? NSRange(location: NSNotFound, length: 0)
+    }
+    func hasMarkedText() -> Bool { marked != nil || editor.marked != nil }
+    func attributedSubstring(forProposedRange range: NSRange, actualRange: NSRangePointer?) -> NSAttributedString? {
+        guard let (text, shared) = editor.substring(range) else { return nil }
+        actualRange?.pointee = shared
+        return NSAttributedString(string: text)
+    }
     func validAttributesForMarkedText() -> [NSAttributedString.Key] { [] }
     func characterIndex(for point: NSPoint) -> Int { NSNotFound }
 

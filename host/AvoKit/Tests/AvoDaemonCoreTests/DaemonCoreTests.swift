@@ -235,6 +235,14 @@ struct Harness {
         #expect(launches.first?.refreshRate == 60)
         #expect(launches.first?.width == 824)
 
+        // Only the owning shim can receive its editor context.
+        let (_, otherEvents) = await harness.connect(.shim(package: "com.example.notes"))
+        let state = try AvoXPC.decode(AvoInputEditorState.self, from: Data(#"{"session":"field","generation":0,"ack":0,"start":1,"end":1,"markStart":-1,"markEnd":-1,"text":"x","offset":0}"#.utf8))
+        await harness.core.avoInputEditorChanged(display, editor: state)
+        let keyboard = DaemonEvent.avoInputEditor(displayID: display, editor: state)
+        #expect(await shimEvents.wait { $0 == keyboard } != nil)
+        #expect(!otherEvents.events.contains(keyboard))
+
         // Input for the shim's own display is forwarded; anything else is dropped.
         let mine = try InputWire.encode(.touch(TouchEvent(displayID: display, action: .down, pointers: [TouchPointer(id: 0, x: 1, y: 2)])))
         let other = try InputWire.encode(.touch(TouchEvent(displayID: display + 7, action: .down, pointers: [TouchPointer(id: 0, x: 1, y: 2)])))

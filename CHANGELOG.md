@@ -6,6 +6,14 @@ number (`CFBundleVersion`) that only goes up; see
 [docs/versioning.md](docs/versioning.md). Releases up to build 113 were
 named "Preview N".
 
+## Unreleased
+
+### Fixed
+
+- **Avo Input** sends Mac input method candidates directly to the focused Android
+  editor, avoiding the delay from pasting. New stock Android instances use
+  Avo Input by default.
+
 ## 1.1.2 (build 128)
 
 ### Fixed

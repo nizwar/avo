@@ -222,6 +222,7 @@ import IOSurface
     func focusDisplay(_ displayID: UInt32)
     /// One Input channel record (docs/protocol.md). Fire and forget.
     func sendInput(_ record: Data)
+    func editText(_ displayID: UInt32, edit: Data)
     /// Copies files (opened by the caller) into /sdcard/Download and shares
     /// them with the app on `displayID`. `names` are the files' names.
     func shareFiles(_ displayID: UInt32, files: [FileHandle], names: [String], reply: @escaping @Sendable (NSError?) -> Void)
@@ -537,6 +538,7 @@ public enum DaemonEvent: Codable, Sendable, Equatable {
     case appRemoved(package: String)
     case installProgress(InstallProgress)
     case displayReady(displayID: UInt32)
+    case avoInputEditor(displayID: UInt32, editor: AvoInputEditorState?)
     case displayClosed(displayID: UInt32)
     /// The app was force stopped (Control Panel): its shim quits.
     case appStopped(package: String)

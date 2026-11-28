@@ -10,6 +10,8 @@ public struct EngineLaunch: Sendable {
     public var image: AndroidImage
     /// Path of the BootConfig disk written for this boot.
     public var bootConfigDisk: URL
+    /// Android has never written to this data disk.
+    var firstBoot = false
     /// Quick-boot snapshot to restore, when one matches this configuration.
     public var restoreSnapshot: URL?
     /// The device identity to boot with (also inside the BootConfig disk).
@@ -85,6 +87,12 @@ public protocol PausableEngine: VMEngine {
     /// What to call when something the engine hands out itself (fingerprints,
     /// Google apps, the unlock) is about to use a paused Android.
     func onUse(_ wake: @escaping @Sendable () async -> Void)
+}
+
+/// Stock images use the selected Android IME. A nil editor routes physical keys to it.
+public protocol AvoInputEngine: VMEngine {
+    var avoInputEditorUpdates: AsyncStream<(UInt32, AvoInputEditorState?)> { get }
+    func editText(_ edit: AvoInputEdit, display: UInt32) async
 }
 
 /// An engine whose Android's clock stands still while the Mac sleeps (its

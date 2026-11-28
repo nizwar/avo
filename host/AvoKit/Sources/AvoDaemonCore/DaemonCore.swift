@@ -276,6 +276,12 @@ public actor DaemonCore {
                 await fingerprints.androidPaused(status.isPaused)
             }
         }
+        if let engine = deps.engine as? any AvoInputEngine {
+            let updates = engine.avoInputEditorUpdates
+            Task { [weak self] in
+                for await (id, editor) in updates { await self?.avoInputEditorChanged(id, editor: editor) }
+            }
+        }
         if let engine = deps.engine as? any ScreenLockEngine {
             let updates = engine.screenLockUpdates
             Task { [weak self] in
@@ -1917,14 +1923,23 @@ public actor DaemonCore {
         _ = try? await vm.controlSession().request(.focusDisplay(request))
     }
 
+    func avoInputEditorChanged(_ id: UInt32, editor: AvoInputEditorState?) {
+        guard let display = displays[id] else { return }
+        clients[display.owner]?.proxy.send(.avoInputEditor(displayID: id, editor: editor))
+    }
+
+    public func editText(_ edit: AvoInputEdit, display id: UInt32, client: ClientID) async {
+        guard ownedDisplay(id, by: client) != nil, let engine = deps.engine as? any AvoInputEngine else { return }
+        if clipboardShared, edit.action == .keyDown, Self.isPaste(keyCode: edit.keyCode, metaState: edit.metaState) {
+            await refreshClipboardForPaste()
+        }
+        await engine.editText(edit, display: id)
+    }
+
     public func sendInput(_ record: Data, client: ClientID) async {
         let owned = Set(displays.values.filter { $0.owner == client }.map(\.id))
         guard !owned.isEmpty else { return }
-        // A paste uses what was just copied on the Mac, not what the clipboard
-        // sync last saw.
-        if clipboardShared, Self.isPaste(record), let text = deps.clipboard.takeChange() {
-            await hostClipboardChanged(text)
-        }
+        if clipboardShared, Self.isPaste(record) { await refreshClipboardForPaste() }
         do {
             try await vm.inputChannel().forward(record, allowedDisplays: owned)
         } catch {
@@ -2241,7 +2256,16 @@ public actor DaemonCore {
         var decoder = InputRecordDecoder()
         decoder.append(record)
         guard case .key(let event)? = try? decoder.next() else { return false }
-        return event.action == .down && event.keyCode == 50 && event.metaState & 0x1000 != 0
+        return event.action == .down && isPaste(keyCode: event.keyCode, metaState: event.metaState)
+    }
+
+    private static func isPaste(keyCode: UInt32?, metaState: UInt32?) -> Bool {
+        keyCode == 50 && (metaState ?? 0) & 0x1000 != 0
+    }
+
+    /// A copy made since the last clipboard poll must arrive before the paste.
+    private func refreshClipboardForPaste() async {
+        if let text = deps.clipboard.takeChange() { await hostClipboardChanged(text) }
     }
 
     /// Settings › Devices › Clipboard: the Mac's clipboard is read and

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:supportsSwitchingToNextInputMethod="true">
+    <!-- macOS supplies the language. Android Settings counts ASCII-capable keyboard subtypes. -->
+    <subtype android:imeSubtypeMode="keyboard" android:isAsciiCapable="true" />
+</input-method>

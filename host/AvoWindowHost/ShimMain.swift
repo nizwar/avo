@@ -209,7 +209,8 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
     private func handle(_ event: DaemonEvent) {
         if case .vmStatus(let status) = event { androidStatusChanged(status) }
         switch event {
-        case .displayReady(let id), .displayClosed(let id), .displayTitle(let id, _), .orientationRequest(let id, _):
+        case .displayReady(let id), .displayClosed(let id), .displayTitle(let id, _),
+             .orientationRequest(let id, _), .avoInputEditor(let id, _):
             if let window = window(for: id) {
                 deliver(event, to: window)
             } else {
@@ -248,6 +249,8 @@ final class ShimAppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidati
         switch event {
         case .displayReady:
             window.displayReady()
+        case .avoInputEditor(_, let editor):
+            window.avoInputEditorChanged(editor)
         case .displayClosed:
             // The Android task finished (e.g. the app called finish()).
             window.closeFromGuest()

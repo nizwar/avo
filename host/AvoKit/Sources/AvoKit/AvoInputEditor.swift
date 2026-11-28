@@ -1,0 +1,184 @@
+import Foundation
+
+/// Absolute selection and composing ranges are UTF-16 offsets in the Android editor, as in NSTextInputClient.
+public struct AvoInputEditorState: Codable, Equatable, Sendable {
+    public var session: String
+    public var generation = 0
+    public var ack: Int
+    public var start: Int
+    public var end: Int
+    public var markStart: Int
+    public var markEnd: Int
+    public var offset: Int?
+    public var text: String?
+    public var privateEditor: Bool?
+    public var contextPending: Bool?
+    public var markSequence: Int?
+}
+
+public struct AvoInputEdit: Codable, Sendable {
+    public enum Action: String, Codable, Sendable { case mark, commit, finish, cancel, keyDown, keyUp }
+    /// The bounded view of the document from which AppKit chose an absolute replacement.
+    public struct Basis: Codable, Sendable {
+        public var generation: Int
+        public var start: Int
+        public var end: Int
+        public var offset: Int?
+        public var text: String?
+
+        fileprivate init?(_ state: AvoInputEditorState, covering range: NSRange) {
+            generation = state.generation
+            start = state.start
+            end = state.end
+            guard start >= 0, end >= 0 else { return nil }
+            if range.length == 0 && range.location == start && start == end { return }
+            guard state.privateEditor != true, let context = state.text, let offset = state.offset,
+                  offset >= 0, offset <= Int(Int32.max), context.utf16.count <= AvoInputTextBuffer.maximumContextLength,
+                  min(range.location, min(start, end)) >= offset,
+                  max(NSMaxRange(range), max(start, end)) <= offset + context.utf16.count else { return nil }
+            self.offset = offset
+            text = context
+        }
+    }
+    public static let maximumMessageBytes = 8 * 1024 * 1024
+    public var session: String
+    public var sequence: Int
+    public var action: Action
+    public var afterMark: Int?
+    public var text: String?
+    public var from: Int?
+    public var to: Int?
+    public var basis: Basis?
+    public var caretStart: Int?
+    public var caretEnd: Int?
+    public var keyCode: UInt32?
+    public var metaState: UInt32?
+    public var repeatCount: UInt32?
+}
+
+/// AppKit asks synchronously, including between two edits in the same key event. Keep an
+/// optimistic view for those reads. The Android editor validates absolute writes against their basis.
+public struct AvoInputTextBuffer {
+    fileprivate static let maximumContextLength = 2048
+    private var sequence = 0
+    public init() {}
+    public private(set) var state: AvoInputEditorState?
+
+    public mutating func update(_ incoming: AvoInputEditorState?) {
+        if let state, var incoming, incoming.session == state.session {
+            guard incoming.generation > state.generation
+                    || (incoming.generation == state.generation && incoming.ack >= sequence) else { return }
+            // Keep the proposal across a receipt while the editor reads its document. A confirmed
+            // unavailable context clears it, and the guest still checks every absolute replacement.
+            if incoming.contextPending == true && incoming.privateEditor != true && incoming.generation == state.generation
+                && incoming.start == state.start && incoming.end == state.end {
+                incoming.offset = state.offset
+                incoming.text = state.text
+            }
+            sequence = max(sequence, incoming.ack)
+            self.state = incoming
+        } else {
+            sequence = incoming?.ack ?? 0
+            state = incoming
+        }
+    }
+
+    private static func range(_ a: Int, _ b: Int) -> NSRange? {
+        guard a >= 0, b >= 0, a <= Int(Int32.max), b <= Int(Int32.max) else { return nil }
+        return NSRange(location: min(a, b), length: abs(b - a))
+    }
+
+    public var selection: NSRange? { state.flatMap { Self.range($0.start, $0.end) } }
+    public var marked: NSRange? { state.flatMap { Self.range($0.markStart, $0.markEnd) } }
+
+    public func substring(_ range: NSRange) -> (String, NSRange)? {
+        guard let state, let text = state.text as NSString?, let offset = state.offset,
+              range.location >= 0, range.length >= 0, range.location <= Int(Int32.max),
+              range.length <= Int(Int32.max) - range.location else { return nil }
+        let shared = NSIntersectionRange(range, NSRange(location: offset, length: text.length))
+        guard shared.length > 0 else { return nil }
+        return (text.substring(with: NSRange(location: shared.location - offset, length: shared.length)), shared)
+    }
+
+    private static func contextRange(in text: NSString, around selection: NSRange) -> NSRange? {
+        // Keep the selected text when it fits. For a larger selection, keep context at its start.
+        let length = selection.length <= maximumContextLength ? selection.length : 0
+        let padding = min(512, (maximumContextLength - length) / 2)
+        let lower = max(0, selection.location - padding)
+        let upper = min(text.length, selection.location + length + padding)
+        var slice = text.rangeOfComposedCharacterSequences(for: NSRange(location: lower, length: upper - lower))
+        if slice.length > maximumContextLength, length > 0 {
+            slice = text.rangeOfComposedCharacterSequences(for: selection)
+        }
+        return slice.length <= maximumContextLength ? slice : nil
+    }
+
+    /// The editor decides where a navigation key moves its selection.
+    public mutating func key(_ code: UInt32, down: Bool, meta: UInt32, repeatCount: UInt32) -> AvoInputEdit? {
+        guard let state else { return nil }
+        sequence += 1
+        return AvoInputEdit(session: state.session, sequence: sequence, action: down ? .keyDown : .keyUp,
+                            keyCode: code, metaState: meta, repeatCount: repeatCount)
+    }
+
+    public mutating func edit(_ action: AvoInputEdit.Action, text: String? = nil,
+                              selection caret: NSRange? = nil, replacement: NSRange? = nil) -> AvoInputEdit? {
+        guard var state else { return nil }
+        let requested = replacement.flatMap { $0.location == NSNotFound ? nil : $0 }
+        // AppKit may name our own marked range explicitly. Android owns that span, including in
+        // a private field, so continue the same composition without projecting its coordinates.
+        let explicit = state.markSequence != nil && requested == marked ? nil : requested
+        var basis: AvoInputEdit.Basis?
+        if let range = explicit {
+            guard range.location >= 0, range.length >= 0, range.location <= Int(Int32.max),
+                  range.length <= Int(Int32.max) - range.location else { return nil }
+            basis = AvoInputEdit.Basis(state, covering: range)
+        }
+        let replaced = explicit ?? marked ?? selection
+        let value = text ?? ""
+        let length = value.utf16.count
+        guard length <= Int(Int32.max) - (replaced?.location ?? 0) else { return nil }
+        let cursor = caret.flatMap { r in
+            r.location >= 0 && r.length >= 0 && r.location <= length && r.length <= length - r.location ? r : nil
+        }
+        let edit = AvoInputEdit(session: state.session, sequence: sequence + 1, action: action,
+                                afterMark: explicit == nil ? state.markSequence : nil, text: text,
+                                from: explicit?.location, to: explicit.map(NSMaxRange), basis: basis,
+                                caretStart: cursor?.location, caretEnd: cursor.map(NSMaxRange))
+        // JSON may use six bytes for one control character. Keep normal keystrokes off the encoding path.
+        let overhead = 512 + (basis?.text?.utf16.count ?? 0) * 6
+        if value.utf8.count >= (AvoInputEdit.maximumMessageBytes - overhead) / 6,
+           AvoXPC.encode(edit).count >= AvoInputEdit.maximumMessageBytes { return nil }
+        let hadMark = marked != nil
+        state.markSequence = action == .mark && !value.isEmpty ? edit.sequence : nil
+        state.markStart = -1
+        state.markEnd = -1
+        if let range = replaced, explicit == nil || basis != nil, action != .finish, action != .cancel || hadMark {
+            if state.privateEditor == true {
+                state.offset = nil
+                state.text = nil
+            } else if let context = state.text as NSString?, let offset = state.offset,
+               range.location >= offset, NSMaxRange(range) <= offset + context.length {
+                state.text = context.replacingCharacters(in: NSRange(location: range.location - offset, length: range.length), with: value)
+            } else {
+                state.offset = range.location
+                state.text = value
+            }
+            state.start = range.location + (cursor?.location ?? length)
+            state.end = range.location + (cursor.map(NSMaxRange) ?? length)
+            if let context = state.text as NSString?, let offset = state.offset, context.length > Self.maximumContextLength {
+                let selection = NSRange(location: state.start - offset, length: state.end - state.start)
+                let slice = Self.contextRange(in: context, around: selection)
+                state.text = slice.map { context.substring(with: $0) }
+                state.offset = slice.map { offset + $0.location }
+            }
+            if action == .mark, length > 0 {
+                state.markStart = range.location
+                state.markEnd = range.location + length
+            }
+        }
+        sequence += 1
+        self.state = state
+        return edit
+    }
+}

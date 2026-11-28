@@ -41,11 +41,12 @@ private final class AndroidDisplays: Sendable {
 
     static func physicalID(_ scanout: Int) -> String { String(4_619_827_124_781_842_688 + UInt64(scanout)) }
 
-    /// avo-vmm's `display <i> off` and `display <i> <w> <h> <hz>` (the rest is not displays).
+    /// Records key events and models avo-vmm's display plug, resize and unplug commands.
     func engine(_ line: String) {
         let words = line.split(separator: " ")
-        guard words.count >= 3, words[0] == "display", let index = Int(words[1]) else { return }
+        guard words.count >= 3, words[0] == "display" || words[0] == "key" else { return }
         engineLog.withLock { $0.append(line) }
+        guard words[0] == "display", let index = Int(words[1]) else { return }
         scanouts.withLock { scanouts in
             let now = ContinuousClock.now
             if words[2] == "off" {
@@ -262,6 +263,34 @@ private final class ModelEngineSocket: @unchecked Sendable {
         var close = Avo_V1_Close()
         close.displayID = displayID
         return .close(close)
+    }
+
+    @Test func aNewWindowCanPressAKeyBeforeTheOldWindowReleasesIt() async throws {
+        let android = AndroidDisplays()
+        let session = try await start(android)
+        #expect(try await session.request(Self.launch(1, 1280, 720), id: 1)?.status == .ok)
+        let (clientFD, agentFD) = try UnixSocket.pair()
+        let client = FileDescriptorStream(fileDescriptor: clientFD)
+        defer { client.close() }
+        let serving = Task { await session.agent.serveInput(FileDescriptorStream(fileDescriptor: agentFD)) }
+        try await client.write(Data(InputWire.preamble()))
+        func key(_ display: UInt32, _ action: KeyAction, code: UInt32 = 45, scan: UInt32 = 16) async throws {
+            let event = KeyEvent(displayID: display, action: action, keyCode: code, scanCode: scan)
+            try await client.write(Data(InputWire.encode(.key(event))))
+        }
+        try await key(1, .down)
+        #expect(await eventually { android.engineLog.withLock { $0.contains("key 16 1") } })
+        #expect(try await session.request(Self.launch(2, 720, 1280), id: 2)?.status == .ok)
+        try await key(2, .down)
+        try await key(1, .up)
+        try await key(2, .down, code: 51, scan: 17)
+        try await key(2, .up, code: 51, scan: 17)
+        try await key(2, .up)
+        try #require(shutdown(clientFD, SHUT_WR) == 0)
+        await serving.value
+        #expect(android.engineLog.withLock { $0.filter { $0.hasPrefix("key ") } }
+                == ["key 16 1", "key 16 0", "key 16 1", "key 17 1", "key 17 0", "key 16 0"])
+        await session.agent.shutdown()
     }
 
     /// A rotation re-plugs only once SurfaceFlinger dropped the old display,
